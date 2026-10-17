@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="theme-color" content="#090318">
+  <meta name="description" content="Protótipo interno de design do Ariquemes da Sorte. Sem sorteios ativos, parceiros confirmados ou coleta de dados.">
+  <title>Ariquemes da Sorte — laboratório visual FS Brasil</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --base:#090318; --surface:#120729; --violet:#8F49B7; --gold:#F3A849; --green:#5EB14F;
+      --text:#f8f5fd; --muted:#c0b7cf; --line:rgba(237,227,255,.16);
+      --radius:24px; --container:1160px; --ease:cubic-bezier(.2,.8,.2,1);
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:var(--base);color:var(--text);font:400 16px/1.58 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;overflow-x:hidden}
+    button,a{font:inherit}
+    a{color:inherit}
+    button{cursor:pointer}
+    :focus-visible{outline:3px solid var(--gold);outline-offset:4px}
+    .skip{position:absolute;top:-150px;left:14px;background:white;color:#111;padding:10px;z-index:1000}
+    .skip:focus{top:12px}
+    .wrap{width:min(calc(100% - 40px),var(--container));margin-inline:auto}
+    .lab{background:#ebe2f6;color:#21122f;text-align:center;padding:9px 20px;font-size:12px;letter-spacing:.045em;font-weight:760}
+    .site-head{border-bottom:1px solid var(--line);background:rgba(9,3,24,.88)}
+    .head-inner{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:17px 0}
+    .brand{display:flex;align-items:center;gap:12px;line-height:1.15;text-decoration:none}
+    .logo-slot{display:grid;place-items:center;width:48px;height:48px;flex-shrink:0;border:1px dashed rgba(243,168,73,.65);border-radius:14px;color:var(--gold);font-size:9px;font-weight:800;text-align:center;line-height:1.15;letter-spacing:.03em}
+    .brand-official{display:block;width:min(155px,36vw);max-height:70px;height:auto;object-fit:contain}
+    .brand-name{font-weight:780;letter-spacing:-.035em;font-size:19px}
+    .brand-sub{display:block;color:var(--muted);font-size:11px;font-weight:520;letter-spacing:.02em;margin-top:3px}
+    .head-link{font-size:13px;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--line)}
+    .switcher{display:flex;gap:18px;align-items:center;justify-content:space-between;padding:25px 0 20px;flex-wrap:wrap}
+    .eyebrow{font-weight:760;letter-spacing:.16em;text-transform:uppercase;font-size:11px;color:var(--gold)}
+    .switcher p{margin:4px 0 0;color:var(--muted);font-size:13px}
+    .segmented{display:inline-flex;gap:4px;border:1px solid var(--line);border-radius:100px;padding:5px;background:#21122e}
+    .segmented button{padding:9px 16px;border:0;color:#dad1e6;background:transparent;border-radius:50px;font-size:13px;font-weight:700;min-height:40px}
+    .segmented button[aria-pressed="true"]{color:#170b23;background:#f6eefa;box-shadow:0 4px 14px rgba(0,0,0,.17)}
+    .variant[hidden]{display:none !important}
+    h1,h2,h3,p{margin-top:0}
+    h1,h2,h3{line-height:1.06;letter-spacing:-.055em}
+    h1{font-size:clamp(2.75rem,7vw,6.5rem);font-weight:760}
+    h2{font-size:clamp(1.8rem,4.3vw,3.25rem);font-weight:720}
+    h3{font-size:1.25rem;letter-spacing:-.035em}
+    p{color:var(--muted)}
+    .lead{font-size:clamp(1rem,1.6vw,1.15rem);max-width:56ch}
+    .actions{display:flex;flex-wrap:wrap;gap:11px;margin-top:30px;align-items:center}
+    .btn{display:inline-flex;justify-content:center;align-items:center;gap:10px;min-height:49px;text-decoration:none;border-radius:13px;padding:11px 20px;font-weight:760;font-size:14px;border:1px solid transparent;transition:transform .2s var(--ease),background .2s var(--ease)}
+    .btn:hover{transform:translateY(-2px)}
+    .btn-primary{background:var(--green);color:#081306}
+    .btn-secondary{background:rgba(255,255,255,.065);border-color:var(--line);color:var(--text)}
+    .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+    .muted-note{font-size:12px;color:#d2c6e0;margin:18px 0 0}
+    .section{padding:85px 0}
+    .section-kicker{margin:0 0 18px;font-size:11px;letter-spacing:.15em;text-transform:uppercase;font-weight:780;color:var(--gold)}
+    .section-head{display:flex;justify-content:space-between;align-items:end;gap:25px;margin-bottom:24px}
+    .section-head p{max-width:47ch}
+    .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+    .bento-hero{display:grid;grid-template-columns:minmax(0,1.22fr) minmax(270px,.78fr);gap:16px}
+    .bento-primary{padding:clamp(26px,5vw,62px);min-height:555px;display:flex;flex-direction:column;justify-content:space-between;background:radial-gradient(ellipse at 100% 0%,rgba(143,73,183,.21),transparent 54%),var(--surface)}
+    .bento-primary h1{font-size:clamp(2.55rem,5.1vw,5rem);max-width:14ch;margin:24px 0}
+    .highlight{color:#c39ce0}
+    .bento-aside{display:grid;gap:16px}
+    .feature{padding:28px;display:flex;flex-direction:column;justify-content:space-between;min-height:270px}
+    .feature-visual{position:relative;isolation:isolate;min-height:180px;background:linear-gradient(140deg,#2b1743,#170e31)}
+    .feature-visual::before{content:"";position:absolute;inset:25px 15%;border-radius:50%;border:2px solid rgba(94,177,79,.75);transform:rotate(-18deg)}
+    .feature-visual::after{content:"";position:absolute;inset:43px 25%;border-radius:50%;border:1px solid rgba(243,168,73,.5);transform:rotate(24deg)}
+    .feature-visual span{position:relative;z-index:1;font-size:11px;letter-spacing:.12em;color:#e8d7fa;text-transform:uppercase}
+    .numbers{background:#ecdbf4;color:#22102f}
+    .numbers h3{font-size:clamp(1.7rem,3vw,2.5rem);margin:0}
+    .numbers p{color:#553f61;margin:12px 0 0;font-size:14px}
+    .bento-grid{display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:16px}
+    .category{padding:27px;min-height:230px;display:flex;flex-direction:column;justify-content:space-between}
+    .category:nth-child(1){background:#27153b}
+    .category:nth-child(2){background:#172922}
+    .category:nth-child(3){background:#33221b}
+    .category .marker{font-size:26px;line-height:1;color:var(--gold)}
+    .category small{font-size:12px;color:#c9c0d4}
+    .category h3{margin-bottom:7px}
+    .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;counter-reset:step}
+    .step{padding:24px 26px}
+    .step b{display:block;color:var(--gold);font-size:13px;margin-bottom:25px}
+    .step p{font-size:14px;margin:0}
+    .cine-hero{border:1px solid var(--line);border-radius:var(--radius);position:relative;min-height:650px;isolation:isolate;overflow:hidden;background:linear-gradient(165deg,rgba(27,9,52,.64),rgba(6,3,18,.95)),radial-gradient(ellipse at 65% 70%,#532877 0,#120729 58%)}
+    .cine-hero::before{content:"";position:absolute;z-index:-1;width:min(73vw,740px);aspect-ratio:1;border:1px solid rgba(243,168,73,.25);border-radius:50%;right:-12%;top:-35%;box-shadow:0 0 0 95px rgba(143,73,183,.06),0 0 0 195px rgba(143,73,183,.035)}
+    .cine-hero::after{content:"";position:absolute;z-index:-1;inset:auto -5% -1% -5%;height:42%;background:linear-gradient(160deg,transparent,rgba(94,177,79,.08)),repeating-linear-gradient(172deg,transparent 0 23px,rgba(226,201,252,.05) 24px 25px);transform:skewY(-5deg)}
+    .cine-content{padding:clamp(30px,7vw,90px);min-height:650px;display:flex;flex-direction:column;align-items:start;justify-content:center}
+    .cine-content h1{max-width:12ch;margin:25px 0 20px}
+    .cine-content h1 span{color:var(--gold)}
+    .cine-content .lead{max-width:51ch}
+    .cine-bottom{display:flex;align-items:center;gap:16px;margin-top:55px;color:#efe1fc;font-size:12px;letter-spacing:.07em;text-transform:uppercase}
+    .cine-bottom::before{content:"";width:49px;height:1px;background:var(--gold)}
+    .editorial{display:grid;grid-template-columns:1.1fr .9fr;gap:35px;align-items:center}
+    .editorial-graphic{min-height:350px;display:grid;place-items:center;padding:32px;background:linear-gradient(150deg,#2c1740,#17261d);border-radius:var(--radius);border:1px solid var(--line)}
+    .editorial-graphic .line-art{width:min(100%,330px);aspect-ratio:1;display:grid;place-items:center;border:1px solid rgba(243,168,73,.6);border-radius:50%;font-size:clamp(4rem,9vw,8rem);color:var(--gold);position:relative;font-weight:250}
+    .editorial-graphic .line-art:after{content:"";position:absolute;inset:12%;border-radius:50%;border:1px solid rgba(94,177,79,.7)}
+    .divider{height:1px;background:var(--line);margin-top:70px}
+    .faq{display:grid;grid-template-columns:.8fr 1.2fr;gap:45px}
+    details{border-top:1px solid var(--line);padding:20px 0}
+    details:last-child{border-bottom:1px solid var(--line)}
+    summary{cursor:pointer;font-weight:680;line-height:1.4;list-style-position:outside}
+    details p{margin:13px 0 0;font-size:14px}
+    footer{border-top:1px solid var(--line);padding:31px 0 42px}
+    .footer-row{display:flex;justify-content:space-between;gap:20px;align-items:center;flex-wrap:wrap}
+    footer p{margin:0;font-size:12px}
+    dialog{background:#1b1030;color:var(--text);border:1px solid #574269;border-radius:20px;padding:30px;max-width:min(90vw,470px);box-shadow:0 20px 100px #0008}
+    dialog::backdrop{background:rgba(4,2,14,.79)}
+    dialog p{font-size:14px}
+    @media(max-width:850px){.bento-hero,.editorial,.faq{grid-template-columns:1fr}.bento-aside{grid-template-columns:1fr 1fr}.bento-grid{grid-template-columns:1fr 1fr}.bento-grid .category:last-child{grid-column:1/-1}.cine-hero,.cine-content{min-height:570px}.section{padding:64px 0}}
+    @media(max-width:600px){.wrap{width:min(calc(100% - 28px),var(--container))}.head-link{display:none}.switcher{align-items:start}.segmented{width:100%}.segmented button{flex:1}.bento-primary{min-height:500px}.bento-aside,.bento-grid,.steps{grid-template-columns:1fr}.bento-grid .category:last-child{grid-column:auto}.feature{min-height:215px}.bento-primary h1{font-size:clamp(2.4rem,12vw,4rem)}.cine-content{padding:31px 23px;min-height:560px}.cine-content h1{font-size:clamp(2.65rem,12vw,4.8rem)}.section-head{display:block}.section{padding:54px 0}.divider{margin-top:42px}.actions .btn{width:100%}.editorial-graphic{min-height:270px}.brand-name{font-size:16px}.logo-slot{width:42px;height:42px}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+  <div class="lab" role="status">LABORATÓRIO FS BRASIL · PRÉVIA CONCEITUAL · NÃO É SORTEIO ATIVO</div>
+  <header class="site-head">
+    <div class="wrap head-inner">
+      <a class="brand" href="#conteudo" aria-label="Ariquemes da Sorte, ir ao conteúdo">
+        <img class="brand-official" src="https://www.ariquemesdasorte.com/assets/logo.png" alt="Logotipo oficial Ariquemes da Sorte">
+        <span class="brand-name">Ariquemes da Sorte<span class="brand-sub">Conexões que valorizam nossa cidade</span></span>
+      </a>
+      <a class="head-link" href="#sobre-o-teste">Sobre este experimento</a>
+    </div>
+  </header>
+  <main class="wrap" id="conteudo">
+    <section class="switcher" aria-label="Seletor das propostas visuais">
+      <div>
+        <div class="eyebrow">FS Design Lab / experimento 01</div>
+        <p>Compare dois caminhos visuais com a identidade cromática original.</p>
+      </div>
+      <div class="segmented" role="group" aria-label="Selecionar proposta">
+        <button type="button" id="show-bento" aria-pressed="true" aria-controls="view-bento">01 · Bento local</button>
+        <button type="button" id="show-cine" aria-pressed="false" aria-controls="view-cine">02 · Cinematográfica</button>
+      </div>
+    </section>
+    <div id="selection-status" class="skip" aria-live="polite"></div>
+
+    <div class="variant" id="view-bento">
+      <div class="bento-hero">
+        <section class="panel bento-primary" aria-labelledby="bento-title">
+          <div><div class="eyebrow">Ariquemes · Rondônia</div>
+            <h1 id="bento-title">Sua indicação tem valor. <span class="highlight">A cidade inteira pode se conectar.</span></h1>
+            <p class="lead">Conheça o pré-lançamento dos Embaixadores Fundadores: uma proposta para aproximar pessoas, empresas e oportunidades em Ariquemes.</p>
+          </div>
+          <div><div class="actions"><a class="btn btn-primary" href="#conceito-bento">Conhecer o conceito <span aria-hidden="true">↗</span></a><button type="button" class="btn btn-secondary" data-open-status>Pré-cadastro em preparação</button></div>
+          <p class="muted-note">Protótipo demonstrativo · ainda não aceita inscrições nem anuncia premiações.</p></div>
+        </section>
+        <div class="bento-aside">
+          <div class="panel feature feature-visual"><span>Conexões reais, apresentação em desenvolvimento</span></div>
+          <div class="panel feature numbers"><span class="eyebrow" style="color:#4c2a63">Visão do projeto</span><div><h3>Embaixadores<br>Fundadores.</h3><p>Pré-lançamento regional: conexões locais, transparência e participação informada.</p></div></div>
+        </div>
+      </div>
+      <section class="section" id="conceito-bento">
+        <div class="section-head"><div><div class="section-kicker">01 / O que queremos aproximar</div><h2>Três pilares para conectar<br>pessoas e empresas.</h2></div><p>Temas observados no site atual. Não há empresas participantes nem resultados confirmados neste laboratório.</p></div>
+        <div class="bento-grid">
+          <article class="panel category"><span class="marker" aria-hidden="true">↗</span><div><small>Pilar do conceito · demonstração</small><h3>Empresas locais</h3><p>Mais visibilidade e conexão para os negócios que movimentam Ariquemes.</p></div></article>
+          <article class="panel category"><span class="marker" aria-hidden="true">✳</span><div><small>Pilar do conceito · demonstração</small><h3>Indicações</h3><p>Recomendações locais podem ganhar uma jornada organizada e identificável.</p></div></article>
+          <article class="panel category"><span class="marker" aria-hidden="true">↗</span><div><small>Pilar do conceito · demonstração</small><h3>Resultados</h3><p>Uma proposta de acompanhar conexões reais, sem exibir resultados fictícios.</p></div></article>
+        </div>
+      </section>
+    </div>
+
+    <div class="variant" id="view-cine" hidden>
+      <section class="cine-hero" aria-labelledby="cine-title">
+        <div class="cine-content">
+          <div class="eyebrow">Ariquemes · Nascido para conectar</div>
+          <h1 id="cine-title">Sua indicação <span>tem valor.</span></h1>
+          <p class="lead">Um movimento local em pré-lançamento, pensado para aproximar quem conhece Ariquemes dos negócios que fazem a cidade acontecer.</p>
+          <div class="actions"><a class="btn btn-primary" href="#conceito-cine">Descobrir o conceito <span aria-hidden="true">↗</span></a><button class="btn btn-secondary" type="button" data-open-status>Pré-cadastro em preparação</button></div>
+          <div class="cine-bottom">Direção visual conceitual · mídia regional pendente</div>
+        </div>
+      </section>
+      <section class="section editorial" id="conceito-cine">
+        <div><div class="section-kicker">02 / Nossa região como protagonista</div><h2>Indique, conecte e acompanhe o que está por vir.</h2><p class="lead">O programa Embaixadores Fundadores já é apresentado na página oficial. Neste laboratório, ainda não há cadastro real, parceiros confirmados ou campanhas ativas.</p><button type="button" class="btn btn-ghost" data-open-status>Ver estágio do projeto</button></div>
+        <div class="editorial-graphic" aria-label="Composição geométrica abstrata do laboratório, sem representar imagem da cidade"><div class="line-art" aria-hidden="true">✳</div></div>
+      </section>
+    </div>
+
+    <div class="divider"></div>
+    <section class="section" id="sobre-o-teste">
+      <div class="section-head"><div><div class="section-kicker">Experimento · sem dados reais</div><h2>Uma prévia para decidir.<br>Não para participar.</h2></div><p>Este material permite comparar layouts sem criar cadastro, prometer prêmios ou publicar uma promoção.</p></div>
+      <div class="steps">
+        <article class="panel step"><b>01 / Design system</b><h3>Marca primeiro</h3><p>O protótipo referencia a logo existente no domínio oficial. O arquivo deve ser incorporado localmente antes de um possível deploy.</p></article>
+        <article class="panel step"><b>02 / Experiência</b><h3>Celular em foco</h3><p>Estrutura responsiva, navegação por teclado e redução de movimento previstas.</p></article>
+        <article class="panel step"><b>03 / Evolução</b><h3>Validação antes de lançar</h3><p>Integrações, parceiros, campanhas e regras dependem de confirmação e aprovação.</p></article>
+      </div>
+    </section>
+    <section class="section faq" aria-labelledby="faq-title">
+      <div><div class="section-kicker">Perguntas sobre o piloto</div><h2 id="faq-title">Transparência desde o primeiro clique.</h2></div>
+      <div>
+        <details><summary>Já é possível se cadastrar?</summary><p>O site oficial apresenta um formulário de pré-cadastro, mas este laboratório é apenas visual e não envia, recebe nem armazena dados.</p></details>
+        <details><summary>Existem sorteios ou prêmios disponíveis?</summary><p>Não há campanhas, prêmios ou parceiros confirmados neste protótipo. As categorias são apenas ideias para avaliação do visual.</p></details>
+        <details><summary>Este material substitui o site publicado?</summary><p>Não. O laboratório fica em uma branch isolada e não está conectado a nenhum domínio nem ambiente de produção.</p></details>
+      </div>
+    </section>
+  </main>
+  <footer><div class="wrap footer-row"><p><strong>Ariquemes da Sorte</strong> · prévia não operacional</p><p>Laboratório de interface · Fábrica de Sites Brasil · 2026</p></div></footer>
+  <dialog id="status-dialog" aria-labelledby="dialog-title"><h2 id="dialog-title" style="font-size:1.65rem">Pré-cadastro indisponível</h2><p>Este é um experimento visual, sem coleta de dados, premiações, pagamentos ou campanhas ativas. O cadastro poderá ser considerado somente após a validação do projeto, da privacidade e das exigências legais.</p><form method="dialog"><button class="btn btn-primary" type="submit">Entendi</button></form></dialog>
+  <script>
+    (() => {
+      "use strict";
+      const buttons = {bento:document.querySelector("#show-bento"),cine:document.querySelector("#show-cine")};
+      const sections = {bento:document.querySelector("#view-bento"),cine:document.querySelector("#view-cine")};
+      const live = document.querySelector("#selection-status");
+      function select(which) {
+        for (const key of Object.keys(buttons)) {
+          const active = key === which;
+          buttons[key].setAttribute("aria-pressed", String(active));
+          sections[key].hidden = !active;
+        }
+        live.textContent = "Proposta " + (which === "bento" ? "Bento local" : "Cinematográfica") + " selecionada.";
+      }
+      buttons.bento.addEventListener("click",() => select("bento"));
+      buttons.cine.addEventListener("click",() => select("cine"));
+      const dialog = document.querySelector("#status-dialog");
+      document.querySelectorAll("[data-open-status]").forEach(b => b.addEventListener("click",() => {
+        if (typeof dialog.showModal === "function") dialog.showModal();
+        else window.alert("Pré-cadastro indisponível: esta página é apenas uma demonstração.");
+      }));
+    })();
+  </script>
+</body>
+</html>
