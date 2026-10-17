@@ -18,9 +18,9 @@
 - [ ] Não há overflow horizontal em 320, 360, 390, 768, 1024, 1440 px.
 - [ ] Texto e elementos interativos têm contraste suficiente (medir WCAG).
 - [ ] `prefers-reduced-motion: reduce` suprime animações/transições.
-- [ ] Sem requisições a APIs, sem localStorage/cookies e sem envio de dados.
+- [ ] Nenhuma chamada a APIs, sem localStorage/cookies e sem envio de dados; **confirmar que a única requisição externa prevista no HTML é a imagem pública da logo oficial**.
 - [ ] Títulos, ordem de headings e foco são compreensíveis em leitor de tela.
-- [ ] Logo permanece placeholder até receber arquivo original; não afirmar marca homologada.
+- [ ] Logo oficial carregada do domínio e texto alternativo correto; obter arquivo local antes de qualquer deploy para reduzir dependência de produção.
 - [ ] Todos os dados de categorias são rotulados demonstrativos.
 - [ ] `noindex` presente; publicação permanece proibida sem aprovação.
 
@@ -28,10 +28,10 @@
 
 | Severidade | Item | Tratamento |
 |---|---|---|
-| Bloqueador | Código e URL do site publicado não identificados | Confirmar origem antes de integrar |
-| Bloqueador | Logo original indisponível | Reservar espaço, solicitar asset |
+| Bloqueador | Domínio oficial identificado, mas diretório-fonte e backend não localizados | Confirmar origem antes de integrar |
+| Médio | Logo oficial acessível por URL, mas não incorporada localmente | Obter arquivo autorizado, manter fallback e validar dimensões |
 | Bloqueador | Regulação de promoções e regras de participação não revisadas | Sem premiações, valores, cotas, checkout ou promessas |
-| Bloqueador | Nenhum backend ou privacidade de cadastro definido | Nenhuma coleta de dados no teste |
+| Bloqueador | Site oficial contém cadastro real; destino do POST e política não auditados | Nenhuma coleta ou integração no laboratório; examinar política/dados separadamente |
 | Médio | Ilustração cinematográfica é substituta abstrata | Trocar somente por mídia real autorizada |
 | Médio | QA visual/teclado/performance ainda não executado | Revisão posterior em ambiente de teste |
 | Médio | Agentes em markdown não equivalem a agentes executados | Validar ambiente compatível e registrar logs de execução |
