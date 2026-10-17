@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#090318">
+<title>Painel dos Embaixadores — Protótipo Ariquemes da Sorte</title>
+<style>
+:root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#f8f7fc;background:#090318;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0;line-height:1.5}button,input,select{font:inherit}button{cursor:pointer}
+a{color:inherit}.shell{max-width:1160px;margin:0 auto;padding:20px 17px 64px}
+header{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-bottom:1px solid #ffffff1a;padding:7px 0 20px}
+.brand{font-weight:820;letter-spacing:-.045em;font-size:20px}.clover{color:#87d56e;margin-right:5px}.sub{color:#aea7c9;font-size:12px}
+.demo{background:#f3a84919;color:#ffce87;border:1px solid #f3a84955;font-size:11px;letter-spacing:.08em;padding:6px 10px;border-radius:30px;font-weight:750}
+.eyebrow{color:#b7a1ea;font-size:11px;font-weight:850;letter-spacing:.15em;text-transform:uppercase}
+h1{font-size:clamp(29px,5vw,50px);letter-spacing:-.055em;line-height:1.07;margin:13px 0 11px;font-weight:770;max-width:720px}
+h2{font-size:20px;letter-spacing:-.035em;margin:0 0 6px}
+p{color:#bcb6d1;margin:0;font-size:14px}.hero{padding:38px 0 26px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.hero p{max-width:600px}.hero-tag{display:inline-flex;gap:7px;align-items:center;border:1px solid #79d66855;padding:8px 12px;border-radius:40px;color:#b8ebb1;background:#5eb14f14;font-size:12px}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.card,.panel{background:#151025;border:1px solid #ffffff16;border-radius:18px;padding:19px;min-width:0}
+.card small,.metric-label{display:block;color:#aea6c7;font-size:12px}.card strong{display:block;font-size:clamp(25px,3.5vw,37px);letter-spacing:-.045em;font-variant-numeric:tabular-nums;margin:8px 0 4px}.card em{font-style:normal;color:#97d48a;font-size:11px}
+.grid{display:grid;grid-template-columns:1fr;gap:15px;margin-top:15px}.panel-heading{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
+.muted{font-size:12px;color:#a9a1c0}.callout{margin:16px 0 2px;background:linear-gradient(130deg,#132d24,#1d1936);border:1px solid #5eb14f55;border-radius:16px;padding:19px}
+.callout strong{font-size:16px}.callout p{margin-top:6px;color:#dbdfdb}
+.pill{display:inline-flex;align-items:center;border-radius:90px;background:#5eb14f1b;color:#a8e69e;font-size:11px;padding:5px 9px}
+.controls{display:flex;gap:8px;flex-wrap:wrap}.btn{background:#242038;border:1px solid #ffffff23;color:#f6f3fc;padding:10px 13px;border-radius:10px;font-size:12px;font-weight:720}
+.btn:hover,.btn:focus-visible{border-color:#a678e2;outline:0}.btn.primary{background:#7b41bf;border-color:#9860da}.btn.green{background:#397b38;border-color:#65bb57}.btn:disabled{opacity:.45;cursor:not-allowed}
+.tabs{display:flex;gap:5px;background:#110b20;border-radius:12px;padding:5px;overflow-x:auto}
+.tab{border:0;background:transparent;color:#aa9dbf;border-radius:8px;padding:9px 11px;font-size:12px;white-space:nowrap}
+.tab.active{color:#fff;background:#3b2954}
+.funnel{display:flex;align-items:stretch;gap:5px;margin:6px 0 16px}.funnel .step{background:#241a36;border-radius:12px;padding:13px 9px;flex:1;text-align:center;min-width:0}
+.funnel .step b{display:block;font-size:clamp(16px,3.2vw,25px);letter-spacing:-.04em}.funnel .step span{display:block;color:#aea7c1;font-size:10px;margin-top:3px}
+.funnel .arrow{align-self:center;font-size:13px;color:#947bad}
+.sources{display:grid;gap:13px}.source{display:grid;grid-template-columns:100px 1fr 57px;gap:11px;align-items:center;font-size:12px}
+.track{height:8px;border-radius:20px;background:#302940;overflow:hidden}.bar{height:100%;border-radius:20px;background:#8f49b7}.source:nth-child(2) .bar{background:#5eb14f}.source:nth-child(3) .bar{background:#f3a849}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}.share-card{padding:15px;border:1px solid #ffffff1a;border-radius:12px;background:#100c1e;margin-top:10px}
+.share-card p{font-size:13px;color:#d0c9df;white-space:pre-wrap;overflow-wrap:anywhere}
+.share-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:#958cad;font-weight:650;padding:9px 7px;border-bottom:1px solid #ffffff25;white-space:nowrap}td{padding:12px 7px;border-bottom:1px solid #ffffff12;color:#e8e3f1}
+td:last-child{text-align:right}th:last-child{text-align:right}.table-scroll{overflow-x:auto}.table-scroll table{min-width:440px}
+.anon{font-weight:700}.badge{font-size:10px;border-radius:40px;background:#ffffff10;padding:3px 7px;color:#c8c1dc}
+.release{border:1px solid #ffffff25;background:transparent;color:#e5ccdd;padding:5px 8px;border-radius:7px;font-size:11px}
+.release:hover{border-color:#eeaeaf}
+.fields{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}label{font-size:12px;color:#c0b7d2;display:flex;flex-direction:column;gap:6px}
+input[type=number]{background:#110c20;border:1px solid #ffffff2a;color:#fff;padding:10px;border-radius:9px;width:100%;min-width:0}
+.result{padding:18px;border-radius:13px;background:#301e46;margin-top:14px}
+.result strong{font-size:28px;color:#b2eca1;letter-spacing:-.04em}.result small{display:block;color:#c6bdcc}
+footer{padding-top:26px;color:#978fa8;font-size:12px;line-height:1.6}.sr-only{position:absolute;left:-10000px}
+@media(min-width:730px){.shell{padding:24px 32px 72px}.cards{grid-template-columns:repeat(4,1fr)}.grid{grid-template-columns:1.15fr .85fr}.fields{grid-template-columns:repeat(3,1fr)}.panel{padding:23px}.wide{grid-column:1/-1}}
+@media(prefers-reduced-motion:no-preference){.btn,.tab{transition:background .16s ease,border-color .16s ease}.card{transition:border-color .16s ease}.card:hover{border-color:#65438f}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header><div><div class="brand"><span class="clover">✤</span>Ariquemes da Sorte</div><div class="sub">Área do Embaixador · Laboratório FS Brasil</div></div><span class="demo">DEMONSTRAÇÃO · SEM DADOS REAIS</span></header>
+<section class="hero"><div><div class="eyebrow">PROGRAMA DE INDICAÇÃO DIRETA</div><h1>Quem compartilha, conecta. Quem cadastra, conquista.</h1><p>Veja quantas pessoas concluíram o cadastro, quantas compraram e qual canal gera mais resultados — sem exibir contatos privados.</p></div><span class="hero-tag">✓ Somente 1 nível de comissão</span></section>
+<section class="cards" aria-label="Indicadores">
+<div class="card"><small>Compartilhamentos iniciados</small><strong id="shares">1.000</strong><em>Não são contatos únicos</em></div>
+<div class="card"><small>Acessos únicos estimados</small><strong id="clicks">270</strong><em>Baseados em navegador</em></div>
+<div class="card"><small>Cadastros válidos ativos</small><strong id="registrations">50</strong><em>WhatsApp verificado</em></div>
+<div class="card"><small>Compradores conquistados</small><strong id="buyers">14</strong><em>Compras diretas confirmadas</em></div>
+</section>
+<div class="callout"><strong id="noticeTitle">Você registrou 50 cadastros válidos.</strong><p id="notice">Compartilhar 1.000 vezes não significa indicar 1.000 pessoas. Só conta no ranking quando a pessoa conclui seu cadastro único e verificado.</p></div>
+<div class="grid">
+<section class="panel"><div class="panel-heading"><div><h2>Do compartilhamento ao cadastro</h2><p>Acompanhe onde acontece a conversão.</p></div></div>
+<div class="funnel"><div class="step"><b id="fShares">1.000</b><span>ações de compartilhar</span></div><div class="arrow">›</div><div class="step"><b id="fClicks">270</b><span>navegadores com acesso</span></div><div class="arrow">›</div><div class="step"><b id="fRegs">50</b><span>cadastros válidos</span></div></div>
+<div class="row"><span class="muted">Conversão de acesso em cadastro</span><strong id="conversion">18,5%</strong></div>
+<p class="muted" style="margin-top:12px">Compartilhamentos e cliques são estimativas técnicas, não comprovam quem recebeu a mensagem. A atribuição fica fixa após o cadastro verificado.</p>
+</section>
+<section class="panel"><div class="panel-heading"><div><h2>De onde vêm os resultados?</h2><p>Compare canais do link compartilhado.</p></div></div>
+<div class="tabs" aria-label="Comparar canais" id="measureTabs"><button class="tab active" data-metric="registrations">Cadastros</button><button class="tab" data-metric="buyers">Compradores</button><button class="tab" data-metric="sales">Vendas</button></div>
+<div class="sources" style="margin-top:22px" id="sources"></div><p class="muted" style="margin-top:18px">Origem informada pelo link. Nem sempre é possível verificar em qual aplicativo o destinatário abriu.</p>
+</section>
+<section class="panel"><div class="panel-heading"><div><h2>Convide com clareza</h2><p>Mensagem pronta explicando quando a indicação passa a valer.</p></div></div>
+<div class="share-card"><p id="shareText">🍀 Eu te convidei para conhecer o Ariquemes da Sorte! Abra meu link e faça seu cadastro gratuito, confirmando seu WhatsApp. A indicação só conta quando o cadastro é concluído e validado. Confira as regras: [SEU LINK DE CONVITE]. Se você já estiver cadastrado, outro convite não cria uma nova indicação.</p>
+<div class="share-actions"><button class="btn green" id="copyWhatsapp">Copiar para WhatsApp</button><button class="btn" id="copyInstagram">Copiar para Instagram</button><button class="btn" id="copyOther">Copiar mensagem</button></div></div>
+<p class="muted" id="copyStatus" role="status" style="margin-top:10px">Só registramos a tentativa de compartilhamento acionada no painel. Não acessamos a agenda de contatos.</p>
+</section>
+<section class="panel"><div class="panel-heading"><div><h2>Meu simulador</h2><p>Projeção hipotética de comissão por campanha.</p></div><span class="pill">Campanha demo · 5%</span></div>
+<div class="fields"><label>Novos cadastros projetados<input id="simulatePeople" type="number" min="0" max="10000" value="30"></label><label>Que compram (%)<input id="simulateConversion" type="number" min="0" max="100" value="25"></label><label>Compra média (R$)<input id="simulateSpend" type="number" min="0" max="100000" value="20"></label></div>
+<div class="result"><small>Comissão potencial (não garantida)</small><strong id="simulation">R$ 7,50</strong><small id="simulationDetail">Estimativa de compradores diretos.</small></div>
+</section>
+<section class="panel wide"><div class="panel-heading"><div><h2>Meus indicados</h2><p>Você vê o acompanhamento, nunca o telefone ou o contato pessoal.</p></div>
+<div class="controls"><button class="btn" id="demoSignup">Simular novo cadastro</button><button class="btn" id="demoDuplicate">Testar duplicidade</button></div></div>
+<div class="table-scroll"><table><thead><tr><th>Identificador protegido</th><th>Origem</th><th>Compra confirmada</th><th>Vínculo</th><th>Ação</th></tr></thead><tbody id="peopleRows"></tbody></table></div><p class="muted" id="peopleStatus" role="status" style="margin-top:12px">A liberação retira a pessoa da sua lista ativa, mas preserva histórico e comissões de compras anteriores. Para se vincular a outro embaixador, ela própria deverá aceitar o novo convite.</p>
+</section>
+</div>
+<footer>Protótipo isolado. Não há conexão com o site oficial, WhatsApp, pagamentos ou banco real. Os números são fictícios. O uso real exige integração ao cadastro verificado, consentimento e aprovação jurídica da operação. Não existe como comprovar qual mensagem externa foi enviada primeiro; o vínculo usa o primeiro acesso rastreável seguido de cadastro validado.</footer>
+</div>
+<script>
+(function(){
+'use strict';
+const groups=[
+  {id:'whatsapp',label:'WhatsApp',shares:600,clicks:140,n:26,buyers:7,unit:40},
+  {id:'instagram',label:'Instagram',shares:300,clicks:100,n:18,buyers:5,unit:36},
+  {id:'outros',label:'Outros',shares:100,clicks:30,n:6,buyers:2,unit:30}
+];
+const data=[];let seq=1, metric='registrations', onShareStarted=0, onClickStarted=0, channelForDemo='whatsapp';
+groups.forEach(g=>{for(let i=0;i<g.n;i++){data.push({id:seq++,channel:g.id,orderCount:i<g.buyers?1:0,sales:i<g.buyers?g.unit:0,active:true});}});
+const el=id=>document.getElementById(id);
+const number=n=>new Intl.NumberFormat('pt-BR').format(n);
+const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n);
+function totals(){
+ const active=data.filter(p=>p.active), buyers=data.filter(p=>p.orderCount>0);
+ return {reg:active.length,buyers:buyers.length,sales:data.reduce((a,p)=>a+p.sales,0),shares:groups.reduce((a,g)=>a+g.shares,0)+onShareStarted,clicks:groups.reduce((a,g)=>a+g.clicks,0)+onClickStarted};
+}
+function renderSummary(){
+ const t=totals();el('shares').textContent=el('fShares').textContent=number(t.shares);
+ el('clicks').textContent=el('fClicks').textContent=number(t.clicks);
+ el('registrations').textContent=el('fRegs').textContent=number(t.reg);
+ el('buyers').textContent=number(t.buyers);
+ el('conversion').textContent=t.clicks?new Intl.NumberFormat('pt-BR',{style:'percent',maximumFractionDigits:1}).format(t.reg/t.clicks):'—';
+ el('noticeTitle').textContent='Você tem '+number(t.reg)+' cadastros válidos ativos.';
+ el('notice').textContent='Você iniciou '+number(t.shares)+' compartilhamentos e teve '+number(t.clicks)+' acessos estimados. Apenas '+number(t.reg)+' cadastros verificados contam no ranking de indicações. Reforce que seus convidados precisam completar o cadastro.';
+}
+function renderSources(){
+ const values=groups.map(g=>{
+  const records=data.filter(p=>p.active&&p.channel===g.id);
+  return {name:g.label,registrations:records.length,buyers:data.filter(p=>p.channel===g.id&&p.orderCount>0).length,sales:data.filter(p=>p.channel===g.id).reduce((n,p)=>n+p.sales,0)};
+ });
+ const max=Math.max(1,...values.map(x=>x[metric]));
+ el('sources').replaceChildren(...values.map(x=>{
+  const outer=document.createElement('div');outer.className='source';
+  const name=document.createElement('span');name.textContent=x.name;
+  const track=document.createElement('div');track.className='track';
+  const bar=document.createElement('div');bar.className='bar';bar.style.width=(x[metric]/max*100)+'%';track.append(bar);
+  const amount=document.createElement('b');amount.style.textAlign='right';amount.textContent=metric==='sales'?money(x[metric]):number(x[metric]);
+  outer.append(name,track,amount);return outer;
+ }));
+}
+function renderPeople(){
+ const active=data.filter(p=>p.active).slice(-10).reverse();
+ el('peopleRows').replaceChildren(...active.map(p=>{
+  const tr=document.createElement('tr');
+  const cols=[
+    ['Indicado #'+String(p.id).padStart(6,'0'),'anon'],
+    [groups.find(g=>g.id===p.channel)?.label||'Outros',''],
+    [p.orderCount?money(p.sales):'Ainda não',''],
+    ['Ativo',''],
+  ];
+  cols.forEach(([value,cls])=>{let td=document.createElement('td');td.textContent=value;td.className=cls;tr.append(td);});
+  let td=document.createElement('td'),button=document.createElement('button');button.className='release';button.textContent='Liberar vínculo';
+  button.setAttribute('aria-label','Liberar vínculo do indicado número '+p.id);
+  button.addEventListener('click',()=>{
+   if(!confirm('Simular a liberação do vínculo? O cadastro e as comissões anteriores permanecem preservados.'))return;
+   p.active=false;el('peopleStatus').textContent='Vínculo de Indicado #'+String(p.id).padStart(6,'0')+' liberado nesta demonstração. A conta não foi apagada; um novo vínculo dependeria da aceitação do próprio indicado.';renderAll();
+  });
+  td.append(button);tr.append(td);return tr;
+ }));
+}
+function renderSimulator(){
+ let people=Math.max(0,Math.min(10000,Number(el('simulatePeople').value)||0));
+ let conversion=Math.max(0,Math.min(100,Number(el('simulateConversion').value)||0));
+ let avg=Math.max(0,Number(el('simulateSpend').value)||0);
+ let projected=people*conversion/100;
+ el('simulation').textContent=money(projected*avg*.05);
+ el('simulationDetail').textContent=number(Math.round(projected))+' compradores projetados; comissão hipotética de 5% somente sobre compras diretas elegíveis.';
+}
+function renderAll(){renderSummary();renderSources();renderPeople();renderSimulator();}
+el('measureTabs').addEventListener('click',e=>{
+ const b=e.target.closest('button[data-metric]');if(!b)return;metric=b.dataset.metric;
+ [...el('measureTabs').querySelectorAll('button')].forEach(x=>x.classList.toggle('active',x===b));renderSources();
+});
+['simulatePeople','simulateConversion','simulateSpend'].forEach(id=>el(id).addEventListener('input',renderSimulator));
+async function copyInvite(channel){
+ const msg=el('shareText').textContent;
+ try{
+  if(navigator.clipboard && navigator.clipboard.writeText){await navigator.clipboard.writeText(msg);}
+  else{const t=document.createElement('textarea');t.value=msg;document.body.append(t);t.select();if(!document.execCommand('copy'))throw Error('Falha na cópia');t.remove();}
+  onShareStarted++;el('copyStatus').textContent='Mensagem copiada para '+(channel==='outros'?'compartilhar':channel)+'. Isso é 1 ação iniciada, não 1 contato alcançado.';renderSummary();
+ }catch(e){el('copyStatus').textContent='Não foi possível copiar automaticamente. Selecione a mensagem acima para copiar manualmente.';}
+}
+el('copyWhatsapp').addEventListener('click',()=>copyInvite('whatsapp'));
+el('copyInstagram').addEventListener('click',()=>copyInvite('instagram'));
+el('copyOther').addEventListener('click',()=>copyInvite('outros'));
+el('demoSignup').addEventListener('click',()=>{
+ data.push({id:seq++,channel:channelForDemo,orderCount:0,sales:0,active:true});onClickStarted++;
+ el('peopleStatus').textContent='Cadastro único validado SIMULADO. +1 cadastro, sem compra e sem comissão. Em produção, somente WhatsApp verificado no servidor.';
+ renderAll();
+});
+el('demoDuplicate').addEventListener('click',()=>{
+ el('peopleStatus').textContent='Número de WhatsApp já existente: cadastro duplicado bloqueado pelo índice único. +0 indicações, +0 comissão. (Teste visual simulado; não houve consulta ao banco.)';renderAll();
+});
+renderAll();
+})();
+</script>
+</body></html>
