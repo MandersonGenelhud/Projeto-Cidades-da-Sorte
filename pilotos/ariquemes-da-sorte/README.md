@@ -7,7 +7,7 @@
 - Repositório GitHub examinado em leitura: `MandersonGenelhud/Projeto-Cidades-da-Sorte` (`main`); documento `README.md`: "Cidades da sorte são vários sites de sorteios de cada cidade do País!"
 - Acesso do GitHub confirma que o repositório está público, mas não apresenta implementação das páginas nesta auditoria; `package.json` não foi localizado na raiz. **Não inferir que este é o código da plataforma instalada na Hostinger.**
 - Branch original identificada: `main`. Nesta auditoria, não foi identificado pipeline de deploy em `.github/workflows/deploy.yml`; isso **não comprova** inexistência de outros deployments.
-- O site publicado, arquivos originais da logo, ambiente Hostinger, dados de parceiros, bases Supabase e domínio público **não foram verificados**. Devem ser localizados antes de qualquer migração.
+- O domínio oficial `ariquemesdasorte.com` **foi inspecionado em modo somente leitura**. A página de pré-lançamento contém o formulário Embaixadores Fundadores e logo em `/assets/logo.png`. A infraestrutura e o backend internos não foram verificados. Consulte `AUDITORIA-SITE-OFICIAL.md`.
 - PR FS Brasil #17 (em rascunho) define sete agentes adaptados, em `MandersonGenelhud/fs-brasil-site`, branch `feat/fs-agency-agents-pilot-20261017`: https://github.com/MandersonGenelhud/fs-brasil-site/pull/17.
 - FS Brasil Pattern Kit v1.1 (referência): branch `fs/pattern-kit-reutilizavel-2026-10`, `design-system/fs-pattern-kit`, principalmente `README.md`, `CATALOGO.md`, `FS-WEB-PREMIUM.md`, `PILOTO-ARIQUEMES-DA-SORTE.md`.
 
@@ -23,7 +23,7 @@ Abrir `index.html` localmente em navegador (não precisa de dependências nem se
 - Tokens locais nas cores documentadas e tipografia de sistema com composição distinta por proposta.
 - Interface mobile-first e estados de foco, suporte a preferência de movimento reduzido, FAQ nativa e diálogo de aviso.
 - Conteúdo fictício explicitamente sinalizado; não há marcas de terceiros, prêmios concretos nem prova social inventada.
-- Placeholder **textual**, sem tentar reproduzir a logo original ausente.
+- Logo original **referenciada diretamente do site oficial** (arquivo remoto `/assets/logo.png`, verificado como `image/png`); incorporar o arquivo original à branch em etapa posterior para evitar dependência externa.
 
 ## Agentes no piloto
 
@@ -43,4 +43,4 @@ Os arquivos `.github/agents` serão definidos nesta branch para ferramentas comp
 
 ## Próxima aprovação necessária
 
-Confirmar onde estão o código do site atual e a logo original; decidir entre os layouts; só então testar a adaptação em ambiente de preview isolado, com autorização de uso de imagens e validação jurídica/regulatória se houver promoções.
+Confirmar onde reside o código-fonte e banco do site oficial e obter arquivo local da logo; decidir entre os layouts e validar em navegador; só depois considerar preview isolado, com revisão de privacidade e regulatória se houver promoções.
