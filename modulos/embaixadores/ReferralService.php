@@ -360,4 +360,55 @@ final class ReferralService
             'measurement_note' => 'Compartilhar e clicar não provam contato único, entrega ou identidade; cadastro exige verificação.',
         ];
     }
+    /**
+     * Comissões separadas por sorteio/campanha, sem expor custo, imposto, margem
+     * nem orçamento interno. Pendente = reserva, não crédito disponível.
+     */
+    public function commissionsByCampaign(int $authenticatedAmbassadorId): array
+    {
+        return $this->rows(
+            "SELECT campaign_key,
+                COUNT(DISTINCT IF(state='paid', buyer_id, NULL)) AS confirmed_buyers,
+                COUNT(IF(state='paid',1,NULL)) AS confirmed_orders,
+                COALESCE(SUM(IF(state='paid', total_cents, 0)),0) AS confirmed_sales_cents,
+                COALESCE(SUM(IF(state='paid', cash_cents, 0)),0) AS external_cash_cents,
+                COALESCE(SUM(IF(state='paid', credit_cents, 0)),0) AS credit_reused_cents,
+                COALESCE(SUM(IF(state='paid', commission_cents, 0)),0) AS confirmed_commission_cents,
+                COALESCE(SUM(IF(state='pending', commission_cents, 0)),0) AS pending_commission_cents
+             FROM ads_orders WHERE beneficiary_id=?
+             GROUP BY campaign_key ORDER BY campaign_key",
+            [$authenticatedAmbassadorId]
+        );
+    }
+
+    /**
+     * Ranking de um nível: (1) cadastros ativos; (2) compradores únicos;
+     * (3) vendas diretas confirmadas. Aliases pseudônimos, sem PII.
+     * Período/filtros podem ser adicionados no integrador depois de validado.
+     */
+    public function leaderboards(): array
+    {
+        $queries = [
+            'cadastros' => "SELECT ambassador_id AS person_id, COUNT(DISTINCT referred_id) AS score
+                FROM ads_referrals WHERE ended_at IS NULL
+                GROUP BY ambassador_id ORDER BY score DESC, ambassador_id LIMIT 20",
+            'compradores' => "SELECT beneficiary_id AS person_id, COUNT(DISTINCT buyer_id) AS score
+                FROM ads_orders WHERE state='paid' AND beneficiary_id IS NOT NULL
+                GROUP BY beneficiary_id ORDER BY score DESC, beneficiary_id LIMIT 20",
+            'vendas' => "SELECT beneficiary_id AS person_id, COALESCE(SUM(total_cents),0) AS score
+                FROM ads_orders WHERE state='paid' AND beneficiary_id IS NOT NULL
+                GROUP BY beneficiary_id ORDER BY score DESC, beneficiary_id LIMIT 20"
+        ];
+        $out = [];
+        foreach ($queries as $label => $sql) {
+            $out[$label] = array_map(function (array $row): array {
+                return [
+                    'alias' => 'Embaixador #' . strtoupper(substr(bin2hex(ReferralRules::digest('leaderboard', (string)$row['person_id'], $this->secret)), 0, 6)),
+                    'score' => (int)$row['score'],
+                ];
+            }, $this->rows($sql));
+        }
+        return $out;
+    }
+
 }
