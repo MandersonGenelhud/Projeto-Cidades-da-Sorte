@@ -92,7 +92,7 @@ final class ReferralService
         $phone = ReferralRules::normalizeBrazilianMobile($verifiedPhoneE164);
         $hash = ReferralRules::digest('whatsapp', $phone, $this->secret);
         $alias = trim($publicAlias);
-        if ($alias === '' || mb_strlen($alias) > 80) {
+        if ($alias === '' || strlen($alias) > 160) {
             throw new InvalidArgumentException('Alias inválido');
         }
         return $this->transact(function () use ($hash, $alias, $serverVisitorToken): array {
