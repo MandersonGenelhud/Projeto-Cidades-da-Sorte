@@ -5,7 +5,7 @@ final class ReferralRules
 {
     public static function channel(string $channel): string
     {
-        $channel = mb_strtolower(trim($channel));
+        $channel = strtolower(trim($channel));
         return in_array($channel, ['whatsapp', 'instagram', 'outros'], true)
             ? $channel : 'desconhecido';
     }
