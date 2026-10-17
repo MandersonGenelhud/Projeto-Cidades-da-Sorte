@@ -1,0 +1,23 @@
+name: Embaixadores - PHP e protótipo
+on:
+  push:
+    branches: ["feat/embaixadores-atribuicao-direta-20261017"]
+  pull_request:
+    paths:
+      - "modulos/embaixadores/**"
+      - ".github/workflows/embaixadores-checks.yml"
+jobs:
+  validar-modulo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar sintaxe PHP
+        run: |
+          php -l modulos/embaixadores/Rules.php
+          php -l modulos/embaixadores/ReferralService.php
+          php -l modulos/embaixadores/tests/rules_test.php
+      - name: Executar testes das regras
+        run: php modulos/embaixadores/tests/rules_test.php
+      - name: Verificar sintaxe JavaScript do painel
+        run: |
+          node -e "const fs=require('fs');const html=fs.readFileSync('modulos/embaixadores/painel-demo.html','utf8');const m=html.match(/<script>([\s\S]*?)<\/script>/);if(!m)throw new Error('Script não encontrado');new Function(m[1]);console.log('JS ok')"
