@@ -67,7 +67,7 @@
     return s;
   }
   function initialize() {
-    if (initialized || media.matches || compact.matches) return;
+    if (initialized || media.matches || (compact.matches && (navigator.connection?.saveData || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4)))) return;
     canvas=document.createElement('canvas');
     canvas.className='cinematic-webgl';
     canvas.setAttribute('aria-hidden','true');
@@ -119,7 +119,7 @@
   function resize(){
     if(!canvas||!gl)return;
     const w=canvas.clientWidth,h=canvas.clientHeight;
-    const dpr=Math.min(devicePixelRatio||1,1.5);
+    const dpr=Math.min(devicePixelRatio||1,compact.matches ? 1 : 1.5);
     canvas.width=Math.min(1200,Math.max(1,Math.round(w*dpr)));
     canvas.height=Math.min(1000,Math.max(1,Math.round(h*dpr)));
     gl.viewport(0,0,canvas.width,canvas.height);
@@ -136,7 +136,7 @@
   function draw(now){
     frameId=0;
     if(!visible||stopped()||!gl||!state)return;
-    if(now-last>=33){
+    if(now-last >= (compact.matches ? 40 : 33)){
       last=now;scrollProgress();
       gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(state.program);
