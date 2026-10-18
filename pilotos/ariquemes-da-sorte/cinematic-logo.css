@@ -1,0 +1,18 @@
+/* Ariquemes da Sorte · marca oficial em animação 3D leve, somente no piloto */
+.ads-cine-brand{position:relative;isolation:isolate;margin:20px auto 12px;min-height:430px;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,.9fr);gap:30px;align-items:center;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;padding:clamp(25px,5vw,62px);background:radial-gradient(ellipse 55% 95% at 82% 46%,#562e713d,transparent 75%),linear-gradient(135deg,#160b2b,#0a0618)}
+.ads-cine-brand::before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0 65px,#f3a84909 66px 67px);opacity:.5}
+.ads-cine-copy{position:relative;z-index:1}.ads-cine-copy h2{max-width:13ch;font-size:clamp(34px,4vw,57px);margin:15px 0 20px;color:#f8f5fd}
+.ads-cine-copy h2 strong{font-weight:inherit;color:var(--gold)}
+.ads-cine-copy p{max-width:42ch;color:var(--muted);margin-bottom:0}
+.ads-cine-stage{position:relative;min-height:340px;display:grid;place-items:center;perspective:950px;--mark-y:0deg;--mark-z:0deg;--mark-up:0px}
+.ads-cine-ring{position:absolute;width:79%;aspect-ratio:1;border:1px solid #f3a84969;border-radius:50%;transform:rotateX(63deg) rotateZ(24deg)}
+.ads-cine-ring:nth-child(2){width:100%;border-color:#8f49b75e;transform:rotateY(56deg) rotateX(15deg)}
+.ads-cine-ring:nth-child(3){width:58%;border-color:#5eb14f8c;transform:rotateX(75deg) rotateZ(-24deg)}
+.ads-cine-mark{position:relative;display:grid;place-items:center;width:min(62%,250px);aspect-ratio:1;transform:translateY(var(--mark-up)) rotateY(var(--mark-y)) rotateZ(var(--mark-z));transition:transform .17s ease-out;filter:drop-shadow(0 18px 40px #000a)}
+.ads-cine-mark img{width:100%;height:100%;object-fit:contain}
+.ads-cine-halo{position:absolute;width:56%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,#5eb14f34,#5eb14f00 75%);filter:blur(16px)}
+.ads-cine-mark{z-index:1}
+.ads-cine-caption{position:absolute;bottom:3px;text-transform:uppercase;letter-spacing:.16em;font-size:10px;color:#eac8a0;text-align:center}
+.ads-cine-brand a{color:var(--gold);text-underline-offset:5px}
+@media(max-width:760px){.ads-cine-brand{grid-template-columns:1fr;padding:24px;gap:15px}.ads-cine-stage{grid-row:1;min-height:260px}.ads-cine-copy{grid-row:2}.ads-cine-mark{width:min(53%,210px)}}
+@media(prefers-reduced-motion:reduce){.ads-cine-mark{transform:none!important;transition:none!important}}
