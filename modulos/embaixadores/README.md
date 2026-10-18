@@ -73,20 +73,29 @@ Podem ser aplicados filtros semanais/mensais/geral e por campanha; histórico de
 - **Não contabilizar crédito reciclado como novo faturamento:** campos `cash_cents` e `credit_cents` são separados.
 - **Não há saque/Pix operacional** nem integração com ledger bancário, provedor de OTP, checkout de produção ou backend da Hostinger. A validação jurídica da campanha e do programa de indicação é obrigatória. Os testes integrados usam MySQL descartável com flag de aprovação **apenas em cenário de simulação**.
 
-### Convocação para o pré-lançamento
+### Convocação curta oficial para o pré-lançamento
 
 🍀 *CHEGOU O ARIQUEMES DA SORTE!*
 
-🎁 Já imaginou ter oportunidades de conquistar prêmios do comércio da nossa cidade e ainda poder ganhar comissões indicando amigos?
+🎁 Aqui você tem a oportunidade de conquistar os *prêmios mais desejados das empresas da nossa cidade* e ainda ganhar comissões indicando amigos!
 
-🏅 Estamos em *PRÉ-LANÇAMENTO*. Cadastre-se gratuitamente como *EMBAIXADOR DA SORTE* e garanta o exclusivo *SELO DE FUNDADOR*, reservado a quem entrar antes da inauguração!
+🚀 O *Ariquemes da Sorte* está em *PRÉ-LANÇAMENTO!*
 
-💚 *Um benefício importante:* mesmo que a pessoa que você indicou também se torne embaixadora, ela continua sendo sua indicação direta. Se ela comprar números elegíveis — até mesmo usando comissões que ganhou indicando outras pessoas — a compra dela poderá gerar uma comissão para você!
+🏅 Cadastre-se gratuitamente como *Embaixador da Sorte* e conquiste o exclusivo *Selo de Fundador*, reservado a quem entrar antes da inauguração.
 
-✅ Para contar no ranking, cada pessoa indicada precisa concluir seu próprio cadastro validado. As comissões dependem de compras diretas confirmadas, e não do simples cadastro nem das compras das pessoas que ela indicar.
+✅ É simples: cadastre-se, receba seu link exclusivo e compartilhe!
 
-🔗 *Entre e conheça as regras:* {LINK}
+As indicações só contam após o cadastro validado, e as comissões dependem das compras elegíveis confirmadas e das regras do programa.
 
-🍀 *Ariquemes da Sorte — sua cidade, novas oportunidades!*
+🔗 *Entre agora e conheça as regras:*
+{LINK}
+
+🏅 O *Selo de Fundador* é exclusivo da fase de pré-lançamento do Ariquemes da Sorte.
+
+🍀 *Ariquemes da Sorte — Nossa cidade, novas oportunidades!*
 
 Compartilhar é sempre voluntário e não há importação nem disparo de listas de contatos.
+
+## Página de regras na chegada do convite
+
+O fluxo de destino terá CTA para cadastro, link visível **Conheça as regras** com conteúdo acessível antes de finalizar a inscrição, e confirmação separada de leitura de regras e comunicação de marketing (opt-in opcional). A referência estática está em `convite-demo.html` e `regras-demo.html`; nenhum deles cadastra pessoas nem cria comissões. O `SELO DE FUNDADOR` requer data/hora de encerramento auditável no backend para bloquear emissões após inauguração; não está ativado na produção. Antes da disponibilização real, jurídico deve aprovar o regulamento comercial e a natureza das campanhas.
