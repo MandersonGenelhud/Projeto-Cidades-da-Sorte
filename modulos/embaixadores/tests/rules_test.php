@@ -36,4 +36,9 @@ eq(strlen($a), 32, 'digest HMAC binário');
 eq($a, $b, 'unificação de identidade entre navegadores');
 if ($a === $c) { exit(1); }
 reject(fn()=>ReferralRules::digest('whatsapp', '123', 'segredo-fraco'), 'pepper fraco');
-echo "OK — 16 verificações básicas de regras. Integração com MySQL/OTP/webhooks requer homologação.\n";
+eq(ReferralRules::directPurchase(3, 2, 10000, 500), ['beneficiary_id' => 2, 'commission_cents' => 500], 'Carlos paga Maria, não João');
+eq(ReferralRules::directPurchase(2, 1, 500, 500), ['beneficiary_id' => 1, 'commission_cents' => 25], 'Maria embaixadora recompra com créditos e remunera João');
+eq(ReferralRules::directPurchase(2, 1, 2000, 500), ['beneficiary_id' => 1, 'commission_cents' => 100], 'Maria paga em dinheiro e remunera João igualmente');
+eq(ReferralRules::directPurchase(2, null, 500, 500), ['beneficiary_id' => null, 'commission_cents' => 0], 'sem padrinho não tem comissão');
+eq(ReferralRules::directPurchase(2, 2, 500, 500), ['beneficiary_id' => null, 'commission_cents' => 0], 'não existe auto-comissão');
+echo "OK — 21 verificações básicas de regras. Integração com MySQL/OTP/webhooks requer homologação.\n";
