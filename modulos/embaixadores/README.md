@@ -75,22 +75,24 @@ Podem ser aplicados filtros semanais/mensais/geral e por campanha; histórico de
 
 ### Convocação curta oficial para o pré-lançamento
 
-🍀 *CHEGOU O ARIQUEMES DA SORTE!*
+🍀 *CHEGOU A HORA DE GANHAR DA SORTE!*
 
-🎁 Aqui você tem a oportunidade de conquistar os *prêmios mais desejados das empresas da nossa cidade* e ainda ganhar comissões indicando amigos!
+💚 Você sempre indicou empresas, produtos e serviços da nossa cidade para seus amigos. Agora, com o *Ariquemes da Sorte*, suas indicações também poderão gerar comissões!
+
+🎁 Aqui você tem a oportunidade de conquistar os *prêmios mais desejados das empresas da nossa cidade* e ainda ganhar comissões indicando amigos para as campanhas!
 
 🚀 O *Ariquemes da Sorte* está em *PRÉ-LANÇAMENTO!*
 
 🏅 Cadastre-se gratuitamente como *Embaixador da Sorte* e conquiste o exclusivo *Selo de Fundador*, reservado a quem entrar antes da inauguração.
 
-✅ É simples: cadastre-se, receba seu link exclusivo e compartilhe!
+✅ *É simples:* cadastre-se, receba seu link exclusivo e compartilhe!
 
-As indicações só contam após o cadastro validado, e as comissões dependem das compras elegíveis confirmadas e das regras do programa.
+As indicações só contam após o cadastro validado. As comissões dependem das compras confirmadas dos seus indicados diretos e das regras do programa.
 
 🔗 *Entre agora e conheça as regras:*
 {LINK}
 
-🏅 O *Selo de Fundador* é exclusivo da fase de pré-lançamento do Ariquemes da Sorte.
+🏅 O *Selo de Fundador* é exclusivo da fase de pré-lançamento!
 
 🍀 *Ariquemes da Sorte — Nossa cidade, novas oportunidades!*
 
