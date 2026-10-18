@@ -84,6 +84,31 @@ CREATE TABLE ads_orders (
   CONSTRAINT fk_order_beneficiary FOREIGN KEY (beneficiary_id) REFERENCES ads_people(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Saldo em centavos: créditos confirmados menos gastos/reversões.
+-- balance_cents pode ficar negativo após estorno de comissão já consumida.
+-- held_cents separa saldo reservado para checkout ainda pendente.
+CREATE TABLE ads_wallets (
+  person_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+  balance_cents BIGINT NOT NULL DEFAULT 0,
+  held_cents BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_wallet_person FOREIGN KEY (person_id) REFERENCES ads_people(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE ads_wallet_events (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  person_id BIGINT UNSIGNED NOT NULL,
+  order_id BIGINT UNSIGNED NOT NULL,
+  event_kind ENUM('commission_earned','credit_held','credit_spent','credit_unheld','credit_refunded','commission_reversed') NOT NULL,
+  balance_delta_cents BIGINT NOT NULL DEFAULT 0,
+  held_delta_cents BIGINT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_wallet_once_per_event (person_id, order_id, event_kind),
+  KEY idx_wallet_events_person (person_id, created_at),
+  CONSTRAINT fk_wallet_event_person FOREIGN KEY (person_id) REFERENCES ads_people(id),
+  CONSTRAINT fk_wallet_event_order FOREIGN KEY (order_id) REFERENCES ads_orders(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE ads_audit (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   actor_id BIGINT UNSIGNED NULL,
