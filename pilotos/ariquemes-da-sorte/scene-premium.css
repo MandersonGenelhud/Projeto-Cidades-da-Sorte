@@ -29,3 +29,6 @@
 .ads-cine-inner{position:static!important;min-height:auto!important}
 .ads-cine-story [data-cinematic-step]{transition:none!important}
 }
+
+/* Override earlier grid/overflow so sticky remains active. */
+@media(min-width:761px){.ads-cine-brand[data-cinematic-region]{overflow:clip}.ads-cine-inner{position:sticky;top:16px}}
