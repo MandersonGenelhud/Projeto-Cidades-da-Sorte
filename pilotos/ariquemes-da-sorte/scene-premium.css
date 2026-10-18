@@ -22,7 +22,7 @@
 .ads-cine-copy{grid-row:2}
 .ads-cine-story{margin-top:20px}
 .ads-cine-story [data-cinematic-step]{font-size:10px;padding:8px 10px}
-.ads-cine-stage .cinematic-webgl{display:none}
+.ads-cine-stage .cinematic-webgl{display:block;opacity:.6}
 }
 @media(prefers-reduced-motion:reduce){
 .ads-cine-brand[data-cinematic-region]{min-height:auto!important}
