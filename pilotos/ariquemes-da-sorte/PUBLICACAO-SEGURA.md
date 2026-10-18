@@ -2,7 +2,7 @@
 
 ## Status (18/10/2026)
 - Código cinematográfico no piloto isolado: modo Bento preservado, modo Cinematográfico com sticky scroll, WebGL de órbitas/partículas, indicadores Empresas locais / Indicações, tipografia e cores originais, `prefers-reduced-motion` e CSS leve no celular. Não depende de upgrades de IA nem de pagamento.
-- Prévia isolada Vercel: https://fs-ariquemes-cinematic-preview-gtd6s2a74-mandersongenelhud-3717.vercel.app/ — READY no Vercel, mas pode pedir autenticação. Deploy por upload de arquivos, não Git automático.
+- Prévia isolada Vercel: https://fs-ariquemes-cinematic-preview.vercel.app/ — READY no Vercel, mas pode pedir autenticação. Deploy por upload de arquivos, não Git automático.
 - A logo está referenciada remotamente em https://www.ariquemesdasorte.com/assets/logo.png apenas no laboratório; exige asset local autorizado antes de ir para produção.
 - PR #3 baseia-se no **PR #1, em branch de piloto**, e **não** contém necessariamente o site hospedado. Não fazer merge em main ou deploy direto sem migrar e reconciliar.
 
