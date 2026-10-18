@@ -60,6 +60,69 @@ final class ReferralService
     }
 
     /**
+     * Livro razão da carteira de comissões. Executar SOMENTE dentro da mesma
+     * transação que modifica o pedido. Idempotência protegida pelo índice único
+     * person_id + order_id + event_kind. Débito reverso pode gerar saldo negativo
+     * após estorno tardio; não há saques implementados neste laboratório.
+     */
+    private function walletEvent(
+        int $personId, int $orderId, string $kind, int $balanceDelta, int $heldDelta
+    ): void {
+        $this->run('INSERT IGNORE INTO ads_wallets (person_id) VALUES (?)', [$personId]);
+        $wallet = $this->one(
+            'SELECT balance_cents, held_cents FROM ads_wallets WHERE person_id=? FOR UPDATE',
+            [$personId]
+        );
+        if ($wallet === null) {
+            throw new DomainException('Carteira não encontrada');
+        }
+        $balance = (int)$wallet['balance_cents'];
+        $held = (int)$wallet['held_cents'];
+        if (($balanceDelta > 0 && $balance > PHP_INT_MAX - $balanceDelta) ||
+            ($balanceDelta < 0 && $balance < PHP_INT_MIN - $balanceDelta)) {
+            throw new OverflowException('Saldo fora de limites');
+        }
+        $newBalance = $balance + $balanceDelta;
+        if (($heldDelta > 0 && $held > PHP_INT_MAX - $heldDelta) ||
+            ($heldDelta < 0 && $held < -$heldDelta)) {
+            throw new DomainException('Reserva inválida');
+        }
+        $newHeld = $held + $heldDelta;
+        if ($newHeld < 0) {
+            throw new DomainException('Reserva negativa');
+        }
+        // A única transição que pode criar reserva deve validar saldo disponível.
+        if ($heldDelta > 0 && $balance - $held < $heldDelta) {
+            throw new DomainException('Crédito de comissão insuficiente');
+        }
+        $this->run(
+            'UPDATE ads_wallets SET balance_cents=?, held_cents=? WHERE person_id=?',
+            [$newBalance, $newHeld, $personId]
+        );
+        $this->run(
+            'INSERT INTO ads_wallet_events (person_id, order_id, event_kind, balance_delta_cents, held_delta_cents)
+             VALUES (?,?,?,?,?)',
+            [$personId, $orderId, $kind, $balanceDelta, $heldDelta]
+        );
+    }
+
+    public function walletSummary(int $authenticatedPersonId): array
+    {
+        $wallet = $this->one(
+            'SELECT balance_cents, held_cents FROM ads_wallets WHERE person_id=?',
+            [$authenticatedPersonId]
+        );
+        $balance = (int)($wallet['balance_cents'] ?? 0);
+        $held = (int)($wallet['held_cents'] ?? 0);
+        return [
+            'confirmed_balance_cents' => $balance,
+            'pending_purchase_credit_cents' => $held,
+            'available_for_purchase_cents' => max(0, $balance - $held),
+            'note' => 'Saldo interno de comissões confirmadas; não equivale a crédito bancário ou saque habilitado.'
+        ];
+    }
+
+    /**
      * Primeiro clique reconhecido por navegador. $visitorToken deve vir de
      * cookie assinado, Secure + HttpOnly, emitido pelo backend. Não é identidade.
      */
@@ -235,7 +298,16 @@ final class ReferralService
                 [$authenticatedBuyerId]
             );
             $gross = $cashCents + $creditCents;
-            $commission = $ref === null ? 0 : ReferralRules::commissionCents($gross, (int)$campaign['commission_bps']);
+            // Não importa se o comprador é um Embaixador Fundador,
+            // embaixador comum ou participante. Nem se pagou com crédito.
+            // Somente o indicador DIRETO do comprador recebe.
+            $direct = ReferralRules::directPurchase(
+                $authenticatedBuyerId,
+                $ref === null ? null : (int)$ref['ambassador_id'],
+                $gross,
+                (int)$campaign['commission_bps']
+            );
+            $commission = $direct['commission_cents'];
             $left = (int)$campaign['commission_budget_cents'] - (int)$campaign['committed_commission_cents'];
             if ($left < $commission) {
                 throw new DomainException('Orçamento de comissão insuficiente; interromper checkout antes da cobrança');
@@ -247,9 +319,14 @@ final class ReferralService
             $this->run(
                 'INSERT INTO ads_orders (external_order_key, buyer_id, campaign_key, cash_cents, credit_cents, total_cents, referral_id, beneficiary_id, commission_cents) VALUES (?,?,?,?,?,?,?,?,?)',
                 [$externalOrderKey, $authenticatedBuyerId, $campaignKey, $cashCents, $creditCents, $gross,
-                 $ref === null ? null : (int)$ref['id'], $ref === null ? null : (int)$ref['ambassador_id'], $commission]
+                 $ref === null ? null : (int)$ref['id'], $direct['beneficiary_id'], $commission]
             );
-            return ['order_id' => (int)$this->pdo->lastInsertId(), 'state' => 'pending', 'commission_cents' => $commission];
+            $orderId = (int)$this->pdo->lastInsertId();
+            if ($creditCents > 0) {
+                // Rejeita compras com créditos não existentes, usados ou reservados.
+                $this->walletEvent($authenticatedBuyerId, $orderId, 'credit_held', 0, $creditCents);
+            }
+            return ['order_id' => $orderId, 'state' => 'pending', 'commission_cents' => $commission];
         });
     }
 
@@ -257,7 +334,7 @@ final class ReferralService
     public function confirmPaidOrder(string $verifiedExternalOrderKey): void
     {
         $this->transact(function () use ($verifiedExternalOrderKey): void {
-            $order = $this->one('SELECT id, state, buyer_id FROM ads_orders WHERE external_order_key=? FOR UPDATE', [$verifiedExternalOrderKey]);
+            $order = $this->one('SELECT * FROM ads_orders WHERE external_order_key=? FOR UPDATE', [$verifiedExternalOrderKey]);
             if ($order === null) {
                 throw new DomainException('Pedido inexistente');
             }
@@ -267,8 +344,17 @@ final class ReferralService
             if ($order['state'] !== 'pending') {
                 throw new DomainException('Transição de pagamento inválida');
             }
-            $this->run("UPDATE ads_orders SET state='paid', paid_at=UTC_TIMESTAMP() WHERE id=?", [(int)$order['id']]);
-            $this->audit(null, (int)$order['buyer_id'], 'compra_confirmada', ['order_id' => (int)$order['id']]);
+            $orderId = (int)$order['id'];
+            $credit = (int)$order['credit_cents'];
+            if ($credit > 0) {
+                $this->walletEvent((int)$order['buyer_id'], $orderId, 'credit_spent', -$credit, -$credit);
+            }
+            $commission = (int)$order['commission_cents'];
+            if ($commission > 0 && $order['beneficiary_id'] !== null) {
+                $this->walletEvent((int)$order['beneficiary_id'], $orderId, 'commission_earned', $commission, 0);
+            }
+            $this->run("UPDATE ads_orders SET state='paid', paid_at=UTC_TIMESTAMP() WHERE id=?", [$orderId]);
+            $this->audit(null, (int)$order['buyer_id'], 'compra_confirmada', ['order_id' => $orderId]);
         });
     }
 
@@ -290,12 +376,31 @@ final class ReferralService
                 throw new DomainException('Reembolso não confirmado pelo provedor');
             }
             $state = $order['state'] === 'paid' ? 'refunded' : 'cancelled';
-            $this->run('UPDATE ads_orders SET state=? WHERE id=?', [$state, (int)$order['id']]);
+            $orderId = (int)$order['id'];
+            $credit = (int)$order['credit_cents'];
+            if ($credit > 0) {
+                if ($state === 'refunded') {
+                    // Restitui crédito consumido para a carteira do comprador.
+                    $this->walletEvent((int)$order['buyer_id'], $orderId, 'credit_refunded', $credit, 0);
+                } else {
+                    // Desfaz apenas a reserva; nenhuma compra foi confirmada.
+                    $this->walletEvent((int)$order['buyer_id'], $orderId, 'credit_unheld', 0, -$credit);
+                }
+            }
+            if ($state === 'refunded' && (int)$order['commission_cents'] > 0 && $order['beneficiary_id'] !== null) {
+                // Se o beneficiário já gastou, entra em saldo negativo e só
+                // poderá voltar a consumir após regularização.
+                $this->walletEvent(
+                    (int)$order['beneficiary_id'], $orderId,
+                    'commission_reversed', -(int)$order['commission_cents'], 0
+                );
+            }
+            $this->run('UPDATE ads_orders SET state=? WHERE id=?', [$state, $orderId]);
             $this->run(
                 'UPDATE ads_campaigns SET committed_commission_cents=committed_commission_cents-? WHERE campaign_key=?',
                 [(int)$order['commission_cents'], $order['campaign_key']]
             );
-            $this->audit(null, (int)$order['buyer_id'], 'pedido_revertido', ['order_id' => (int)$order['id'], 'state' => $state]);
+            $this->audit(null, (int)$order['buyer_id'], 'pedido_revertido', ['order_id' => $orderId, 'state' => $state]);
         });
     }
 
