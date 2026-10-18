@@ -4,7 +4,7 @@
 .ads-cine-copy{position:relative;z-index:1}.ads-cine-copy h2{max-width:13ch;font-size:clamp(34px,4vw,57px);margin:15px 0 20px;color:#f8f5fd}
 .ads-cine-copy h2 strong{font-weight:inherit;color:var(--gold)}
 .ads-cine-copy p{max-width:42ch;color:var(--muted);margin-bottom:0}
-.ads-cine-stage{position:relative;min-height:340px;display:grid;place-items:center;perspective:950px;--mark-y:0deg;--mark-z:0deg;--mark-up:0px}
+.ads-cine-stage{margin:0;position:relative;min-height:340px;display:grid;place-items:center;perspective:950px;--mark-y:0deg;--mark-z:0deg;--mark-up:0px}
 .ads-cine-ring{position:absolute;width:79%;aspect-ratio:1;border:1px solid #f3a84969;border-radius:50%;transform:rotateX(63deg) rotateZ(24deg)}
 .ads-cine-ring:nth-child(2){width:100%;border-color:#8f49b75e;transform:rotateY(56deg) rotateX(15deg)}
 .ads-cine-ring:nth-child(3){width:58%;border-color:#5eb14f8c;transform:rotateX(75deg) rotateZ(-24deg)}
