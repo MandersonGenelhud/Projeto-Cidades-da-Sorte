@@ -21,6 +21,9 @@
 8. **Growth Marketer:** revisar convites, SEO e conversão; promessas de ganhos condicionadas a campanhas elegíveis; anúncios e disparos dependem de autorização, política da plataforma e consentimento.
 9. **Release:** PR → CI → preview em ambiente separado → revisão humana específica → merge e publicação específicos, rollback, monitoramento. Nunca tocar produção sem autorização explícita.
 
+## Conselho Visual FS (obrigatório antes de novos layouts)
+Ler `docs/CONSELHO-VISUAL-ARIQUEMES.md` deste PR e o documento central `design-system/fs-pattern-kit/CONSELHO-DE-DESIGN.md` do PR #16 FS Brasil. Comparar pelo menos duas direções por finalidade com críticas independentes de UI, `fs-design-critic`, Frontend, QA e Growth, orientados pelo FS Director. Aplicar FS Pattern Kit como base de composição, Impeccable no acabamento e Apple Design nas interações. Usar o Atoms-inspired PR #21 para método/fluxo de trabalho, não como estilo visual nem serviço realmente invocado. **Não afirmar que os agentes conversaram de verdade sem um runner/execução comprovados**. Registrar pontuações somente com evidência e não publicar sem aprovação específica.
+
 ## Regras inegociáveis Ariquemes
 
 - Cadastro gratuito no pré-lançamento, Selo de Fundador com janela de emissão auditável. Não prometer comissão real ainda desativada.
