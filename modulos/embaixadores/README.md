@@ -52,8 +52,20 @@ Podem ser aplicados filtros semanais/mensais/geral e por campanha; histórico de
 6. Ao clicar “Liberar vínculo” o embaixador autenticado chama \`releaseDirectReferral()\`. O referido pode posteriormente confirmar nova atribuição por \`acceptInvitationAfterRelease()\` após login. Histórico de compras não muda.
 7. Antes de produção: migrations reversíveis, backup, testes de concorrência, segurança (IDOR/CSRF/XSS), ledger financeiro e homologação jurídica/regulatória.
 
-## Mensagem pré-pronta
+## Mensagem pré-pronta — pré-lançamento e Selo de Fundador
 
-“🍀 Eu te convidei para conhecer o Ariquemes da Sorte! Abra meu link e faça seu cadastro gratuito, confirmando seu WhatsApp. **A indicação só conta quando o cadastro é concluído e validado.** Confira as informações e regras da plataforma: {LINK}. Se já estiver cadastrado, o convite não cria uma nova indicação.”
+🍀 *CHEGOU O ARIQUEMES DA SORTE!*
+
+🎁 Já imaginou ter a oportunidade de conquistar prêmios das empresas da nossa cidade e ainda ganhar comissões indicando amigos?
+
+🚀 O Ariquemes da Sorte já chegou e está em *PRÉ-LANÇAMENTO*!
+
+🏅 Entre agora como *EMBAIXADOR DA SORTE* e conquiste o *SELO DE FUNDADOR*, exclusivo para quem se cadastrar nesta fase. Depois da inauguração, o selo não será concedido a novos embaixadores!
+
+✅ Cadastre-se gratuitamente e receba seu link. Sua indicação só conta no ranking quando o convidado concluir e validar o próprio cadastro. Compras elegíveis de indicados diretos poderão gerar comissões conforme as regras do programa.
+
+🔗 {LINK}
+
+🍀 Ariquemes da Sorte — sua cidade, novas oportunidades!
 
 Compartilhar é sempre voluntário e não há importação nem disparo de listas de contatos.
