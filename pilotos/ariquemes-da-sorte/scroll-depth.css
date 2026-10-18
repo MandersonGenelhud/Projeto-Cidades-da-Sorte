@@ -1,0 +1,7 @@
+/* Ariquemes da Sorte: cinematic entry and dimensional scroll in layout, not logo. */
+.ads-depth-item{transform-origin:50% 74%;transition:opacity .75s cubic-bezier(.22,1,.36,1),transform .9s cubic-bezier(.22,1,.36,1);backface-visibility:hidden}
+.ads-depth-item[data-ads-depth="waiting"]{opacity:0;transform:perspective(1100px) rotateX(6deg) translate3d(0,38px,0) scale(.98)}
+.ads-depth-item[data-ads-depth="shown"]{opacity:1;transform:none}
+#view-cine .cine-hero{transform:perspective(1700px) rotateX(var(--ads-scrolldepth,0deg));transform-origin:50% 25%;transition:transform .22s ease-out}
+@media(max-width:760px){.ads-depth-item[data-ads-depth="waiting"]{transform:translateY(20px);opacity:.1}#view-cine .cine-hero{transform:none}}
+@media(prefers-reduced-motion:reduce){.ads-depth-item,.ads-depth-item[data-ads-depth="waiting"],#view-cine .cine-hero{opacity:1!important;transform:none!important;transition:none!important}}
