@@ -48,24 +48,45 @@ Podem ser aplicados filtros semanais/mensais/geral e por campanha; histórico de
 2. Após verificar WhatsApp **pelo servidor**, chamar \`registerVerifiedPerson()\` com token gerado pelo servidor; se número já existir, não conta nova indicação. Cadastro de usuário já existente não pode trocar o indicador.
 3. Painel autenticado: chamar \`dashboard()\`, usar apenas os IDs pseudônimos e agregados retornados. Clique no compartilhamento chama \`recordShareAction()\`, com proteção contra spam/rate limit.
 4. Antes de cobrança: checkout autenticado chama \`createPendingOrder()\`; ele captura indicador do comprador, configura percentual por campanha e reserva comissão. Se não houver orçamento aprovado, suspender checkout antes de qualquer pagamento.
-5. Webhook de pagamento **validado com assinatura, valor, titularidade e idempotência no gateway** chama \`confirmPaidOrder()\`. Falha/cancelamento chama \`cancelPendingOrder()\`; reembolso confirmado chama \`refundPaidOrder()\`. O próprio módulo não valida webhooks.
+5. Webhook de pagamento **validado com assinatura, valor, titularidade e idempotência no gateway** chama \`confirmPaidOrder()\`. Falha/cancelamento chama `reverseOrder()` com confirmação de estorno pelo provedor. O próprio módulo não valida webhooks.
 6. Ao clicar “Liberar vínculo” o embaixador autenticado chama \`releaseDirectReferral()\`. O referido pode posteriormente confirmar nova atribuição por \`acceptInvitationAfterRelease()\` após login. Histórico de compras não muda.
 7. Antes de produção: migrations reversíveis, backup, testes de concorrência, segurança (IDOR/CSRF/XSS), ledger financeiro e homologação jurídica/regulatória.
 
-## Mensagem pré-pronta — pré-lançamento e Selo de Fundador
+## Regra consolidada: embaixador também pode ser comprador indicado
+
+**A -> B -> C.** B foi cadastrado via convite de A; B também se torna Embaixador da Sorte e convida C.
+
+- C cadastra-se: B contabiliza um cadastro válido; A não ganha comissão.
+- C compra R$ 100 e tem B como indicador direto: B ganha a comissão da compra de C. A ganha **zero** sobre essa compra.
+- B compra R$ 5 de números com as comissões confirmadas da carteira, sem usar dinheiro novo: A ganha comissão sobre a compra **de B**, conforme percentual autorizado da campanha. Isso NÃO é comissão de segundo nível: a venda remunerada é diretamente de B.
+- B pode comprar parcialmente em dinheiro e parcialmente em créditos, com o mesmo indicador direto A e mesma regra de percentual elegível. A função/status de B (participante, Embaixador da Sorte, fundador) não remove o vínculo.
+- Não há remuneração pelo simples cadastro de B ou por ele se tornar embaixador; nem pelas vendas de C, que B indicou.
+- Quando A libera B, novas compras de B deixam de beneficiar A, preservando o vínculo capturado em pedidos anteriores.
+
+### Regras de carteira implantadas no laboratório
+
+- `ads_wallets` guarda o saldo de comissões **já confirmadas**, além do crédito reservado para pedidos ainda pendentes.
+- `ads_wallet_events` registra cada entrada, reserva, gasto e estorno com idempotência por pedido/pessoa/tipo.
+- Ao criar o pedido, `createPendingOrder()` compara o saldo disponível com os créditos solicitados e reserva esses créditos + comissão da campanha; caso insuficiente, cancela a transação antes de cobrar.
+- Ao confirmar pagamento por evento **previamente validado** do gateway, `confirmPaidOrder()` transforma reserva em gasto, deposita a comissão do indicador direto e mantém a autorização regulatória como pré-requisito.
+- Em cancelamentos/reembolsos validados, `reverseOrder()` desfaz crédito reservado, devolve crédito gasto e estorna a comissão. Se alguém já gastou a comissão que foi estornada, poderá ficar com saldo negativo e não poderá consumir mais créditos até sua regularização.
+- **Não contabilizar crédito reciclado como novo faturamento:** campos `cash_cents` e `credit_cents` são separados.
+- **Não há saque/Pix operacional** nem integração com ledger bancário, provedor de OTP, checkout de produção ou backend da Hostinger. A validação jurídica da campanha e do programa de indicação é obrigatória. Os testes integrados usam MySQL descartável com flag de aprovação **apenas em cenário de simulação**.
+
+### Convocação para o pré-lançamento
 
 🍀 *CHEGOU O ARIQUEMES DA SORTE!*
 
-🎁 Já imaginou ter a oportunidade de conquistar prêmios das empresas da nossa cidade e ainda ganhar comissões indicando amigos?
+🎁 Já imaginou ter oportunidades de conquistar prêmios do comércio da nossa cidade e ainda poder ganhar comissões indicando amigos?
 
-🚀 O Ariquemes da Sorte já chegou e está em *PRÉ-LANÇAMENTO*!
+🏅 Estamos em *PRÉ-LANÇAMENTO*. Cadastre-se gratuitamente como *EMBAIXADOR DA SORTE* e garanta o exclusivo *SELO DE FUNDADOR*, reservado a quem entrar antes da inauguração!
 
-🏅 Entre agora como *EMBAIXADOR DA SORTE* e conquiste o *SELO DE FUNDADOR*, exclusivo para quem se cadastrar nesta fase. Depois da inauguração, o selo não será concedido a novos embaixadores!
+💚 *Um benefício importante:* mesmo que a pessoa que você indicou também se torne embaixadora, ela continua sendo sua indicação direta. Se ela comprar números elegíveis — até mesmo usando comissões que ganhou indicando outras pessoas — a compra dela poderá gerar uma comissão para você!
 
-✅ Cadastre-se gratuitamente e receba seu link. Sua indicação só conta no ranking quando o convidado concluir e validar o próprio cadastro. Compras elegíveis de indicados diretos poderão gerar comissões conforme as regras do programa.
+✅ Para contar no ranking, cada pessoa indicada precisa concluir seu próprio cadastro validado. As comissões dependem de compras diretas confirmadas, e não do simples cadastro nem das compras das pessoas que ela indicar.
 
-🔗 {LINK}
+🔗 *Entre e conheça as regras:* {LINK}
 
-🍀 Ariquemes da Sorte — sua cidade, novas oportunidades!
+🍀 *Ariquemes da Sorte — sua cidade, novas oportunidades!*
 
 Compartilhar é sempre voluntário e não há importação nem disparo de listas de contatos.
