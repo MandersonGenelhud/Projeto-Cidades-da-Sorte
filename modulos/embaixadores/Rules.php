@@ -53,4 +53,24 @@ final class ReferralRules
             default => 'Desconhecido',
         };
     }
+    /**
+     * Apenas o indicador direto da conta COMPRADORA pode receber.
+     * A conta pode, simultaneamente, ser embaixadora de outras pessoas.
+     * A origem da compra (dinheiro ou créditos) não muda seu beneficiário.
+     * Não consultar avós, genealogia ou qualquer indicação indireta.
+     */
+    public static function directPurchase(int $buyerId, ?int $directAmbassadorId, int $totalCents, int $commissionBps): array
+    {
+        if ($buyerId < 1 || ($directAmbassadorId !== null && $directAmbassadorId < 1)) {
+            throw new InvalidArgumentException('IDs inválidos');
+        }
+        if ($directAmbassadorId === null || $directAmbassadorId === $buyerId) {
+            return ['beneficiary_id' => null, 'commission_cents' => 0];
+        }
+        return [
+            'beneficiary_id' => $directAmbassadorId,
+            'commission_cents' => self::commissionCents($totalCents, $commissionBps),
+        ];
+    }
+
 }
