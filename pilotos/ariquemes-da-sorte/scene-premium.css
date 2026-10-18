@@ -1,0 +1,31 @@
+/* Ariquemes da Sorte v2 — história editorial em profundidade (piloto sem checkout). */
+@media(min-width:761px){
+.ads-cine-brand[data-cinematic-region]{display:block;position:relative;min-height:210svh;margin:30px 0 20px;padding:0;background:radial-gradient(ellipse 55% 45% at 76% 39%,#45285a77,transparent 100%),linear-gradient(135deg,#160b2b,#090519 76%)}
+.ads-cine-inner{position:sticky;top:16px;display:grid;align-items:center;grid-template-columns:minmax(0,1fr) minmax(280px,.9fr);gap:30px;padding:clamp(28px,5vw,62px);min-height:calc(100svh - 32px)}
+.ads-cine-stage{min-height:380px}
+}
+.ads-cine-brand{isolation:isolate}
+.ads-cine-inner{z-index:2;position:relative}
+.ads-cine-stage{isolation:isolate}
+.ads-cine-stage .cinematic-webgl{position:absolute;inset:-6%;height:112%;width:112%;opacity:.83;pointer-events:none;z-index:1;mix-blend-mode:screen}
+.ads-cine-stage .ads-cine-ring,.ads-cine-stage .ads-cine-halo{z-index:0}
+.ads-cine-stage .ads-cine-mark{z-index:2}
+.ads-cine-stage .ads-cine-caption{z-index:3}
+.ads-cine-story{display:flex;flex-wrap:wrap;gap:8px;margin-top:28px}
+.ads-cine-story [data-cinematic-step]{font-size:11px;border:1px solid #87629b5e;padding:9px 12px;border-radius:6px;color:#bcaccb;background:#2413339e;transition:background .3s,color .3s,border-color .3s}
+.ads-cine-story b{font-weight:800;color:#d4a15e;margin-right:8px}
+.ads-cine-story .is-current{color:#fff3d9;border-color:#f3a849a8;background:#39253c}
+@media(max-width:760px){
+.ads-cine-brand[data-cinematic-region]{display:block;min-height:auto;padding:0}
+.ads-cine-inner{display:grid;grid-template-columns:1fr;position:static;gap:10px;padding:24px}
+.ads-cine-stage{grid-row:1;min-height:290px}
+.ads-cine-copy{grid-row:2}
+.ads-cine-story{margin-top:20px}
+.ads-cine-story [data-cinematic-step]{font-size:10px;padding:8px 10px}
+.ads-cine-stage .cinematic-webgl{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+.ads-cine-brand[data-cinematic-region]{min-height:auto!important}
+.ads-cine-inner{position:static!important;min-height:auto!important}
+.ads-cine-story [data-cinematic-step]{transition:none!important}
+}
