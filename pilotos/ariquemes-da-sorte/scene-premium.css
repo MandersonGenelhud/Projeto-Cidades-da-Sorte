@@ -32,3 +32,13 @@
 
 /* Override earlier grid/overflow so sticky remains active. */
 @media(min-width:761px){.ads-cine-brand[data-cinematic-region]{overflow:clip}.ads-cine-inner{position:sticky;top:16px}}
+
+/* Low-weight glass annotations: decorative only; accessible content stays in HTML. */
+.cinematic-signals{position:absolute;inset:0;z-index:4;pointer-events:none}
+.cinematic-signals .signal{position:absolute;min-width:118px;max-width:170px;border:1px solid #f3a84951;background:#21142edc;box-shadow:0 12px 45px #0004,0 0 22px #f3a84910;backdrop-filter:blur(14px);border-radius:10px;padding:12px 13px;color:#f6f4fa;font-size:9px;font-weight:800;letter-spacing:.08em;text-align:left;line-height:1.45}
+.cinematic-signals .signal i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#f3a849;box-shadow:0 0 12px #f3a849;margin-right:5px}
+.cinematic-signals .signal b{display:block;margin-top:5px;font-size:8px;font-weight:600;letter-spacing:.12em;color:#aebaca}
+.cinematic-signals .signal-one{top:10%;left:0;transform:perspective(500px) rotateY(-13deg)}
+.cinematic-signals .signal-two{bottom:15%;right:-2%;transform:perspective(500px) rotateY(11deg)}
+@media(max-width:990px){.cinematic-signals{display:none}}
+@media(prefers-reduced-motion:reduce){.cinematic-signals .signal{transform:none}}
