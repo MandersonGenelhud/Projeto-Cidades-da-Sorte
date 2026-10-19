@@ -1,0 +1,56 @@
+name: Ariquemes - homologacao de precadastro
+on:
+  pull_request:
+    paths:
+      - 'homologacao/ariquemes-cinematografica/**'
+      - '.github/workflows/ads-preregistration.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        database: ['mysql:8.0', 'mariadb:10.11']
+    services:
+      database:
+        image: ${{ matrix.database }}
+        env:
+          MYSQL_DATABASE: ads_hml_ci
+          MYSQL_USER: ads_hml
+          MYSQL_PASSWORD: ephemeral-ci-only
+          MYSQL_ROOT_PASSWORD: ephemeral-root-ci-only
+        ports:
+          - 3306/tcp
+        options: >-
+          --health-cmd="sh -c 'if command -v mariadb-admin >/dev/null; then mariadb-admin ping -h 127.0.0.1 --silent; else mysqladmin ping -h 127.0.0.1 --silent; fi'"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    defaults:
+      run:
+        working-directory: homologacao/ariquemes-cinematografica
+    steps:
+      - name: Checkout isolado
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: PHP de homologacao
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, pdo_sqlite, mbstring
+          coverage: none
+      - name: Servico, isolamento e HTTP com SQLite temporario
+        run: python3 tests/run_checks.py
+      - name: Migracao e concorrencia no banco efemero
+        env:
+          ADS_MYSQL_HOMOLOGATION: '1'
+          ADS_MYSQL_HOST: '127.0.0.1'
+          ADS_MYSQL_PORT: ${{ job.services.database.ports[3306] }}
+          ADS_MYSQL_DATABASE: ads_hml_ci
+          ADS_MYSQL_USER: ads_hml
+          ADS_MYSQL_PASSWORD: ephemeral-ci-only
+        run: php tests/mysql_suite.php
