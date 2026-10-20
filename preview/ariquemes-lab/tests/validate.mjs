@@ -21,7 +21,17 @@ for(const [filename,text] of [['index.html',a],['rotas.html',b]]) {
 }
 assert.notEqual(a,b);
 assert.match(a,/story-grid/);
+assert.match(a,/prize-ticket/);
+assert.match(a,/VISUAL ILUSTRATIVO/);
+assert.match(a,/PRÉVIA CRIATIVA/);
+assert.match(cssA,/#6748ff/i);
+assert.match(cssA,/#ff4eb8/i);
+assert.match(cssA,/#24c5ff/i);
+assert.match(cssA,/joy-ribbon/);
+assert.match(cssA,/ticketFloat/);
 assert.match(b,/route-selector/);
+assert.match(cssB, /colorful future/);
+assert.match(cssB, /#7150fe/i);
 assert.match(jsB,/aria-pressed/);
 assert.match(cssA,/prefers-reduced-motion:reduce/);
 assert.match(cssB,/prefers-reduced-motion:reduce/);
