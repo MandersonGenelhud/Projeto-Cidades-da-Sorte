@@ -3,8 +3,8 @@
 Status: laboratório visual isolado. Não representa a versão PHP/MySQL do domínio oficial `ariquemesdasorte.com`.
 
 ## Duas direções realmente independentes
-- **01 Editorial Vivo** (`index.html`): estética clara e gráfica de campanha cultural, hierarquia editorial, pôster autoral, manifesto da cidade, narrativa e três pilares; não herda roxo/neon/bento dos pilotos.
-- **02 Rotas Vivas** (`rotas.html`): experiência escura cartográfica abstrata, pontos de conexão, tipografia imersiva e seletor de rota acessível com atualização de conteúdo.
+- **01 Alegria Futurista** (`index.html`): cores vibrantes, bilhete digital futurista, movimento leve, elementos em profundidade, narrativa positiva e três pilares sem inventar prêmios; não herda roxo/neon/bento dos pilotos.
+- **02 Rotas Vivas Coloridas** (`rotas.html`): experiência clara e vibrante com cartografia abstrata, pontos de conexão, tipografia imersiva e seletor de rota acessível com atualização de conteúdo.
 
 Ambas têm interação real de interface, navegação por âncoras, zero formulário, zero banco, zero chamadas de API, zero promoção ativa. A arte cartográfica é imaginária, não representa localização ou dados geográficos reais.
 
@@ -13,8 +13,8 @@ Ambas têm interação real de interface, navegação por âncoras, zero formul�
 |---|---|---|
 | Clareza da proposta | Texto na dobra e CTA de descoberta | Texto em hero e CTA de rotas |
 | Escaneabilidade no celular | 3 pilares com elementos gráficos | Rota seletora e painel expansivo |
-| Originalidade | Linguagem gráfica de festival local | Topografia abstrata das relações |
-| Riscos | Pôster pode disputar atenção com CTA | Mapa pode ser interpretado literalmente |
+| Originalidade | Linguagem futurista com alegria de celebração e informação responsável | Topografia colorida das relações |
+| Riscos | Bilhete gráfico pode disputar atenção com CTA em smartphones menores | Mapa pode ser interpretado literalmente |
 | Melhor para | Primeira visita e comunicação de pré-lançamento | Conteúdo de comunidade e storytelling |
 
 Parecer técnico inicial (sem testes visuais completos em navegadores reais): primeira direção prioriza compreensão imediata, segunda explora interação contextual. Não existe escolha obrigatória: a avaliação definitiva exige feedback do proprietário e teste mobile.
