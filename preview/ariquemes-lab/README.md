@@ -39,3 +39,13 @@ Projeto estático isolado: source GitHub branch `feat/ariquemes-livre-editorial-
 
 ## Ajuste solicitado em 20/10/2026
 O usuário rejeitou o visual bege/editorial retrô e pediu uma **plataforma de sorteios futurista, alegre, vibrante e acessível**, com cores vivas e motion leve. Home substituída por composição de bilhete digital com gradientes violeta, azul, rosa, amarelo e verde-menta. A segunda direção também recebeu versão colorida. O texto da primeira tela agora explicita a finalidade de sorteios, sem afirmar prêmios ou campanhas em operação. Revisão pelo navegador em celular observou navegação funcional e sem overflow importante; conferência completa de contraste/performance em múltiplos aparelhos ainda é necessária.
+
+## Direção atual após feedback de 20/10 — Futuro Equilibrado
+
+O usuário rejeitou o excesso de cores da versão anterior. Direção vigente: **identidade marcante, visual futurista e alegre sem parecer infantil ou carnaval**. Manter somente as cores da logo selecionadas pelo usuário (roxo, laranja e verde), acrescidas de azul de confiança (referência Facebook), preto e branco e seus tons neutros. Distribuição da interface: **branco predominante; roxo identifica a marca; azul é o CTA principal e os elementos de confiança; laranja e verde só pontuam estados e detalhes**. Não usar rosa, amarelo, ciano ou gradientes multicoloridos como acento na experiência principal.
+
+Paleta de trabalho (aproximação, conferir tons exatos da identidade oficial antes da publicação do domínio): roxo `#6535C7`, laranja `#F18A35`, verde `#42A95B`, azul `#1877F2`, branco `#FFFFFF`, preto-ameixa `#191526`.
+
+Elementos da home foram reconstruídos: tipografia Manrope, hero branco com título sobre sorteios locais, mock de plataforma sofisticado que não representa prêmio real, três cards claros, jornada sobre fundo roxo, FAQ e status de prévia. Nada recolhe informações. A segunda direção recebeu ajuste de paleta, mas a primeira é a principal.
+
+Critério de avaliação independente: aparência premium e tecnológica sem excesso decorativo, compreensão instantânea de que se trata de uma plataforma de sorteios, mobile-first, CTA não manipulativo, performance, motion reduzido, identidade e segurança. A seleção final depende de revisão do usuário.
