@@ -1,0 +1,26 @@
+name: Ariquemes Design Lab Offline Checks
+on:
+  push:
+    branches: ['feat/ariquemes-livre-editorial-preview-20261020']
+    paths:
+      - 'preview/ariquemes-lab/**'
+      - '.github/workflows/ariquemes-editorial-design-lab.yml'
+  pull_request:
+    paths:
+      - 'preview/ariquemes-lab/**'
+      - '.github/workflows/ariquemes-editorial-design-lab.yml'
+permissions:
+  contents: read
+jobs:
+  static-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Validate pages, local links, safe demo boundaries
+        run: node preview/ariquemes-lab/tests/validate.mjs
