@@ -36,3 +36,6 @@ Parecer técnico inicial (sem testes visuais completos em navegadores reais): pr
 
 ## Implantação Render
 Projeto estático isolado: source GitHub branch `feat/ariquemes-livre-editorial-preview-20261020`; publishPath `preview/ariquemes-lab`; nenhum build necessário; `autoDeploy:no`. O domínio oficial permanece em Hostinger. A URL definitiva só deve ser informada após confirmação de status READY/LIVE.
+
+## Ajuste solicitado em 20/10/2026
+O usuário rejeitou o visual bege/editorial retrô e pediu uma **plataforma de sorteios futurista, alegre, vibrante e acessível**, com cores vivas e motion leve. Home substituída por composição de bilhete digital com gradientes violeta, azul, rosa, amarelo e verde-menta. A segunda direção também recebeu versão colorida. O texto da primeira tela agora explicita a finalidade de sorteios, sem afirmar prêmios ou campanhas em operação. Revisão pelo navegador em celular observou navegação funcional e sem overflow importante; conferência completa de contraste/performance em múltiplos aparelhos ainda é necessária.
