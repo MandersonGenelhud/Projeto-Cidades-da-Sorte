@@ -20,18 +20,18 @@ for(const [filename,text] of [['index.html',a],['rotas.html',b]]) {
  }
 }
 assert.notEqual(a,b);
-assert.match(a,/story-grid/);
-assert.match(a,/prize-ticket/);
+assert.match(a,/feature-grid/);
+assert.match(a,/platform-window/);
 assert.match(a,/plataforma de sorteios/);
-assert.match(a,/não anunciam prêmios/);
-assert.match(a,/regras, valores, condições e resultados/);
-assert.match(a,/VISUAL ILUSTRATIVO/);
-assert.match(a,/PRÉVIA CRIATIVA/);
-assert.match(cssA,/#6748ff/i);
-assert.match(cssA,/#ff4eb8/i);
-assert.match(cssA,/#24c5ff/i);
-assert.match(cssA,/joy-ribbon/);
-assert.match(cssA,/ticketFloat/);
+assert.match(a,/não há prêmios anunciados/i);
+assert.match(a,/condições, regras, valores, prazos e resultados/);
+assert.match(a,/Prévia ilustrativa/);
+assert.match(a,/PRÉVIA DE DESIGN/);
+assert.match(cssA,/#6535c7/i);
+assert.match(cssA,/#f18a35/i);
+assert.match(cssA,/#42a95b/i);\nassert.match(cssA,/#1877f2/i);
+assert.match(cssA,/--white:#fff/);
+assert.match(cssA,/platform-window/);
 assert.match(b,/route-selector/);
 assert.match(cssB, /colorful future/);
 assert.match(cssB, /#7150fe/i);
