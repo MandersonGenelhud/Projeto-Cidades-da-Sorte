@@ -22,6 +22,9 @@ for(const [filename,text] of [['index.html',a],['rotas.html',b]]) {
 assert.notEqual(a,b);
 assert.match(a,/story-grid/);
 assert.match(a,/prize-ticket/);
+assert.match(a,/plataforma de sorteios/);
+assert.match(a,/não anunciam prêmios/);
+assert.match(a,/regras, valores, condições e resultados/);
 assert.match(a,/VISUAL ILUSTRATIVO/);
 assert.match(a,/PRÉVIA CRIATIVA/);
 assert.match(cssA,/#6748ff/i);
