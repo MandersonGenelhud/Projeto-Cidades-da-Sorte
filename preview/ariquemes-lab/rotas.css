@@ -134,3 +134,56 @@ body{background:radial-gradient(ellipse at 82% 6%,#8fefff7f,transparent 27%),rad
 footer{background:#28115e;color:white}.footer-big i{color:#ffe66d}.footer-bottom{color:#e6dffa;border-color:#ffffff4a}
 :focus-visible{outline-color:#ff4bae}
 @media(max-width:580px){.route-stage-copy{background:#f5edff}.route-stage-graphic{min-height:310px}}
+
+
+/* 2026-10-20 cohesive brand correction — companion concept matches restrained primary UI. */
+:root{--bg:#fff;--fg:#21192f;--muted:#615a6d;--acid:#6535c7;--orange:#f18a35;--line:#e7e3ec}
+body{background:#fff;color:#21192f}
+.preview-notice{background:#45228f;color:white}
+.header{background:#ffffffef;border-bottom:1px solid var(--line)}
+.brand-icon{background:#45228f;border-color:#e6dff6}
+.brand-icon b{color:white}
+.switch-design{background:#1877f2;color:white;border-color:#1877f2;border-radius:11px;box-shadow:0 7px 20px #1877f21d}
+.switch-design:hover{background:#1665cb;color:white}
+.hero-words h1 i{color:#6535c7}
+.overline,.chapter{color:#6535c7}
+.pulse-dot{background:#42a95b;box-shadow:0 0 0 6px #42a95b18}
+.hero-description{color:#585267}
+.primary-link{background:#1877f2;color:white;border-radius:11px;box-shadow:0 10px 22px #1877f222}
+.primary-link:hover{background:#1665cb}
+.map-grid{background:linear-gradient(to right,#6535c715 1px,transparent 1px),linear-gradient(to bottom,#6535c715 1px,transparent 1px);background-size:65px 65px}
+.connection-art:before,.connection-art:after{border-color:#d6c9ea}
+.track{stroke:#6535c7;stroke-width:3}
+.track-second{stroke:#1877f2;stroke-width:2.4}
+.track-third{stroke:#42a95b;stroke-width:1.7}
+.stop{fill:#f18a35;stroke:white}.radar-ring{stroke:#6535c7}
+.map-name{background:white;color:#3c2967;border:1px solid #e8e1f5;border-radius:10px;box-shadow:5px 9px 19px #2e1c5517}
+.map-index{color:#c86d26}.map-axis,.hero-foot{color:#76717f}
+.map-axis span,.hero-foot span span{color:#6535c7}
+.manifesto-statement{background:#f7f5fb;color:#251b35;border-block:1px solid #eae3f7}
+.statement-layout h2 i{-webkit-text-stroke:1px #6535c7}
+.statement-layout h2 em{color:#6535c7}
+.statement-star{color:#ede6f9}
+.routes-heading p{color:#5f586d}
+.route-selector{border-color:#6535c7}
+.route-option{color:#241a36;border-color:#e7dff0}
+.route-number,.route-arrow{color:#6535c7}
+.route-option:hover,.route-option.active{background:#f5f0fd}
+.route-option.active{box-shadow:inset 0 4px #1877f2}
+.route-stage{background:#faf9fd;color:#2a1a43;border:1px solid #eee8f6;border-radius:0 0 20px 20px}
+.route-stage-graphic{background:linear-gradient(140deg,#45228f,#6535c7)}
+.stage-sigil{color:white;text-shadow:10px 10px 0 #2d145f}
+.route-stage-copy>span{color:#6535c7}.route-stage-copy p{color:#635d6d}
+.route-stage[data-current="business"] .route-stage-graphic{background:linear-gradient(140deg,#4a2599,#7641cb)}
+.route-stage[data-current="business"] .stage-sigil{color:white;text-shadow:10px 10px 0 #261351}
+.route-stage[data-current="trust"] .route-stage-graphic{background:linear-gradient(140deg,#263b7a,#1877f2)}
+.route-stage[data-current="trust"] .stage-sigil{color:white;text-shadow:10px 10px 0 #19396e}
+.linear-story{background:#fff;color:#21192f}
+.linear-story .chapter{color:#6535c7}
+.story-line{border-color:#e6dfee}.story-line p{color:#625a6e}
+.end-scene{background:linear-gradient(120deg,#432083,#6535c7);color:#fff}
+.end-scene .chapter{color:#fff}.end-scene h2 em{color:#fff}
+.faq summary{color:#21192f}.faq details{border-color:#e8e3ef}.faq p{color:#625b6f}
+footer{background:#1e182f;color:#fff}
+.footer-big i{color:#fff}.footer-bottom{color:#c8c3cf;border-color:#ffffff30}
+@media(max-width:580px){.route-stage-copy{background:#faf9fd}}
