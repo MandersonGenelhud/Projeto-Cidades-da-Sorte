@@ -1,0 +1,161 @@
+// Banco de dados simples em arquivo JSON (sem dependências nativas).
+import fs from 'node:fs';
+import path from 'node:path';
+import { EventEmitter } from 'node:events';
+
+const DEFAULT_DATA = {
+  contacts: [],
+  campaigns: [],
+  rules: [],
+  schedules: [],
+  blacklist: [],
+  uploads: [],
+  logs: [],
+  conversations: {},
+  appointments: [],
+  settings: {
+    autoReplyEnabled: true,
+    ignoreGroups: true,
+    replyCooldownMinutes: 0,
+    optOutKeywords: ['sair', 'parar', 'cancelar', 'stop'],
+    optOutMessage: 'Pronto! Você não receberá mais mensagens nossas. Se mudar de ideia, envie VOLTAR.',
+    optInKeywords: ['voltar'],
+    optInMessage: 'Que bom ter você de volta! 🎉',
+    welcomeEnabled: false,
+    welcomeMessage: 'Olá {primeiro_nome}! 👋 Obrigado por entrar em contato.',
+    businessHours: {
+      enabled: false,
+      days: [1, 2, 3, 4, 5],
+      start: '08:00',
+      end: '18:00',
+      message: 'Estamos fora do horário de atendimento. Responderemos assim que possível! 🕗',
+    },
+    defaultDelayMin: 8,
+    defaultDelayMax: 20,
+    connection: {
+      mode: 'qr', // qr (WhatsApp Web) | cloud (API oficial da Meta)
+      cloud: { accessToken: '', phoneNumberId: '', verifyToken: '', appSecret: '', graphVersion: 'v22.0' },
+    },
+    agent: {
+      enabled: false,
+      apiKey: '',
+      model: '~anthropic/claude-sonnet-latest',
+      temperature: 0.4,
+      memoryMessages: 20,
+      rulesFirst: true,
+      agentName: 'Sofia',
+      instructions: 'Seja simpática, objetiva e escreva mensagens curtas, como num WhatsApp. Use no máximo 1 ou 2 emojis.',
+    },
+    business: {
+      name: 'Clínica Sorriso',
+      segment: 'clínica odontológica',
+      description: 'Clínica odontológica que atende pacientes pelo WhatsApp: tira dúvidas e marca consultas.',
+      services: 'Limpeza\nClareamento\nTratamento de canal\nAvaliação',
+      prices: 'Limpeza: R$ 150\nClareamento: a partir de R$ 600\nCanal: sob avaliação\nAvaliação: gratuita',
+      hours: 'Segunda a sexta: 8h às 18h\nSábado: 8h às 12h\nDomingo e feriados: fechado',
+      address: 'Rua das Flores, 120 - Centro',
+      faq: 'Aceitam convênio? Não, apenas particular, com parcelamento em até 6x no cartão.\nTem estacionamento? Sim, gratuito para pacientes.',
+      policies: 'Cancelamentos e remarcações com pelo menos 24h de antecedência.\nNão damos descontos além das promoções divulgadas.',
+      schedulingRules: 'Consultas de 40 minutos. Antes de agendar, peça o nome completo do paciente e confirme o serviço, a data e o horário.',
+    },
+    agenda: {
+      provider: 'local', // local | calcom
+      slotMinutes: 40,
+      minAdvanceMinutes: 60,
+      maxDaysAhead: 30,
+      hours: { 0: '', 1: '08:00-18:00', 2: '08:00-18:00', 3: '08:00-18:00', 4: '08:00-18:00', 5: '08:00-18:00', 6: '08:00-12:00' },
+      calcom: { apiKey: '', eventTypeId: '', timeZone: 'America/Sao_Paulo', defaultEmail: '' },
+    },
+  },
+};
+
+/** Mescla objetos de configuração em profundidade (sem mesclar arrays). */
+export function deepMerge(base, patch) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return patch === undefined ? base : patch;
+  const out = { ...(base || {}) };
+  for (const [k, v] of Object.entries(patch)) {
+    out[k] = v && typeof v === 'object' && !Array.isArray(v) && base?.[k] && typeof base[k] === 'object'
+      ? deepMerge(base[k], v)
+      : v;
+  }
+  return out;
+}
+
+const MAX_LOGS = 2000;
+
+export class Store extends EventEmitter {
+  constructor(dataDir) {
+    super();
+    this.dataDir = dataDir;
+    this.file = path.join(dataDir, 'db.json');
+    fs.mkdirSync(dataDir, { recursive: true });
+    this.data = this.#load();
+    this.saveTimer = null;
+  }
+
+  #load() {
+    const base = structuredClone(DEFAULT_DATA);
+    if (!fs.existsSync(this.file)) return base;
+    try {
+      const loaded = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+      return {
+        ...base,
+        ...loaded,
+        settings: deepMerge(base.settings, loaded.settings || {}),
+      };
+    } catch (err) {
+      const backup = `${this.file}.corrompido-${Date.now()}`;
+      fs.copyFileSync(this.file, backup);
+      console.error(`db.json inválido, backup salvo em ${backup}:`, err.message);
+      return base;
+    }
+  }
+
+  /** Agenda a gravação para agrupar várias alterações seguidas. */
+  save() {
+    clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => this.flush(), 200);
+  }
+
+  flush() {
+    clearTimeout(this.saveTimer);
+    const tmp = `${this.file}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2));
+    fs.renameSync(tmp, this.file);
+  }
+
+  get settings() {
+    return this.data.settings;
+  }
+
+  updateSettings(patch) {
+    this.data.settings = deepMerge(this.data.settings, patch);
+    this.save();
+    return this.data.settings;
+  }
+
+  isBlacklisted(phone) {
+    return this.data.blacklist.includes(phone);
+  }
+
+  addToBlacklist(phone) {
+    if (!this.isBlacklisted(phone)) {
+      this.data.blacklist.push(phone);
+      this.save();
+    }
+  }
+
+  removeFromBlacklist(phone) {
+    this.data.blacklist = this.data.blacklist.filter((p) => p !== phone);
+    this.save();
+  }
+
+  addLog(entry) {
+    const log = { at: new Date().toISOString(), ...entry };
+    this.data.logs.push(log);
+    if (this.data.logs.length > MAX_LOGS) this.data.logs.splice(0, this.data.logs.length - MAX_LOGS);
+    this.save();
+    this.emit('log', log);
+    return log;
+  }
+}

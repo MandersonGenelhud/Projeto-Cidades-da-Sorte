@@ -1,0 +1,181 @@
+# ZapAuto: seu WhatsApp atendendo sozinho 🤖💬
+
+Ferramenta completa de automação de WhatsApp com **agente de IA**. Ele conversa com o cliente, **lembra da conversa**, **responde sobre o seu negócio** e **age**: consulta a agenda, marca, lista e cancela horários, e chama um humano quando precisa.
+
+Também traz o que costuma faltar num robô de atendimento: envio em massa, respostas por palavra-chave, mensagens agendadas, gestão de contatos e um painel web para controlar tudo.
+
+```
+WhatsApp ──▶ Servidor ──▶ IA (OpenRouter) ──▶ Ferramentas (Agenda / Cal.com)
+                │              ▲
+                └── Memória ───┘   + Base do negócio
+```
+
+## O que vem pronto
+
+| Recurso | O que faz |
+|---|---|
+| 🧠 **Agente de IA** | Atende 24h com qualquer modelo do OpenRouter (Claude, GPT, Gemini…), usando só as informações do seu negócio |
+| 🧩 **Memória** | Guarda o histórico de cada cliente e envia junto com cada mensagem nova |
+| 📅 **Agenda** | Agenda interna ou **Cal.com**. O agente mostra os horários livres e marca sozinho |
+| 🙋 **Transferência para humano** | O agente pausa e avisa a equipe. Você responde pelo painel e depois devolve ao robô |
+| 🧪 **Testar até quebrar** | Simulador de conversa e bateria de mensagens estranhas ("kkkkk", "me dá 100% de desconto"…) |
+| 📱 **Duas conexões** | **API oficial da Meta** (webhook, como no vídeo) ou **QR Code** (WhatsApp Web, sem burocracia) |
+| 🚀 **Envio em massa** | Campanhas com variáveis (`{nome}`), variações de texto, anexos, intervalos aleatórios e pausas de segurança |
+| 🤖 **Respostas por palavra-chave** | Menus (1, 2, 3), respostas rápidas, etiquetas automáticas e horário de atendimento |
+| ⏰ **Mensagens agendadas** | Uma vez, diárias, semanais ou mensais |
+| 👥 **Contatos** | Importação por CSV, etiquetas, importação de grupos, exportação e descadastro (LGPD) |
+
+## Começando (5 minutos)
+
+Precisa do **Node.js 22.9+**.
+
+```bash
+cd whatsapp-automacao
+npm install
+cp .env.example .env    # opcional: as chaves também podem ser coladas no painel
+npm start
+```
+
+Abra **http://localhost:3000**.
+
+---
+
+## O passo a passo do vídeo, dentro da ferramenta
+
+### Passo 1: Planeje o agente
+Antes de configurar, responda: **o que o negócio faz**, **quem são os clientes**, **o que eles precisam resolver** e **que ações o agente pode tomar**. O exemplo que já vem preenchido é a *Clínica Sorriso* (clínica odontológica, pacientes no WhatsApp, dúvidas e agendamentos; ações: ver agenda e marcar horário).
+
+### Passo 2: Conecte o WhatsApp
+Na aba **Conexão**, escolha o modo:
+
+**A) API oficial da Meta (recomendado para o agente)**
+1. Acesse [developers.facebook.com](https://developers.facebook.com) → **Criar app** → tipo *Empresa* → adicione o produto **WhatsApp**.
+2. Em *WhatsApp → Configuração da API*, copie o **Token de acesso** e o **ID do número de telefone**. Para produção, gere um **token permanente** (Configurações do negócio → Usuários do sistema).
+3. Cole no painel, invente um **Token de verificação** e salve.
+4. Em *WhatsApp → Configuração → Webhook*, cole a **URL do webhook** que o painel mostra (`https://seu-dominio/webhook`) e o mesmo token de verificação. Assine o campo **messages**.
+5. Opcional, mas recomendado: cole o **App Secret** (Configurações do app → Básico) para validar a assinatura de cada mensagem.
+
+> A Meta só chama URLs **HTTPS públicas**. Na VPS (passo 8) isso já fica pronto. Para testar no seu computador, use um túnel: `cloudflared tunnel --url http://localhost:3000` ou `ngrok http 3000`.
+
+**B) QR Code (WhatsApp Web)**: escaneie com o celular em *Aparelhos conectados*. É mais rápido e permite grupos e envio em massa, mas é uma conexão **não oficial**. Use com moderação para não ter o número bloqueado.
+
+### Passo 3: Conecte a IA (OpenRouter)
+Na aba **Agente IA**, cole sua chave do [OpenRouter](https://openrouter.ai/keys). Uma chave dá acesso a qualquer modelo. O padrão é `~anthropic/claude-sonnet-latest`; para economizar, use `~anthropic/claude-haiku-latest`.
+
+### Passo 4: Memória
+Já funciona sozinha. Cada mensagem vai para a IA junto com as últimas mensagens da conversa (o padrão é 20, ajustável). Veja e gerencie tudo na aba **Conversas**.
+
+### Passo 5: Base do negócio
+Preencha na aba **Agente IA**: serviços, preços, horários, endereço, perguntas frequentes, políticas e regras de agendamento. **O agente só responde com o que está aqui.** Ele não inventa preços nem dá descontos fora das políticas. Use **"Ver prompt completo"** para conferir o que a IA recebe.
+
+### Passo 6: Ferramentas (o agente age)
+Na aba **Agenda**, defina os horários de atendimento por dia e a duração de cada horário. Pronto: o agente passa a consultar os horários livres e a marcar sozinho. Para usar o **Cal.com**, troque o provedor e informe a chave da API, o ID do tipo de evento e um e-mail padrão (o Cal.com exige e-mail do participante).
+
+Ferramentas disponíveis para a IA:
+- `consultar_horarios_disponiveis`: horários livres numa data
+- `agendar_horario`: marca para o cliente da conversa
+- `listar_meus_agendamentos` / `cancelar_agendamento`: o cliente só vê e cancela os próprios agendamentos
+- `transferir_para_humano`: pausa o robô e avisa a equipe
+
+### Passo 7: Teste até quebrar
+Na aba **Testar agente**:
+- **Simulador**: converse como se fosse um cliente. Em *modo teste*, nada é gravado na agenda.
+- **Testa até quebrar**: roda as mensagens estranhas ("kkkkkkk", "??????", "quero marcar ontem", "me dá 100% de desconto", "vcs abrem domingo 3h da manhã?", emojis…). Leia as respostas, ajuste a base e as instruções, e rode de novo até todas ficarem boas.
+
+Depois, marque **"Agente ligado"** e salve.
+
+### Passo 8: Coloque no ar (VPS)
+Seu notebook não é servidor: o agente precisa ficar online 24h. Numa VPS Linux (Hetzner, Contabo, DigitalOcean, Hostinger, Oracle Free…):
+
+```bash
+# 1. Instale o Docker
+curl -fsSL https://get.docker.com | sh
+
+# 2. Baixe o projeto
+git clone https://github.com/MandersonGenelhud/Projeto-Cidades-da-Sorte.git
+cd Projeto-Cidades-da-Sorte/whatsapp-automacao
+
+# 3. Configure
+cp .env.example .env
+nano .env            # defina PANEL_PASSWORD (obrigatório) e as chaves
+nano Caddyfile       # troque SEU_DOMINIO pelo seu domínio (DNS apontando para a VPS)
+
+# 4. Suba
+docker compose up -d
+```
+
+O Caddy gera o HTTPS automaticamente. O painel fica em `https://seu-dominio` (protegido por senha) e o webhook em `https://seu-dominio/webhook`.
+
+**Sem Docker (PM2):**
+```bash
+npm ci --omit=dev
+npm i -g pm2
+pm2 start ecosystem.config.cjs && pm2 save && pm2 startup
+```
+Nesse caso, coloque um proxy com HTTPS (Caddy ou Nginx + Certbot) na frente da porta 3000.
+
+---
+
+## Como o agente decide o que responder
+
+1. **SAIR / PARAR** → descadastra (LGPD). **VOLTAR** → recadastra. Isso sempre funciona, com ou sem IA.
+2. **Respostas por palavra-chave** (se *"têm prioridade"* estiver marcado), ex.: "pix" → chave PIX.
+3. **Agente de IA**, com memória, base do negócio e ferramentas.
+4. Conversa transferida para humano → o robô fica em silêncio até você clicar em *"Devolver para o robô"*.
+
+Mensagens enviadas em sequência (enquanto a IA pensa) são respondidas juntas, como uma pessoa faria.
+
+## Envio em massa e boas práticas
+
+- Use variáveis (`{nome}`, `{primeiro_nome}`, `{cidade}`) e variações de texto (`{Olá|Oi|E aí}`), além de várias versões da mensagem.
+- Mantenha intervalos de 8 a 20 s ou mais e pausas a cada 30 mensagens.
+- Envie só para quem pediu para receber (opt-in). Quem responde **SAIR** nunca mais recebe.
+- **Na API oficial da Meta**, mensagens livres só podem ser enviadas até 24h depois da última mensagem do cliente. Para iniciar conversas em massa pela API oficial é preciso usar *templates aprovados* pela Meta. Por isso o envio em massa funciona melhor no modo QR Code.
+
+## Variáveis de ambiente
+
+| Variável | Para que serve |
+|---|---|
+| `PORT`, `HOST` | Porta e interface do painel (`0.0.0.0` na VPS) |
+| `PANEL_USER`, `PANEL_PASSWORD` | Login do painel (**obrigatório** em produção fora do localhost) |
+| `TZ` | Fuso do negócio (padrão `America/Sao_Paulo`) |
+| `OPENROUTER_API_KEY` | Chave da IA |
+| `WA_CLOUD_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_VERIFY_TOKEN`, `WA_APP_SECRET` | API oficial da Meta |
+| `DATA_DIR` | Onde ficam os dados (padrão `./data`) |
+
+As variáveis de ambiente têm prioridade sobre o que foi salvo no painel. Os segredos nunca voltam completos para o navegador.
+
+## Estrutura
+
+```
+src/
+  server.js              API REST, painel, webhook da Meta
+  connection.js          Alterna entre QR Code e API oficial
+  transports/
+    whatsapp-web.js      Conexão por QR Code (Baileys)
+    cloudapi.js          API oficial da Meta (Graph API + webhook)
+  agent/
+    agent.js             Agente: memória, ciclo de ferramentas, transferência
+    llm.js               Cliente do OpenRouter
+    prompt.js            Prompt montado a partir da base do negócio
+    tools.js             Ferramentas que a IA pode usar
+    calendar.js          Agenda interna e Cal.com
+  autoreply.js           Fluxo de mensagens recebidas (descadastro, palavras-chave, IA)
+  campaigns.js           Envio em massa
+  scheduler.js           Mensagens agendadas
+  store.js               Banco de dados em JSON (data/db.json)
+public/                  Painel web (HTML/CSS/JS puro)
+test/                    Testes automatizados (npm test)
+```
+
+## Testes
+
+```bash
+npm test
+```
+
+Cobrem: agenda (horários, antecedência, datas inválidas), ciclo de ferramentas do agente, memória, transferência para humano, agrupamento de mensagens, simulação sem gravar, webhook da Meta (verificação, assinatura, duplicatas, envio), campanhas, agendamentos, regras e utilitários.
+
+## Aviso
+
+Esta ferramenta não tem vínculo com o WhatsApp nem com a Meta. Respeite os [Termos](https://www.whatsapp.com/legal/business-policy) e a LGPD: envie mensagens apenas para quem autorizou e ofereça sempre uma forma de sair da lista.

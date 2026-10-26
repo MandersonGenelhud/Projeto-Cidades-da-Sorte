@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Automação WhatsApp</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="logo">💬</span>
+      <div>
+        <strong>ZapAuto</strong>
+        <small>Automação de WhatsApp</small>
+      </div>
+    </div>
+    <nav>
+      <button data-tab="dashboard" class="active">📊 Painel</button>
+      <button data-tab="connection">📱 Conexão</button>
+      <button data-tab="agent">🧠 Agente IA</button>
+      <button data-tab="test">🧪 Testar agente</button>
+      <button data-tab="conversations">💬 Conversas</button>
+      <button data-tab="agenda">📅 Agenda</button>
+      <button data-tab="contacts">👥 Contatos</button>
+      <button data-tab="campaigns">🚀 Envio em massa</button>
+      <button data-tab="rules">🤖 Respostas automáticas</button>
+      <button data-tab="schedules">⏰ Agendamentos</button>
+      <button data-tab="send">✉️ Envio rápido</button>
+      <button data-tab="logs">📜 Histórico</button>
+      <button data-tab="settings">⚙️ Configurações</button>
+    </nav>
+    <div class="conn-pill" id="connPill"><span class="dot"></span><span id="connText">Desconectado</span></div>
+  </aside>
+
+  <main>
+    <!-- PAINEL -->
+    <section id="tab-dashboard" class="tab active">
+      <h1>Painel</h1>
+      <div class="cards" id="statsCards"></div>
+      <div class="grid2">
+        <div class="panel">
+          <h2>Atividade recente</h2>
+          <ul class="feed" id="recentFeed"></ul>
+        </div>
+        <div class="panel">
+          <h2>Como começar</h2>
+          <ol class="steps">
+            <li><b>Conexão</b>: escaneie o QR Code ou conecte a API oficial da Meta (webhook).</li>
+            <li><b>Agente IA</b>: cole sua chave do OpenRouter e preencha a base do seu negócio.</li>
+            <li><b>Agenda</b>: defina os horários de atendimento (ou conecte o Cal.com).</li>
+            <li><b>Testar agente</b>: converse com ele e rode os testes de estresse até não quebrar.</li>
+            <li>Ligue o agente e acompanhe tudo em <b>Conversas</b>. Coloque numa VPS para rodar 24h.</li>
+          </ol>
+          <div id="agentStatusBox" class="preview"></div>
+          <p class="hint">Use variáveis como <code>{nome}</code>, <code>{primeiro_nome}</code> e variações <code>{Olá|Oi|E aí}</code> para personalizar cada mensagem.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONEXÃO -->
+    <section id="tab-connection" class="tab">
+      <h1>Conexão</h1>
+      <div class="panel">
+        <h2>Como conectar o WhatsApp</h2>
+        <div class="mode-choice">
+          <label class="mode-card"><input type="radio" name="connMode" value="qr" />
+            <b>📷 QR Code (WhatsApp Web)</b>
+            <span>Usa o seu número atual em minutos. Permite grupos e envio em massa. Não oficial: use com moderação.</span>
+          </label>
+          <label class="mode-card"><input type="radio" name="connMode" value="cloud" />
+            <b>✅ API oficial da Meta (Cloud API)</b>
+            <span>Como no vídeo: app de desenvolvedor + webhook. Oficial e estável, ideal para o agente de IA. Precisa de URL pública (VPS).</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="panel center" id="qrPanel">
+        <div id="qrArea"><p class="muted">Carregando…</p></div>
+        <div class="row center-row">
+          <button class="btn" id="btnRestart">🔄 Reconectar</button>
+          <button class="btn danger" id="btnLogout">🚪 Desconectar número</button>
+        </div>
+        <p class="hint">No celular: WhatsApp → ⋮ / Configurações → <b>Aparelhos conectados</b> → <b>Conectar aparelho</b> e aponte para o QR Code.</p>
+      </div>
+
+      <div class="panel" id="cloudPanel" hidden>
+        <h2>API oficial da Meta</h2>
+        <div id="cloudStatus" class="preview"></div>
+        <ol class="steps small">
+          <li>Acesse <b>developers.facebook.com</b> → <b>Criar app</b> → tipo Empresa → adicione o produto <b>WhatsApp</b>.</li>
+          <li>Em WhatsApp → <b>Configuração da API</b>, copie o <b>Token de acesso</b> e o <b>ID do número de telefone</b> (para produção, gere um token permanente de usuário do sistema).</li>
+          <li>Em WhatsApp → <b>Configuração</b> → Webhook: cole a <b>URL do webhook</b> abaixo e o mesmo <b>Token de verificação</b>. Assine o campo <code>messages</code>.</li>
+        </ol>
+        <form id="formCloud" class="form">
+          <label>Token de acesso <input name="accessToken" placeholder="EAAG…" autocomplete="off" /></label>
+          <div class="row">
+            <label>ID do número de telefone <input name="phoneNumberId" placeholder="1098…" /></label>
+            <label>Versão da Graph API <input name="graphVersion" placeholder="v22.0" /></label>
+          </div>
+          <div class="row">
+            <label>Token de verificação (você inventa) <input name="verifyToken" placeholder="minha-senha-do-webhook" /></label>
+            <label>App Secret (opcional, valida assinatura) <input name="appSecret" autocomplete="off" /></label>
+          </div>
+          <label>URL do webhook (cole na Meta) <input id="webhookUrl" readonly /></label>
+          <p class="hint">Precisa ser HTTPS e acessível pela internet: use seu domínio na VPS (veja o README) ou, para testar, um túnel como <code>cloudflared</code> ou <code>ngrok</code>.</p>
+          <button class="btn primary">Salvar e conectar</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- AGENTE IA -->
+    <section id="tab-agent" class="tab">
+      <h1>Agente IA</h1>
+      <form id="formAgent" class="form">
+        <div class="grid2">
+          <div class="panel">
+            <h2>🧠 Cérebro (OpenRouter)</h2>
+            <label class="check big"><input type="checkbox" name="enabled" /> <b>Agente ligado</b> (responde os clientes no WhatsApp)</label>
+            <label>Chave do OpenRouter <input name="apiKey" placeholder="sk-or-v1-…" autocomplete="off" /></label>
+            <p class="hint">Crie em <b>openrouter.ai</b> → Keys. Uma chave dá acesso a qualquer modelo.</p>
+            <label>Modelo
+              <input name="model" list="modelList" />
+              <datalist id="modelList">
+                <option value="~anthropic/claude-sonnet-latest">Claude Sonnet (equilíbrio)</option>
+                <option value="~anthropic/claude-haiku-latest">Claude Haiku (rápido e barato)</option>
+                <option value="~anthropic/claude-opus-latest">Claude Opus (mais inteligente)</option>
+              </datalist>
+            </label>
+            <div class="row">
+              <label>Criatividade (0 a 1) <input type="number" step="0.1" min="0" max="1" name="temperature" /></label>
+              <label>Memória (últimas mensagens) <input type="number" min="2" max="100" name="memoryMessages" /></label>
+            </div>
+            <label class="check"><input type="checkbox" name="rulesFirst" /> Respostas automáticas por palavra-chave têm prioridade sobre a IA</label>
+          </div>
+          <div class="panel">
+            <h2>🎭 Personalidade</h2>
+            <label>Nome do agente <input name="agentName" placeholder="Sofia" /></label>
+            <label>Instruções / tom de voz <textarea name="instructions" rows="7"></textarea></label>
+            <button type="button" class="btn small" id="btnShowPrompt">👁️ Ver prompt completo</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>🏢 Base do negócio</h2>
+          <p class="hint">É daqui que o agente tira as respostas. Ele não inventa nada que não esteja aqui.</p>
+          <div class="grid2 tight">
+            <label>Nome do negócio <input name="b_name" /></label>
+            <label>Segmento <input name="b_segment" placeholder="clínica odontológica" /></label>
+          </div>
+          <label>Sobre o negócio <textarea name="b_description" rows="2"></textarea></label>
+          <div class="grid2 tight">
+            <label>Serviços <textarea name="b_services" rows="4"></textarea></label>
+            <label>Preços <textarea name="b_prices" rows="4"></textarea></label>
+            <label>Horários de funcionamento <textarea name="b_hours" rows="3"></textarea></label>
+            <label>Endereço <textarea name="b_address" rows="3"></textarea></label>
+            <label>Perguntas frequentes <textarea name="b_faq" rows="5"></textarea></label>
+            <label>Políticas (cancelamento, descontos…) <textarea name="b_policies" rows="5"></textarea></label>
+          </div>
+          <label>Regras de agendamento <textarea name="b_schedulingRules" rows="2"></textarea></label>
+        </div>
+        <button class="btn primary">💾 Salvar agente</button>
+      </form>
+      <dialog id="promptDialog"><pre id="promptText"></pre><form method="dialog"><button class="btn">Fechar</button></form></dialog>
+    </section>
+
+    <!-- TESTAR -->
+    <section id="tab-test" class="tab">
+      <h1>Testar agente</h1>
+      <div class="grid2">
+        <div class="panel">
+          <h2>💬 Simulador de conversa</h2>
+          <div class="chat" id="simChat"></div>
+          <form id="formSim" class="chat-input">
+            <input name="text" placeholder="Escreva como se fosse um cliente…" autocomplete="off" />
+            <button class="btn primary">Enviar</button>
+          </form>
+          <div class="row">
+            <label class="check"><input type="checkbox" id="simDryRun" checked /> Modo teste (não grava agendamentos de verdade)</label>
+            <button type="button" class="btn small" id="btnSimReset">🧹 Nova conversa</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>🔨 Testa até quebrar</h2>
+          <p class="hint">Mensagens estranhas que clientes mandam de verdade. Rode, leia as respostas e ajuste a base/instruções até todas ficarem boas.</p>
+          <div id="stressList"></div>
+          <div class="row">
+            <input id="stressCustom" placeholder="Adicionar outra mensagem de teste" />
+            <button type="button" class="btn small" id="btnStressAdd">➕</button>
+          </div>
+          <button type="button" class="btn primary" id="btnStressRun">▶️ Rodar todos os testes</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONVERSAS -->
+    <section id="tab-conversations" class="tab">
+      <h1>Conversas</h1>
+      <div class="conv-layout">
+        <div class="panel conv-list" id="convList"></div>
+        <div class="panel conv-view">
+          <div id="convHeader" class="conv-header muted">Selecione uma conversa</div>
+          <div class="chat" id="convChat"></div>
+          <form id="formConvReply" class="chat-input" hidden>
+            <input name="text" placeholder="Responder como atendente humano…" autocomplete="off" />
+            <button class="btn primary">Enviar</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- AGENDA -->
+    <section id="tab-agenda" class="tab">
+      <h1>Agenda</h1>
+      <div class="grid2">
+        <div class="panel">
+          <h2>📅 Próximos agendamentos</h2>
+          <div id="apptList"></div>
+          <details>
+            <summary class="btn small">➕ Agendar manualmente</summary>
+            <form id="formAppt" class="form">
+              <div class="row">
+                <label>Data <input type="date" name="date" required /></label>
+                <label>Horário <select name="time" required><option value="">escolha a data</option></select></label>
+              </div>
+              <div class="row">
+                <label>Nome <input name="name" required /></label>
+                <label>Telefone <input name="phone" required /></label>
+              </div>
+              <label>Serviço <input name="service" /></label>
+              <button class="btn primary">Agendar</button>
+            </form>
+          </details>
+        </div>
+        <form class="panel form" id="formAgenda">
+          <h2>⚙️ Disponibilidade</h2>
+          <label>Agenda usada pelo agente
+            <select name="provider">
+              <option value="local">Agenda interna (deste painel)</option>
+              <option value="calcom">Cal.com</option>
+            </select>
+          </label>
+          <div id="agendaLocal">
+            <p class="hint">Horários por dia. Vários períodos separados por vírgula, ex.: <code>08:00-12:00, 13:00-18:00</code>. Vazio = fechado.</p>
+            <div id="agendaHours" class="hours-grid"></div>
+            <div class="row">
+              <label>Duração do horário (min) <input type="number" min="5" name="slotMinutes" /></label>
+              <label>Antecedência mínima (min) <input type="number" min="0" name="minAdvanceMinutes" /></label>
+              <label>Agendar até (dias) <input type="number" min="1" name="maxDaysAhead" /></label>
+            </div>
+          </div>
+          <div id="agendaCalcom" hidden>
+            <p class="hint">No Cal.com: Settings → Developer → API Keys. O ID do tipo de evento aparece na URL ao editar o evento.</p>
+            <label>Chave da API do Cal.com <input name="c_apiKey" autocomplete="off" placeholder="cal_live_…" /></label>
+            <div class="row">
+              <label>ID do tipo de evento <input name="c_eventTypeId" /></label>
+              <label>Fuso horário <input name="c_timeZone" placeholder="America/Sao_Paulo" /></label>
+            </div>
+            <label>E-mail padrão do participante (o Cal.com exige e-mail) <input name="c_defaultEmail" type="email" /></label>
+          </div>
+          <button class="btn primary">Salvar disponibilidade</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- CONTATOS -->
+    <section id="tab-contacts" class="tab">
+      <h1>Contatos</h1>
+      <div class="grid2">
+        <div class="panel">
+          <h2>Adicionar contato</h2>
+          <form id="formContact" class="form">
+            <label>Nome <input name="name" placeholder="Maria Silva" /></label>
+            <label>Telefone (com DDD) <input name="phone" required placeholder="(21) 98765-4321" /></label>
+            <label>Etiquetas (separadas por vírgula) <input name="tags" placeholder="clientes, rio" /></label>
+            <button class="btn primary">Salvar contato</button>
+          </form>
+        </div>
+        <div class="panel">
+          <h2>Importar lista</h2>
+          <form id="formImport" class="form">
+            <label>Arquivo CSV <input type="file" name="file" accept=".csv,.txt" /></label>
+            <label>…ou cole aqui (nome;telefone por linha)
+              <textarea name="text" rows="4" placeholder="nome;telefone&#10;Maria;21987654321&#10;João;11912345678"></textarea>
+            </label>
+            <label>Adicionar etiqueta aos importados <input name="tags" placeholder="lista-outubro" /></label>
+            <button class="btn primary">Importar</button>
+          </form>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="toolbar">
+          <input id="contactSearch" placeholder="🔎 Buscar por nome ou telefone" />
+          <select id="contactTag"><option value="">Todas as etiquetas</option></select>
+          <button class="btn" id="btnGroups">👥 Importar de grupo</button>
+          <a class="btn" href="/api/contacts/export">⬇️ Exportar CSV</a>
+          <button class="btn danger" id="btnDeleteSelected">🗑️ Excluir selecionados</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th><input type="checkbox" id="checkAll" /></th><th>Nome</th><th>Telefone</th><th>Etiquetas</th><th>Status</th><th></th></tr></thead>
+            <tbody id="contactsBody"></tbody>
+          </table>
+        </div>
+        <p class="muted" id="contactsCount"></p>
+      </div>
+    </section>
+
+    <!-- CAMPANHAS -->
+    <section id="tab-campaigns" class="tab">
+      <h1>Envio em massa</h1>
+      <div class="panel">
+        <h2>Nova campanha</h2>
+        <form id="formCampaign" class="form">
+          <label>Nome da campanha <input name="name" placeholder="Promoção de sábado" /></label>
+          <div class="row">
+            <label>Enviar para
+              <select name="targetType" id="campTargetType">
+                <option value="all">Todos os contatos</option>
+                <option value="tags">Contatos com etiqueta</option>
+                <option value="manual">Números específicos</option>
+              </select>
+            </label>
+            <label id="campTagsWrap" hidden>Etiquetas <select name="tags" id="campTags" multiple size="4"></select></label>
+          </div>
+          <label id="campPhonesWrap" hidden>Números (um por linha)
+            <textarea name="phones" rows="3" placeholder="21987654321&#10;11912345678"></textarea>
+          </label>
+          <div id="campMessages">
+            <label>Mensagem 1
+              <textarea name="message" rows="4" placeholder="{Olá|Oi} {primeiro_nome}! 🎉 Temos novidades para você…"></textarea>
+            </label>
+          </div>
+          <button type="button" class="btn small" id="btnAddVariation">➕ Adicionar variação de mensagem</button>
+          <p class="hint">Cada contato recebe uma das variações sorteada. Variáveis: <code>{nome}</code> <code>{primeiro_nome}</code> <code>{telefone}</code> <code>{cidade}</code> <code>{data}</code> · Spintax: <code>{Olá|Oi|E aí}</code></p>
+          <label>Anexo (imagem, vídeo, PDF, áudio) <input type="file" name="file" /></label>
+          <div class="row">
+            <label>Intervalo mínimo (s) <input type="number" name="delayMin" min="1" value="8" /></label>
+            <label>Intervalo máximo (s) <input type="number" name="delayMax" min="1" value="20" /></label>
+            <label>Pausar a cada (msgs) <input type="number" name="pauseEvery" min="0" value="30" /></label>
+            <label>Duração da pausa (min) <input type="number" name="pauseMinutes" min="0" value="5" /></label>
+          </div>
+          <div class="preview" id="campPreview"></div>
+          <div class="row">
+            <button type="button" class="btn" id="btnPreview">👁️ Pré-visualizar</button>
+            <button class="btn" name="mode" value="draft">💾 Salvar rascunho</button>
+            <button class="btn primary" name="mode" value="start">🚀 Criar e iniciar</button>
+          </div>
+        </form>
+      </div>
+      <div class="panel">
+        <h2>Campanhas</h2>
+        <div id="campaignsList"></div>
+      </div>
+    </section>
+
+    <!-- REGRAS -->
+    <section id="tab-rules" class="tab">
+      <h1>Respostas automáticas</h1>
+      <div class="grid2">
+        <div class="panel">
+          <h2 id="ruleFormTitle">Nova regra</h2>
+          <form id="formRule" class="form">
+            <input type="hidden" name="id" />
+            <label>Nome <input name="name" placeholder="Preço" /></label>
+            <label>Quando a mensagem
+              <select name="matchType">
+                <option value="contains">Contém a palavra</option>
+                <option value="exact">For exatamente</option>
+                <option value="startsWith">Começar com</option>
+                <option value="regex">Combinar com expressão regular</option>
+                <option value="any">Qualquer mensagem (resposta padrão)</option>
+              </select>
+            </label>
+            <label>Palavras-chave (separadas por vírgula) <input name="keywords" placeholder="preço, valor, quanto custa" /></label>
+            <label>Resposta <textarea name="response" rows="5" placeholder="Oi {primeiro_nome}! Nossos preços…"></textarea></label>
+            <label>Anexo <input type="file" name="file" /></label>
+            <div class="row">
+              <label>Adicionar etiqueta ao contato <input name="addTag" placeholder="interessado" /></label>
+              <label>Prioridade <input type="number" name="priority" value="0" /></label>
+            </div>
+            <label class="check"><input type="checkbox" name="enabled" checked /> Regra ativa</label>
+            <div class="row">
+              <button class="btn primary">Salvar regra</button>
+              <button type="button" class="btn" id="btnRuleReset">Limpar</button>
+            </div>
+          </form>
+        </div>
+        <div class="panel">
+          <h2>Testar o robô</h2>
+          <form id="formRuleTest" class="form">
+            <label>Mensagem recebida <input name="text" placeholder="Qual o preço?" /></label>
+            <button class="btn">Testar</button>
+          </form>
+          <div class="preview" id="ruleTestResult"></div>
+          <h2>Menu de exemplo</h2>
+          <p class="hint">Crie uma regra "menu" com resposta como:<br><code>1️⃣ Preços · 2️⃣ Horários · 3️⃣ Falar com atendente</code><br>e regras com correspondência <b>exata</b> para "1", "2" e "3".</p>
+          <button class="btn small" id="btnMenuTemplate">✨ Criar menu de exemplo</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Regras (ordem de prioridade)</h2>
+        <div id="rulesList"></div>
+      </div>
+    </section>
+
+    <!-- AGENDAMENTOS -->
+    <section id="tab-schedules" class="tab">
+      <h1>Agendamentos</h1>
+      <div class="panel">
+        <h2>Agendar mensagem</h2>
+        <form id="formSchedule" class="form">
+          <label>Nome <input name="name" placeholder="Lembrete do sorteio" /></label>
+          <div class="row">
+            <label>Enviar para
+              <select name="targetType" id="schTargetType">
+                <option value="manual">Números específicos</option>
+                <option value="tags">Contatos com etiqueta</option>
+                <option value="all">Todos os contatos</option>
+              </select>
+            </label>
+            <label id="schTagsWrap" hidden>Etiquetas <select name="tags" id="schTags" multiple size="4"></select></label>
+            <label>Data e hora <input type="datetime-local" name="runAt" required /></label>
+            <label>Repetir
+              <select name="repeat">
+                <option value="none">Não repetir</option>
+                <option value="daily">Todo dia</option>
+                <option value="weekly">Toda semana</option>
+                <option value="monthly">Todo mês</option>
+              </select>
+            </label>
+          </div>
+          <label id="schPhonesWrap">Números (um por linha) <textarea name="phones" rows="2"></textarea></label>
+          <label>Mensagem <textarea name="message" rows="4" placeholder="Olá {primeiro_nome}, o sorteio é hoje às 20h! 🍀"></textarea></label>
+          <label>Anexo <input type="file" name="file" /></label>
+          <button class="btn primary">Agendar</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h2>Próximos envios</h2>
+        <div id="schedulesList"></div>
+      </div>
+    </section>
+
+    <!-- ENVIO RÁPIDO -->
+    <section id="tab-send" class="tab">
+      <h1>Envio rápido</h1>
+      <div class="panel">
+        <form id="formSend" class="form">
+          <label>Telefone <input name="to" required placeholder="(21) 98765-4321" /></label>
+          <label>Mensagem <textarea name="message" rows="5"></textarea></label>
+          <label>Anexo <input type="file" name="file" /></label>
+          <div class="row">
+            <button class="btn primary">Enviar agora</button>
+            <button type="button" class="btn" id="btnCheckNumber">🔍 Verificar se tem WhatsApp</button>
+          </div>
+        </form>
+        <div class="preview" id="sendResult"></div>
+      </div>
+    </section>
+
+    <!-- HISTÓRICO -->
+    <section id="tab-logs" class="tab">
+      <h1>Histórico</h1>
+      <div class="panel">
+        <div class="toolbar">
+          <select id="logType">
+            <option value="">Tudo</option>
+            <option value="sent">Enviadas</option>
+            <option value="received">Recebidas</option>
+            <option value="autoreply">Respostas automáticas</option>
+            <option value="error">Erros</option>
+            <option value="system">Sistema</option>
+          </select>
+          <button class="btn danger" id="btnClearLogs">Limpar histórico</button>
+        </div>
+        <ul class="feed big" id="logsList"></ul>
+      </div>
+    </section>
+
+    <!-- CONFIGURAÇÕES -->
+    <section id="tab-settings" class="tab">
+      <h1>Configurações</h1>
+      <form id="formSettings" class="form">
+        <div class="grid2">
+          <div class="panel">
+            <h2>Robô</h2>
+            <label class="check"><input type="checkbox" name="autoReplyEnabled" /> Respostas automáticas ligadas</label>
+            <label class="check"><input type="checkbox" name="ignoreGroups" /> Ignorar mensagens de grupos</label>
+            <label>Não responder o mesmo contato novamente por (min) <input type="number" min="0" name="replyCooldownMinutes" /></label>
+            <label class="check"><input type="checkbox" name="welcomeEnabled" /> Boas-vindas para quem fala pela 1ª vez</label>
+            <label>Mensagem de boas-vindas <textarea name="welcomeMessage" rows="3"></textarea></label>
+          </div>
+          <div class="panel">
+            <h2>Horário de atendimento</h2>
+            <label class="check"><input type="checkbox" name="bh_enabled" /> Responder fora do horário com aviso</label>
+            <div class="days" id="bhDays"></div>
+            <div class="row">
+              <label>Início <input type="time" name="bh_start" /></label>
+              <label>Fim <input type="time" name="bh_end" /></label>
+            </div>
+            <label>Mensagem fora do horário <textarea name="bh_message" rows="3"></textarea></label>
+          </div>
+          <div class="panel">
+            <h2>Descadastro (LGPD)</h2>
+            <label>Palavras para sair da lista <input name="optOutKeywords" /></label>
+            <label>Resposta ao sair <textarea name="optOutMessage" rows="2"></textarea></label>
+            <label>Palavras para voltar <input name="optInKeywords" /></label>
+            <label>Resposta ao voltar <textarea name="optInMessage" rows="2"></textarea></label>
+            <h3>Números descadastrados</h3>
+            <ul class="chips" id="blacklistChips"></ul>
+          </div>
+          <div class="panel">
+            <h2>Padrões de envio</h2>
+            <div class="row">
+              <label>Intervalo mínimo (s) <input type="number" min="1" name="defaultDelayMin" /></label>
+              <label>Intervalo máximo (s) <input type="number" min="1" name="defaultDelayMax" /></label>
+            </div>
+            <p class="hint">Intervalos maiores e mensagens variadas reduzem o risco de bloqueio do número.</p>
+          </div>
+        </div>
+        <button class="btn primary">Salvar configurações</button>
+      </form>
+    </section>
+  </main>
+
+  <dialog id="groupsDialog">
+    <h2>Importar participantes de grupo</h2>
+    <div id="groupsList"><p class="muted">Carregando…</p></div>
+    <form method="dialog"><button class="btn">Fechar</button></form>
+  </dialog>
+
+  <dialog id="campaignDialog">
+    <div id="campaignDetail"></div>
+    <form method="dialog"><button class="btn">Fechar</button></form>
+  </dialog>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

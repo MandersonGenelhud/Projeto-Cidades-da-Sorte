@@ -1,0 +1,995 @@
+// Painel web da automação de WhatsApp (JavaScript puro, sem build).
+const $ = (sel, el = document) => el.querySelector(sel);
+const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtDate = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+const fmtPhone = (p) => {
+  const m = String(p || '').match(/^55(\d{2})(\d{4,5})(\d{4})$/);
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : p;
+};
+
+const STATUS_LABEL = {
+  draft: 'Rascunho', running: 'Enviando', paused: 'Pausada', done: 'Concluída', canceled: 'Cancelada',
+  pending: 'Pendente', sent: 'Enviada', failed: 'Falhou', skipped: 'Ignorada',
+};
+const LOG_LABEL = {
+  sent: '📤 Enviada', received: '📥 Recebida', autoreply: '🤖 Resposta automática', error: '⚠️ Erro', system: 'ℹ️ Sistema',
+};
+
+function toast(message, isError = false) {
+  const el = $('#toast');
+  el.textContent = message;
+  el.className = `show${isError ? ' error' : ''}`;
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => (el.className = ''), 3500);
+}
+
+async function api(url, { method = 'GET', body, form } = {}) {
+  const opts = { method, headers: {} };
+  if (form) opts.body = form;
+  else if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(url, opts);
+  const data = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+  return data;
+}
+
+/** Envia o arquivo do input (se houver) e retorna o id do upload. */
+async function uploadFrom(input) {
+  const file = input?.files?.[0];
+  if (!file) return undefined;
+  const form = new FormData();
+  form.append('file', file);
+  const media = await api('/api/uploads', { method: 'POST', form });
+  return media.id;
+}
+
+function withBusy(form, fn) {
+  return async (ev) => {
+    ev.preventDefault();
+    const buttons = $$('button', form);
+    buttons.forEach((b) => (b.disabled = true));
+    try {
+      await fn(ev);
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      buttons.forEach((b) => (b.disabled = false));
+    }
+  };
+}
+
+const lines = (text) => String(text || '').split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
+
+// ---------- Navegação ----------
+const loaders = {};
+function showTab(name) {
+  $$('nav button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+  $$('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
+  location.hash = name;
+  loaders[name]?.();
+}
+$$('nav button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+// ---------- Status / conexão ----------
+let connState = { status: 'disconnected' };
+function renderStatus(state) {
+  connState = state;
+  const pill = $('#connPill');
+  pill.className = `conn-pill ${state.status}`;
+  $('#connText').textContent = {
+    connected: `Conectado ${state.me?.phone ? `· ${fmtPhone(state.me.phone)}` : ''}`,
+    qr: 'Aguardando QR Code',
+    connecting: 'Conectando…',
+    disconnected: 'Desconectado',
+  }[state.status];
+
+  const mode = state.mode || 'qr';
+  $$('[name="connMode"]').forEach((r) => (r.checked = r.value === mode));
+  $('#qrPanel').hidden = mode !== 'qr';
+  $('#cloudPanel').hidden = mode !== 'cloud';
+  if (mode === 'cloud') {
+    $('#cloudStatus').innerHTML = state.status === 'connected'
+      ? `<p>✅ Conectado à API oficial: <b>${esc(state.me?.name || '')}</b> ${esc(fmtPhone(state.me?.phone))}</p>`
+      : `<p>⚠️ ${esc(state.error || 'Não conectado')}</p>`;
+  }
+
+  const area = $('#qrArea');
+  if (state.status === 'connected') {
+    area.innerHTML = `<div class="ok">✅</div><h2>WhatsApp conectado</h2><p>${esc(state.me?.name || '')} · ${esc(fmtPhone(state.me?.phone))}</p>`;
+  } else if (state.status === 'qr' && state.qr) {
+    area.innerHTML = `<img src="${state.qr}" alt="QR Code" /><p>Escaneie com o WhatsApp do celular</p>`;
+  } else {
+    area.innerHTML = '<p class="muted">Conectando ao WhatsApp… o QR Code aparecerá aqui.</p>';
+  }
+}
+
+$('#btnRestart').addEventListener('click', async () => {
+  await api('/api/connection/restart', { method: 'POST' });
+  toast('Reconectando…');
+});
+$('#btnLogout').addEventListener('click', async () => {
+  if (!confirm('Desconectar este número? Será preciso escanear o QR Code de novo.')) return;
+  await api('/api/connection/logout', { method: 'POST' });
+  toast('Número desconectado');
+});
+
+// ---------- Painel ----------
+function logItem(l) {
+  const who = l.phone ? fmtPhone(l.phone) : '';
+  const extra = [l.name, l.campaign && `campanha "${l.campaign}"`, l.rule && `regra "${l.rule}"`, l.schedule && `agendamento "${l.schedule}"`]
+    .filter(Boolean).join(' · ');
+  return `<li><span class="time">${fmtDate(l.at)}</span><b>${LOG_LABEL[l.type] || esc(l.type)}</b> ${esc(who)} ${extra ? `<span class="muted">${esc(extra)}</span>` : ''}
+    ${l.message ? `<span class="msg">${esc(l.message)}</span>` : ''}</li>`;
+}
+
+loaders.dashboard = async () => {
+  const [s, logs] = await Promise.all([api('/api/stats'), api('/api/logs?limit=30')]);
+  const cards = [
+    ['Contatos', s.contacts], ['Enviadas hoje', s.today.sent], ['Recebidas hoje', s.today.received],
+    ['Respostas do robô hoje', s.today.autoreplies], ['Erros hoje', s.today.errors],
+    ['Regras ativas', s.rules], ['Agendamentos', s.schedules], ['Descadastrados', s.blacklist],
+  ];
+  $('#statsCards').innerHTML = cards.map(([l, v]) => `<div class="card"><div class="label">${l}</div><div class="value">${v}</div></div>`).join('');
+  $('#recentFeed').innerHTML = logs.map(logItem).join('') || '<li class="muted">Nada por aqui ainda.</li>';
+  renderAgentStatus();
+};
+
+// ---------- Contatos ----------
+let contactsCache = [];
+async function loadTags() {
+  const tags = await api('/api/tags');
+  const opts = tags.map((t) => `<option value="${esc(t.tag)}">${esc(t.tag)} (${t.count})</option>`).join('');
+  const current = $('#contactTag').value;
+  $('#contactTag').innerHTML = `<option value="">Todas as etiquetas</option>${opts}`;
+  $('#contactTag').value = current;
+  $('#campTags').innerHTML = opts;
+  $('#schTags').innerHTML = opts;
+}
+
+loaders.contacts = async () => {
+  const q = encodeURIComponent($('#contactSearch').value);
+  const tag = encodeURIComponent($('#contactTag').value);
+  contactsCache = await api(`/api/contacts?q=${q}&tag=${tag}`);
+  $('#contactsBody').innerHTML = contactsCache.slice(0, 1000).map((c) => `
+    <tr>
+      <td><input type="checkbox" class="rowCheck" value="${esc(c.id)}" /></td>
+      <td>${esc(c.name) || '<span class="muted">sem nome</span>'}</td>
+      <td>${esc(fmtPhone(c.phone))}</td>
+      <td>${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</td>
+      <td>${c.blocked ? '<span class="badge failed">Descadastrado</span>' : '<span class="badge sent">Ativo</span>'}</td>
+      <td>
+        <button class="btn small" data-edit="${esc(c.id)}">✏️</button>
+        <button class="btn small danger" data-del="${esc(c.id)}">🗑️</button>
+      </td>
+    </tr>`).join('');
+  $('#contactsCount').textContent = `${contactsCache.length} contato(s)${contactsCache.length > 1000 ? ' — mostrando os 1000 primeiros' : ''}`;
+  $('#checkAll').checked = false;
+  loadTags();
+};
+
+let searchTimer;
+$('#contactSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loaders.contacts, 300); });
+$('#contactTag').addEventListener('change', loaders.contacts);
+$('#checkAll').addEventListener('change', (e) => $$('.rowCheck').forEach((c) => (c.checked = e.target.checked)));
+
+$('#contactsBody').addEventListener('click', async (e) => {
+  const del = e.target.closest('[data-del]')?.dataset.del;
+  const edit = e.target.closest('[data-edit]')?.dataset.edit;
+  if (del && confirm('Excluir este contato?')) {
+    await api(`/api/contacts/${del}`, { method: 'DELETE' });
+    loaders.contacts();
+  }
+  if (edit) {
+    const c = contactsCache.find((x) => x.id === edit);
+    const name = prompt('Nome', c.name);
+    if (name === null) return;
+    const tags = prompt('Etiquetas (separadas por vírgula)', (c.tags || []).join(', '));
+    if (tags === null) return;
+    await api(`/api/contacts/${edit}`, { method: 'PUT', body: { name, tags } });
+    loaders.contacts();
+  }
+});
+
+$('#btnDeleteSelected').addEventListener('click', async () => {
+  const ids = $$('.rowCheck:checked').map((c) => c.value);
+  if (!ids.length) return toast('Selecione contatos na tabela');
+  if (!confirm(`Excluir ${ids.length} contato(s)?`)) return;
+  await api('/api/contacts/bulk-delete', { method: 'POST', body: { ids } });
+  loaders.contacts();
+});
+
+$('#formContact').addEventListener('submit', withBusy($('#formContact'), async (e) => {
+  const f = e.target;
+  const r = await api('/api/contacts', { method: 'POST', body: { name: f.name.value, phone: f.phone.value, tags: f.tags.value } });
+  toast(r.added ? 'Contato adicionado' : 'Contato atualizado');
+  f.reset();
+  loaders.contacts();
+}));
+
+$('#formImport').addEventListener('submit', withBusy($('#formImport'), async (e) => {
+  const f = e.target;
+  const form = new FormData();
+  if (f.file.files[0]) form.append('file', f.file.files[0]);
+  form.append('text', f.text.value);
+  form.append('tags', f.tags.value);
+  const r = await api('/api/contacts/import', { method: 'POST', form });
+  toast(`${r.added} novo(s), ${r.updated} atualizado(s)`);
+  f.reset();
+  loaders.contacts();
+}));
+
+$('#btnGroups').addEventListener('click', async () => {
+  const dlg = $('#groupsDialog');
+  dlg.showModal();
+  $('#groupsList').innerHTML = '<p class="muted">Carregando grupos…</p>';
+  try {
+    const groups = await api('/api/groups');
+    $('#groupsList').innerHTML = groups.length
+      ? groups.map((g) => `<div class="item"><div class="grow"><b>${esc(g.name)}</b><div class="meta">${g.participants} participantes</div></div>
+          <button class="btn small primary" data-group="${esc(g.id)}" data-name="${esc(g.name)}">Importar</button></div>`).join('')
+      : '<p class="muted">Nenhum grupo encontrado.</p>';
+  } catch (err) {
+    $('#groupsList').innerHTML = `<p class="muted">${esc(err.message)}</p>`;
+  }
+});
+$('#groupsList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-group]');
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    const tag = prompt('Etiqueta para esses contatos', `grupo-${btn.dataset.name}`.toLowerCase().replace(/\s+/g, '-'));
+    if (tag === null) return;
+    const r = await api(`/api/groups/${encodeURIComponent(btn.dataset.group)}/import`, { method: 'POST', body: { tag } });
+    toast(`${r.added} novo(s), ${r.updated} atualizado(s)`);
+    loaders.contacts();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---------- Campanhas ----------
+function targetFrom(form, prefix) {
+  const type = form.targetType.value;
+  const target = { type };
+  if (type === 'tags') target.tags = $$(`#${prefix}Tags option:checked`).map((o) => o.value);
+  if (type === 'manual') target.phones = lines(form.phones.value);
+  return target;
+}
+function bindTargetToggle(prefix) {
+  const sel = $(`#${prefix}TargetType`);
+  const update = () => {
+    $(`#${prefix}TagsWrap`).hidden = sel.value !== 'tags';
+    $(`#${prefix}PhonesWrap`).hidden = sel.value !== 'manual';
+  };
+  sel.addEventListener('change', update);
+  update();
+}
+bindTargetToggle('camp');
+bindTargetToggle('sch');
+
+$('#btnAddVariation').addEventListener('click', () => {
+  const n = $$('#campMessages textarea').length + 1;
+  $('#campMessages').insertAdjacentHTML('beforeend', `<label>Mensagem ${n} <textarea name="message" rows="4"></textarea></label>`);
+});
+
+const campMessages = () => $$('#campMessages textarea').map((t) => t.value).filter((t) => t.trim());
+
+$('#btnPreview').addEventListener('click', async () => {
+  const f = $('#formCampaign');
+  try {
+    const r = await api('/api/campaigns/preview', { method: 'POST', body: { target: targetFrom(f, 'camp'), messages: campMessages() } });
+    $('#campPreview').innerHTML = `<p><b>${r.total}</b> destinatário(s)${r.blocked ? `, ${r.blocked} descadastrado(s) serão ignorados` : ''}.</p>`
+      + r.samples.map((s) => `<div class="muted">${esc(fmtPhone(s.phone))}</div><div class="bubble">${esc(s.text)}</div>`).join('');
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+$('#formCampaign').addEventListener('submit', withBusy($('#formCampaign'), async (e) => {
+  const f = e.target;
+  const startNow = e.submitter?.value === 'start';
+  if (startNow && connState.status !== 'connected') {
+    if (!confirm('O WhatsApp não está conectado. A campanha vai aguardar a conexão. Continuar?')) return;
+  }
+  const mediaId = await uploadFrom(f.file);
+  await api('/api/campaigns', {
+    method: 'POST',
+    body: {
+      name: f.name.value,
+      messages: campMessages(),
+      mediaId,
+      target: targetFrom(f, 'camp'),
+      delayMin: f.delayMin.value,
+      delayMax: f.delayMax.value,
+      pauseEvery: f.pauseEvery.value,
+      pauseMinutes: f.pauseMinutes.value,
+      startNow,
+    },
+  });
+  toast(startNow ? 'Campanha iniciada 🚀' : 'Rascunho salvo');
+  f.reset();
+  $('#campMessages').innerHTML = $('#campMessages label').outerHTML;
+  $('#campPreview').innerHTML = '';
+  bindTargetToggle('camp');
+  applyDefaultDelays();
+  loaders.campaigns();
+}));
+
+function campaignCard(c) {
+  const done = c.counts.sent + c.counts.failed + c.counts.skipped;
+  const pct = c.total ? Math.round((done / c.total) * 100) : 0;
+  const actions = [];
+  if (['draft', 'paused'].includes(c.status)) actions.push(`<button class="btn small primary" data-act="start">▶️ ${c.status === 'draft' ? 'Iniciar' : 'Retomar'}</button>`);
+  if (c.status === 'running') actions.push('<button class="btn small" data-act="pause">⏸️ Pausar</button>');
+  if (!['done', 'canceled'].includes(c.status)) actions.push('<button class="btn small danger" data-act="cancel">⏹️ Cancelar</button>');
+  if (c.counts.failed) actions.push('<button class="btn small" data-act="retry-failed">🔁 Reenviar falhas</button>');
+  actions.push('<button class="btn small" data-act="detail">📋 Detalhes</button>');
+  actions.push('<button class="btn small danger" data-act="delete">🗑️</button>');
+  return `<div class="item" data-id="${esc(c.id)}">
+    <div class="grow">
+      <b>${esc(c.name)}</b> <span class="badge ${c.status}">${STATUS_LABEL[c.status]}</span>
+      <div class="meta">✅ ${c.counts.sent} enviadas · ❌ ${c.counts.failed} falhas · ⏭️ ${c.counts.skipped} ignoradas · ⏳ ${c.counts.pending} pendentes — total ${c.total}
+Intervalo ${c.delayMin}-${c.delayMax}s · criada em ${fmtDate(c.createdAt)}</div>
+      <div class="progress"><div style="width:${pct}%"></div></div>
+    </div>
+    <div class="row">${actions.join('')}</div>
+  </div>`;
+}
+
+let campaignsCache = [];
+function renderCampaigns() {
+  $('#campaignsList').innerHTML = campaignsCache.map(campaignCard).join('') || '<p class="muted">Nenhuma campanha criada.</p>';
+}
+loaders.campaigns = async () => {
+  campaignsCache = await api('/api/campaigns');
+  renderCampaigns();
+  loadTags();
+};
+
+$('#campaignsList').addEventListener('click', async (e) => {
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  const id = e.target.closest('[data-id]')?.dataset.id;
+  if (!act || !id) return;
+  try {
+    if (act === 'detail') return showCampaign(id);
+    if (act === 'delete') {
+      if (!confirm('Excluir esta campanha?')) return;
+      await api(`/api/campaigns/${id}`, { method: 'DELETE' });
+    } else if (act === 'cancel') {
+      if (!confirm('Cancelar esta campanha?')) return;
+      await api(`/api/campaigns/${id}/cancel`, { method: 'POST' });
+    } else {
+      await api(`/api/campaigns/${id}/${act}`, { method: 'POST' });
+    }
+    loaders.campaigns();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+async function showCampaign(id) {
+  const c = await api(`/api/campaigns/${id}`);
+  $('#campaignDetail').innerHTML = `<h2>${esc(c.name)} <span class="badge ${c.status}">${STATUS_LABEL[c.status]}</span></h2>
+    ${c.messages.map((m) => `<div class="bubble">${esc(m)}</div>`).join('')}
+    ${c.media ? `<p class="muted">📎 ${esc(c.media.fileName)}</p>` : ''}
+    <div class="table-wrap"><table><thead><tr><th>Contato</th><th>Status</th><th>Quando</th><th>Erro</th></tr></thead><tbody>
+    ${c.recipients.map((r) => `<tr><td>${esc(r.name)} ${esc(fmtPhone(r.phone))}</td><td><span class="badge ${r.status}">${STATUS_LABEL[r.status]}</span></td>
+      <td>${fmtDate(r.at)}</td><td class="muted">${esc(r.error || '')}</td></tr>`).join('')}
+    </tbody></table></div>`;
+  $('#campaignDialog').showModal();
+}
+
+// ---------- Regras ----------
+let rulesCache = [];
+const MATCH_LABEL = { contains: 'contém', exact: 'é exatamente', startsWith: 'começa com', regex: 'regex', any: 'qualquer mensagem' };
+
+loaders.rules = async () => {
+  rulesCache = await api('/api/rules');
+  $('#rulesList').innerHTML = rulesCache.map((r) => `
+    <div class="item ${r.enabled ? '' : 'disabled'}" data-id="${esc(r.id)}">
+      <div class="grow">
+        <b>${esc(r.name)}</b> ${r.enabled ? '' : '<span class="badge draft">Desativada</span>'}
+        <div class="meta">Quando ${MATCH_LABEL[r.matchType]} ${r.matchType === 'any' ? '' : `<b>${esc(r.keywords.join(', '))}</b>`}${r.addTag ? ` · etiqueta: ${esc(r.addTag)}` : ''}${r.media ? ` · 📎 ${esc(r.media.fileName)}` : ''}</div>
+        <div class="bubble">${esc(r.response)}</div>
+      </div>
+      <div class="row">
+        <button class="btn small" data-act="toggle">${r.enabled ? '⏸️ Desativar' : '▶️ Ativar'}</button>
+        <button class="btn small" data-act="edit">✏️ Editar</button>
+        <button class="btn small danger" data-act="delete">🗑️</button>
+      </div>
+    </div>`).join('') || '<p class="muted">Nenhuma regra criada.</p>';
+};
+
+function resetRuleForm() {
+  const f = $('#formRule');
+  f.reset();
+  f.id.value = '';
+  $('#ruleFormTitle').textContent = 'Nova regra';
+}
+$('#btnRuleReset').addEventListener('click', resetRuleForm);
+
+$('#formRule').addEventListener('submit', withBusy($('#formRule'), async (e) => {
+  const f = e.target;
+  const mediaId = await uploadFrom(f.file);
+  await api('/api/rules', {
+    method: 'POST',
+    body: {
+      id: f.id.value || undefined,
+      name: f.name.value,
+      matchType: f.matchType.value,
+      keywords: f.keywords.value,
+      response: f.response.value,
+      addTag: f.addTag.value,
+      priority: f.priority.value,
+      enabled: f.enabled.checked,
+      mediaId,
+    },
+  });
+  toast('Regra salva');
+  resetRuleForm();
+  loaders.rules();
+}));
+
+$('#rulesList').addEventListener('click', async (e) => {
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  const id = e.target.closest('[data-id]')?.dataset.id;
+  const rule = rulesCache.find((r) => r.id === id);
+  if (!act || !rule) return;
+  if (act === 'delete') {
+    if (!confirm('Excluir esta regra?')) return;
+    await api(`/api/rules/${id}`, { method: 'DELETE' });
+  } else if (act === 'toggle') {
+    await api('/api/rules', { method: 'POST', body: { ...rule, media: undefined, enabled: !rule.enabled } });
+  } else if (act === 'edit') {
+    const f = $('#formRule');
+    f.id.value = rule.id;
+    f.name.value = rule.name;
+    f.matchType.value = rule.matchType;
+    f.keywords.value = rule.keywords.join(', ');
+    f.response.value = rule.response;
+    f.addTag.value = rule.addTag || '';
+    f.priority.value = rule.priority ?? 0;
+    f.enabled.checked = rule.enabled;
+    $('#ruleFormTitle').textContent = `Editando: ${rule.name}`;
+    f.scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
+  loaders.rules();
+});
+
+$('#formRuleTest').addEventListener('submit', withBusy($('#formRuleTest'), async (e) => {
+  const r = await api('/api/rules/test', { method: 'POST', body: { text: e.target.text.value } });
+  const kind = { rule: `Regra "${r?.rule}"`, offhours: 'Fora do horário', welcome: 'Boas-vindas', optout: 'Descadastro', optin: 'Recadastro' };
+  $('#ruleTestResult').innerHTML = r
+    ? `<p class="muted">${esc(kind[r.kind] || r.kind)}</p><div class="bubble">${esc(r.text)}</div>`
+    : '<p class="muted">Nenhuma regra respondeu a essa mensagem.</p>';
+}));
+
+$('#btnMenuTemplate').addEventListener('click', async () => {
+  const templates = [
+    { name: 'Menu', matchType: 'contains', keywords: 'oi, olá, ola, menu, bom dia, boa tarde, boa noite', priority: 10,
+      response: '{Olá|Oi} {primeiro_nome}! 👋 Como posso ajudar?\n\n1️⃣ Preços\n2️⃣ Horário de atendimento\n3️⃣ Falar com um atendente\n\nResponda com o número da opção.' },
+    { name: 'Opção 1 - Preços', matchType: 'exact', keywords: '1', priority: 1, addTag: 'interesse-precos',
+      response: '💰 Confira nossos preços e promoções: (coloque aqui seu link ou tabela)' },
+    { name: 'Opção 2 - Horários', matchType: 'exact', keywords: '2', priority: 2,
+      response: '🕗 Atendemos de segunda a sexta, das 8h às 18h.' },
+    { name: 'Opção 3 - Atendente', matchType: 'exact', keywords: '3', priority: 3, addTag: 'quer-atendente',
+      response: 'Certo! Um atendente vai falar com você em instantes. 🙋' },
+  ];
+  for (const t of templates) await api('/api/rules', { method: 'POST', body: t });
+  toast('Menu de exemplo criado');
+  loaders.rules();
+});
+
+// ---------- Agendamentos ----------
+const REPEAT_LABEL = { none: 'uma vez', daily: 'todo dia', weekly: 'toda semana', monthly: 'todo mês' };
+loaders.schedules = async () => {
+  const list = await api('/api/schedules');
+  $('#schedulesList').innerHTML = list.map((s) => `
+    <div class="item ${s.enabled ? '' : 'disabled'}" data-id="${esc(s.id)}">
+      <div class="grow">
+        <b>${esc(s.name)}</b> ${s.enabled ? '' : '<span class="badge done">Concluído</span>'}
+        <div class="meta">📅 ${fmtDate(s.runAt)} · ${REPEAT_LABEL[s.repeat]} · ${s.target.type === 'all' ? 'todos os contatos' : s.target.type === 'tags' ? `etiquetas: ${esc(s.target.tags.join(', '))}` : `${s.target.phones.length} número(s)`}${s.lastRunAt ? ` · último envio ${fmtDate(s.lastRunAt)}` : ''}</div>
+        <div class="bubble">${esc(s.message)}</div>
+      </div>
+      <button class="btn small danger" data-act="delete">🗑️</button>
+    </div>`).join('') || '<p class="muted">Nenhum agendamento.</p>';
+  loadTags();
+};
+$('#schedulesList').addEventListener('click', async (e) => {
+  const id = e.target.closest('[data-act="delete"]') && e.target.closest('[data-id]')?.dataset.id;
+  if (!id || !confirm('Excluir este agendamento?')) return;
+  await api(`/api/schedules/${id}`, { method: 'DELETE' });
+  loaders.schedules();
+});
+$('#formSchedule').addEventListener('submit', withBusy($('#formSchedule'), async (e) => {
+  const f = e.target;
+  const mediaId = await uploadFrom(f.file);
+  await api('/api/schedules', {
+    method: 'POST',
+    body: {
+      name: f.name.value,
+      target: targetFrom(f, 'sch'),
+      runAt: new Date(f.runAt.value).toISOString(),
+      repeat: f.repeat.value,
+      message: f.message.value,
+      mediaId,
+    },
+  });
+  toast('Mensagem agendada ⏰');
+  f.reset();
+  bindTargetToggle('sch');
+  loaders.schedules();
+}));
+
+// ---------- Envio rápido ----------
+$('#formSend').addEventListener('submit', withBusy($('#formSend'), async (e) => {
+  const f = e.target;
+  const mediaId = await uploadFrom(f.file);
+  await api('/api/send', { method: 'POST', body: { to: f.to.value, message: f.message.value, mediaId } });
+  $('#sendResult').innerHTML = `<div class="bubble">${esc(f.message.value)}</div><p class="muted">✅ Enviada para ${esc(f.to.value)}</p>`;
+  f.message.value = '';
+  f.file.value = '';
+}));
+$('#btnCheckNumber').addEventListener('click', async () => {
+  const phone = $('#formSend').to.value;
+  if (!phone) return toast('Digite um número');
+  try {
+    const [r] = await api('/api/contacts/check', { method: 'POST', body: { phones: [phone] } });
+    toast(r.exists ? `✅ ${phone} tem WhatsApp` : `❌ ${r.error}`, !r.exists);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+// ---------- Histórico ----------
+loaders.logs = async () => {
+  const type = $('#logType').value;
+  const logs = await api(`/api/logs?limit=500${type ? `&type=${type}` : ''}`);
+  $('#logsList').innerHTML = logs.map(logItem).join('') || '<li class="muted">Nada por aqui ainda.</li>';
+};
+$('#logType').addEventListener('change', loaders.logs);
+$('#btnClearLogs').addEventListener('click', async () => {
+  if (!confirm('Apagar todo o histórico?')) return;
+  await api('/api/logs', { method: 'DELETE' });
+  loaders.logs();
+});
+
+// ---------- Configurações ----------
+const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+$('#bhDays').innerHTML = DAYS.map((d, i) => `<label><input type="checkbox" name="bh_day" value="${i}" /> ${d}</label>`).join('');
+
+let settingsCache = {};
+function applyDefaultDelays() {
+  const f = $('#formCampaign');
+  if (settingsCache.defaultDelayMin) f.delayMin.value = settingsCache.defaultDelayMin;
+  if (settingsCache.defaultDelayMax) f.delayMax.value = settingsCache.defaultDelayMax;
+}
+
+loaders.settings = async () => {
+  const [s, blacklist] = await Promise.all([api('/api/settings'), api('/api/blacklist')]);
+  settingsCache = s;
+  const f = $('#formSettings');
+  for (const k of ['autoReplyEnabled', 'ignoreGroups', 'welcomeEnabled']) f[k].checked = !!s[k];
+  for (const k of ['replyCooldownMinutes', 'welcomeMessage', 'optOutMessage', 'optInMessage', 'defaultDelayMin', 'defaultDelayMax']) f[k].value = s[k] ?? '';
+  f.optOutKeywords.value = s.optOutKeywords.join(', ');
+  f.optInKeywords.value = s.optInKeywords.join(', ');
+  f.bh_enabled.checked = s.businessHours.enabled;
+  f.bh_start.value = s.businessHours.start;
+  f.bh_end.value = s.businessHours.end;
+  f.bh_message.value = s.businessHours.message;
+  $$('[name="bh_day"]', f).forEach((c) => (c.checked = s.businessHours.days.includes(Number(c.value))));
+  $('#blacklistChips').innerHTML = blacklist.map((p) => `<li>${esc(fmtPhone(p))} <button type="button" data-phone="${esc(p)}" title="Remover">✕</button></li>`).join('')
+    || '<li class="muted">Nenhum</li>';
+};
+$('#blacklistChips').addEventListener('click', async (e) => {
+  const phone = e.target.dataset.phone;
+  if (!phone) return;
+  await api(`/api/blacklist/${phone}`, { method: 'DELETE' });
+  loaders.settings();
+});
+$('#formSettings').addEventListener('submit', withBusy($('#formSettings'), async (e) => {
+  const f = e.target;
+  settingsCache = await api('/api/settings', {
+    method: 'PUT',
+    body: {
+      autoReplyEnabled: f.autoReplyEnabled.checked,
+      ignoreGroups: f.ignoreGroups.checked,
+      welcomeEnabled: f.welcomeEnabled.checked,
+      replyCooldownMinutes: Number(f.replyCooldownMinutes.value || 0),
+      welcomeMessage: f.welcomeMessage.value,
+      optOutKeywords: lines(f.optOutKeywords.value),
+      optOutMessage: f.optOutMessage.value,
+      optInKeywords: lines(f.optInKeywords.value),
+      optInMessage: f.optInMessage.value,
+      defaultDelayMin: Number(f.defaultDelayMin.value || 8),
+      defaultDelayMax: Number(f.defaultDelayMax.value || 20),
+      businessHours: {
+        enabled: f.bh_enabled.checked,
+        start: f.bh_start.value,
+        end: f.bh_end.value,
+        message: f.bh_message.value,
+        days: $$('[name="bh_day"]:checked', f).map((c) => Number(c.value)),
+      },
+    },
+  });
+  applyDefaultDelays();
+  toast('Configurações salvas');
+}));
+
+
+// ---------- Conexão: modo e API oficial ----------
+$$('[name="connMode"]').forEach((r) => r.addEventListener('change', async () => {
+  try {
+    renderStatus(await api('/api/connection/mode', { method: 'POST', body: { mode: r.value } }));
+    loaders.connection();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}));
+
+loaders.connection = async () => {
+  const [info, s] = await Promise.all([api('/api/connection/info'), api('/api/settings')]);
+  settingsCache = s;
+  $('#webhookUrl').value = info.webhookUrl.replace(/^http:\/\/(?!localhost|127\.)/, 'https://');
+  const f = $('#formCloud');
+  const c = s.connection.cloud;
+  for (const k of ['accessToken', 'phoneNumberId', 'verifyToken', 'appSecret', 'graphVersion']) f[k].value = c[k] || '';
+  const env = { accessToken: info.fromEnv.token, phoneNumberId: info.fromEnv.phoneNumberId, verifyToken: info.fromEnv.verifyToken, appSecret: info.fromEnv.appSecret };
+  for (const [k, fromEnv] of Object.entries(env)) if (fromEnv) f[k].placeholder = 'definido no arquivo .env';
+};
+
+$('#formCloud').addEventListener('submit', withBusy($('#formCloud'), async (e) => {
+  const f = e.target;
+  await api('/api/settings', {
+    method: 'PUT',
+    body: { connection: { cloud: {
+      accessToken: f.accessToken.value.trim(),
+      phoneNumberId: f.phoneNumberId.value.trim(),
+      verifyToken: f.verifyToken.value.trim(),
+      appSecret: f.appSecret.value.trim(),
+      graphVersion: f.graphVersion.value.trim() || 'v22.0',
+    } } },
+  });
+  toast('Credenciais salvas. Conectando…');
+  setTimeout(loaders.connection, 1500);
+}));
+
+// ---------- Agente IA ----------
+const BUSINESS_FIELDS = ['name', 'segment', 'description', 'services', 'prices', 'hours', 'address', 'faq', 'policies', 'schedulingRules'];
+
+async function renderAgentStatus() {
+  const st = await api('/api/agent/status');
+  const box = $('#agentStatusBox');
+  if (!box) return;
+  box.innerHTML = st.active
+    ? `<p>🧠 Agente IA <b>ligado</b> · modelo <code>${esc(st.model)}</code></p>`
+    : `<p class="muted">🧠 Agente IA desligado${st.configured ? '' : ' (falta a chave do OpenRouter)'}.</p>`;
+}
+
+loaders.agent = async () => {
+  const s = await api('/api/settings');
+  settingsCache = s;
+  const f = $('#formAgent');
+  const a = s.agent;
+  f.enabled.checked = a.enabled;
+  f.rulesFirst.checked = a.rulesFirst;
+  for (const k of ['apiKey', 'model', 'temperature', 'memoryMessages', 'agentName', 'instructions']) f[k].value = a[k] ?? '';
+  for (const k of BUSINESS_FIELDS) f[`b_${k}`].value = s.business[k] ?? '';
+  const info = await api('/api/connection/info');
+  if (info.fromEnv.openrouter) f.apiKey.placeholder = 'definida no arquivo .env';
+};
+
+$('#formAgent').addEventListener('submit', withBusy($('#formAgent'), async (e) => {
+  const f = e.target;
+  const business = Object.fromEntries(BUSINESS_FIELDS.map((k) => [k, f[`b_${k}`].value]));
+  await api('/api/settings', {
+    method: 'PUT',
+    body: {
+      agent: {
+        enabled: f.enabled.checked,
+        rulesFirst: f.rulesFirst.checked,
+        apiKey: f.apiKey.value.trim(),
+        model: f.model.value.trim() || '~anthropic/claude-sonnet-latest',
+        temperature: Number(f.temperature.value || 0.4),
+        memoryMessages: Number(f.memoryMessages.value || 20),
+        agentName: f.agentName.value,
+        instructions: f.instructions.value,
+      },
+      business,
+    },
+  });
+  const st = await api('/api/agent/status');
+  toast(st.enabled && !st.configured ? '⚠️ Salvo, mas falta a chave do OpenRouter' : 'Agente salvo 🧠', st.enabled && !st.configured);
+  loaders.agent();
+}));
+
+$('#btnShowPrompt').addEventListener('click', async () => {
+  $('#promptText').textContent = await api('/api/agent/prompt');
+  $('#promptDialog').showModal();
+});
+
+// ---------- Testar agente ----------
+let simSession = `s${Date.now()}`;
+const nowTime = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const TOOL_LABEL = {
+  consultar_horarios_disponiveis: '🔎 consultou a agenda',
+  agendar_horario: '📅 agendou',
+  listar_meus_agendamentos: '📋 listou agendamentos',
+  cancelar_agendamento: '❌ cancelou agendamento',
+  transferir_para_humano: '🙋 transferiu para humano',
+};
+function chatBubble(role, text, at) {
+  return `<div class="msg ${role}">${esc(text)}<time>${at ? fmtDate(at) : nowTime()}</time></div>`;
+}
+function actionChip(a) {
+  const detail = a.result?.erro ? ` — erro: ${a.result.erro}` : a.tool === 'consultar_horarios_disponiveis'
+    ? ` ${a.args.data}: ${(a.result.horarios || []).join(', ') || 'nenhum'}`
+    : a.tool === 'agendar_horario' && a.result.ok ? ` ${a.result.data} ${a.result.hora}` : '';
+  return `<div class="action">${TOOL_LABEL[a.tool] || a.tool}${esc(detail)}</div>`;
+}
+const scrollDown = (el) => { el.scrollTop = el.scrollHeight; };
+
+loaders.test = async () => {
+  if (!$('#stressList').children.length) {
+    const tests = await api('/api/agent/stress-tests');
+    $('#stressList').innerHTML = tests.map((t) => stressItem(t)).join('');
+  }
+  if (!$('#simChat').children.length) {
+    $('#simChat').innerHTML = '<div class="typing">Mande uma mensagem como se fosse um cliente. Ex.: "Oi! Vocês abrem sábado?"</div>';
+  }
+};
+const stressItem = (t) => `<div class="stress-item" data-text="${esc(t)}"><div class="q">“${esc(t)}”</div><div class="a"></div></div>`;
+
+$('#formSim').addEventListener('submit', withBusy($('#formSim'), async (e) => {
+  const input = e.target.text;
+  const text = input.value.trim();
+  if (!text) return;
+  const chat = $('#simChat');
+  chat.querySelector('.typing')?.remove();
+  chat.insertAdjacentHTML('beforeend', chatBubble('user', text));
+  chat.insertAdjacentHTML('beforeend', '<div class="typing">digitando…</div>');
+  input.value = '';
+  scrollDown(chat);
+  try {
+    const r = await api('/api/agent/simulate', { method: 'POST', body: { text, session: simSession, dryRun: $('#simDryRun').checked } });
+    chat.querySelector('.typing')?.remove();
+    chat.insertAdjacentHTML('beforeend', r.actions.map(actionChip).join('') + chatBubble('assistant', r.text));
+  } catch (err) {
+    chat.querySelector('.typing')?.remove();
+    throw err;
+  } finally {
+    scrollDown(chat);
+    input.focus();
+  }
+}));
+
+$('#btnSimReset').addEventListener('click', async () => {
+  await api(`/api/agent/simulate/${simSession}`, { method: 'DELETE' });
+  simSession = `s${Date.now()}`;
+  $('#simChat').innerHTML = '';
+  loaders.test();
+});
+
+$('#btnStressAdd').addEventListener('click', () => {
+  const v = $('#stressCustom').value.trim();
+  if (!v) return;
+  $('#stressList').insertAdjacentHTML('beforeend', stressItem(v));
+  $('#stressCustom').value = '';
+});
+
+$('#btnStressRun').addEventListener('click', async (e) => {
+  const btn = e.target;
+  btn.disabled = true;
+  const items = $$('#stressList .stress-item');
+  let ok = 0;
+  for (const item of items) {
+    item.className = 'stress-item';
+    const out = $('.a', item);
+    out.textContent = 'testando…';
+    try {
+      const r = await api('/api/agent/stress-test', { method: 'POST', body: { text: item.dataset.text } });
+      const acts = r.actions.map((a) => TOOL_LABEL[a.tool] || a.tool).join(', ');
+      out.textContent = `${r.text}${acts ? `\n[${acts}]` : ''}`;
+      item.classList.add('ok');
+      ok++;
+    } catch (err) {
+      out.textContent = `Erro: ${err.message}`;
+      item.classList.add('err');
+    }
+  }
+  btn.disabled = false;
+  toast(`${ok}/${items.length} testes responderam. Leia as respostas e ajuste a base se precisar.`);
+});
+
+// ---------- Conversas ----------
+let currentConv = null;
+loaders.conversations = async () => {
+  const list = await api('/api/conversations');
+  $('#convList').innerHTML = list.map((c) => `
+    <div class="conv-item ${c.key === currentConv ? 'active' : ''}" data-key="${esc(c.key)}">
+      <b>${esc(c.name || fmtPhone(c.phone) || c.key)}</b> ${c.handoff ? '<span class="badge paused">humano</span>' : ''}
+      <div class="last">${c.last ? `${c.last.role === 'user' ? '' : '🤖 '}${esc(c.last.content)}` : ''}</div>
+    </div>`).join('') || '<p class="muted">Nenhuma conversa ainda. Quando clientes falarem com o agente, elas aparecem aqui.</p>';
+  if (currentConv) openConversation(currentConv);
+};
+$('#convList').addEventListener('click', (e) => {
+  const key = e.target.closest('[data-key]')?.dataset.key;
+  if (key) {
+    currentConv = key;
+    $$('.conv-item').forEach((el) => el.classList.toggle('active', el.dataset.key === key));
+    openConversation(key);
+  }
+});
+async function openConversation(key) {
+  const c = await api(`/api/conversations/${encodeURIComponent(key)}`);
+  $('#convHeader').className = 'conv-header';
+  $('#convHeader').innerHTML = `<div><b>${esc(c.name || '')}</b> ${esc(fmtPhone(c.phone) || '')}
+      ${c.handoff ? `<div class="hint">🙋 Atendimento humano${c.handoffReason ? `: ${esc(c.handoffReason)}` : ''} — o robô está pausado</div>` : '<div class="hint">🤖 Robô atendendo</div>'}</div>
+    <div class="row">
+      <button class="btn small" id="btnHandoff">${c.handoff ? '🤖 Devolver para o robô' : '🙋 Assumir conversa'}</button>
+      <button class="btn small danger" id="btnConvClear" title="Apagar memória">🗑️</button>
+    </div>`;
+  $('#convChat').innerHTML = c.messages.map((m) => chatBubble(m.role, m.content, m.at)).join('');
+  $('#formConvReply').hidden = false;
+  scrollDown($('#convChat'));
+  $('#btnHandoff').onclick = async () => {
+    await api(`/api/conversations/${encodeURIComponent(key)}/handoff`, { method: 'POST', body: { value: !c.handoff } });
+    loaders.conversations();
+  };
+  $('#btnConvClear').onclick = async () => {
+    if (!confirm('Apagar a memória desta conversa? O agente vai esquecer o que foi falado.')) return;
+    await api(`/api/conversations/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    currentConv = null;
+    $('#convChat').innerHTML = '';
+    $('#formConvReply').hidden = true;
+    loaders.conversations();
+  };
+}
+$('#formConvReply').addEventListener('submit', withBusy($('#formConvReply'), async (e) => {
+  const text = e.target.text.value.trim();
+  if (!text || !currentConv) return;
+  await api(`/api/conversations/${encodeURIComponent(currentConv)}/reply`, { method: 'POST', body: { text } });
+  e.target.text.value = '';
+  openConversation(currentConv);
+}));
+
+// ---------- Agenda ----------
+const DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+$('#agendaHours').innerHTML = DAY_NAMES.map((d, i) => `<span>${d}</span><input name="h_${i}" placeholder="fechado" />`).join('');
+$('#formAgenda').provider.addEventListener('change', (e) => {
+  $('#agendaLocal').hidden = e.target.value !== 'local';
+  $('#agendaCalcom').hidden = e.target.value !== 'calcom';
+});
+
+loaders.agenda = async () => {
+  const [s, appts] = await Promise.all([api('/api/settings'), api('/api/appointments')]);
+  settingsCache = s;
+  const a = s.agenda;
+  const f = $('#formAgenda');
+  f.provider.value = a.provider;
+  f.provider.dispatchEvent(new Event('change'));
+  for (let i = 0; i < 7; i++) f[`h_${i}`].value = a.hours?.[i] || '';
+  for (const k of ['slotMinutes', 'minAdvanceMinutes', 'maxDaysAhead']) f[k].value = a[k];
+  for (const k of ['apiKey', 'eventTypeId', 'timeZone', 'defaultEmail']) f[`c_${k}`].value = a.calcom?.[k] || '';
+
+  const byDay = {};
+  for (const ap of appts) (byDay[ap.date] ||= []).push(ap);
+  $('#apptList').innerHTML = Object.entries(byDay).map(([date, list]) => {
+    const d = new Date(`${date}T12:00:00`);
+    return `<h3>${DAY_NAMES[d.getDay()]}, ${d.toLocaleDateString('pt-BR')}</h3>` + list.map((ap) => `
+      <div class="item" data-id="${esc(ap.id)}">
+        <div class="grow"><b>${esc(ap.time)}</b> · ${esc(ap.name)} <span class="muted">${esc(fmtPhone(ap.phone))}</span>
+          <div class="meta">${esc(ap.service || '')}${ap.provider === 'calcom' ? ' · Cal.com' : ''}</div></div>
+        <button class="btn small danger" data-cancel="${esc(ap.id)}">Cancelar</button>
+      </div>`).join('');
+  }).join('') || '<p class="muted">Nenhum agendamento futuro.</p>';
+};
+
+$('#apptList').addEventListener('click', async (e) => {
+  const id = e.target.closest('[data-cancel]')?.dataset.cancel;
+  if (!id || !confirm('Cancelar este agendamento?')) return;
+  try {
+    await api(`/api/appointments/${id}/cancel`, { method: 'POST' });
+    loaders.agenda();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+$('#formAgenda').addEventListener('submit', withBusy($('#formAgenda'), async (e) => {
+  const f = e.target;
+  const hours = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((i) => [i, f[`h_${i}`].value.trim()]));
+  await api('/api/settings', {
+    method: 'PUT',
+    body: { agenda: {
+      provider: f.provider.value,
+      hours,
+      slotMinutes: Number(f.slotMinutes.value || 30),
+      minAdvanceMinutes: Number(f.minAdvanceMinutes.value || 0),
+      maxDaysAhead: Number(f.maxDaysAhead.value || 30),
+      calcom: {
+        apiKey: f.c_apiKey.value.trim(),
+        eventTypeId: f.c_eventTypeId.value.trim(),
+        timeZone: f.c_timeZone.value.trim() || 'America/Sao_Paulo',
+        defaultEmail: f.c_defaultEmail.value.trim(),
+      },
+    } },
+  });
+  toast('Disponibilidade salva');
+  loaders.agenda();
+}));
+
+$('#formAppt').date.addEventListener('change', async (e) => {
+  const sel = $('#formAppt').time;
+  sel.innerHTML = '<option value="">carregando…</option>';
+  try {
+    const r = await api(`/api/agenda/slots?date=${e.target.value}`);
+    const opts = r.slots.map((t) => `<option>${t}</option>`).join('');
+    sel.innerHTML = opts || `<option value="">${esc(r.error || (r.closed ? 'fechado neste dia' : 'sem horários livres'))}</option>`;
+  } catch (err) {
+    sel.innerHTML = `<option value="">${esc(err.message)}</option>`;
+  }
+});
+$('#formAppt').addEventListener('submit', withBusy($('#formAppt'), async (e) => {
+  const f = e.target;
+  await api('/api/appointments', { method: 'POST', body: { date: f.date.value, time: f.time.value, name: f.name.value, phone: f.phone.value, service: f.service.value } });
+  toast('Agendado 📅');
+  f.reset();
+  loaders.agenda();
+}));
+
+// ---------- Tempo real ----------
+function connectEvents() {
+  const es = new EventSource('/api/events');
+  es.addEventListener('status', (e) => renderStatus(JSON.parse(e.data)));
+  es.addEventListener('campaign', (e) => {
+    const c = JSON.parse(e.data);
+    const idx = campaignsCache.findIndex((x) => x.id === c.id);
+    if (idx >= 0) campaignsCache[idx] = c; else campaignsCache.unshift(c);
+    if ($('#tab-campaigns').classList.contains('active')) renderCampaigns();
+  });
+  es.addEventListener('log', (e) => {
+    const log = JSON.parse(e.data);
+    if (log.type === 'autoreply' && $('#tab-conversations').classList.contains('active')) loaders.conversations();
+    if ($('#tab-logs').classList.contains('active') && (!$('#logType').value || $('#logType').value === log.type)) {
+      $('#logsList').insertAdjacentHTML('afterbegin', logItem(log));
+    }
+    if ($('#tab-dashboard').classList.contains('active')) {
+      clearTimeout(connectEvents.t);
+      connectEvents.t = setTimeout(loaders.dashboard, 500);
+    }
+  });
+  es.addEventListener('message', (e) => {
+    const m = JSON.parse(e.data);
+    if (!m.isGroup) toast(`💬 ${m.name || fmtPhone(m.phone)}: ${m.text.slice(0, 80)}`);
+  });
+  const refreshIfActive = (tab) => () => {
+    if ($(`#tab-${tab}`).classList.contains('active')) loaders[tab]();
+  };
+  es.addEventListener('conversation', refreshIfActive('conversations'));
+  es.addEventListener('appointments', refreshIfActive('agenda'));
+  es.addEventListener('message', refreshIfActive('conversations'));
+  es.onerror = () => renderStatus({ ...connState, status: 'disconnected' });
+}
+
+// ---------- Início ----------
+(async () => {
+  try {
+    renderStatus(await api('/api/status'));
+    await loaders.settings();
+    applyDefaultDelays();
+  } catch (err) {
+    toast(err.message, true);
+  }
+  connectEvents();
+  const initial = location.hash.slice(1);
+  showTab(loaders[initial] || initial === 'send' ? initial : 'dashboard');
+})();

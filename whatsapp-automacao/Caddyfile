@@ -1,0 +1,4 @@
+# Troque pelo seu domínio (ex.: zap.minhaclinica.com.br)
+SEU_DOMINIO {
+	reverse_proxy zapauto:3000
+}

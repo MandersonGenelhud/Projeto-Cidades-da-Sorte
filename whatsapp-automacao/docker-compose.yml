@@ -1,0 +1,30 @@
+# Sobe o painel + agente. Na VPS: docker compose up -d
+services:
+  zapauto:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+    ports:
+      - "127.0.0.1:3000:3000" # exposto só localmente; o Caddy publica com HTTPS
+    volumes:
+      - zapauto_data:/app/data
+
+  # HTTPS automático (necessário para o webhook da Meta).
+  # Troque SEU_DOMINIO no Caddyfile e aponte o DNS para a VPS.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - zapauto
+
+volumes:
+  zapauto_data:
+  caddy_data:
