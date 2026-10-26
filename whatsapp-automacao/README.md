@@ -84,6 +84,41 @@ Na aba **Testar agente**:
 
 Depois, marque **"Agente ligado"** e salve.
 
+### Teste pelo WhatsApp de verdade, antes de liberar para os clientes
+
+O agente vem em **modo de teste**: ele só responde os números que você cadastrar. Os clientes que mandarem mensagem não recebem nada dele. Passo a passo:
+
+1. Rode no seu computador: `npm install` e depois `npm start`. Abra http://localhost:3000.
+2. **Conexão** → **QR Code** → escaneie com o celular do número que vai atender (WhatsApp → *Aparelhos conectados* → *Conectar aparelho*). O número continua funcionando normalmente no celular.
+3. **Agente IA**:
+   - cole a chave do OpenRouter;
+   - em **Quem o agente atende**, deixe **Modo de teste** e escreva o **seu** número pessoal (precisa ser *outro* celular, não o conectado);
+   - marque **Agente ligado** e salve.
+4. Do seu celular pessoal, mande mensagens para o número conectado, como se fosse um cliente. As respostas chegam no seu WhatsApp, e a conversa aparece na aba **Conversas**.
+5. Se uma resposta não ficar boa, ajuste a base (aba **Agente IA**), salve e teste de novo. Para o agente esquecer a conversa e começar do zero, use 🗑️ na aba **Conversas**.
+6. Quando tudo estiver certo, mude para **No ar: todos os clientes**.
+
+> ⚠️ Se o número também usa o **Meta Business Agent** (a IA nativa do WhatsApp Business), desative-o durante o teste, senão os dois agentes vão responder.
+> Se nada for respondido, olhe o **Histórico**: a mensagem "Modo de teste: o agente não respondeu…" mostra o número exatamente como o WhatsApp o identificou.
+
+### Perfil pronto: Migra Paraguai
+
+A base de conhecimento do documento *Migra Paraguai · Meta Business Agent (v1.0)* já vem carregada como perfil padrão. Para trocar de perfil: **Agente IA → Perfil do negócio**. O perfil inclui:
+- serviços e pacotes, etapas do processo e documentos (orientação preliminar);
+- triagem com uma pergunta por vez;
+- perguntas frequentes e exemplos de tom;
+- limites e quando transferir para a equipe.
+
+Seguindo o documento:
+- **preços, agendamentos, pagamentos, casos jurídicos, menores de idade e investimentos são transferidos para a equipe**, por isso a agenda do agente vem desligada;
+- endereço, horários e CNPJ não são informados (ainda não foram confirmados pela direção);
+- as "notas para aprovação interna" e os preços de referência **não** entram na base;
+- o agente nunca pede foto de documento, CPF nem dados bancários.
+
+Em **WhatsApp da equipe para avisos**, coloque o número do Marcos ou da equipe. Cada transferência envia um resumo para lá.
+
+O próprio documento pede **revisão final da direção da Migra antes do uso em atendimento automático**. Use o modo de teste para essa revisão.
+
 ### Passo 8: Coloque no ar (VPS)
 Seu notebook não é servidor: o agente precisa ficar online 24h. Numa VPS Linux (Hetzner, Contabo, DigitalOcean, Hostinger, Oracle Free…):
 

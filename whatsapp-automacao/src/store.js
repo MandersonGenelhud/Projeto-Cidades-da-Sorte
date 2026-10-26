@@ -2,6 +2,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { DEFAULT_PRESET, presetSettings } from './agent/presets.js';
+
+const PRESET = presetSettings(DEFAULT_PRESET);
 
 const DEFAULT_DATA = {
   contacts: [],
@@ -40,25 +43,19 @@ const DEFAULT_DATA = {
       enabled: false,
       apiKey: '',
       model: '~anthropic/claude-sonnet-latest',
-      temperature: 0.4,
+      temperature: 0.3,
       memoryMessages: 20,
       rulesFirst: true,
-      agentName: 'Sofia',
-      instructions: 'Seja simpática, objetiva e escreva mensagens curtas, como num WhatsApp. Use no máximo 1 ou 2 emojis.',
+      // Modo de teste: o agente só responde os números abaixo (seguro para testar no WhatsApp real).
+      audience: 'test', // test | all
+      testNumbers: [],
+      // Número da equipe que recebe um aviso no WhatsApp quando o agente transfere um atendimento.
+      handoffNotifyPhone: '',
+      ...PRESET.agent,
     },
-    business: {
-      name: 'Clínica Sorriso',
-      segment: 'clínica odontológica',
-      description: 'Clínica odontológica que atende pacientes pelo WhatsApp: tira dúvidas e marca consultas.',
-      services: 'Limpeza\nClareamento\nTratamento de canal\nAvaliação',
-      prices: 'Limpeza: R$ 150\nClareamento: a partir de R$ 600\nCanal: sob avaliação\nAvaliação: gratuita',
-      hours: 'Segunda a sexta: 8h às 18h\nSábado: 8h às 12h\nDomingo e feriados: fechado',
-      address: 'Rua das Flores, 120 - Centro',
-      faq: 'Aceitam convênio? Não, apenas particular, com parcelamento em até 6x no cartão.\nTem estacionamento? Sim, gratuito para pacientes.',
-      policies: 'Cancelamentos e remarcações com pelo menos 24h de antecedência.\nNão damos descontos além das promoções divulgadas.',
-      schedulingRules: 'Consultas de 40 minutos. Antes de agendar, peça o nome completo do paciente e confirme o serviço, a data e o horário.',
-    },
+    business: { ...PRESET.business },
     agenda: {
+      enabled: PRESET.agenda.enabled, // o agente pode consultar/marcar horários
       provider: 'local', // local | calcom
       slotMinutes: 40,
       minAdvanceMinutes: 60,

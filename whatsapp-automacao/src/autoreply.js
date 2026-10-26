@@ -1,5 +1,5 @@
 // Chatbot de respostas automáticas por palavra-chave.
-import { isWithinBusinessHours, renderTemplate, uid } from './utils.js';
+import { isWithinBusinessHours, renderTemplate, samePhone, uid } from './utils.js';
 
 /** Remove acentos e padroniza para comparação. */
 export function normalizeText(text) {
@@ -94,7 +94,7 @@ export class AutoReply {
     if (msg.phone && this.store.isBlacklisted(msg.phone)) return null;
 
     // Agente de IA ligado: regras de palavra-chave (opcionais) e depois a IA.
-    if (this.agent?.active) {
+    if (this.agentAllowed(msg)) {
       const rule = this.store.settings.agent.rulesFirst
         ? this.list().find((r) => r.matchType !== 'any' && ruleMatches(r, msg.text))
         : null;
@@ -114,6 +114,14 @@ export class AutoReply {
       return { kind: 'welcome', text: renderTemplate(s.welcomeMessage, contact) };
     }
     return null;
+  }
+
+  /** Agente ligado e, no modo de teste, mensagem vinda de um número de teste. */
+  agentAllowed(msg) {
+    if (!this.agent?.active) return false;
+    const cfg = this.store.settings.agent;
+    if (cfg.audience !== 'test') return true;
+    return Boolean(msg.phone) && (cfg.testNumbers || []).some((n) => samePhone(n, msg.phone));
   }
 
   #contactFor(msg) {
@@ -151,6 +159,13 @@ export class AutoReply {
     if (!msg.text) return;
 
     const decision = this.decide(msg);
+    if (this.agent?.active && !msg.isGroup && !this.agentAllowed(msg)) {
+      this.store.addLog({
+        type: 'system',
+        phone: msg.phone || msg.jid,
+        message: `Modo de teste: o agente não respondeu ${msg.phone ? `+${msg.phone}` : msg.jid} (não está na lista de números de teste)`,
+      });
+    }
     const contact = this.#rememberContact(msg);
     if (msg.phone) this.seenContacts.add(msg.phone);
     if (!decision) return;

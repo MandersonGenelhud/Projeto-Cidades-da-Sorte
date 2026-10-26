@@ -159,3 +159,16 @@ export function isWithinBusinessHours(cfg, now = new Date()) {
   const minutes = now.getHours() * 60 + now.getMinutes();
   return minutes >= sh * 60 + sm && minutes < eh * 60 + em;
 }
+
+/**
+ * Compara telefones tolerando o 9º dígito dos celulares brasileiros
+ * (o WhatsApp às vezes identifica 55 41 9xxxx-xxxx como 55 41 xxxx-xxxx).
+ */
+export function samePhone(a, b) {
+  const x = normalizePhone(a);
+  const y = normalizePhone(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const br = (p) => (p.startsWith('55') && (p.length === 12 || p.length === 13) ? p.slice(2, 4) + p.slice(-8) : null);
+  return Boolean(br(x)) && br(x) === br(y);
+}

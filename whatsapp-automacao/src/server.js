@@ -19,6 +19,7 @@ import { LLMClient } from './agent/llm.js';
 import { createCalendar, toDateStr } from './agent/calendar.js';
 import { Agent, STRESS_TESTS } from './agent/agent.js';
 import { buildSystemPrompt } from './agent/prompt.js';
+import { PRESETS, presetSettings } from './agent/presets.js';
 import { csvToContacts, normalizePhone, renderTemplate, uid } from './utils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -66,7 +67,16 @@ function notify(event, data) {
 
 const llm = new LLMClient({ getConfig: agentConfig });
 const calendar = createCalendar({ store });
-const agent = new Agent({ store, llm, calendar, notify });
+const agent = new Agent({
+  store,
+  llm,
+  calendar,
+  notify,
+  notifyTeam: async (text) => {
+    const phone = normalizePhone(store.settings.agent.handoffNotifyPhone);
+    if (phone && wa.status === 'connected') await wa.send(phone, { text, typing: false });
+  },
+});
 const campaigns = new CampaignRunner({ store, wa, notify });
 const autoReply = new AutoReply({ store, wa, notify, agent });
 const scheduler = new Scheduler({ store, wa, campaigns, notify });
@@ -456,7 +466,24 @@ app.put('/api/settings', async (req, res) => {
 
 // Agente de IA
 app.get('/api/agent/status', (_req, res) => {
-  res.json({ enabled: store.settings.agent.enabled, configured: llm.configured, active: agent.active, model: store.settings.agent.model });
+  const a = store.settings.agent;
+  res.json({
+    enabled: a.enabled,
+    configured: llm.configured,
+    active: agent.active,
+    model: a.model,
+    audience: a.audience,
+    testNumbers: (a.testNumbers || []).length,
+    business: store.settings.business.name,
+  });
+});
+app.get('/api/agent/presets', (_req, res) => {
+  res.json(Object.entries(PRESETS).map(([id, p]) => ({ id, label: p.label })));
+});
+app.post('/api/agent/presets/:id/apply', (req, res) => {
+  store.updateSettings(presetSettings(req.params.id));
+  store.addLog({ type: 'system', message: `Perfil de negócio carregado: ${PRESETS[req.params.id].label}` });
+  res.json(publicSettings());
 });
 app.post('/api/agent/simulate', async (req, res) => {
   const text = String(req.body.text || '').trim();
@@ -468,7 +495,10 @@ app.delete('/api/agent/simulate/:session', (req, res) => {
   agent.clearConversation(`sim:${req.params.session}`);
   res.json({ ok: true });
 });
-app.get('/api/agent/stress-tests', (_req, res) => res.json(STRESS_TESTS));
+app.get('/api/agent/stress-tests', (_req, res) => {
+  const custom = store.settings.agent.testMessages;
+  res.json(custom?.length ? custom : STRESS_TESTS);
+});
 app.post('/api/agent/stress-test', async (req, res) => {
   // Cada teste roda numa conversa nova e sem gravar agendamentos.
   const session = `stress-${uid()}`;

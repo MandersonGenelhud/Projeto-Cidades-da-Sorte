@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { Agent } from '../src/agent/agent.js';
 import { LocalCalendar, parseRanges } from '../src/agent/calendar.js';
 import { buildSystemPrompt } from '../src/agent/prompt.js';
+import { presetSettings } from '../src/agent/presets.js';
+import { samePhone } from '../src/utils.js';
 import { AutoReply } from '../src/autoreply.js';
 import { FakeWA, tempStore } from './helpers.js';
 
@@ -27,7 +29,8 @@ const call = (id, name, args) => ({ id, type: 'function', function: { name, argu
 
 function setup(replies) {
   const store = tempStore();
-  store.updateSettings({ agent: { enabled: true } });
+  store.updateSettings(presetSettings('clinica-sorriso'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
   const calendar = new LocalCalendar({ store, getConfig: () => store.settings.agenda, now: () => NOW });
   const llm = new ScriptedLLM(replies);
   const agent = new Agent({ store, llm, calendar, now: () => NOW });
@@ -126,7 +129,7 @@ test('mensagens em rajada viram uma única resposta', async () => {
 
 test('com agente ligado, SAIR continua funcionando e regras de palavra-chave vêm antes da IA', async () => {
   const { store, agent } = setup([{ content: 'resposta da IA', tool_calls: [] }]);
-  const wa = new FakeWA();
+  const wa = new FakeWA(); // setup() já usa audience: 'all'
   const bot = new AutoReply({ store, wa, agent });
   bot.save({ name: 'pix', matchType: 'contains', keywords: 'pix', response: 'Chave PIX: 123' });
   const m = (text) => ({ jid: 'j@s.whatsapp.net', phone: '5521900000009', name: 'Zé', text });
@@ -139,9 +142,80 @@ test('com agente ligado, SAIR continua funcionando e regras de palavra-chave vê
 
 test('prompt inclui a base do negócio e o calendário relativo', () => {
   const store = tempStore();
+  store.updateSettings(presetSettings('clinica-sorriso'));
   const p = buildSystemPrompt(store.settings, { now: NOW });
   assert.match(p, /Clínica Sorriso/);
   assert.match(p, /Rua das Flores, 120/);
   assert.match(p, /sexta-feira 2026-10-30/);
   assert.match(p, /segunda-feira 2026-10-26 \(hoje\)/);
+});
+
+test('perfil padrão é a Migra Paraguai: sem agenda, sem notas internas, com triagem', () => {
+  const store = tempStore();
+  const p = buildSystemPrompt(store.settings, { now: NOW });
+  assert.match(p, /Migra Paraguai/);
+  assert.match(p, /assistente virtual/);
+  assert.match(p, /Pré-qualificação/);
+  assert.match(p, /Nunca peça por mensagem foto de RG/);
+  assert.doesNotMatch(p, /consultar_horarios_disponiveis/); // agenda desligada
+  assert.doesNotMatch(p, /NOTAS PARA APROVAÇÃO|preços de referência para seis pacotes|Meta Business Agent/);
+  assert.equal(store.settings.agenda.enabled, false);
+  assert.equal(store.settings.agent.audience, 'test');
+});
+
+test('sem agenda, o agente só recebe a ferramenta de transferência e não consegue agendar', async () => {
+  const { store, llm, agent } = setup([
+    (messages) => ({ content: '', tool_calls: [call('1', 'agendar_horario', { data: '2026-10-30', hora: '10:00', nome: 'A', servico: 'B' })] }),
+    { content: 'Vou encaminhar para a equipe.', tool_calls: [] },
+  ]);
+  store.updateSettings({ agenda: { enabled: false } });
+  const tools = [];
+  const origChat = llm.chat.bind(llm);
+  llm.chat = async (args) => { tools.push(args.tools.map((t) => t.function.name)); return origChat(args); };
+  await agent.simulate({ text: 'quero agendar', dryRun: false });
+  assert.deepEqual(tools[0], ['transferir_para_humano']);
+  assert.equal(store.data.appointments.length, 0);
+  assert.match(JSON.parse(llm.calls[1].at(-1).content).erro, /indisponível/);
+});
+
+test('transferência avisa o WhatsApp da equipe com o resumo', async () => {
+  const store = tempStore();
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const avisos = [];
+  const llm = new ScriptedLLM([
+    { content: '', tool_calls: [call('1', 'transferir_para_humano', { motivo: 'quer saber preço' })] },
+    { content: 'Vou encaminhar para um consultor.', tool_calls: [] },
+  ]);
+  const agent = new Agent({ store, llm, calendar: null, now: () => NOW, notifyTeam: async (t) => avisos.push(t) });
+  await agent.handleIncoming({ key: 'k', phone: '5511988887777', name: 'Ana', text: 'quanto custa o pacote ouro?' }, async () => {});
+  assert.equal(avisos.length, 1);
+  assert.match(avisos[0], /Ana \(\+5511988887777\)/);
+  assert.match(avisos[0], /quer saber preço/);
+  assert.match(avisos[0], /quanto custa o pacote ouro\?/);
+});
+
+test('samePhone tolera o 9º dígito brasileiro', () => {
+  assert.ok(samePhone('(41) 99999-0000', '5541999990000'));
+  assert.ok(samePhone('41 99999-0000', '554199990000'));
+  assert.ok(!samePhone('41 99999-0000', '5541999990001'));
+  assert.ok(!samePhone('', '5541999990000'));
+});
+
+test('modo de teste: só os números de teste falam com o agente', async () => {
+  const store = tempStore();
+  store.updateSettings({ agent: { enabled: true, audience: 'test', testNumbers: ['(41) 99999-0000'] } });
+  const llm = new ScriptedLLM([{ content: 'Olá! Sou a assistente virtual da Migra Paraguai.', tool_calls: [] }]);
+  const agent = new Agent({ store, llm, calendar: null, now: () => NOW });
+  const wa = new FakeWA();
+  const bot = new AutoReply({ store, wa, agent });
+
+  await bot.handle({ jid: 'a@s.whatsapp.net', phone: '5511911112222', name: 'Cliente', text: 'oi' });
+  assert.equal(wa.sent.length, 0);
+  assert.ok(store.data.logs.some((l) => /Modo de teste/.test(l.message)));
+
+  await bot.handle({ jid: 'b@s.whatsapp.net', phone: '554199990000', name: 'Eu', text: 'oi' }); // sem o 9º dígito
+  assert.deepEqual(wa.sent.map((s) => s.text), ['Olá! Sou a assistente virtual da Migra Paraguai.']);
+
+  store.updateSettings({ agent: { audience: 'all' } });
+  assert.ok(bot.agentAllowed({ phone: '5511911112222' }));
 });

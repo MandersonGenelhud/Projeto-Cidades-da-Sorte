@@ -663,14 +663,17 @@ $('#formCloud').addEventListener('submit', withBusy($('#formCloud'), async (e) =
 }));
 
 // ---------- Agente IA ----------
-const BUSINESS_FIELDS = ['name', 'segment', 'description', 'services', 'prices', 'hours', 'address', 'faq', 'policies', 'schedulingRules'];
+const BUSINESS_FIELDS = ['name', 'segment', 'description', 'services', 'prices', 'hours', 'address', 'faq', 'policies', 'schedulingRules', 'knowledge'];
 
 async function renderAgentStatus() {
   const st = await api('/api/agent/status');
   const box = $('#agentStatusBox');
   if (!box) return;
+  const who = st.audience === 'test'
+    ? `🧪 <b>modo de teste</b> (${st.testNumbers} número(s))`
+    : '🟢 <b>no ar</b> para todos os clientes';
   box.innerHTML = st.active
-    ? `<p>🧠 Agente IA <b>ligado</b> · modelo <code>${esc(st.model)}</code></p>`
+    ? `<p>🧠 Agente de <b>${esc(st.business)}</b> ligado · ${who} · modelo <code>${esc(st.model)}</code></p>`
     : `<p class="muted">🧠 Agente IA desligado${st.configured ? '' : ' (falta a chave do OpenRouter)'}.</p>`;
 }
 
@@ -681,7 +684,13 @@ loaders.agent = async () => {
   const a = s.agent;
   f.enabled.checked = a.enabled;
   f.rulesFirst.checked = a.rulesFirst;
-  for (const k of ['apiKey', 'model', 'temperature', 'memoryMessages', 'agentName', 'instructions']) f[k].value = a[k] ?? '';
+  for (const k of ['apiKey', 'model', 'temperature', 'memoryMessages', 'agentName', 'roleLabel', 'instructions', 'handoffNotifyPhone']) f[k].value = a[k] ?? '';
+  $$('[name="audience"]', f).forEach((r) => (r.checked = r.value === (a.audience || 'test')));
+  f.testNumbers.value = (a.testNumbers || []).join('\n');
+  if (!$('#presetSelect').options.length) {
+    const presets = await api('/api/agent/presets');
+    $('#presetSelect').innerHTML = presets.map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`).join('');
+  }
   for (const k of BUSINESS_FIELDS) f[`b_${k}`].value = s.business[k] ?? '';
   const info = await api('/api/connection/info');
   if (info.fromEnv.openrouter) f.apiKey.placeholder = 'definida no arquivo .env';
@@ -701,15 +710,36 @@ $('#formAgent').addEventListener('submit', withBusy($('#formAgent'), async (e) =
         temperature: Number(f.temperature.value || 0.4),
         memoryMessages: Number(f.memoryMessages.value || 20),
         agentName: f.agentName.value,
+        roleLabel: f.roleLabel.value,
         instructions: f.instructions.value,
+        audience: $('[name="audience"]:checked', f)?.value || 'test',
+        testNumbers: f.testNumbers.value.split('\n').map((n) => n.trim()).filter(Boolean),
+        handoffNotifyPhone: f.handoffNotifyPhone.value.trim(),
       },
       business,
     },
   });
   const st = await api('/api/agent/status');
-  toast(st.enabled && !st.configured ? '⚠️ Salvo, mas falta a chave do OpenRouter' : 'Agente salvo 🧠', st.enabled && !st.configured);
+  let msg = 'Agente salvo 🧠';
+  if (st.enabled && !st.configured) msg = '⚠️ Salvo, mas falta a chave do OpenRouter';
+  else if (st.enabled && st.audience === 'test' && !st.testNumbers) msg = '⚠️ Modo de teste sem números: o agente não vai responder ninguém';
+  toast(msg, msg.startsWith('⚠️'));
   loaders.agent();
 }));
+
+$('#btnApplyPreset').addEventListener('click', async () => {
+  const sel = $('#presetSelect');
+  const label = sel.options[sel.selectedIndex]?.text;
+  if (!confirm(`Carregar o perfil "${label}"? Os campos da base do negócio, a personalidade e as mensagens de teste serão substituídos.`)) return;
+  try {
+    await api(`/api/agent/presets/${sel.value}/apply`, { method: 'POST' });
+    $('#stressList').innerHTML = '';
+    toast('Perfil carregado ✅');
+    loaders.agent();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 
 $('#btnShowPrompt').addEventListener('click', async () => {
   $('#promptText').textContent = await api('/api/agent/prompt');
@@ -743,7 +773,7 @@ loaders.test = async () => {
     $('#stressList').innerHTML = tests.map((t) => stressItem(t)).join('');
   }
   if (!$('#simChat').children.length) {
-    $('#simChat').innerHTML = '<div class="typing">Mande uma mensagem como se fosse um cliente. Ex.: "Oi! Vocês abrem sábado?"</div>';
+    $('#simChat').innerHTML = '<div class="typing">Mande uma mensagem como se fosse um cliente. Ex.: "Oi, tudo bem?"</div>';
   }
 };
 const stressItem = (t) => `<div class="stress-item" data-text="${esc(t)}"><div class="q">“${esc(t)}”</div><div class="a"></div></div>`;
@@ -874,6 +904,7 @@ loaders.agenda = async () => {
   settingsCache = s;
   const a = s.agenda;
   const f = $('#formAgenda');
+  f.enabled.checked = a.enabled !== false;
   f.provider.value = a.provider;
   f.provider.dispatchEvent(new Event('change'));
   for (let i = 0; i < 7; i++) f[`h_${i}`].value = a.hours?.[i] || '';
@@ -910,6 +941,7 @@ $('#formAgenda').addEventListener('submit', withBusy($('#formAgenda'), async (e)
   await api('/api/settings', {
     method: 'PUT',
     body: { agenda: {
+      enabled: f.enabled.checked,
       provider: f.provider.value,
       hours,
       slotMinutes: Number(f.slotMinutes.value || 30),

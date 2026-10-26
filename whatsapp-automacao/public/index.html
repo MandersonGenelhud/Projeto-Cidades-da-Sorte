@@ -112,7 +112,37 @@
     <!-- AGENTE IA -->
     <section id="tab-agent" class="tab">
       <h1>Agente IA</h1>
+      <div class="panel">
+        <h2>📦 Perfil do negócio</h2>
+        <p class="hint">Carrega uma base de conhecimento pronta. Isso substitui os campos da base, a personalidade e as mensagens de teste (a chave e as conexões não mudam).</p>
+        <div class="row">
+          <label>Perfil <select id="presetSelect"></select></label>
+          <button type="button" class="btn" id="btnApplyPreset">📥 Carregar perfil</button>
+        </div>
+      </div>
       <form id="formAgent" class="form">
+        <div class="panel">
+          <h2>🧪 Quem o agente atende</h2>
+          <div class="mode-choice">
+            <label class="mode-card"><input type="radio" name="audience" value="test" />
+              <b>Modo de teste</b>
+              <span>Só responde os números abaixo. Os clientes não recebem nada do agente. Use para testar pelo seu WhatsApp antes de colocar no ar.</span>
+            </label>
+            <label class="mode-card"><input type="radio" name="audience" value="all" />
+              <b>No ar: todos os clientes</b>
+              <span>Responde qualquer pessoa que mandar mensagem para o número conectado.</span>
+            </label>
+          </div>
+          <div class="grid2 tight">
+            <label>Números de teste (um por linha, com DDD)
+              <textarea name="testNumbers" rows="3" placeholder="(11) 98765-4321"></textarea>
+            </label>
+            <label>WhatsApp da equipe para avisos de transferência (opcional)
+              <input name="handoffNotifyPhone" placeholder="(11) 91234-5678" />
+              <span class="hint">Quando o agente passar um atendimento para humano, este número recebe um resumo.</span>
+            </label>
+          </div>
+        </div>
         <div class="grid2">
           <div class="panel">
             <h2>🧠 Cérebro (OpenRouter)</h2>
@@ -135,7 +165,10 @@
           </div>
           <div class="panel">
             <h2>🎭 Personalidade</h2>
-            <label>Nome do agente <input name="agentName" placeholder="Sofia" /></label>
+            <div class="row">
+              <label>Nome do agente (opcional) <input name="agentName" placeholder="Sofia" /></label>
+              <label>Como se apresenta <input name="roleLabel" placeholder="assistente virtual" /></label>
+            </div>
             <label>Instruções / tom de voz <textarea name="instructions" rows="7"></textarea></label>
             <button type="button" class="btn small" id="btnShowPrompt">👁️ Ver prompt completo</button>
           </div>
@@ -157,6 +190,9 @@
             <label>Políticas (cancelamento, descontos…) <textarea name="b_policies" rows="5"></textarea></label>
           </div>
           <label>Regras de agendamento <textarea name="b_schedulingRules" rows="2"></textarea></label>
+          <label>Conhecimento adicional (etapas, documentos, triagem, quando transferir, exemplos de tom…)
+            <textarea name="b_knowledge" rows="14"></textarea>
+          </label>
         </div>
         <button class="btn primary">💾 Salvar agente</button>
       </form>
@@ -233,6 +269,8 @@
         </div>
         <form class="panel form" id="formAgenda">
           <h2>⚙️ Disponibilidade</h2>
+          <label class="check big"><input type="checkbox" name="enabled" /> <b>O agente pode consultar e marcar horários</b></label>
+          <p class="hint">Desmarque se agendamentos devem ser feitos pela equipe: o agente passa a transferir esses pedidos para um humano.</p>
           <label>Agenda usada pelo agente
             <select name="provider">
               <option value="local">Agenda interna (deste painel)</option>

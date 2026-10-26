@@ -1,5 +1,5 @@
 // Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age.
-import { buildSystemPrompt } from './prompt.js';
+import { buildSystemPrompt, canSchedule } from './prompt.js';
 import { TOOL_DEFINITIONS, runTool } from './tools.js';
 
 const MAX_STORED_MESSAGES = 200;
@@ -7,8 +7,9 @@ const MAX_TOOL_ROUNDS = 6;
 const FALLBACK_REPLY = 'Desculpe, tive um probleminha aqui. 😅 Pode repetir, por favor? Se preferir, peça para falar com um atendente.';
 
 export class Agent {
-  constructor({ store, llm, calendar, notify, now = () => new Date() }) {
+  constructor({ store, llm, calendar, notify, notifyTeam, now = () => new Date() }) {
     this.store = store;
+    this.notifyTeam = notifyTeam || (async () => {}); // (texto) => envia aviso no WhatsApp da equipe
     this.llm = llm;
     this.calendar = calendar;
     this.notify = notify || (() => {});
@@ -69,7 +70,12 @@ export class Agent {
    */
   async think(conv, { dryRun = false } = {}) {
     const cfg = this.config;
-    const system = buildSystemPrompt(this.store.settings, { now: this.now(), contactName: conv.name });
+    const settings = this.store.settings;
+    const system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name });
+    // Sem agenda, o agente só pode transferir para a equipe.
+    const tools = canSchedule(settings)
+      ? TOOL_DEFINITIONS
+      : TOOL_DEFINITIONS.filter((t) => t.function.name === 'transferir_para_humano');
     const history = conv.messages.slice(-Math.max(2, Number(cfg.memoryMessages || 20)));
     const messages = [{ role: 'system', content: system }, ...history.map(({ role, content }) => ({ role, content }))];
     const actions = [];
@@ -83,6 +89,9 @@ export class Agent {
           conv.handoffReason = reason;
           this.store.addLog({ type: 'system', phone: conv.phone, message: `🙋 Atendimento transferido para humano: ${reason}` });
           this.notify('conversation', { key: conv.key, handoff: true });
+          const last = conv.messages.filter((m) => m.role === 'user').slice(-3).map((m) => `• ${m.content}`).join('\n');
+          this.notifyTeam(`🙋 *Atendimento transferido pelo agente*\nCliente: ${conv.name || 'sem nome'} (+${conv.phone || '?'})\nMotivo: ${reason || '-'}\n\nÚltimas mensagens:\n${last}\n\nResponda direto para o cliente ou pela aba Conversas do painel.`)
+            .catch((err) => this.store.addLog({ type: 'error', message: `Aviso à equipe: ${err.message}` }));
         }
       },
       onBooked: (appt) => {
@@ -94,7 +103,7 @@ export class Agent {
     };
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const reply = await this.llm.chat({ messages, tools: TOOL_DEFINITIONS });
+      const reply = await this.llm.chat({ messages, tools });
       if (!reply.tool_calls.length) {
         return { text: reply.content.trim() || FALLBACK_REPLY, actions };
       }
@@ -106,7 +115,10 @@ export class Agent {
         } catch {
           args = {};
         }
-        const result = await runTool(call.function.name, args, ctx);
+        const offered = tools.some((t) => t.function.name === call.function.name);
+        const result = offered
+          ? await runTool(call.function.name, args, ctx)
+          : { erro: 'Ferramenta indisponível. Transfira para a equipe se o cliente precisar disso.' };
         actions.push({ tool: call.function.name, args, result });
         messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
       }
