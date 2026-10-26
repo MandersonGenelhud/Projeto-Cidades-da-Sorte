@@ -69,7 +69,7 @@ Já funciona sozinha. Cada mensagem vai para a IA junto com as últimas mensagen
 Preencha na aba **Agente IA**: serviços, preços, horários, endereço, perguntas frequentes, políticas e regras de agendamento. **O agente só responde com o que está aqui.** Ele não inventa preços nem dá descontos fora das políticas. Use **"Ver prompt completo"** para conferir o que a IA recebe.
 
 ### Passo 6: Ferramentas (o agente age)
-Na aba **Agenda**, defina os horários de atendimento por dia e a duração de cada horário. Pronto: o agente passa a consultar os horários livres e a marcar sozinho. Para usar o **Cal.com**, troque o provedor e informe a chave da API, o ID do tipo de evento e um e-mail padrão (o Cal.com exige e-mail do participante).
+Na aba **Agenda**, defina os horários de atendimento por dia e a duração de cada horário. Pronto: o agente passa a consultar os horários livres e a marcar sozinho. Para usar o **Cal.com**, troque o provedor e informe a chave da API (Configurações → Desenvolvedor → Chaves de API), o ID do tipo de evento e um e-mail padrão (o Cal.com exige e-mail do participante).
 
 Ferramentas disponíveis para a IA:
 - `consultar_horarios_disponiveis`: horários livres numa data
