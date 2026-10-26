@@ -1,0 +1,35 @@
+feature,area,priority,original,clone,notes
+Login com email ou Google,onboarding,must,yes,no,
+Home com composer de ideia e seletor de tipo de app,home,must,yes,no,
+Criar um job a partir de um prompt,jobs,must,yes,no,
+Lista de jobs na sidebar (abrir renomear apagar),jobs,must,yes,no,
+Chat com o agente com streaming do progresso,chat,must,yes,no,
+Agente gera e edita arquivos do app via tool use,agent,must,yes,no,Claude API com ferramentas de arquivo
+Preview ao vivo num iframe que atualiza a cada mudança,preview,must,yes,no,MVP: frontend estático em iframe com sandbox
+Histórico do chat persistente por job,chat,must,yes,no,
+Modo Plan (discutir antes de construir),chat,must,yes,no,
+Anexar imagens e arquivos no chat,chat,must,yes,no,screenshot vira referência visual
+Publicar num link permanente,publish,must,yes,no,MVP: subdomínio por app
+Re-publicar atualizações mantendo a URL,publish,must,yes,no,
+Ver árvore de arquivos e código gerado,code,should,yes,no,
+Desfazer ou voltar para uma versão anterior,code,should,partial,no,o original não deixa claro; virou queixa em reviews
+Secrets e variáveis de ambiente por job,secrets,should,yes,no,
+Preview e produção com env separados,publish,should,yes,no,
+Domínio próprio com HTTPS,publish,should,yes,no,
+Salvar o código no GitHub,github,should,yes,no,
+Fork de um job,jobs,should,yes,no,
+Créditos com saldo e consumo por mensagem,billing,should,yes,no,
+Banco de dados gerenciado para o app gerado,backend,should,yes,no,Supabase em vez de Mongo
+Database manager para ver e editar dados,backend,should,yes,no,
+Projects que agrupam jobs,jobs,could,yes,no,
+Tipos de app Landing Page e Brainstorm,home,could,yes,no,
+Catálogo de integrações (Stripe Resend Twilio),integrations,could,yes,no,
+Modo Maxx (raciocínio mais profundo),chat,could,yes,no,mapear para extended thinking
+Abrir o preview em nova aba e alternar desktop e mobile,preview,could,yes,no,
+Planos de assinatura com Stripe,billing,could,yes,no,
+Importar um repositório para iniciar um job,github,could,yes,no,
+Templates por nicho (ex.: site de sorteio por cidade),home,could,no,no,diferencial para o Cidades da Sorte
+App mobile nativo via Expo EAS gerenciado,mobile,could,yes,skip,infra e contas de loja gerenciadas pelo Emergent; fora do MVP
+Agentes customizados e MCP,agent,could,yes,skip,recurso Pro; fora do MVP
+Universal LLM Key revendendo tokens,billing,could,yes,skip,começamos com a chave da Anthropic do próprio usuário
+Geração de vídeo e imagem (Sora Imagen),integrations,could,yes,skip,modelos de terceiros licenciados; avaliar depois
