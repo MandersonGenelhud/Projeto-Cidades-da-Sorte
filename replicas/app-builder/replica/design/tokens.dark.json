@@ -1,0 +1,179 @@
+{
+  "_about": "Tokens do app-builder, tema escuro. Mesmos papéis do tema claro.",
+  "color": {
+    "bg": "#0E1412",
+    "surface": "#151D1A",
+    "surface-2": "#1D2723",
+    "border": "#2A3631",
+    "border-input": "#6F8077",
+    "text": "#E6EEEA",
+    "text-muted": "#A0B0A8",
+    "accent": "#4CBFB4",
+    "on-accent": "#04201C",
+    "accent-soft": "#12352F",
+    "working": "#F2A660",
+    "working-soft": "#3A2513",
+    "danger": "#F38A7E",
+    "danger-soft": "#3D1A17",
+    "success": "#62C98D",
+    "success-soft": "#14301F"
+  },
+  "pairs": [
+    [
+      "text",
+      "bg"
+    ],
+    [
+      "text",
+      "surface"
+    ],
+    [
+      "text",
+      "surface-2"
+    ],
+    [
+      "text-muted",
+      "bg"
+    ],
+    [
+      "text-muted",
+      "surface"
+    ],
+    [
+      "text-muted",
+      "surface-2"
+    ],
+    [
+      "on-accent",
+      "accent"
+    ],
+    [
+      "accent",
+      "bg"
+    ],
+    [
+      "accent",
+      "surface"
+    ],
+    [
+      "accent",
+      "accent-soft"
+    ],
+    [
+      "text",
+      "accent-soft"
+    ],
+    [
+      "working",
+      "surface"
+    ],
+    [
+      "working",
+      "working-soft"
+    ],
+    [
+      "danger",
+      "surface"
+    ],
+    [
+      "danger",
+      "danger-soft"
+    ],
+    [
+      "success",
+      "surface"
+    ],
+    [
+      "success",
+      "success-soft"
+    ],
+    [
+      "border-input",
+      "surface",
+      "ui"
+    ],
+    [
+      "border-input",
+      "bg",
+      "ui"
+    ],
+    [
+      "accent",
+      "surface",
+      "ui"
+    ]
+  ],
+  "font": {
+    "sans": "Onest, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace"
+  },
+  "type": {
+    "xs": {
+      "size": 12,
+      "line": 16,
+      "weight": 500
+    },
+    "sm": {
+      "size": 14,
+      "line": 20,
+      "weight": 400
+    },
+    "base": {
+      "size": 15,
+      "line": 24,
+      "weight": 400
+    },
+    "lg": {
+      "size": 18,
+      "line": 26,
+      "weight": 600
+    },
+    "xl": {
+      "size": 24,
+      "line": 30,
+      "weight": 650
+    },
+    "display": {
+      "size": 44,
+      "line": 48,
+      "weight": 700
+    }
+  },
+  "space": [
+    0,
+    4,
+    8,
+    12,
+    16,
+    24,
+    32,
+    48,
+    64
+  ],
+  "radius": {
+    "sm": 6,
+    "md": 8,
+    "lg": 14,
+    "pill": 999
+  },
+  "shadow": {
+    "card": "none",
+    "pop": "0 16px 40px -12px rgba(20,32,27,.28), 0 2px 6px rgba(20,32,27,.08)"
+  },
+  "motion": {
+    "fast": "120ms",
+    "base": "200ms",
+    "ease": "cubic-bezier(.2,.8,.2,1)"
+  },
+  "layout": {
+    "sidebar": 264,
+    "header": 52,
+    "chat-min": 360,
+    "chat-default": 440,
+    "content-max": 1120,
+    "breakpoints": {
+      "md": 768,
+      "lg": 1100
+    }
+  }
+}
