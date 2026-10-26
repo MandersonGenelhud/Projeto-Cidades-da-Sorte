@@ -5,7 +5,7 @@ Ferramenta completa de automação de WhatsApp com **agente de IA**. Ele convers
 Também traz o que costuma faltar num robô de atendimento: envio em massa, respostas por palavra-chave, mensagens agendadas, gestão de contatos e um painel web para controlar tudo.
 
 ```
-WhatsApp ──▶ Servidor ──▶ IA (OpenRouter) ──▶ Ferramentas (Agenda / Cal.com)
+WhatsApp ──▶ Servidor ──▶ IA (Gemini/OpenRouter) ──▶ Ferramentas (Agenda / Cal.com)
                 │              ▲
                 └── Memória ───┘   + Base do negócio
 ```
@@ -65,8 +65,10 @@ Na aba **Conexão**, escolha o modo:
 
 **B) QR Code (WhatsApp Web)**: escaneie com o celular em *Aparelhos conectados*. É mais rápido e permite grupos e envio em massa, mas é uma conexão **não oficial**. Use com moderação para não ter o número bloqueado.
 
-### Passo 3: Conecte a IA (OpenRouter)
-Na aba **Agente IA**, cole sua chave do [OpenRouter](https://openrouter.ai/keys). Uma chave dá acesso a qualquer modelo. O padrão é `~anthropic/claude-sonnet-latest`; para economizar, use `~anthropic/claude-haiku-latest`.
+### Passo 3: Conecte a IA (Google Gemini grátis ou OpenRouter)
+Na aba **Agente IA**, em **Qual IA usar**:
+- **Google Gemini (padrão, tem plano gratuito):** crie a chave em [aistudio.google.com/apikey](https://aistudio.google.com/apikey) com uma conta Google, sem cartão. O plano gratuito tem limite de mensagens por minuto e por dia, e o Google pode usar as conversas para melhorar os produtos dele. Para atender clientes de verdade, avalie ativar o faturamento (com ele, os dados não são usados).
+- **OpenRouter (pago):** uma chave dá acesso a qualquer modelo (Claude, GPT…). Crie em [openrouter.ai/keys](https://openrouter.ai/keys) e adicione créditos.
 
 ### Passo 4: Memória
 Já funciona sozinha. Cada mensagem vai para a IA junto com as últimas mensagens da conversa (o padrão é 20, ajustável). Veja e gerencie tudo na aba **Conversas**.
@@ -180,7 +182,8 @@ Mensagens enviadas em sequência (enquanto a IA pensa) são respondidas juntas, 
 | `PORT`, `HOST` | Porta e interface do painel (`0.0.0.0` na VPS) |
 | `PANEL_USER`, `PANEL_PASSWORD` | Login do painel (**obrigatório** em produção fora do localhost) |
 | `TZ` | Fuso do negócio (padrão `America/Sao_Paulo`) |
-| `OPENROUTER_API_KEY` | Chave da IA |
+| `GEMINI_API_KEY` | Chave do Google Gemini (gratuito) |
+| `OPENROUTER_API_KEY` | Chave do OpenRouter (pago) |
 | `WA_CLOUD_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_VERIFY_TOKEN`, `WA_APP_SECRET` | API oficial da Meta |
 | `DATA_DIR` | Onde ficam os dados (padrão `./data`) |
 

@@ -47,7 +47,7 @@
           <h2>Como começar</h2>
           <ol class="steps">
             <li><b>Conexão</b>: escaneie o QR Code ou conecte a API oficial da Meta (webhook).</li>
-            <li><b>Agente IA</b>: cole sua chave do OpenRouter e preencha a base do seu negócio.</li>
+            <li><b>Agente IA</b>: cole a chave da IA (o Google Gemini tem plano gratuito) e preencha a base do seu negócio.</li>
             <li><b>Agenda</b>: defina os horários de atendimento (ou conecte o Cal.com).</li>
             <li><b>Testar agente</b>: converse com ele e rode os testes de estresse até não quebrar.</li>
             <li>Ligue o agente e acompanhe tudo em <b>Conversas</b>. Coloque numa VPS para rodar 24h.</li>
@@ -145,18 +145,37 @@
         </div>
         <div class="grid2">
           <div class="panel">
-            <h2>🧠 Cérebro (OpenRouter)</h2>
+            <h2>🧠 Cérebro (inteligência artificial)</h2>
             <label class="check big"><input type="checkbox" name="enabled" /> <b>Agente ligado</b> (responde os clientes no WhatsApp)</label>
-            <label>Chave do OpenRouter <input name="apiKey" placeholder="sk-or-v1-…" autocomplete="off" /></label>
-            <p class="hint">Crie em <b>openrouter.ai</b> → Keys. Uma chave dá acesso a qualquer modelo.</p>
-            <label>Modelo
-              <input name="model" list="modelList" />
-              <datalist id="modelList">
-                <option value="~anthropic/claude-sonnet-latest">Claude Sonnet (equilíbrio)</option>
-                <option value="~anthropic/claude-haiku-latest">Claude Haiku (rápido e barato)</option>
-                <option value="~anthropic/claude-opus-latest">Claude Opus (mais inteligente)</option>
-              </datalist>
+            <label>Qual IA usar
+              <select name="provider" id="aiProvider">
+                <option value="gemini">Google Gemini (tem plano gratuito)</option>
+                <option value="openrouter">OpenRouter (pago, vários modelos)</option>
+              </select>
             </label>
+            <div id="aiGemini">
+              <label>Chave do Google Gemini <input name="geminiKey" placeholder="AIza…" autocomplete="off" /></label>
+              <p class="hint">Crie grátis em <b>aistudio.google.com/apikey</b> com uma conta Google. No plano gratuito há limite de mensagens por minuto e por dia, e o Google pode usar as conversas para melhorar os produtos dele. Para testes, isso basta.</p>
+              <label>Modelo
+                <input name="geminiModel" list="geminiModels" />
+                <datalist id="geminiModels">
+                  <option value="gemini-3.8-flash">Gemini Flash (recomendado)</option>
+                  <option value="gemini-3.5-flash-lite">Gemini Flash-Lite (mais limites gratuitos)</option>
+                </datalist>
+              </label>
+            </div>
+            <div id="aiOpenrouter" hidden>
+              <label>Chave do OpenRouter <input name="apiKey" placeholder="sk-or-v1-…" autocomplete="off" /></label>
+              <p class="hint">Crie em <b>openrouter.ai</b> → Keys. Precisa de crédito; uma chave dá acesso a qualquer modelo.</p>
+              <label>Modelo
+                <input name="model" list="modelList" />
+                <datalist id="modelList">
+                  <option value="~anthropic/claude-sonnet-latest">Claude Sonnet (equilíbrio)</option>
+                  <option value="~anthropic/claude-haiku-latest">Claude Haiku (rápido e barato)</option>
+                  <option value="~anthropic/claude-opus-latest">Claude Opus (mais inteligente)</option>
+                </datalist>
+              </label>
+            </div>
             <div class="row">
               <label>Criatividade (0 a 1) <input type="number" step="0.1" min="0" max="1" name="temperature" /></label>
               <label>Memória (últimas mensagens) <input type="number" min="2" max="100" name="memoryMessages" /></label>

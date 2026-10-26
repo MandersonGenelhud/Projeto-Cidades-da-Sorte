@@ -674,7 +674,7 @@ async function renderAgentStatus() {
     : '🟢 <b>no ar</b> para todos os clientes';
   box.innerHTML = st.active
     ? `<p>🧠 Agente de <b>${esc(st.business)}</b> ligado · ${who} · modelo <code>${esc(st.model)}</code></p>`
-    : `<p class="muted">🧠 Agente IA desligado${st.configured ? '' : ' (falta a chave do OpenRouter)'}.</p>`;
+    : `<p class="muted">🧠 Agente IA desligado${st.configured ? '' : ' (falta a chave da IA)'}.</p>`;
 }
 
 loaders.agent = async () => {
@@ -684,7 +684,9 @@ loaders.agent = async () => {
   const a = s.agent;
   f.enabled.checked = a.enabled;
   f.rulesFirst.checked = a.rulesFirst;
-  for (const k of ['apiKey', 'model', 'temperature', 'memoryMessages', 'agentName', 'roleLabel', 'instructions', 'handoffNotifyPhone']) f[k].value = a[k] ?? '';
+  for (const k of ['apiKey', 'model', 'geminiKey', 'geminiModel', 'temperature', 'memoryMessages', 'agentName', 'roleLabel', 'instructions', 'handoffNotifyPhone']) f[k].value = a[k] ?? '';
+  f.provider.value = a.provider === 'openrouter' ? 'openrouter' : 'gemini';
+  f.provider.dispatchEvent(new Event('change'));
   $$('[name="audience"]', f).forEach((r) => (r.checked = r.value === (a.audience || 'test')));
   f.testNumbers.value = (a.testNumbers || []).join('\n');
   if (!$('#presetSelect').options.length) {
@@ -694,6 +696,7 @@ loaders.agent = async () => {
   for (const k of BUSINESS_FIELDS) f[`b_${k}`].value = s.business[k] ?? '';
   const info = await api('/api/connection/info');
   if (info.fromEnv.openrouter) f.apiKey.placeholder = 'definida no arquivo .env';
+  if (info.fromEnv.gemini) f.geminiKey.placeholder = 'definida no arquivo .env';
 };
 
 $('#formAgent').addEventListener('submit', withBusy($('#formAgent'), async (e) => {
@@ -705,6 +708,9 @@ $('#formAgent').addEventListener('submit', withBusy($('#formAgent'), async (e) =
       agent: {
         enabled: f.enabled.checked,
         rulesFirst: f.rulesFirst.checked,
+        provider: f.provider.value,
+        geminiKey: f.geminiKey.value.trim(),
+        geminiModel: f.geminiModel.value.trim() || 'gemini-3.8-flash',
         apiKey: f.apiKey.value.trim(),
         model: f.model.value.trim() || '~anthropic/claude-sonnet-latest',
         temperature: Number(f.temperature.value || 0.4),
@@ -721,7 +727,7 @@ $('#formAgent').addEventListener('submit', withBusy($('#formAgent'), async (e) =
   });
   const st = await api('/api/agent/status');
   let msg = 'Agente salvo 🧠';
-  if (st.enabled && !st.configured) msg = '⚠️ Salvo, mas falta a chave do OpenRouter';
+  if (st.enabled && !st.configured) msg = `⚠️ Salvo, mas falta a chave do ${st.provider === 'openrouter' ? 'OpenRouter' : 'Google Gemini'}`;
   else if (st.enabled && st.audience === 'test' && !st.testNumbers) msg = '⚠️ Modo de teste sem números: o agente não vai responder ninguém';
   toast(msg, msg.startsWith('⚠️'));
   loaders.agent();
@@ -739,6 +745,11 @@ $('#btnApplyPreset').addEventListener('click', async () => {
   } catch (err) {
     toast(err.message, true);
   }
+});
+
+$('#aiProvider').addEventListener('change', (e) => {
+  $('#aiGemini').hidden = e.target.value !== 'gemini';
+  $('#aiOpenrouter').hidden = e.target.value !== 'openrouter';
 });
 
 $('#btnShowPrompt').addEventListener('click', async () => {

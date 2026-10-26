@@ -46,10 +46,13 @@ const cloudConfig = () => {
     graphVersion: c.graphVersion || 'v22.0',
   };
 };
-const agentConfig = () => ({
-  ...store.settings.agent,
-  apiKey: process.env.OPENROUTER_API_KEY || store.settings.agent.apiKey,
-});
+const agentConfig = () => {
+  const a = store.settings.agent;
+  const provider = a.provider === 'openrouter' ? 'openrouter' : 'gemini';
+  return provider === 'gemini'
+    ? { ...a, provider, apiKey: process.env.GEMINI_API_KEY || a.geminiKey, model: a.geminiModel || 'gemini-3.8-flash' }
+    : { ...a, provider, apiKey: process.env.OPENROUTER_API_KEY || a.apiKey, model: a.model };
+};
 
 const wa = new ConnectionManager({
   store,
@@ -181,6 +184,7 @@ app.get('/api/connection/info', (req, res) => {
       verifyToken: Boolean(process.env.WA_VERIFY_TOKEN),
       appSecret: Boolean(process.env.WA_APP_SECRET),
       openrouter: Boolean(process.env.OPENROUTER_API_KEY),
+      gemini: Boolean(process.env.GEMINI_API_KEY),
     },
   });
 });
@@ -435,6 +439,7 @@ app.delete('/api/schedules/:id', (req, res) => {
 // Configurações (segredos nunca voltam completos para o navegador)
 const SECRET_PATHS = [
   ['agent', 'apiKey'],
+  ['agent', 'geminiKey'],
   ['connection', 'cloud', 'accessToken'],
   ['connection', 'cloud', 'appSecret'],
   ['agenda', 'calcom', 'apiKey'],
@@ -472,7 +477,8 @@ app.get('/api/agent/status', (_req, res) => {
     enabled: a.enabled,
     configured: llm.configured,
     active: agent.active,
-    model: a.model,
+    provider: agentConfig().provider,
+    model: agentConfig().model,
     audience: a.audience,
     testNumbers: (a.testNumbers || []).length,
     business: store.settings.business.name,

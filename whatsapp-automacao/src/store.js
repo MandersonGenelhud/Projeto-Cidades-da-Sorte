@@ -41,8 +41,12 @@ const DEFAULT_DATA = {
     },
     agent: {
       enabled: false,
-      apiKey: '',
-      model: '~anthropic/claude-sonnet-latest',
+      // Provedor de IA: gemini (Google, tem cota gratuita) ou openrouter (pago, qualquer modelo)
+      provider: 'gemini',
+      geminiKey: '',
+      geminiModel: 'gemini-3.8-flash',
+      apiKey: '', // chave do OpenRouter
+      model: '~anthropic/claude-sonnet-latest', // modelo do OpenRouter
       temperature: 0.3,
       memoryMessages: 20,
       rulesFirst: true,

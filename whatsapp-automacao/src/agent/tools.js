@@ -37,7 +37,7 @@ export const TOOL_DEFINITIONS = [
     function: {
       name: 'listar_meus_agendamentos',
       description: 'Lista os próximos agendamentos do cliente desta conversa (com os IDs para cancelar).',
-      parameters: { type: 'object', properties: {} },
+      // sem "parameters": alguns provedores recusam um objeto sem propriedades
     },
   },
   {
