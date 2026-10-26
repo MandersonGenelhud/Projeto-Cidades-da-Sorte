@@ -25,6 +25,12 @@ WhatsApp ──▶ Servidor ──▶ IA (OpenRouter) ──▶ Ferramentas (Age
 | ⏰ **Mensagens agendadas** | Uma vez, diárias, semanais ou mensais |
 | 👥 **Contatos** | Importação por CSV, etiquetas, importação de grupos, exportação e descadastro (LGPD) |
 
+## Não entende nada de programação? Comece por aqui
+
+Existe um **guia ilustrado, passo a passo**: https://claude.ai/artifact/UQbmf53avveh2wuAB976v4
+
+Resumo: instale o [Node.js](https://nodejs.org/pt-br/download), baixe e extraia este projeto e clique duas vezes em **`INICIAR-WINDOWS.bat`** (Windows) ou **`INICIAR-MAC.command`** (Mac). O painel abre sozinho no navegador.
+
 ## Começando (5 minutos)
 
 Precisa do **Node.js 22.9+**.

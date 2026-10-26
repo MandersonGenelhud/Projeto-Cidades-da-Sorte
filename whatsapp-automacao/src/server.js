@@ -5,6 +5,7 @@ process.env.TZ ||= 'America/Sao_Paulo';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { exec } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import multer from 'multer';
@@ -588,7 +589,13 @@ if (process.env.NODE_ENV === 'production' && !isLoopback && !PANEL_PASSWORD) {
 
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, HOST, () => {
-    console.log(`🚀 Painel em http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
+    const url = `http://${isLoopback || HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`;
+    console.log(`🚀 Painel em ${url}`);
+    if (process.env.OPEN_BROWSER) {
+      // Usado pelos atalhos de dois cliques: abre o painel no navegador.
+      const cmd = process.platform === 'win32' ? `start "" "${url}"` : process.platform === 'darwin' ? `open "${url}"` : `xdg-open "${url}"`;
+      exec(cmd, () => {});
+    }
     if (!PANEL_PASSWORD && !isLoopback) {
       console.warn('⚠️  Defina PANEL_PASSWORD: o painel está exposto na rede sem senha.');
     }
