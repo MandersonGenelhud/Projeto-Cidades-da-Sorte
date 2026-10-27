@@ -24,6 +24,7 @@ WhatsApp ──▶ Servidor ──▶ IA (Gemini/OpenRouter) ──▶ Ferrament
 | 🤖 **Respostas por palavra-chave** | Menus (1, 2, 3), respostas rápidas, etiquetas automáticas e horário de atendimento |
 | ⏰ **Mensagens agendadas** | Uma vez, diárias, semanais ou mensais |
 | 👥 **Contatos** | Importação por CSV, etiquetas, importação de grupos, exportação e descadastro (LGPD) |
+| 📈 **CRM de vendas** | Prospectos em funil (quadro e lista), histórico de cada cliente, retornos agendados ("me chama em novembro", "daqui 2 anos"), motivos de perda, vendedores com login próprio e painel do dono com consultor de IA |
 
 ## Não entende nada de programação? Comece por aqui
 
@@ -158,6 +159,19 @@ pm2 start ecosystem.config.cjs && pm2 save && pm2 startup
 Nesse caso, coloque um proxy com HTTPS (Caddy ou Nginx + Certbot) na frente da porta 3000.
 
 ---
+
+## CRM de vendas (dono e vendedores)
+
+No **primeiro acesso** o painel pede para criar o **administrador** (o dono). Depois, em **Equipe**, ele cadastra cada vendedor com login, senha e WhatsApp.
+
+- **Prospectos**: cada cliente que manda mensagem vira um prospecto (automático). Arraste entre as colunas *Novo → Em contato → Proposta enviada → Retomar depois → Fechado / Perdido*. Ao marcar *Perdido*, o vendedor informa o motivo; ao marcar *Retomar depois*, escolhe a data (botões +1 mês, +6 meses, +1 ano, +2 anos) e o porquê.
+- **Retornos**: no dia marcado, o responsável recebe um aviso no WhatsApp e o cliente aparece em *Hoje* (os atrasados ficam em destaque).
+- **IA preenchendo o CRM**: depois das respostas, a IA lê a conversa e completa nome, cidade, pacote, nº de pessoas, valor e data de retorno — sem apagar o que a equipe escreveu.
+- **Vendedor saiu?** Em *Equipe → Passar carteira*, todos os prospectos em aberto dele vão para outra pessoa, com o histórico.
+- **Vendas** (só o dono): vendas do mês, conversão, valor em negociação, desempenho por vendedor, motivos de perda e de espera, e o **Consultor de vendas (IA)**, que sugere o que fazer na semana.
+- Vendedores só veem os próprios prospectos e os que estão sem responsável; as configurações do robô ficam só com o administrador.
+
+Para a equipe acessar de outros computadores/celulares, o sistema precisa estar na VPS (endereço com HTTPS).
 
 ## Instagram Direct
 

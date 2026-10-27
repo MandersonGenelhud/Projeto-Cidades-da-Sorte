@@ -38,6 +38,10 @@ async function api(url, { method = 'GET', body, form } = {}) {
   }
   const res = await fetch(url, opts);
   const data = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text();
+  if (res.status === 401 && data?.login) {
+    location.href = '/login.html';
+    throw new Error(data.error);
+  }
   if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
   return data;
 }
@@ -72,6 +76,8 @@ const lines = (text) => String(text || '').split(/[\n,;]+/).map((s) => s.trim())
 // ---------- Navegação ----------
 const loaders = {};
 function showTab(name) {
+  const btn = $(`nav button[data-tab="${name}"]`);
+  if (!btn || (btn.hasAttribute('data-admin') && window.currentUser?.role !== 'admin')) name = window.currentUser?.role === 'admin' ? 'sales' : 'leads';
   $$('nav button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   $$('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
   location.hash = name;
@@ -982,12 +988,14 @@ async function openConversation(key) {
   $('#convHeader').innerHTML = `<div><b>${esc(c.name || '')}</b> ${esc(fmtPhone(c.phone) || '')}
       ${c.handoff ? `<div class="hint">🙋 Atendimento humano${c.handoffReason ? `: ${esc(c.handoffReason)}` : ''} — o robô está pausado</div>` : '<div class="hint">🤖 Robô atendendo</div>'}</div>
     <div class="row">
+      <button class="btn small" id="btnConvLead">🗂️ Ver prospecto</button>
       <button class="btn small" id="btnHandoff">${c.handoff ? '🤖 Devolver para o robô' : '🙋 Assumir conversa'}</button>
-      <button class="btn small danger" id="btnConvClear" title="Apagar memória">🗑️</button>
+      <button class="btn small danger" id="btnConvClear" title="Apagar memória" data-admin>🗑️</button>
     </div>`;
   $('#convChat').innerHTML = c.messages.map((m) => chatBubble(m.role, m.content, m.at)).join('');
   $('#formConvReply').hidden = false;
   scrollDown($('#convChat'));
+  $('#btnConvLead').onclick = () => openLeadFromConversation(key);
   $('#btnHandoff').onclick = async () => {
     await api(`/api/conversations/${encodeURIComponent(key)}/handoff`, { method: 'POST', body: { value: !c.handoff } });
     loaders.conversations();
@@ -1159,20 +1167,37 @@ function connectEvents() {
     if ($('#tab-conversations').classList.contains('active')) loadPending();
   });
   es.addEventListener('appointments', refreshIfActive('agenda'));
+  es.addEventListener('crm', () => onCrmEvent());
+  es.addEventListener('crmDue', () => onCrmDue());
   es.addEventListener('message', refreshIfActive('conversations'));
   es.onerror = () => renderStatus({ ...connState, status: 'disconnected' });
 }
 
+// ---------- Login ----------
+$('#btnSignOut').addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  location.href = '/login.html';
+});
+
 // ---------- Início ----------
 (async () => {
+  const state = await fetch('/api/auth/state').then((r) => r.json()).catch(() => ({}));
+  if (!state.user) return (location.href = '/login.html');
+  window.currentUser = state.user;
+  const admin = state.user.role === 'admin';
+  document.body.classList.toggle('seller', !admin);
+  $('#userName').textContent = `${admin ? '👑' : '👤'} ${state.user.name}`;
   try {
     renderStatus(await api('/api/status'));
-    await loaders.settings();
-    applyDefaultDelays();
+    if (admin) {
+      await loaders.settings();
+      applyDefaultDelays();
+    }
   } catch (err) {
     toast(err.message, true);
   }
   connectEvents();
+  refreshDueBadge();
   const initial = location.hash.slice(1);
-  showTab(loaders[initial] || initial === 'send' ? initial : 'dashboard');
+  showTab(loaders[initial] || initial === 'send' ? initial : admin ? 'sales' : 'leads');
 })();

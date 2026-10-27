@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Entrar · ZapAuto</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { display: grid; place-items: center; min-height: 100vh; padding: 16px; }
+    .login { width: min(400px, 100%); background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 28px; display: grid; gap: 14px; }
+    .login h1 { margin: 0; font-size: 22px; }
+    .login .brand { display: flex; gap: 10px; align-items: center; }
+    .login .brand span { font-size: 30px; }
+    .login button { justify-content: center; }
+    .err { color: var(--red); font-size: 14px; min-height: 1em; }
+  </style>
+</head>
+<body>
+  <form class="login form" id="form">
+    <div class="brand"><span>💬</span><div><h1>ZapAuto</h1><small class="muted">Atendimento e vendas</small></div></div>
+    <p id="intro" class="hint">Entre com o seu login e senha.</p>
+    <label id="nameWrap" hidden>Seu nome <input name="name" autocomplete="name" /></label>
+    <label>Login <input name="login" autocomplete="username" required placeholder="ex.: marcos" /></label>
+    <label>Senha <input name="password" type="password" autocomplete="current-password" required minlength="6" /></label>
+    <label id="waWrap" hidden>Seu WhatsApp (para receber avisos de retorno) <input name="whatsapp" placeholder="+595 981 123456" /></label>
+    <p class="err" id="err"></p>
+    <button class="btn primary" id="btn">Entrar</button>
+  </form>
+  <script>
+    const form = document.getElementById('form');
+    let setup = false;
+    fetch('/api/auth/state').then((r) => r.json()).then((s) => {
+      if (s.user) return (location.href = '/');
+      setup = s.needsSetup;
+      if (setup) {
+        document.getElementById('intro').textContent = 'Primeiro acesso: crie a conta do administrador (o dono da empresa). Depois ele cadastra os vendedores.';
+        document.getElementById('nameWrap').hidden = false;
+        document.getElementById('waWrap').hidden = false;
+        form.name.required = true;
+        form.password.autocomplete = 'new-password';
+        document.getElementById('btn').textContent = 'Criar administrador e entrar';
+      }
+    });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const body = Object.fromEntries(new FormData(form));
+      const res = await fetch(setup ? '/api/auth/setup' : '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return (document.getElementById('err').textContent = data.error || 'Não foi possível entrar');
+      location.href = '/';
+    });
+  </script>
+</body>
+</html>

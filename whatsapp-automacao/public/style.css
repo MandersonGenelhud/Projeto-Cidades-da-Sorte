@@ -284,3 +284,98 @@ details[open] summary { margin-bottom: 12px; }
 .pending-item .txt { color: var(--muted); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pending-item .when { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .pending-item.queued { border-color: var(--green); }
+
+/* ---- Login / perfis ---- */
+body.seller [data-admin] { display: none !important; }
+.nav-group { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 14px 12px 4px; }
+.nav-group:first-child { padding-top: 0; }
+.nav-badge { background: var(--red); color: #fff; border-radius: 999px; font-size: 11px; font-weight: 700; padding: 1px 7px; margin-left: 4px; }
+.user-pill { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; margin: 8px 0; font-size: 13px; border-top: 1px solid #202c33; }
+.user-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; }
+.link { background: none; border: 0; color: var(--sidebar-text); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
+.page-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.page-head h1 { margin: 0; }
+.page-head select { width: auto; }
+
+/* ---- Vendas ---- */
+.kpi .value { font-size: 24px; font-variant-numeric: tabular-nums; }
+.kpi .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.kpi.warn { border-color: var(--yellow); }
+.status-warn { color: #b45309; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .status-warn { color: #fbbf24; } }
+.insights { line-height: 1.6; font-size: 14px; white-space: normal; }
+#aiAdvisor { border-left: 4px solid var(--green); }
+
+.hbars { display: grid; gap: 8px; }
+.hbar { display: grid; grid-template-columns: minmax(90px, 38%) 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
+.hbar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-label::first-letter { text-transform: uppercase; }
+.hbar-track { height: 14px; display: block; }
+.hbar-fill { display: block; height: 100%; background: var(--green); border-radius: 0 4px 4px 0; min-width: 0; }
+.hbar-fill.good { background: var(--green-dark); }
+.hbar-fill.muted { background: var(--muted); opacity: .6; }
+.hbar-value { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.hbar-value small { color: var(--muted); font-weight: 400; margin-left: 4px; }
+
+.vbars-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; align-items: end; height: 220px; }
+.vbar { display: grid; grid-template-rows: auto 1fr auto; height: 100%; text-align: center; gap: 4px; }
+.vbar-col { display: flex; align-items: flex-end; justify-content: center; border-bottom: 1px solid var(--border); }
+.vbar-fill { width: min(36px, 70%); background: var(--green); border-radius: 4px 4px 0 0; min-height: 0; }
+.vbar-value { font-size: 11px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vbar-label { font-size: 12px; color: var(--muted); text-transform: capitalize; }
+
+/* ---- Prospectos ---- */
+.seg { display: inline-flex; }
+.seg .btn { border-radius: 0; }
+.seg .btn:first-child { border-radius: 8px 0 0 8px; }
+.seg .btn:last-child { border-radius: 0 8px 8px 0; margin-left: -1px; }
+.seg .btn[aria-pressed='true'] { background: var(--green-dark); border-color: var(--green-dark); color: #fff; }
+
+.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(210px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+.board-col { background: color-mix(in srgb, var(--panel) 55%, var(--bg)); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; min-height: 300px; display: flex; flex-direction: column; }
+.board-col header { display: flex; justify-content: space-between; gap: 6px; font-size: 13px; padding: 2px 4px 10px; }
+.board-col.over { outline: 2px dashed var(--green); }
+.board-list { display: grid; gap: 8px; align-content: start; flex: 1; }
+.board-col[data-stage='ganho'] header b { color: var(--green-dark); }
+.lead-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px; cursor: pointer; font-size: 13px; display: grid; gap: 4px; }
+.lead-card:hover { border-color: var(--green); }
+.lead-card.dragging { opacity: .5; }
+.lead-card.overdue { border-left: 3px solid var(--yellow); }
+.lead-top { display: flex; justify-content: space-between; gap: 6px; }
+.lead-top b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lead-meta, .lead-owner { color: var(--muted); font-size: 12px; }
+.lead-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+.lead-due { font-size: 12px; }
+.lead-due.atrasado { color: #b45309; font-weight: 600; }
+.lead-due.hoje { color: var(--green-dark); font-weight: 600; }
+.free { color: var(--blue); }
+.small { font-size: 12px; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--bg); }
+
+dialog.lead-dialog { width: min(1000px, 96vw); max-height: 92vh; }
+.lead-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; }
+.lead-grid > .form { min-width: 0; }
+.lead-grid label { min-width: 120px; }
+.stage-extra { background: var(--bg); border-radius: 10px; padding: 10px; }
+.quick-dates { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ai-box { background: color-mix(in srgb, var(--green) 10%, transparent); border-radius: 10px; padding: 10px; font-size: 13px; line-height: 1.5; }
+.timeline { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
+.timeline li { display: grid; grid-template-columns: 24px 1fr; gap: 6px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.tl-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.tl-meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.timeline li.tl-nota .tl-text { font-weight: 500; }
+.chat.small { height: 260px; }
+
+/* ---- Retornos ---- */
+.fu-group.warn { border-left: 4px solid var(--yellow); }
+.fu-group.today { border-left: 4px solid var(--green); }
+.fu-item { margin-bottom: 8px; }
+
+@media (max-width: 800px) {
+  .lead-grid { grid-template-columns: 1fr; }
+  .board { grid-auto-columns: 82vw; }
+  .vbars-grid { height: 180px; }
+  .user-pill { margin: 4px 0; }
+}
+@media (max-width: 800px) { .nav-group { display: none; } }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Automação WhatsApp</title>
+  <title>ZapAuto · Atendimento e Vendas</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -12,25 +12,34 @@
       <span class="logo">💬</span>
       <div>
         <strong>ZapAuto</strong>
-        <small>Automação de WhatsApp</small>
+        <small>Atendimento e vendas</small>
       </div>
     </div>
     <nav>
-      <button data-tab="dashboard" class="active">📊 Painel</button>
-      <button data-tab="connection">📱 Conexão</button>
-      <button data-tab="agent">🧠 Agente IA</button>
-      <button data-tab="test">🧪 Testar agente</button>
+      <div class="nav-group">Vendas</div>
+      <button data-tab="sales" data-admin>📈 Vendas</button>
+      <button data-tab="leads">🗂️ Prospectos</button>
+      <button data-tab="followups">📅 Retornos <span class="nav-badge" id="dueBadge" hidden>0</span></button>
       <button data-tab="conversations">💬 Conversas</button>
-      <button data-tab="agenda">📅 Agenda</button>
-      <button data-tab="contacts">👥 Contatos</button>
-      <button data-tab="campaigns">🚀 Envio em massa</button>
-      <button data-tab="rules">🤖 Respostas automáticas</button>
-      <button data-tab="schedules">⏰ Agendamentos</button>
-      <button data-tab="send">✉️ Envio rápido</button>
-      <button data-tab="logs">📜 Histórico</button>
-      <button data-tab="settings">⚙️ Configurações</button>
+      <button data-tab="team" data-admin>👤 Equipe</button>
+      <div class="nav-group" data-admin>Atendimento automático</div>
+      <button data-tab="dashboard" data-admin>📊 Painel</button>
+      <button data-tab="connection" data-admin>📱 Conexão</button>
+      <button data-tab="agent" data-admin>🧠 Agente IA</button>
+      <button data-tab="test" data-admin>🧪 Testar agente</button>
+      <button data-tab="agenda" data-admin>🗓️ Agenda</button>
+      <div class="nav-group" data-admin>Marketing</div>
+      <button data-tab="contacts" data-admin>👥 Contatos</button>
+      <button data-tab="campaigns" data-admin>🚀 Envio em massa</button>
+      <button data-tab="rules" data-admin>🤖 Respostas automáticas</button>
+      <button data-tab="schedules" data-admin>⏰ Agendamentos</button>
+      <button data-tab="send" data-admin>✉️ Envio rápido</button>
+      <div class="nav-group" data-admin>Sistema</div>
+      <button data-tab="logs" data-admin>📜 Histórico</button>
+      <button data-tab="settings" data-admin>⚙️ Configurações</button>
     </nav>
-    <div class="conn-pill" id="connPill"><span class="dot"></span><span id="connText">Desconectado</span></div>
+    <div class="user-pill"><span id="userName">…</span><button type="button" class="link" id="btnSignOut">Sair</button></div>
+    <div class="conn-pill" id="connPill" data-admin><span class="dot"></span><span id="connText">Desconectado</span></div>
   </aside>
 
   <main>
@@ -139,6 +148,110 @@
           <button class="btn primary">Salvar e conectar Instagram</button>
         </form>
       </div>
+    </section>
+
+    <!-- VENDAS (painel do dono) -->
+    <section id="tab-sales" class="tab">
+      <div class="page-head">
+        <h1>Vendas</h1>
+        <div class="row">
+          <select id="salesPeriod">
+            <option value="month">Este mês</option>
+            <option value="lastmonth">Mês passado</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="year">Este ano</option>
+            <option value="all">Tudo</option>
+          </select>
+          <select id="salesOwner"><option value="">Toda a equipe</option></select>
+        </div>
+      </div>
+      <div class="cards" id="salesKpis"></div>
+      <div class="panel" id="aiAdvisor">
+        <div class="conv-header">
+          <h2>🧠 Consultor de vendas (IA)</h2>
+          <button type="button" class="btn primary small" id="btnInsights">Pedir análise agora</button>
+        </div>
+        <div id="insightsText" class="insights muted">Clique em "Pedir análise agora": a IA lê os números do período e sugere o que fazer esta semana.</div>
+      </div>
+      <div class="grid2">
+        <div class="panel"><h2>Funil de vendas</h2><div id="chartFunnel" class="hbars"></div></div>
+        <div class="panel"><h2>Vendas fechadas por mês (R$)</h2><div id="chartMonths" class="vbars"></div></div>
+      </div>
+      <div class="panel">
+        <h2>Equipe</h2>
+        <div class="table-wrap"><table id="sellersTable"></table></div>
+      </div>
+      <div class="grid2">
+        <div class="panel"><h2>Por que não fecharam</h2><div id="chartLost" class="hbars"></div></div>
+        <div class="panel"><h2>Por que pediram para esperar</h2><div id="chartWait" class="hbars"></div></div>
+        <div class="panel"><h2>Pacotes de interesse</h2><div id="chartInterest" class="hbars"></div></div>
+        <div class="panel"><h2>De onde vieram</h2><div id="chartSource" class="hbars"></div></div>
+      </div>
+    </section>
+
+    <!-- PROSPECTOS -->
+    <section id="tab-leads" class="tab">
+      <div class="page-head">
+        <h1>Prospectos</h1>
+        <button type="button" class="btn primary" id="btnNewLead">➕ Novo prospecto</button>
+      </div>
+      <div class="toolbar">
+        <input id="leadSearch" placeholder="🔎 Buscar nome, telefone, @instagram, pacote" />
+        <select id="leadOwner"><option value="">Todos que eu vejo</option><option value="mine">Só os meus</option><option value="none">Sem responsável</option></select>
+        <div class="seg" role="group" aria-label="Visualização">
+          <button type="button" class="btn small" data-view="board" aria-pressed="true">Quadro</button>
+          <button type="button" class="btn small" data-view="list" aria-pressed="false">Lista</button>
+        </div>
+      </div>
+      <div id="leadBoard" class="board"></div>
+      <div id="leadList" class="panel" hidden><div class="table-wrap"><table id="leadTable"></table></div></div>
+    </section>
+
+    <!-- RETORNOS -->
+    <section id="tab-followups" class="tab">
+      <h1>Retornos agendados</h1>
+      <p class="hint">Clientes que pediram para conversar depois. No dia, o responsável recebe um aviso no WhatsApp e o cliente aparece em "Hoje".</p>
+      <div id="followupsBox" class="followups"></div>
+    </section>
+
+    <!-- EQUIPE -->
+    <section id="tab-team" class="tab">
+      <h1>Equipe</h1>
+      <div class="grid2">
+        <div class="panel">
+          <h2>Pessoas com acesso</h2>
+          <div id="teamList"></div>
+        </div>
+        <form class="panel form" id="formUser">
+          <h2>Cadastrar vendedor</h2>
+          <label>Nome <input name="name" required /></label>
+          <div class="row">
+            <label>Login <input name="login" required placeholder="ex.: ana" autocomplete="off" /></label>
+            <label>Senha inicial <input name="password" required minlength="6" autocomplete="new-password" /></label>
+          </div>
+          <label>WhatsApp do vendedor (recebe os avisos de retorno) <input name="whatsapp" placeholder="+595 981 123456" /></label>
+          <label>Tipo de acesso
+            <select name="role"><option value="seller">Vendedor (vê os próprios prospectos)</option><option value="admin">Administrador (vê tudo)</option></select>
+          </label>
+          <button class="btn primary">Cadastrar</button>
+        </form>
+      </div>
+      <form class="panel form" id="formCrmSettings">
+        <h2>Regras do CRM</h2>
+        <label>Quando um cliente novo manda mensagem
+          <select name="autoAssign">
+            <option value="none">Fica disponível para a equipe (o vendedor assume)</option>
+            <option value="roundrobin">Distribui em rodízio entre os vendedores</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" name="autoCreate" /> Criar prospecto automaticamente para quem manda mensagem</label>
+        <label class="check"><input type="checkbox" name="aiExtract" /> IA lê as conversas e preenche o prospecto (nome, pacote, pessoas, data de retorno)</label>
+        <label class="check"><input type="checkbox" name="notifyFollowUps" /> Avisar o vendedor no WhatsApp no dia do retorno</label>
+        <label>Pacotes e valores por pessoa (um por linha: Nome = valor)
+          <textarea name="packages" rows="7"></textarea>
+        </label>
+        <button class="btn primary">Salvar regras</button>
+      </form>
     </section>
 
     <!-- AGENTE IA -->
@@ -656,6 +769,65 @@
   </dialog>
 
   <div id="toast"></div>
+  <dialog id="leadDialog" class="lead-dialog">
+    <form id="formLead" class="form" method="dialog">
+      <div class="conv-header">
+        <h2 id="leadTitle">Prospecto</h2>
+        <div class="row">
+          <a class="btn small" id="leadWa" target="_blank" rel="noopener" hidden>💬 Abrir no meu WhatsApp</a>
+          <button type="button" class="btn small" id="leadClose">✕</button>
+        </div>
+      </div>
+      <div class="lead-grid">
+        <div class="form">
+          <div class="row">
+            <label>Nome <input name="name" /></label>
+            <label>Telefone <input name="phone" placeholder="(11) 91234-5678" /></label>
+          </div>
+          <div class="row">
+            <label>Instagram <input name="instagram" placeholder="@usuario" /></label>
+            <label>Cidade <input name="city" /></label>
+          </div>
+          <div class="row">
+            <label>Pacote de interesse <select name="interest"></select></label>
+            <label>Pessoas <input type="number" min="1" name="people" /></label>
+            <label>Valor estimado (R$) <input type="number" min="0" step="1" name="value" /></label>
+          </div>
+          <div class="row">
+            <label>Etapa <select name="stage" id="leadStage"></select></label>
+            <label>Responsável <select name="ownerId" id="leadOwnerSel"></select></label>
+          </div>
+          <div id="stageWait" class="stage-extra" hidden>
+            <div class="row">
+              <label>Retomar em <input type="date" name="followUpAt" /></label>
+              <label>Por que vai esperar? <input name="followUpReason" placeholder="ex.: recebe o 13º em dezembro" /></label>
+            </div>
+            <div class="quick-dates" id="quickDates"></div>
+          </div>
+          <label id="stageLost" class="stage-extra" hidden>Por que não fechou? <input name="lostReason" placeholder="ex.: achou caro, escolheu outra assessoria" /></label>
+          <label id="stageWon" class="stage-extra" hidden>Valor fechado (R$) <input type="number" min="0" name="closedValue" /></label>
+          <div class="row">
+            <button type="submit" class="btn primary" id="btnSaveLead">Salvar</button>
+            <button type="button" class="btn" id="btnTakeLead" hidden>🙋 Assumir este prospecto</button>
+            <button type="button" class="btn small danger" id="btnDeleteLead" data-admin>Excluir</button>
+          </div>
+        </div>
+        <div class="form">
+          <div id="leadAi" class="ai-box" hidden></div>
+          <div class="row">
+            <input id="leadNote" placeholder="Anotação: o que conversou, objeções, próximo passo…" />
+            <button type="button" class="btn" id="btnAddNote">Anotar</button>
+          </div>
+          <h3>Histórico</h3>
+          <ul class="timeline" id="leadTimeline"></ul>
+          <details id="leadConvWrap" hidden><summary>Conversa no WhatsApp/Instagram</summary><div class="chat small" id="leadConv"></div>
+            <button type="button" class="btn small" id="btnLeadAi">🧠 IA: ler a conversa de novo</button></details>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
   <script src="app.js"></script>
+  <script src="crm.js"></script>
 </body>
 </html>
