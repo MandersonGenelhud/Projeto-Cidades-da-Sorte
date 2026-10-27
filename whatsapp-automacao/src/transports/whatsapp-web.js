@@ -131,7 +131,15 @@ export class WhatsAppClient extends EventEmitter {
     });
 
     sock.ev.on('messages.upsert', ({ messages, type }) => {
-      if (this.sock !== sock || type !== 'notify') return;
+      if (this.sock !== sock) return;
+      if (type === 'append') {
+        // Mensagens que chegaram enquanto o sistema estava desligado: não respondem
+        // na hora, mas entram na lista de clientes esperando resposta.
+        const normalized = messages.map((msg) => normalizeMessage(msg)).filter((x) => x && !x.isGroup);
+        if (normalized.length) this.emit('history', normalized);
+        return;
+      }
+      if (type !== 'notify') return;
       for (const msg of messages) {
         if (msg.key.fromMe) {
           // Mensagem que o dono mandou pelo celular (as deste sistema não chegam como "notify").
