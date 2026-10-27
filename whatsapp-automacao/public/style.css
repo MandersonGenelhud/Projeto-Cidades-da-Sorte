@@ -436,3 +436,4 @@ dialog.lead-dialog { width: min(1000px, 96vw); max-height: 92vh; }
   .podium-card { order: 0 !important; }
 }
 .grid2 > form.panel label, .lead-grid .form > label { flex: none; }
+.demo-banner { background: color-mix(in srgb, var(--gold) 18%, var(--panel)); border: 1px solid var(--gold); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

@@ -87,7 +87,32 @@ function periodRange() {
   return {};
 }
 
+async function refreshDemo() {
+  const d = await api('/api/demo');
+  $('#demoBanner').hidden = !d.loaded;
+  $('#btnDemo').hidden = d.loaded;
+}
+$('#btnDemo').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  try {
+    const r = await api('/api/demo', { method: 'POST' });
+    toast(`Exemplo carregado: ${r.sellers} vendedores e ${r.leads} clientes. Veja Prospectos, Ranking e Equipe.`);
+    crmState.stages = [];
+    loaders.sales();
+  } catch (err) {
+    toast(err.message, true);
+  }
+  e.target.disabled = false;
+});
+$('#btnDemoClear').addEventListener('click', async () => {
+  await api('/api/demo', { method: 'DELETE' });
+  toast('Dados de exemplo apagados');
+  crmState.stages = [];
+  loaders.sales();
+});
+
 loaders.sales = async () => {
+  refreshDemo().catch(() => {});
   await loadCrmMeta();
   const q = new URLSearchParams({ ...periodRange(), ...($('#salesOwner').value ? { owner: $('#salesOwner').value } : {}) });
   const [s, insights] = await Promise.all([api(`/api/crm/stats?${q}`), api('/api/crm/insights')]);

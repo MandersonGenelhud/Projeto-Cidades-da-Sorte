@@ -231,3 +231,19 @@ test('rodízio é justo mesmo com vários clientes no mesmo instante', () => {
   }
   assert.deepEqual(counts, { Ana: 3, Bia: 3, Caio: 3 });
 });
+
+test('dados de exemplo entram e saem com um clique', async () => {
+  const { store, crm, auth, admin } = setup();
+  const { LeadRouter } = await import('../src/routing.js');
+  const { loadDemo, clearDemo, hasDemo } = await import('../src/demo.js');
+  const router = new LeadRouter({ store, crm, sendWhatsApp: async () => {}, canSendWhatsApp: () => false });
+  const real = crm.create(admin, { name: 'Cliente real', phone: '5511988887777' });
+  const r = await loadDemo({ store, auth, crm, router, admin });
+  assert.equal(r.leads, 7);
+  assert.ok(hasDemo(store));
+  assert.ok(crm.leads.some((l) => l.stage === 'ganho' && l.closedConfirmed));
+  clearDemo(store);
+  assert.ok(!hasDemo(store));
+  assert.ok(crm.leads.some((l) => l.id === real.id));
+  assert.ok(!store.data.users.some((u) => u.login.startsWith('exemplo.')));
+});

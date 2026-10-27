@@ -20,6 +20,7 @@ import { Scheduler } from './scheduler.js';
 import { PendingInbox, extractPending } from './pending.js';
 import { LeadRouter } from './routing.js';
 import { buildRanking, currentMonth } from './ranking.js';
+import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
 import { Crm, STAGES } from './crm.js';
@@ -820,6 +821,18 @@ app.get('/api/crm/agenda', (req, res) => res.json(crm.agenda(req.user)));
 app.get('/api/crm/stats', (req, res) => {
   const ownerId = req.user.role === 'admin' ? req.query.owner || undefined : req.user.id;
   res.json(crm.stats({ from: req.query.from, to: req.query.to, ownerId }));
+});
+// Dados de exemplo (só o administrador)
+app.get('/api/demo', (_req, res) => res.json({ loaded: hasDemo(store) }));
+app.post('/api/demo', async (req, res) => {
+  const r = await loadDemo({ store, auth, crm, router, admin: req.user });
+  notify('crm', {});
+  res.json(r);
+});
+app.delete('/api/demo', (_req, res) => {
+  clearDemo(store);
+  notify('crm', {});
+  res.json({ ok: true });
 });
 app.get('/api/crm/ranking', (req, res) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? req.query.month : currentMonth();
