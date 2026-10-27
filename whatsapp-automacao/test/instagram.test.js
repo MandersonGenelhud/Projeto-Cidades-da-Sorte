@@ -108,3 +108,9 @@ test('prompt muda o estilo conforme o canal', () => {
   assert.doesNotMatch(ig, /negrito do WhatsApp/);
   assert.match(buildSystemPrompt(store.settings), /no WhatsApp\./);
 });
+
+test('mensagem que vem de anúncio traz a origem', async () => {
+  const { parseReferral } = await import('../src/transports/instagram.js');
+  assert.deepEqual(parseReferral({ source: 'ADS', ad_id: 42, ads_context_data: { ad_title: 'Morar no Paraguai' } }), { adId: '42', title: 'Morar no Paraguai' });
+  assert.equal(parseReferral({ source: 'SHORTLINK', ref: 'bio' }), null);
+});

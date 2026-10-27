@@ -17,7 +17,23 @@ function calendarHint(now) {
 /** O agente pode usar a agenda? (desligado em negócios em que agendar é tarefa da equipe) */
 export const canSchedule = (settings) => settings.agenda?.enabled !== false;
 
-export function buildSystemPrompt(settings, { now = new Date(), contactName = '', channel = 'WhatsApp' } = {}) {
+/** Seção da peneira: como qualificar o cliente e quando passar para o vendedor. */
+function routingSection(settings) {
+  const criteria = String(settings.crm?.routing?.criteria || '').trim();
+  return `
+# Peneira e encaminhamento para um consultor
+Seu objetivo é entender se o cliente está pronto para fechar e, quando estiver, passá-lo para um consultor humano pelo WhatsApp.
+- Descubra, de forma natural e uma pergunta por vez (sem parecer formulário): o objetivo dele, quantas pessoas, quando pretende começar e se já tem o valor para iniciar. Antes de perguntar sobre dinheiro, explique o valor e a forma de pagamento.
+${criteria ? `- Critérios de cliente pronto (quente):
+${criteria}
+` : ''}- Cliente quente, ou que pede para fechar/falar com um consultor: use encaminhar_para_vendedor e envie o link que a ferramenta devolver, exatamente como veio, explicando que o consultor já recebeu o resumo e continua por lá. Envie o link uma única vez.
+- Cliente morno: tire as dúvidas e volte à peneira depois. Cliente frio (sem dinheiro agora, só pesquisando, ou para daqui a muitos meses): seja gentil, não insista e pergunte quando seria um bom momento para voltar a conversar. Não envie link de vendedor para cliente frio.
+- Nunca invente o que o cliente disse e nunca prometa aprovação, prazos garantidos ou descontos.
+- Se a ferramenta der erro, use transferir_para_humano.
+`;
+}
+
+export function buildSystemPrompt(settings, { now = new Date(), contactName = '', channel = 'WhatsApp', routing = false } = {}) {
   const { agent, business } = settings;
   const scheduling = canSchedule(settings);
   const role = agent.roleLabel?.trim() || 'atendente virtual';
@@ -53,7 +69,7 @@ ${scheduling ? `
 - Para remarcar: cancele o antigo (cancelar_agendamento) e marque o novo, respeitando as políticas.
 - Datas relativas: use a lista abaixo.
 ${calendarHint(now)}
-` : ''}
+` : ''}${routing ? routingSection(settings) : ''}
 # Personalidade e instruções do dono
 ${agent.instructions || ''}
 

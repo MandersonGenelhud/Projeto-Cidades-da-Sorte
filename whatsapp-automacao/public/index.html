@@ -3,16 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ZapAuto · Atendimento e Vendas</title>
+  <title>Migra Hub · Atendimento e Vendas</title>
+  <link rel="icon" href="img/migra-emblema.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <aside class="sidebar">
-    <div class="brand">
-      <span class="logo">💬</span>
+    <div class="brand brand-logo">
+      <img id="brandLogo" src="/brand/logo" alt="Logo" />
       <div>
-        <strong>ZapAuto</strong>
-        <small>Atendimento e vendas</small>
+        <strong id="brandName">Migra Hub</strong>
+        <small id="brandTagline">Atendimento e vendas</small>
       </div>
     </div>
     <nav>
@@ -20,6 +21,7 @@
       <button data-tab="sales" data-admin>📈 Vendas</button>
       <button data-tab="leads">🗂️ Prospectos</button>
       <button data-tab="followups">📅 Retornos <span class="nav-badge" id="dueBadge" hidden>0</span></button>
+      <button data-tab="ranking">🏆 Ranking</button>
       <button data-tab="conversations">💬 Conversas</button>
       <button data-tab="team" data-admin>👤 Equipe</button>
       <div class="nav-group" data-admin>Atendimento automático</div>
@@ -145,7 +147,11 @@
           </div>
           <label>URL do webhook do Instagram (cole na Meta) <input id="igWebhookUrl" readonly /></label>
           <p class="hint">O token vale 60 dias e o sistema renova sozinho todo dia. O Instagram só deixa responder até 24 horas depois da última mensagem do cliente.</p>
-          <button class="btn primary">Salvar e conectar Instagram</button>
+          <div class="row">
+            <button class="btn primary">Salvar e conectar Instagram</button>
+            <button type="button" class="btn" id="btnIgSync">🔄 Buscar conversas do Direct agora</button>
+          </div>
+          <p class="hint">Ao conectar, o sistema busca as conversas do Direct: quem chamou nas últimas 24h aparece em <b>Conversas → Clientes esperando resposta</b> para o agente responder; quem chamou antes vira prospecto no CRM para a equipe responder pelo app. Clientes que vêm de <b>anúncio patrocinado</b> ficam marcados com o nome do anúncio.</p>
         </form>
       </div>
     </section>
@@ -214,12 +220,63 @@
       <div id="followupsBox" class="followups"></div>
     </section>
 
+    <!-- RANKING -->
+    <section id="tab-ranking" class="tab">
+      <div class="page-head">
+        <h1>🏆 Ranking da equipe</h1>
+        <select id="rankMonth"></select>
+      </div>
+      <div id="rankTeam" class="panel team-goal"></div>
+      <div id="rankPodium" class="podium"></div>
+      <div class="panel">
+        <h2>Classificação</h2>
+        <div class="table-wrap"><table id="rankTable"></table></div>
+      </div>
+      <div class="grid2">
+        <div class="panel">
+          <h2>Como ganhar pontos</h2>
+          <ul class="rules" id="rankRules"></ul>
+        </div>
+        <div class="panel">
+          <h2>🤝 Jogo limpo</h2>
+          <ul class="rules">
+            <li>Os clientes chegam para todos pelo <b>mesmo rodízio</b>: ninguém escolhe cliente.</li>
+            <li>Ninguém pega cliente de colega: só o administrador transfere.</li>
+            <li>A venda entra no ranking depois que o administrador <b>confirma</b> o contrato.</li>
+            <li>Retorno atrasado tira pontos: cuidar bem da carteira também conta.</li>
+            <li>Comemore a venda do colega: a meta da equipe dá prêmio para todos.</li>
+          </ul>
+        </div>
+      </div>
+      <form class="panel form" id="formGoals" data-admin>
+        <h2>🎯 Metas e bonificações (só o administrador vê)</h2>
+        <div class="row">
+          <label>A meta é medida em
+            <select name="metric"><option value="sales">Número de vendas</option><option value="revenue">Valor vendido (R$)</option></select>
+          </label>
+          <label>Meta mensal de cada vendedor <input type="number" min="0" name="target" /></label>
+        </div>
+        <div id="goalPerUser" class="goal-users"></div>
+        <h3>Níveis de bonificação (em % da meta)</h3>
+        <div id="goalTiers" class="goal-tiers"></div>
+        <button type="button" class="btn small" id="btnAddTier">➕ Adicionar nível</button>
+        <h3>Meta da equipe (todos ganham)</h3>
+        <div class="row">
+          <label>Meta do mês (soma da equipe) <input type="number" min="0" name="teamTarget" /></label>
+          <label>Prêmio da equipe <input name="teamReward" placeholder="ex.: churrasco, almoço, folga" /></label>
+        </div>
+        <label class="check"><input type="checkbox" name="requireConfirmation" /> Venda do vendedor só conta depois que eu confirmar</label>
+        <button class="btn primary">Salvar metas</button>
+      </form>
+    </section>
+
     <!-- EQUIPE -->
     <section id="tab-team" class="tab">
       <h1>Equipe</h1>
       <div class="grid2">
         <div class="panel">
           <h2>Pessoas com acesso</h2>
+          <div id="rotationInfo" class="rotation-info"></div>
           <div id="teamList"></div>
         </div>
         <form class="panel form" id="formUser">
@@ -229,7 +286,8 @@
             <label>Login <input name="login" required placeholder="ex.: ana" autocomplete="off" /></label>
             <label>Senha inicial <input name="password" required minlength="6" autocomplete="new-password" /></label>
           </div>
-          <label>WhatsApp do vendedor (recebe os avisos de retorno) <input name="whatsapp" placeholder="+595 981 123456" /></label>
+          <label>WhatsApp do vendedor (para onde vão os clientes e os avisos) <input name="whatsapp" placeholder="+595 981 123456" /></label>
+          <label class="check"><input type="checkbox" name="receivesLeads" checked /> Entra no rodízio de clientes</label>
           <label>Tipo de acesso
             <select name="role"><option value="seller">Vendedor (vê os próprios prospectos)</option><option value="admin">Administrador (vê tudo)</option></select>
           </label>
@@ -238,12 +296,18 @@
       </div>
       <form class="panel form" id="formCrmSettings">
         <h2>Regras do CRM</h2>
-        <label>Quando um cliente novo manda mensagem
+        <label>Como os clientes chegam aos vendedores
           <select name="autoAssign">
-            <option value="none">Fica disponível para a equipe (o vendedor assume)</option>
-            <option value="roundrobin">Distribui em rodízio entre os vendedores</option>
+            <option value="qualified">A IA faz a peneira e manda os prontos para o vendedor da vez (recomendado)</option>
+            <option value="roundrobin">Todo cliente novo já vai para o vendedor da vez</option>
+            <option value="none">Ninguém recebe sozinho: o vendedor assume pelo painel</option>
           </select>
         </label>
+        <label class="check"><input type="checkbox" name="routingEnabled" /> A IA pode encaminhar o cliente para o WhatsApp do vendedor</label>
+        <label>Critérios da peneira (quando o cliente está pronto para o vendedor)
+          <textarea name="routingCriteria" rows="5"></textarea>
+        </label>
+        <label>Endereço do painel na internet (vai no aviso ao vendedor) <input name="panelUrl" placeholder="https://painel.suaempresa.com" /></label>
         <label class="check"><input type="checkbox" name="autoCreate" /> Criar prospecto automaticamente para quem manda mensagem</label>
         <label class="check"><input type="checkbox" name="aiExtract" /> IA lê as conversas e preenche o prospecto (nome, pacote, pessoas, data de retorno)</label>
         <label class="check"><input type="checkbox" name="notifyFollowUps" /> Avisar o vendedor no WhatsApp no dia do retorno</label>
@@ -705,6 +769,19 @@
     <!-- CONFIGURAÇÕES -->
     <section id="tab-settings" class="tab">
       <h1>Configurações</h1>
+      <form id="formBrand" class="panel form">
+        <h2>🎨 Nome e logo do sistema</h2>
+        <div class="brand-preview"><img id="brandPreview" src="/brand/logo" alt="Logo atual" /></div>
+        <div class="row">
+          <label>Nome do sistema <input name="name" /></label>
+          <label>Frase abaixo do nome <input name="tagline" /></label>
+        </div>
+        <label>Trocar a logo (PNG com fundo transparente fica melhor) <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" /></label>
+        <div class="row">
+          <button class="btn primary">Salvar marca</button>
+          <button type="button" class="btn small" id="btnLogoReset">Voltar para a logo da Migra</button>
+        </div>
+      </form>
       <form id="formSettings" class="form">
         <div class="grid2">
           <div class="panel">
@@ -772,7 +849,7 @@
   <dialog id="leadDialog" class="lead-dialog">
     <form id="formLead" class="form" method="dialog">
       <div class="conv-header">
-        <h2 id="leadTitle">Prospecto</h2>
+        <div><h2 id="leadTitle">Prospecto</h2><div id="leadBadges" class="lead-badges"></div></div>
         <div class="row">
           <a class="btn small" id="leadWa" target="_blank" rel="noopener" hidden>💬 Abrir no meu WhatsApp</a>
           <button type="button" class="btn small" id="leadClose">✕</button>
@@ -809,10 +886,12 @@
           <div class="row">
             <button type="submit" class="btn primary" id="btnSaveLead">Salvar</button>
             <button type="button" class="btn" id="btnTakeLead" hidden>🙋 Assumir este prospecto</button>
+            <button type="button" class="btn" id="btnConfirmSale" hidden data-admin>✅ Confirmar venda (vale no ranking)</button>
             <button type="button" class="btn small danger" id="btnDeleteLead" data-admin>Excluir</button>
           </div>
         </div>
         <div class="form">
+          <div id="leadQual" class="qual-box" hidden></div>
           <div id="leadAi" class="ai-box" hidden></div>
           <div class="row">
             <input id="leadNote" placeholder="Anotação: o que conversou, objeções, próximo passo…" />

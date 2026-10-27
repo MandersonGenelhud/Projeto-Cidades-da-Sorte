@@ -1,0 +1,110 @@
+// Encaminhamento: a IA fez a peneira no Direct/WhatsApp, o cliente está pronto
+// para conversar com um consultor. O sistema escolhe o vendedor da vez (rodízio),
+// avisa o vendedor com o histórico e devolve o link do WhatsApp dele para o cliente.
+const firstName = (name) => String(name || '').trim().split(/\s+/)[0] || '';
+const money = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`;
+const TEMP = { quente: '🔥 Quente', morno: '🌤️ Morno', frio: '❄️ Frio' };
+const MONEY = { sim: 'Tem o valor para começar', parcial: 'Tem parte do valor', nao: 'Ainda não tem o valor', nao_informou: 'Não informou' };
+
+export class LeadRouter {
+  constructor({ store, crm, sendWhatsApp, canSendWhatsApp }) {
+    this.store = store;
+    this.crm = crm;
+    this.sendWhatsApp = sendWhatsApp; // (telefone, texto) => Promise
+    this.canSendWhatsApp = canSendWhatsApp || (() => false);
+  }
+
+  get businessName() {
+    return this.store.settings.business?.name || 'nossa empresa';
+  }
+
+  panelLink(lead) {
+    const base = String(this.store.settings.crm?.panelUrl || process.env.PUBLIC_URL || '').replace(/\/+$/, '');
+    return base ? `${base}/#lead=${lead.id}` : '';
+  }
+
+  /** Link wa.me com a mensagem pronta que o cliente envia ao vendedor. */
+  clientLink(lead, seller) {
+    const channel = String(lead.conversationKey || '').startsWith('ig:') ? 'pelo Instagram' : 'pelo atendimento online';
+    const text = `Olá, ${firstName(seller.name)}! Vim ${channel} da ${this.businessName}.${lead.name ? ` Meu nome é ${lead.name}.` : ''} Meu código de atendimento é ${lead.code}.`;
+    return `https://wa.me/${seller.whatsapp}?text=${encodeURIComponent(text)}`;
+  }
+
+  /** Mensagem que o vendedor recebe no WhatsApp dele. */
+  sellerMessage(lead, conv) {
+    const q = lead.qualification || {};
+    const contact = lead.phone ? `+${lead.phone}` : lead.instagram ? `@${lead.instagram} (Instagram)` : 'pelo link';
+    const lastClient = (conv?.messages || []).filter((m) => m.role === 'user').slice(-4).map((m) => `• ${m.content.replace(/\s+/g, ' ').slice(0, 160)}`).join('\n');
+    const link = this.panelLink(lead);
+    return [
+      `🔔 *Novo cliente para você* — ${lead.code}`,
+      `👤 ${lead.name || 'Sem nome'} · ${contact}`,
+      lead.adTitle ? `📣 Veio do anúncio: ${lead.adTitle}` : '',
+      lead.interest ? `📦 ${lead.interest}${lead.people > 1 ? ` · ${lead.people} pessoas` : ''}${lead.value ? ` · ${money(lead.value)}` : ''}` : '',
+      `🌡️ ${TEMP[q.temperature] || 'Sem classificação'}${q.start ? ` · quer iniciar: ${q.start}` : ''}`,
+      q.money ? `💰 ${MONEY[q.money] || q.money}${q.moneyEvidence ? ` — disse: "${q.moneyEvidence}"` : ''}` : '',
+      q.objections ? `⚠️ Dúvidas/objeções: ${q.objections}` : '',
+      lead.aiSummary ? `📝 ${lead.aiSummary}` : '',
+      lastClient ? `\nÚltimas mensagens do cliente:\n${lastClient}` : '',
+      `\nO cliente vai te chamar no WhatsApp com o código *${lead.code}*.`,
+      link ? `Ficha completa e conversa: ${link}` : 'Veja a ficha completa no painel (Prospectos → buscar pelo código).',
+    ].filter(Boolean).join('\n');
+  }
+
+  /**
+   * Chamado pela ferramenta da IA. Em simulação (dryRun) mostra quem seria
+   * o vendedor, sem mexer no rodízio nem avisar ninguém.
+   */
+  async route(conv, args, { dryRun = false } = {}) {
+    const routing = this.store.settings.crm?.routing || {};
+    if (routing.enabled === false) return { erro: 'Encaminhamento desligado. Use transferir_para_humano.' };
+    if (dryRun || String(conv.key).startsWith('sim:')) {
+      const seller = this.crm.nextSeller();
+      if (!seller) return { erro: 'Nenhum vendedor no rodízio (cadastre vendedores com WhatsApp na aba Equipe). Use transferir_para_humano.' };
+      const fake = { code: 'TESTE-0000', name: args.nome || conv.name || '', conversationKey: conv.key };
+      return {
+        ok: true,
+        simulacao: true,
+        vendedor: firstName(seller.name),
+        link: this.clientLink(fake, seller),
+        instrucao: 'Simulação: nada foi gravado. Envie ao cliente o link do WhatsApp do consultor, explicando que ele continua o atendimento por lá.',
+      };
+    }
+    const lead = this.crm.ensureFromConversation({
+      key: conv.key,
+      phone: conv.phone,
+      name: conv.name,
+      username: conv.username,
+      channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp',
+    }) || this.crm.findForConversation({ key: conv.key, phone: conv.phone });
+    if (!lead) return { erro: 'Não foi possível registrar o cliente no CRM. Use transferir_para_humano.' };
+    this.crm.qualify(lead, args);
+    const seller = this.crm.routeLead(lead, { reason: 'rodízio após a peneira da IA' });
+    if (!seller) return { erro: 'Nenhum vendedor disponível no rodízio. Use transferir_para_humano.' };
+    lead.routedAt = new Date().toISOString();
+    conv.routedTo = seller.id;
+    this.store.save();
+
+    const text = this.sellerMessage(lead, conv);
+    let warned = false;
+    if (this.canSendWhatsApp()) {
+      try {
+        await this.sendWhatsApp(seller.whatsapp, text);
+        warned = true;
+      } catch (err) {
+        this.store.addLog({ type: 'error', message: `Aviso ao vendedor ${seller.name}: ${err.message}` });
+      }
+    }
+    this.store.addLog({
+      type: 'system',
+      message: `🎯 ${lead.name || lead.code} encaminhado para ${seller.name}${warned ? ' (avisado no WhatsApp)' : ' (aviso só no painel: o WhatsApp do sistema não está conectado)'}`,
+    });
+    return {
+      ok: true,
+      vendedor: firstName(seller.name),
+      codigo: lead.code,
+      link: this.clientLink(lead, seller),
+      instrucao: `Envie o link ao cliente dizendo que o(a) consultor(a) ${firstName(seller.name)} vai continuar o atendimento pelo WhatsApp e já recebeu o resumo da conversa. Peça para ele tocar no link e mandar a mensagem que já vem escrita.`,
+    };
+  }
+}

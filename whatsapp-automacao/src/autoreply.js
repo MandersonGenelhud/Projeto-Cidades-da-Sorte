@@ -177,7 +177,7 @@ export class AutoReply {
 
     if (decision.kind === 'agent') {
       await this.agent.handleIncoming(
-        { key: msg.jid, phone: msg.phone, name: msg.name, text: msg.text, id: msg.id },
+        { key: msg.jid, phone: msg.phone, name: msg.name, username: msg.username, text: msg.text, id: msg.id },
         async (text, { typingMs } = {}) => {
           try {
             await this.wa.send(msg.jid, { text, typingMs });

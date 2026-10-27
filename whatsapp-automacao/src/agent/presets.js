@@ -4,7 +4,7 @@
 const MIGRA_PARAGUAI = {
   label: 'Migra Paraguai (assessoria migratória)',
   // Suba este número quando a base mudar: instalações com a versão antiga recebem a nova sozinhas.
-  version: 2,
+  version: 3,
   business: {
     name: 'Migra Paraguai',
     segment: 'assessoria de processos migratórios, regularização documental e abertura de empresas no Paraguai',
@@ -91,7 +91,7 @@ Prazo: "Em média o processo leva de 90 a 120 dias úteis, com duas vindas ao Pa
     roleLabel: 'assistente virtual',
     instructions: `Apresente-se como "assistente virtual da Migra Paraguai". Tenha um tom humano e cordial, mas seja transparente: você é uma IA.
 Português do Brasil, respostas breves, perguntas simples, uma pergunta por vez.
-Pode informar os pacotes, os valores da tabela (por pessoa), a forma de pagamento e os prazos estimados. Para fechar, enviar documentos ou agendar, passe para um consultor.
+Pode informar os pacotes, os valores da tabela (por pessoa), a forma de pagamento e os prazos estimados. Faça a peneira com calma e, quando o cliente estiver pronto para fechar, enviar documentos ou falar com alguém, passe para um consultor pelo WhatsApp (encaminhar_para_vendedor).
 Não faça promessas legais. Isto não é orientação jurídica.`,
     testMessages: [
       'Oi, quero morar no Paraguai',
@@ -113,6 +113,13 @@ Não faça promessas legais. Isto não é orientação jurídica.`,
   agenda: { enabled: false },
   // Pacotes e valores (por pessoa) usados no CRM para estimar o valor de cada prospecto.
   crm: {
+    // Critérios da peneira: quando a IA passa o cliente para um vendedor.
+    routing: {
+      criteria: `  • Quer de verdade morar, trabalhar, estudar ou empreender no Paraguai (não é só curiosidade).
+  • Já sabe qual pacote combina com ele, ou você já explicou as opções e os valores.
+  • Tem como pagar a entrada do contrato (R$ 1.000 + R$ 800 por adulto) e o restante nas vindas, ou disse que tem o valor.
+  • Quer começar nos próximos 3 meses.`,
+    },
     packages: [
       { name: 'Pacote Inicial', price: 10997 },
       { name: 'Pacote Prata', price: 11997 },
@@ -181,7 +188,7 @@ export function presetUpgrade(settings) {
       patch: {
         business: { ...p.business },
         agent: { instructions: p.agent.instructions, testMessages: [...p.agent.testMessages] },
-        ...(p.crm ? { crm: { packages: p.crm.packages.map((x) => ({ ...x })) } } : {}),
+        ...(p.crm ? { crm: { packages: p.crm.packages.map((x) => ({ ...x })), ...(p.crm.routing ? { routing: { ...p.crm.routing }, autoAssign: 'qualified' } : {}) } } : {}),
         knowledgeVersion: { ...(settings.knowledgeVersion || {}), [id]: p.version },
       },
     };
@@ -197,7 +204,7 @@ export function presetSettings(id) {
     business: { ...p.business },
     agent: { ...p.agent },
     agenda: { ...p.agenda },
-    ...(p.crm ? { crm: { packages: p.crm.packages.map((x) => ({ ...x })) } } : {}),
+    ...(p.crm ? { crm: { packages: p.crm.packages.map((x) => ({ ...x })), ...(p.crm.routing ? { routing: { ...p.crm.routing } } : {}) } } : {}),
     ...(p.version ? { knowledgeVersion: { [id]: p.version } } : {}),
   };
 }

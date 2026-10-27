@@ -587,6 +587,8 @@ function applyDefaultDelays() {
 loaders.settings = async () => {
   const [s, blacklist] = await Promise.all([api('/api/settings'), api('/api/blacklist')]);
   settingsCache = s;
+  $('#formBrand').name.value = s.brand?.name || '';
+  $('#formBrand').tagline.value = s.brand?.tagline || '';
   const f = $('#formSettings');
   for (const k of ['autoReplyEnabled', 'ignoreGroups', 'welcomeEnabled']) f[k].checked = !!s[k];
   for (const k of ['replyCooldownMinutes', 'welcomeMessage', 'optOutMessage', 'optInMessage', 'defaultDelayMin', 'defaultDelayMax']) f[k].value = s[k] ?? '';
@@ -679,6 +681,17 @@ $('#formPairing').addEventListener('submit', withBusy($('#formPairing'), async (
     <p>Mande este código para o dono do número. No celular dele: WhatsApp → <b>Configurações</b> (ou ⋮) → <b>Dispositivos conectados</b> → <b>Conectar dispositivo</b> → <b>Conectar com número de telefone</b> → digitar o código.</p>
     <p class="hint">O código vale por poucos minutos. Se expirar, gere outro.</p>`;
 }));
+
+$('#btnIgSync').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  try {
+    const r = await api('/api/instagram/sync', { method: 'POST' });
+    toast(`Direct verificado: ${r.recent} para o agente responder (veja em Conversas) e ${r.old} antigas enviadas ao CRM`);
+  } catch (err) {
+    toast(err.message, true);
+  }
+  e.target.disabled = false;
+});
 
 $('#formInstagram').addEventListener('submit', withBusy($('#formInstagram'), async (e) => {
   const f = e.target;
@@ -1168,10 +1181,41 @@ function connectEvents() {
   });
   es.addEventListener('appointments', refreshIfActive('agenda'));
   es.addEventListener('crm', () => onCrmEvent());
+  es.addEventListener('crmAssigned', (e) => onCrmAssigned(JSON.parse(e.data)));
   es.addEventListener('crmDue', () => onCrmDue());
   es.addEventListener('message', refreshIfActive('conversations'));
   es.onerror = () => renderStatus({ ...connState, status: 'disconnected' });
 }
+
+// ---------- Marca ----------
+function applyBrand(b) {
+  const name = b?.name || 'Migra Hub';
+  $('#brandName').textContent = name;
+  $('#brandTagline').textContent = b?.tagline || 'Atendimento e vendas';
+  document.title = `${name} · Atendimento e Vendas`;
+}
+function reloadLogos() {
+  const v = Date.now();
+  for (const img of [$('#brandLogo'), $('#brandPreview')]) img.src = `/brand/logo?v=${v}`;
+}
+$('#formBrand').addEventListener('submit', withBusy($('#formBrand'), async (e) => {
+  const f = e.target;
+  const s = await api('/api/settings', { method: 'PUT', body: { brand: { name: f.name.value.trim() || 'Migra Hub', tagline: f.tagline.value.trim() } } });
+  if (f.logo.files[0]) {
+    const form = new FormData();
+    form.append('file', f.logo.files[0]);
+    await api('/api/brand/logo', { method: 'POST', form });
+    f.logo.value = '';
+    reloadLogos();
+  }
+  applyBrand(s.brand);
+  toast('Marca salva');
+}));
+$('#btnLogoReset').addEventListener('click', async () => {
+  await api('/api/brand/logo', { method: 'DELETE' });
+  reloadLogos();
+  toast('Logo da Migra restaurada');
+});
 
 // ---------- Login ----------
 $('#btnSignOut').addEventListener('click', async () => {
@@ -1182,7 +1226,8 @@ $('#btnSignOut').addEventListener('click', async () => {
 // ---------- Início ----------
 (async () => {
   const state = await fetch('/api/auth/state').then((r) => r.json()).catch(() => ({}));
-  if (!state.user) return (location.href = '/login.html');
+  if (!state.user) return (location.href = `/login.html${location.hash ? `?volta=${encodeURIComponent(location.hash)}` : ''}`);
+  fetch('/api/brand').then((r) => r.json()).then(applyBrand).catch(() => {});
   window.currentUser = state.user;
   const admin = state.user.role === 'admin';
   document.body.classList.toggle('seller', !admin);
@@ -1199,5 +1244,12 @@ $('#btnSignOut').addEventListener('click', async () => {
   connectEvents();
   refreshDueBadge();
   const initial = location.hash.slice(1);
+  // Link da ficha (vem no aviso do vendedor): #lead=ID
+  const leadLink = initial.match(/^lead=(.+)$/);
+  if (leadLink) {
+    showTab('leads');
+    openLead(decodeURIComponent(leadLink[1]));
+    return;
+  }
   showTab(loaders[initial] || initial === 'send' ? initial : admin ? 'sales' : 'leads');
 })();

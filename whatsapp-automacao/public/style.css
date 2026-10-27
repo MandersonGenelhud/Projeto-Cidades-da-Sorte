@@ -4,14 +4,18 @@
   --text: #111b21;
   --muted: #667781;
   --border: #e2e6ea;
-  --green: #00a884;
-  --green-dark: #008069;
-  --green-soft: #d9fdd3;
+  /* Cores da Migra Paraguai */
+  --green: #1f9d4c;
+  --green-dark: #157a39;
+  --green-soft: #dcf5e3;
+  --lime: #7cc242;
+  --gold: #f2c200;
   --red: #e5484d;
   --yellow: #f5a524;
   --blue: #3b82f6;
-  --sidebar: #111b21;
-  --sidebar-text: #d1d7db;
+  --sidebar: #0c2418;
+  --sidebar-hover: #15382a;
+  --sidebar-text: #d6e6dc;
   --radius: 12px;
 }
 
@@ -22,8 +26,9 @@
     --text: #e9edef;
     --muted: #8696a0;
     --border: #2a3942;
-    --green-soft: #005c4b;
-    --sidebar: #111b21;
+    --green-soft: #1d4d2f;
+    --sidebar: #081a11;
+    --sidebar-hover: #12301f;
   }
 }
 
@@ -68,12 +73,12 @@ nav button {
   font-size: 14px;
   cursor: pointer;
 }
-nav button:hover { background: #202c33; }
+nav button:hover { background: var(--sidebar-hover); }
 nav button.active { background: var(--green-dark); color: #fff; }
 
 .conn-pill {
   display: flex; align-items: center; gap: 8px;
-  padding: 10px 12px; border-radius: 8px; background: #202c33; font-size: 13px;
+  padding: 10px 12px; border-radius: 8px; background: var(--sidebar-hover); font-size: 13px;
 }
 .conn-pill .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
 .conn-pill.connected .dot { background: #25d366; box-shadow: 0 0 8px #25d366; }
@@ -290,7 +295,7 @@ body.seller [data-admin] { display: none !important; }
 .nav-group { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 14px 12px 4px; }
 .nav-group:first-child { padding-top: 0; }
 .nav-badge { background: var(--red); color: #fff; border-radius: 999px; font-size: 11px; font-weight: 700; padding: 1px 7px; margin-left: 4px; }
-.user-pill { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; margin: 8px 0; font-size: 13px; border-top: 1px solid #202c33; }
+.user-pill { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; margin: 8px 0; font-size: 13px; border-top: 1px solid var(--sidebar-hover); }
 .user-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; }
 .link { background: none; border: 0; color: var(--sidebar-text); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
 .page-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
@@ -357,7 +362,7 @@ dialog.lead-dialog { width: min(1000px, 96vw); max-height: 92vh; }
 .lead-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; }
 .lead-grid > .form { min-width: 0; }
 .lead-grid label { min-width: 120px; }
-.stage-extra { background: var(--bg); border-radius: 10px; padding: 10px; }
+.stage-extra { background: var(--bg); border-radius: 10px; padding: 10px; flex: none !important; }
 .quick-dates { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .ai-box { background: color-mix(in srgb, var(--green) 10%, transparent); border-radius: 10px; padding: 10px; font-size: 13px; line-height: 1.5; }
 .timeline { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
@@ -379,3 +384,55 @@ dialog.lead-dialog { width: min(1000px, 96vw); max-height: 92vh; }
   .user-pill { margin: 4px 0; }
 }
 @media (max-width: 800px) { .nav-group { display: none; } }
+
+/* ---- Marca ---- */
+.brand.brand-logo { flex-direction: column; align-items: flex-start; gap: 6px; }
+.brand.brand-logo img { width: 190px; max-width: 100%; height: auto; }
+.brand.brand-logo strong { font-size: 15px; color: var(--lime); }
+.brand-preview { background: var(--sidebar); border-radius: 10px; padding: 14px; width: fit-content; }
+.brand-preview img { width: 220px; height: auto; display: block; }
+@media (max-width: 800px) {
+  .brand.brand-logo { flex-direction: row; align-items: center; }
+  .brand.brand-logo img { width: 120px; }
+}
+
+/* ---- Rodízio, peneira, código ---- */
+.rotation-info { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; line-height: 1.6; }
+.lead-code { float: right; font: 11px ui-monospace, Consolas, monospace; color: var(--muted); }
+.lead-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 12px; background: var(--bg); border: 1px solid var(--border); }
+.chip.ok { border-color: var(--green); }
+.chip.warn, .chip.temp-morno { border-color: var(--yellow); }
+.chip.temp-quente { border-color: var(--red); font-weight: 600; }
+.chip.temp-frio { border-color: var(--blue); }
+.qual-box { border: 1px solid var(--border); border-left: 4px solid var(--gold); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.qual-box dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 0; }
+.qual-box dt { color: var(--muted); }
+.qual-box dd { margin: 0; }
+
+/* ---- Ranking ---- */
+.team-goal h2 { margin: 0; }
+.pbar { position: relative; height: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; margin: 6px 0; min-width: 120px; }
+.pfill { position: absolute; inset: 0 auto 0 0; background: var(--green); border-radius: 999px; }
+.pmark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--gold); transform: translateX(-1px); }
+.podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; align-items: end; }
+.podium-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; display: grid; gap: 4px; }
+.podium-card.p1 { border: 2px solid var(--gold); padding-top: 26px; order: 2; }
+.podium-card.p2 { order: 1; }
+.podium-card.p3 { order: 3; }
+.podium-card.me { box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 35%, transparent); }
+.podium-card .medal { font-size: 34px; line-height: 1; }
+.podium-card .pts { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#rankTable tr.me td { background: color-mix(in srgb, var(--green) 9%, transparent); }
+#rankTable td { vertical-align: top; }
+.goal-cell { min-width: 190px; }
+.badge-ico { font-size: 18px; cursor: help; }
+.rules { margin: 0; padding-left: 18px; line-height: 1.8; font-size: 14px; }
+.goal-users { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.goal-users h3 { grid-column: 1 / -1; margin: 6px 0 0; }
+.tier-row .grow { flex: 3; }
+@media (max-width: 800px) {
+  .podium { grid-template-columns: 1fr; }
+  .podium-card { order: 0 !important; }
+}
+.grid2 > form.panel label, .lead-grid .form > label { flex: none; }

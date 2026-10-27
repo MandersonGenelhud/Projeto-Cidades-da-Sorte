@@ -10,8 +10,9 @@ const randomPause = () => 600 + Math.floor(Math.random() * 1400); // entre uma m
 const FALLBACK_REPLY = 'Desculpe, tive um probleminha aqui. 😅 Pode repetir, por favor? Se preferir, peça para falar com um atendente.';
 
 export class Agent {
-  constructor({ store, llm, calendar, notify, notifyTeam, onReplied, now = () => new Date(), wait = sleep }) {
+  constructor({ store, llm, calendar, notify, notifyTeam, onReplied, routeLead, now = () => new Date(), wait = sleep }) {
     this.store = store;
+    this.routeLead = routeLead || null; // (conversa, args, { dryRun }) => encaminha para o vendedor da vez
     this.onReplied = onReplied || (() => {}); // (conversa) => usado pelo CRM para ler a conversa
     this.wait = wait; // espera (trocada nos testes para não demorar)
     this.notifyTeam = notifyTeam || (async () => {}); // (texto) => envia aviso no WhatsApp da equipe
@@ -95,14 +96,16 @@ export class Agent {
     const cfg = this.config;
     const settings = this.store.settings;
     const channel = String(conv.key).startsWith('ig:') ? 'Instagram' : 'WhatsApp';
-    let system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name, channel });
+    const routing = Boolean(this.routeLead) && settings.crm?.routing?.enabled !== false;
+    let system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name, channel, routing });
     if (delayed) {
       system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece pedindo desculpas pela demora, de forma breve e natural, e então responda.';
     }
     // Sem agenda, o agente só pode transferir para a equipe.
-    const tools = canSchedule(settings)
-      ? TOOL_DEFINITIONS
-      : TOOL_DEFINITIONS.filter((t) => t.function.name === 'transferir_para_humano');
+    const tools = TOOL_DEFINITIONS.filter((t) => {
+      if (t.function.name === 'encaminhar_para_vendedor') return routing;
+      return canSchedule(settings) || t.function.name === 'transferir_para_humano';
+    });
     const history = conv.messages.slice(-Math.max(2, Number(cfg.memoryMessages || 20)));
     const messages = [{ role: 'system', content: system }, ...history.map(({ role, content }) => ({ role, content }))];
     const actions = [];
@@ -110,6 +113,7 @@ export class Agent {
       calendar: this.calendar,
       phone: conv.phone,
       dryRun,
+      onRoute: this.routeLead ? (args) => this.routeLead(conv, args, { dryRun }) : null,
       onHandoff: (reason) => {
         if (!dryRun) {
           conv.handoff = true;
@@ -165,7 +169,7 @@ export class Agent {
    * Mensagens que chegam em sequência são respondidas juntas.
    * `send(text, { typingMs })` envia ao cliente; `hooks.markRead(ids)` marca como lida.
    */
-  handleIncoming({ key, phone, name, text, id = null, delayed = false }, send, hooks = {}) {
+  handleIncoming({ key, phone, name, username, text, id = null, delayed = false }, send, hooks = {}) {
     let q = this.queues.get(key);
     if (!q) {
       q = { pending: [], ids: [], running: false, delayed: false, lastAt: 0, hooks: {} };
@@ -178,7 +182,7 @@ export class Agent {
     if (delayed) q.delayed = true;
     if (!q.running) {
       q.running = true;
-      return this.#drain(key, q, { phone, name }, send).finally(() => {
+      return this.#drain(key, q, { phone, name, username }, send).finally(() => {
         q.running = false;
       });
     }
@@ -194,7 +198,7 @@ export class Agent {
     }
   }
 
-  async #drain(key, q, { phone, name }, send) {
+  async #drain(key, q, { phone, name, username }, send) {
     let last = null;
     while (q.pending.length) {
       const h = humanizeConfig(this.config.humanize);
@@ -207,6 +211,7 @@ export class Agent {
       const conv = this.conversation(key);
       conv.phone = phone || conv.phone;
       if (name) conv.name = name;
+      if (username) conv.username = username;
       this.remember(conv, 'user', texts.join('\n'));
       if (conv.handoff) continue; // um humano está atendendo
 

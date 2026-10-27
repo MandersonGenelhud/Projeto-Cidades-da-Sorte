@@ -17,7 +17,9 @@ import { ConnectionManager } from './connection.js';
 import { CampaignRunner } from './campaigns.js';
 import { AutoReply } from './autoreply.js';
 import { Scheduler } from './scheduler.js';
-import { PendingInbox } from './pending.js';
+import { PendingInbox, extractPending } from './pending.js';
+import { LeadRouter } from './routing.js';
+import { buildRanking, currentMonth } from './ranking.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
 import { Crm, STAGES } from './crm.js';
@@ -113,6 +115,38 @@ const crm = new Crm({ store, auth, notify });
 const crmAi = new CrmAi({ store, llm, crm });
 // Depois de cada resposta do agente, a IA lê a conversa e atualiza o prospecto.
 agent.onReplied = (conv, { handoff } = {}) => crmAi.afterReply(conv, { force: handoff });
+// Peneira feita: a IA passa o cliente para o vendedor da vez (rodízio).
+const router = new LeadRouter({
+  store,
+  crm,
+  sendWhatsApp: (phone, text) => wa.send(phone, { text, typing: false }),
+  canSendWhatsApp: () => wa.status === 'connected',
+});
+agent.routeLead = (conv, args, opts) => router.route(conv, args, opts);
+
+/**
+ * Busca as conversas recentes do Direct: quem chamou nas últimas 24h entra em
+ * "Clientes esperando resposta" (o agente pode responder); quem chamou antes
+ * vira prospecto para a equipe responder pelo app (regra de 24h do Instagram).
+ */
+async function syncInstagram() {
+  const msgs = await instagram.recentMessages();
+  const recent = pending.ingestHistory(msgs, { maxDays: 1, label: 'Instagram' });
+  let old = 0;
+  const dayAgo = Date.now() - 86_400_000;
+  for (const p of extractPending(msgs, { maxDays: 30 })) {
+    if (p.at >= dayAgo) continue;
+    const username = msgs.find((m) => m.jid === p.jid && m.username)?.username || '';
+    const lead = crm.ensureFromConversation({ key: p.jid, name: p.name, username, channel: 'instagram' });
+    if (lead && !lead.igOldNoted) {
+      lead.igOldNoted = true;
+      crm.addNote({ name: 'Sistema', role: 'admin' }, lead.id, `Mandou mensagem no Direct em ${new Date(p.at).toLocaleDateString('pt-BR')} e ficou sem resposta: "${p.texts.join(' / ').slice(0, 200)}". Passou de 24h, então o robô não pode responder: responda pelo app do Instagram.`);
+      old++;
+    }
+  }
+  store.addLog({ type: 'system', message: `📸 Direct verificado: ${recent} conversa(s) para o agente responder e ${old} antiga(s) enviada(s) ao CRM` });
+  return { recent, old, total: new Set(msgs.map((m) => m.jid)).size };
+}
 
 /** Avisa o responsável (ou os administradores) no dia do retorno agendado. */
 async function notifyFollowUps() {
@@ -139,8 +173,13 @@ wa.on('status', (state) => {
   if (state.status === 'qr') console.log(`📱 Abra http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT} e escaneie o QR Code`);
 });
 wa.on('log', (entry) => store.addLog(entry));
+let igSynced = false;
 wa.on('instagramStatus', (state) => {
   notify('instagramStatus', state);
+  if (state.status === 'connected' && !igSynced) {
+    igSynced = true;
+    syncInstagram().catch((err) => store.addLog({ type: 'error', message: `Instagram (buscar conversas): ${err.message}` }));
+  }
   if (state.status === 'connected') console.log(`✅ Instagram conectado: @${state.me?.username}`);
   if (state.error) console.log(`⚠️  Instagram: ${state.error}`);
 });
@@ -157,7 +196,7 @@ wa.on('message', (msg) => {
   pending.onIncoming(msg);
   if (!msg.isGroup) {
     try {
-      crm.ensureFromConversation({ key: msg.jid, phone: msg.phone, name: msg.name, username: msg.username, channel: msg.channel || 'whatsapp' });
+      crm.ensureFromConversation({ key: msg.jid, phone: msg.phone, name: msg.name, username: msg.username, channel: msg.channel || 'whatsapp', referral: msg.referral });
     } catch (err) {
       store.addLog({ type: 'error', message: `CRM: ${err.message}` });
     }
@@ -214,6 +253,14 @@ if (PANEL_PASSWORD) {
 
 app.use(express.static(path.join(ROOT, 'public')));
 
+// Marca (nome e logo) — pública, usada também na tela de login.
+const BRAND_LOGO = path.join(DATA_DIR, 'brand-logo');
+app.get('/api/brand', (_req, res) => res.json({ ...(store.settings.brand || {}), customLogo: fs.existsSync(BRAND_LOGO) }));
+app.get('/brand/logo', (_req, res) => {
+  if (fs.existsSync(BRAND_LOGO)) return res.type(fs.readFileSync(`${BRAND_LOGO}.type`, 'utf8')).sendFile(BRAND_LOGO);
+  res.sendFile(path.join(ROOT, 'public', 'img', 'migra-logo.png'));
+});
+
 // ---- Login (administrador e vendedores) ----
 app.get('/api/auth/state', (req, res) => {
   res.json({ needsSetup: auth.needsSetup, user: publicUser(auth.fromRequest(req)) });
@@ -227,6 +274,11 @@ app.post('/api/auth/login', (req, res) => {
   const user = auth.login(req.body.login, req.body.password);
   if (!user) throw httpError(401, 'Login ou senha incorretos');
   store.addLog({ type: 'system', message: `🔑 ${user.name} entrou no painel` });
+  // Guarda o endereço público do painel para o link da ficha no aviso ao vendedor.
+  const host = req.get('host') || '';
+  if (user.role === 'admin' && !store.settings.crm?.panelUrl && host && !/^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(host)) {
+    store.updateSettings({ crm: { panelUrl: `${req.protocol}://${host}` } });
+  }
   res.set('Set-Cookie', auth.sessionCookie(user)).json(publicUser(user));
 });
 app.post('/api/auth/logout', (_req, res) => {
@@ -235,7 +287,7 @@ app.post('/api/auth/logout', (_req, res) => {
 
 // O que um vendedor pode acessar (o resto é só do administrador).
 const SELLER_ROUTES = [
-  ['GET', /^\/(status|events|me|users|pending|agent\/status|instagram\/status|crm\/agenda|crm\/stats|crm\/stages)$/],
+  ['GET', /^\/(status|events|me|users|pending|agent\/status|instagram\/status|crm\/agenda|crm\/stats|crm\/stages|crm\/ranking)$/],
   ['*', /^\/leads(\/|$)/],
   ['GET', /^\/conversations(\/|$)/],
   ['POST', /^\/conversations\/[^/]+\/(reply|handoff)$/],
@@ -299,6 +351,7 @@ app.post('/api/connection/mode', async (req, res) => {
   res.json(wa.getState());
 });
 app.get('/api/instagram/status', (_req, res) => res.json(instagram.getState()));
+app.post('/api/instagram/sync', async (_req, res) => res.json(await syncInstagram()));
 app.get('/api/connection/info', (req, res) => {
   const c = cloudConfig();
   res.json({
@@ -756,6 +809,7 @@ app.post('/api/leads/:id/ai', async (req, res) => {
   const info = await crmAi.afterReply(conv, { force: true });
   res.json({ info, lead: crm.get(req.user, lead.id) });
 });
+app.post('/api/leads/:id/confirm', (req, res) => res.json(crm.confirmSale(req.user, req.params.id)));
 app.delete('/api/leads/:id', (req, res) => {
   crm.remove(req.user, req.params.id);
   res.json({ ok: true });
@@ -766,6 +820,21 @@ app.get('/api/crm/agenda', (req, res) => res.json(crm.agenda(req.user)));
 app.get('/api/crm/stats', (req, res) => {
   const ownerId = req.user.role === 'admin' ? req.query.owner || undefined : req.user.id;
   res.json(crm.stats({ from: req.query.from, to: req.query.to, ownerId }));
+});
+app.get('/api/crm/ranking', (req, res) => {
+  const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? req.query.month : currentMonth();
+  res.json(buildRanking({ leads: crm.leads, users: auth.users, settings: store.settings, month, today: toDateStr(new Date()) }));
+});
+app.post('/api/brand/logo', multer({ storage: multer.memoryStorage(), limits: { fileSize: 2_000_000 } }).single('file'), (req, res) => {
+  if (!req.file || !/^image\/(png|jpeg|webp|svg\+xml)$/.test(req.file.mimetype)) throw httpError(400, 'Envie uma imagem PNG, JPG, WEBP ou SVG');
+  fs.writeFileSync(BRAND_LOGO, req.file.buffer);
+  fs.writeFileSync(`${BRAND_LOGO}.type`, req.file.mimetype);
+  res.json({ ok: true });
+});
+app.delete('/api/brand/logo', (_req, res) => {
+  fs.rmSync(BRAND_LOGO, { force: true });
+  fs.rmSync(`${BRAND_LOGO}.type`, { force: true });
+  res.json({ ok: true });
 });
 app.get('/api/crm/insights', (_req, res) => res.json(store.data.crmInsights || null));
 app.post('/api/crm/insights', async (req, res) => {

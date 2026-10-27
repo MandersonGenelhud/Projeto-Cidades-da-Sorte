@@ -55,6 +55,29 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'encaminhar_para_vendedor',
+      description: 'Use quando a peneira mostrar que o cliente está pronto para conversar com um consultor (cliente quente) ou quando ele pedir para fechar/falar com um consultor. O sistema escolhe o vendedor da vez, envia o resumo para ele e devolve o link do WhatsApp do vendedor para você mandar ao cliente. Preencha só com o que o cliente realmente disse; não invente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          resumo: { type: 'string', description: 'O que o cliente quer e a situação dele, em até 3 frases' },
+          temperatura: { type: 'string', enum: ['quente', 'morno', 'frio'], description: 'quente = quer começar logo e tem como pagar; morno = interessado com dúvidas; frio = só pesquisando ou sem recursos agora' },
+          nome: { type: 'string', description: 'Nome do cliente, se ele disse' },
+          pacote: { type: 'string', description: 'Pacote de interesse, se houver' },
+          pessoas: { type: 'number', description: 'Quantas pessoas no processo' },
+          tem_recursos: { type: 'string', enum: ['sim', 'parcial', 'nao', 'nao_informou'], description: 'Se o cliente tem o valor para começar' },
+          evidencia_recursos: { type: 'string', description: 'A frase do cliente que mostra isso (copie as palavras dele)' },
+          quando_quer_iniciar: { type: 'string', description: 'Quando pretende começar, nas palavras do cliente' },
+          objecoes: { type: 'string', description: 'Dúvidas ou objeções que ainda restam' },
+          telefone: { type: 'string', description: 'WhatsApp do cliente, se ele informou' },
+        },
+        required: ['resumo', 'temperatura'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'transferir_para_humano',
       description: 'Pausa o robô nesta conversa e avisa a equipe para um atendente humano assumir.',
       parameters: {
@@ -103,6 +126,10 @@ export async function runTool(name, args, ctx) {
       case 'cancelar_agendamento': {
         const appt = await ctx.calendar.cancel(args.id, ctx.phone, { dryRun: ctx.dryRun });
         return { ok: true, cancelado: { data: appt.date, hora: appt.time } };
+      }
+      case 'encaminhar_para_vendedor': {
+        if (!ctx.onRoute) return { erro: 'Encaminhamento indisponível. Use transferir_para_humano.' };
+        return await ctx.onRoute(args);
       }
       case 'transferir_para_humano': {
         ctx.onHandoff?.(args.motivo || '');

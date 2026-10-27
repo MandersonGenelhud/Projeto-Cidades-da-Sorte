@@ -15,7 +15,7 @@ function setup() {
   const auth = new Auth({ store, dataDir: store.dataDir });
   const admin = auth.get(auth.create({ name: 'Marcos', login: 'marcos', password: 'segredo123', role: 'admin' }).id);
   const ana = auth.get(auth.create({ name: 'Ana', login: 'ana', password: 'ana12345', whatsapp: '11 98765-4321' }).id);
-  const bia = auth.get(auth.create({ name: 'Bia', login: 'bia', password: 'bia12345' }).id);
+  const bia = auth.get(auth.create({ name: 'Bia', login: 'bia', password: 'bia12345', whatsapp: '11 91111-2222' }).id);
   const crm = new Crm({ store, auth, now: () => NOW });
   return { store, auth, crm, admin, ana, bia };
 }
@@ -140,4 +140,94 @@ test('números do painel: conversão, retornos, por vendedor e motivos', () => {
 test('parseJsonObject tolera texto em volta', () => {
   assert.deepEqual(parseJsonObject('ok\n{"a":1}\nfim'), { a: 1 });
   assert.equal(parseJsonObject('sem json'), null);
+});
+
+test('peneira da IA: encaminha em rodízio, avisa o vendedor e devolve o link com código', async () => {
+  const { store, crm, auth, ana, bia } = setup();
+  const sent = [];
+  const { LeadRouter } = await import('../src/routing.js');
+  store.updateSettings({ crm: { panelUrl: 'https://painel.migra.com/' } });
+  const router = new LeadRouter({ store, crm, sendWhatsApp: async (phone, text) => sent.push({ phone, text }), canSendWhatsApp: () => true });
+  const conv = (n) => ({ key: `ig:${n}`, name: `@cliente${n}`, username: `cliente${n}`, messages: [{ role: 'user', content: 'Quero fechar o ouro para mim e minha esposa' }] });
+  const args = { resumo: 'Casal quer o Pacote Ouro e começar em dezembro.', temperatura: 'quente', nome: 'Carlos', pacote: 'ouro', pessoas: 2, tem_recursos: 'sim', evidencia_recursos: 'já tenho o dinheiro da entrada', quando_quer_iniciar: 'dezembro' };
+
+  const r1 = await router.route(conv(1), args);
+  const r2 = await router.route(conv(2), { ...args, nome: 'Duda' });
+  assert.ok(r1.ok && r2.ok);
+  assert.notEqual(r1.vendedor, r2.vendedor); // rodízio: um para cada
+  const l1 = crm.leads.find((l) => l.conversationKey === 'ig:1');
+  assert.equal(l1.interest, 'Pacote Ouro');
+  assert.equal(l1.value, 12997 * 2);
+  assert.equal(l1.qualification.temperature, 'quente');
+  assert.match(r1.link, /^https:\/\/wa\.me\/55\d+\?text=/);
+  assert.ok(decodeURIComponent(r1.link).includes(l1.code));
+  assert.equal(sent.length, 2);
+  assert.match(sent[0].text, /Novo cliente para você/);
+  assert.match(sent[0].text, /já tenho o dinheiro da entrada/);
+  assert.match(sent[0].text, new RegExp(`https://painel.migra.com/#lead=${l1.id}`));
+  // Mesmo cliente de novo: continua com o mesmo vendedor.
+  const again = await router.route(conv(1), args);
+  assert.equal(again.vendedor, r1.vendedor);
+  // Vendedor de férias sai do rodízio.
+  auth.update(ana.id, { receivesLeads: false });
+  auth.update(bia.id, { receivesLeads: false });
+  const none = await router.route(conv(3), args);
+  assert.match(none.erro, /Nenhum vendedor/);
+  // Simulação não grava nada.
+  auth.update(ana.id, { receivesLeads: true });
+  const before = crm.leads.length;
+  const sim = await router.route({ key: 'sim:x', messages: [] }, args, { dryRun: true });
+  assert.ok(sim.simulacao);
+  assert.equal(crm.leads.length, before);
+});
+
+test('cliente vindo de anúncio fica marcado no CRM', () => {
+  const { crm } = setup();
+  const lead = crm.ensureFromConversation({ key: 'ig:9', username: 'x', channel: 'instagram', referral: { adId: '123', title: 'Residência no Paraguai' } });
+  assert.equal(lead.source, 'instagram_ads');
+  assert.equal(lead.adTitle, 'Residência no Paraguai');
+  assert.match(lead.code, /^MIG-[A-Z0-9]{4}$/);
+});
+
+test('ranking: pontos, meta, nível de bônus e venda só conta confirmada', async () => {
+  const { store, crm, admin, ana, bia } = setup();
+  const { buildRanking } = await import('../src/ranking.js');
+  store.updateSettings({ crm: { goals: { metric: 'sales', target: 2, perUser: {}, tiers: [{ name: 'Bronze', percent: 100, reward: 'R$ 300' }, { name: 'Ouro', percent: 150, reward: 'R$ 800' }], team: { target: 5, reward: 'Churrasco' } } } });
+  const mk = (owner) => crm.create(admin, { name: 'C', phone: `55119${Math.floor(Math.random() * 1e8)}`, interest: 'Pacote Ouro', ownerId: owner.id });
+  const s1 = mk(ana); const s2 = mk(ana); const s3 = mk(bia);
+  crm.update(ana, s1.id, { stage: 'proposta' });
+  crm.update(ana, s1.id, { stage: 'ganho', closedValue: 12997 });
+  crm.update(ana, s2.id, { stage: 'ganho', closedValue: 12997 });
+  crm.update(bia, s3.id, { stage: 'ganho', closedValue: 25994 });
+  const month = new Date().toISOString().slice(0, 7);
+  let r = buildRanking({ leads: crm.leads, users: store.data.users, settings: store.settings, month, today: '2000-01-01' });
+  assert.equal(r.rows.every((x) => x.sales === 0), true); // nada confirmado ainda
+  assert.equal(r.rows.find((x) => x.id === ana.id).pendingConfirmation, 2);
+  crm.confirmSale(admin, s1.id);
+  crm.confirmSale(admin, s2.id);
+  crm.confirmSale(admin, s3.id);
+  r = buildRanking({ leads: crm.leads, users: store.data.users, settings: store.settings, month, today: '2000-01-01' });
+  const a = r.rows.find((x) => x.id === ana.id);
+  assert.equal(r.rows[0].id, ana.id);
+  assert.equal(a.sales, 2);
+  assert.equal(a.points, 2 * 100 + 25 + 10); // vendas + R$ 25 mil + 1 proposta
+  assert.equal(a.goal.percent, 100);
+  assert.equal(a.goal.tier.name, 'Bronze');
+  assert.equal(a.goal.nextTier.name, 'Ouro');
+  assert.equal(a.goal.missing, 1);
+  assert.ok(a.badges.some((b) => b.label === 'Meta batida'));
+  assert.equal(r.team.achieved, 3);
+  assert.throws(() => crm.confirmSale(ana, s1.id), /administrador/);
+});
+
+test('rodízio é justo mesmo com vários clientes no mesmo instante', () => {
+  const { crm, auth } = setup();
+  auth.create({ name: 'Caio', login: 'caio', password: 'caio1234', whatsapp: '11 92222-3333' });
+  const counts = {};
+  for (let i = 0; i < 9; i++) {
+    const lead = crm.create({ name: 'Sistema', role: 'admin' }, { name: `C${i}`, ownerId: null });
+    const s = crm.routeLead(crm.leads.find((l) => l.id === lead.id));
+    counts[s.name] = (counts[s.name] || 0) + 1;
+  }
+  assert.deepEqual(counts, { Ana: 3, Bia: 3, Caio: 3 });
 });

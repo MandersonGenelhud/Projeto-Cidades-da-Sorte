@@ -26,6 +26,32 @@ export class Crm {
     this.notify = notify || (() => {});
     this.now = now;
     store.data.leads ||= [];
+    // Prospectos antigos ganham um código de atendimento.
+    let changed = false;
+    for (const l of store.data.leads) if (!l.code) { l.code = this.#newCode(); changed = true; }
+    if (changed) store.save();
+  }
+
+  /** Código curto que o cliente leva para o WhatsApp do vendedor (ex.: MIG-4K7P). */
+  #newCode() {
+    const prefix = String(this.config.codePrefix || 'MIG').toUpperCase();
+    const alphabet = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+    let code;
+    do {
+      code = `${prefix}-${Array.from({ length: 4 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('')}`;
+    } while (this.leads?.some((l) => l.code === code));
+    return code;
+  }
+
+  /** Acha o pacote da tabela pelo nome que a IA ou o cliente usou ("ouro" → "Pacote Ouro"). */
+  matchPackage(name) {
+    const n = String(name || '').toLowerCase().replace(/pacote|\(|\)/g, '').trim();
+    if (!n) return null;
+    const list = this.config.packages || [];
+    return list.find((p) => p.name.toLowerCase() === String(name).toLowerCase())
+      || list.find((p) => p.name.toLowerCase().replace(/pacote|\(|\)/g, '').trim() === n)
+      || list.find((p) => p.name.toLowerCase().includes(n))
+      || null;
   }
 
   get leads() {
@@ -68,7 +94,7 @@ export class Crm {
   // ---------- Linha do tempo ----------
   #log(lead, by, type, text, extra = {}) {
     lead.timeline ||= [];
-    lead.timeline.push({ at: new Date().toISOString(), by: by?.name || by || 'Sistema', type, text, ...extra });
+    lead.timeline.push({ at: new Date().toISOString(), by: by?.name || by || 'Sistema', byId: by?.id || null, type, text, ...extra });
     lead.updatedAt = new Date().toISOString();
   }
 
@@ -87,7 +113,7 @@ export class Crm {
         if (due === 'semana') return l.followUpAt <= addDays(today, 7);
         return true;
       })
-      .filter((l) => !query || [l.name, l.phone, l.instagram, l.interest, l.city].some((v) => String(v || '').toLowerCase().includes(query)))
+      .filter((l) => !query || [l.name, l.phone, l.instagram, l.interest, l.city, l.code].some((v) => String(v || '').toLowerCase().includes(query)))
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
       .map((l) => this.view(l));
   }
@@ -121,6 +147,7 @@ export class Crm {
     if (input.phone && !phone) throw err(400, 'Telefone inválido');
     const lead = {
       id: uid(),
+      code: this.#newCode(),
       name: name || '',
       phone,
       instagram: String(input.instagram || '').replace(/^@/, '').trim(),
@@ -186,6 +213,10 @@ export class Crm {
       lead.closedValue = Number(closedValue ?? lead.value) || 0;
       lead.closedAt = new Date().toISOString();
       lead.closedBy = user.id || null;
+      // Venda lançada pelo administrador já vale; a do vendedor espera a confirmação.
+      lead.closedConfirmed = user.role === 'admin';
+    } else {
+      lead.closedConfirmed = false;
     }
     const from = lead.stage;
     lead.stage = stage;
@@ -221,12 +252,80 @@ export class Crm {
     return this.view(lead);
   }
 
-  #assign(user, lead, ownerId) {
+  #assign(user, lead, ownerId, how = '') {
     const owner = ownerId ? this.auth.get(ownerId) : null;
     if (ownerId && !owner) throw err(400, 'Vendedor não encontrado');
     if ((lead.ownerId || null) === (ownerId || null)) return;
     lead.ownerId = ownerId || null;
-    this.#log(lead, user, 'dono', owner ? `Responsável: ${owner.name}` : 'Sem responsável (disponível para a equipe)');
+    lead.assignedAt = new Date().toISOString();
+    this.#log(lead, user, 'dono', owner ? `Responsável: ${owner.name}${how ? ` (${how})` : ''}` : 'Sem responsável (disponível para a equipe)', { toId: ownerId || null });
+  }
+
+  /** Administrador confirma a venda: só então ela conta no ranking (evita venda "inventada"). */
+  confirmSale(user, id) {
+    if (user.role !== 'admin') throw err(403, 'Só o administrador confirma vendas');
+    const lead = this.#mustSee(user, id);
+    if (lead.stage !== 'ganho') throw err(400, 'Este prospecto não está como "Fechado"');
+    lead.closedConfirmed = true;
+    this.#log(lead, user, 'etapa', `Venda confirmada pelo administrador (R$ ${fmtMoney(lead.closedValue)})`);
+    this.store.save();
+    this.notify('crm', { id: lead.id });
+    return this.view(lead);
+  }
+
+  // ---------- Rodízio de vendedores ----------
+  /** Quem está no rodízio: ativo, com WhatsApp e com "recebe clientes" ligado. */
+  rotation() {
+    return this.auth.users.filter((u) => u.active !== false && u.whatsapp && (u.receivesLeads ?? u.role === 'seller'));
+  }
+
+  /** Próximo da vez: quem recebeu cliente há mais tempo (ou nunca recebeu). */
+  nextSeller() {
+    const list = this.rotation();
+    if (!list.length) return null;
+    return [...list].sort((a, b) => (a.rotationSeq || 0) - (b.rotationSeq || 0) || a.name.localeCompare(b.name))[0];
+  }
+
+  /** Entrega o prospecto para o próximo vendedor do rodízio (ou mantém o atual, se ainda puder atender). */
+  routeLead(lead, { reason = 'rodízio' } = {}) {
+    const current = lead.ownerId ? this.auth.get(lead.ownerId) : null;
+    if (current && current.active !== false && current.whatsapp) return current;
+    const seller = this.nextSeller();
+    if (!seller) return null;
+    this.#assign('Sistema', lead, seller.id, reason);
+    seller.lastLeadAt = new Date().toISOString();
+    this.store.data.rotationSeq = (this.store.data.rotationSeq || 0) + 1;
+    seller.rotationSeq = this.store.data.rotationSeq; // ordem do rodízio (não depende do relógio)
+    seller.leadsReceived = (seller.leadsReceived || 0) + 1;
+    this.store.save();
+    this.notify('crmAssigned', { id: lead.id, ownerId: seller.id });
+    return seller;
+  }
+
+  /** Registra o que a IA apurou na conversa (peneira), com as frases do cliente como prova. */
+  qualify(lead, q) {
+    const temp = ['quente', 'morno', 'frio'].includes(q.temperatura) ? q.temperatura : null;
+    lead.qualification = {
+      temperature: temp,
+      money: q.tem_recursos || null,
+      moneyEvidence: String(q.evidencia_recursos || '').trim(),
+      start: String(q.quando_quer_iniciar || '').trim(),
+      objections: String(q.objecoes || '').trim(),
+      at: new Date().toISOString(),
+    };
+    if (q.nome && placeholderName(lead)) lead.name = String(q.nome).trim();
+    const pkg = this.matchPackage(q.pacote);
+    if (pkg && !lead.interest) lead.interest = pkg.name;
+    if (Number(q.pessoas) > 1 && lead.people === 1) lead.people = Number(q.pessoas);
+    if (lead.interest) lead.value = this.packagePrice(lead.interest) * lead.people || lead.value;
+    if (q.telefone && !lead.phone) lead.phone = normalizePhone(q.telefone) || null;
+    if (q.resumo) lead.aiSummary = String(q.resumo).trim();
+    if (lead.stage === 'novo') lead.stage = 'em_contato';
+    const label = { quente: '🔥 quente', morno: '🌤️ morno', frio: '❄️ frio' }[temp] || 'sem classificação';
+    this.#log(lead, 'IA', 'ia', `Peneira da IA: cliente ${label}${lead.qualification.start ? ` · quer iniciar: ${lead.qualification.start}` : ''}${lead.qualification.moneyEvidence ? ` · sobre o dinheiro, disse: "${lead.qualification.moneyEvidence}"` : ''}`);
+    lead.updatedAt = new Date().toISOString();
+    this.store.save();
+    this.notify('crm', { id: lead.id });
   }
 
   /** Vendedor assume um prospecto sem dono; admin pode passar para qualquer um. */
@@ -275,11 +374,16 @@ export class Crm {
   }
 
   /** Cliente mandou mensagem: garante que existe um prospecto para ele. */
-  ensureFromConversation({ key, phone, name, username, channel }) {
+  ensureFromConversation({ key, phone, name, username, channel, referral }) {
     if (this.config.autoCreate === false || String(key).startsWith('sim:')) return null;
     const existing = this.findForConversation({ key, phone, username });
     if (existing) {
       if (!existing.conversationKey) existing.conversationKey = key;
+      if (referral && !existing.adTitle) {
+        existing.adTitle = referral.title || referral.adId || 'anúncio';
+        this.#log(existing, 'Sistema', 'mensagem', `Voltou pelo anúncio: ${existing.adTitle}`);
+        this.store.save();
+      }
       if (existing.stage === 'aguardando' && existing.followUpAt) {
         this.#log(existing, 'Sistema', 'mensagem', 'O cliente voltou a mandar mensagem');
         this.store.save();
@@ -290,32 +394,31 @@ export class Crm {
       name: name || (username ? `@${username}` : ''),
       phone,
       instagram: username || '',
-      source: channel || 'whatsapp',
+      source: referral ? `${channel || 'whatsapp'}_ads` : channel || 'whatsapp',
       conversationKey: key,
-      ownerId: this.#nextOwner(),
+      ownerId: null,
     });
-    return this.leads.find((l) => l.id === lead.id);
-  }
-
-  /** Distribuição automática (rodízio) entre vendedores ativos, se ligada. */
-  #nextOwner() {
-    if (this.config.autoAssign !== 'roundrobin') return null;
-    const sellers = this.auth.activeSellers().filter((u) => u.role === 'seller');
-    if (!sellers.length) return null;
-    const i = (this.config.rrIndex || 0) % sellers.length;
-    this.store.updateSettings({ crm: { rrIndex: i + 1 } });
-    return sellers[i].id;
+    const created = this.leads.find((l) => l.id === lead.id);
+    if (referral) {
+      created.adTitle = referral.title || referral.adId || 'anúncio';
+      this.#log(created, 'Sistema', 'mensagem', `Veio do anúncio: ${created.adTitle}`);
+    }
+    // Rodízio já na primeira mensagem (o padrão é só depois da peneira da IA).
+    if (this.config.autoAssign === 'roundrobin') this.routeLead(created);
+    this.store.save();
+    return created;
   }
 
   /** Aplica o que a IA entendeu da conversa, sem atropelar o que um humano já preencheu. */
   applyAi(lead, info) {
     if (!lead || !info) return;
     const changes = [];
-    if (info.nome && !lead.name) { lead.name = info.nome; changes.push(`nome: ${info.nome}`); }
+    if (info.nome && placeholderName(lead)) { lead.name = info.nome; changes.push(`nome: ${info.nome}`); }
     if (info.cidade && !lead.city) { lead.city = info.cidade; changes.push(`cidade: ${info.cidade}`); }
-    if (info.pacote && !lead.interest && (this.config.packages || []).some((p) => p.name === info.pacote)) {
-      lead.interest = info.pacote;
-      changes.push(`interesse: ${info.pacote}`);
+    const pkg = this.matchPackage(info.pacote);
+    if (pkg && !lead.interest) {
+      lead.interest = pkg.name;
+      changes.push(`interesse: ${pkg.name}`);
     }
     if (info.pessoas && lead.people === 1 && Number(info.pessoas) > 1) { lead.people = Number(info.pessoas); changes.push(`pessoas: ${lead.people}`); }
     if (lead.interest && !lead.value) lead.value = this.packagePrice(lead.interest) * lead.people;
@@ -426,11 +529,14 @@ export class Crm {
   }
 }
 
+/** Nome ainda é o provisório (vazio ou o @ do Instagram)? Então a IA pode trocar pelo nome real. */
+const placeholderName = (lead) => !lead.name || lead.name.startsWith('@');
+
 export function addDays(dateStr, days) {
   const [y, m, d] = dateStr.split('-').map(Number);
   return toDateStr(new Date(y, m - 1, d + days));
 }
 
-export const sourceLabel = (s) => ({ whatsapp: 'WhatsApp', instagram: 'Instagram', manual: 'Cadastro manual', indicacao: 'Indicação', site: 'Site', evento: 'Evento' }[s] || s || 'Outro');
+export const sourceLabel = (s) => ({ whatsapp: 'WhatsApp', instagram: 'Instagram', instagram_ads: 'Anúncio no Instagram', whatsapp_ads: 'Anúncio (WhatsApp)', manual: 'Cadastro manual', indicacao: 'Indicação', site: 'Site', evento: 'Evento' }[s] || s || 'Outro');
 const fmtDate = (s) => s.split('-').reverse().join('/');
 const fmtMoney = (v) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

@@ -70,8 +70,7 @@ export class PendingInbox {
   }
 
   /** Histórico do celular: adiciona quem estava esperando (sem apagar o que já existe). */
-  ingestHistory(messages) {
-    const maxDays = Number(this.store.settings.agent.pendingMaxDays || 7);
+  ingestHistory(messages, { maxDays = Number(this.store.settings.agent.pendingMaxDays || 7), label = 'WhatsApp' } = {}) {
     let added = 0;
     for (const p of extractPending(messages, { maxDays })) {
       const current = this.items[p.jid];
@@ -81,11 +80,12 @@ export class PendingInbox {
         const lastReply = Date.parse(this.store.data.conversations[p.jid].messages.at(-1).at);
         if (lastReply >= p.at) continue;
       }
-      this.items[p.jid] = { ...p, source: 'histórico' };
+      const ig = String(p.jid).startsWith('ig:');
+      this.items[p.jid] = { ...p, channel: ig ? 'instagram' : 'whatsapp', username: ig ? messages.find((m) => m.jid === p.jid && m.username)?.username || '' : '', source: 'histórico' };
       added++;
     }
     if (added) {
-      this.store.addLog({ type: 'system', message: `📥 ${added} conversa(s) sem resposta encontrada(s) no histórico do WhatsApp` });
+      this.store.addLog({ type: 'system', message: `📥 ${added} conversa(s) sem resposta encontrada(s) no histórico do ${label}` });
       this.#changed();
     }
     return added;

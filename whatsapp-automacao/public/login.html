@@ -3,11 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Entrar · ZapAuto</title>
+  <title>Entrar · Migra Hub</title>
+  <link rel="icon" href="img/migra-emblema.png" />
   <link rel="stylesheet" href="style.css" />
   <style>
     body { display: grid; place-items: center; min-height: 100vh; padding: 16px; }
-    .login { width: min(400px, 100%); background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 28px; display: grid; gap: 14px; }
+    .login { width: min(400px, 100%); background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 0 28px 28px; display: grid; gap: 14px; overflow: hidden; }
+    .login .hero { margin: 0 -28px; padding: 22px 28px; background: var(--sidebar); text-align: center; }
+    .login .hero img { width: min(240px, 80%); height: auto; }
+    .login .hero small { display: block; color: #cfe8d6; margin-top: 6px; }
     .login h1 { margin: 0; font-size: 22px; }
     .login .brand { display: flex; gap: 10px; align-items: center; }
     .login .brand span { font-size: 30px; }
@@ -17,7 +21,7 @@
 </head>
 <body>
   <form class="login form" id="form">
-    <div class="brand"><span>💬</span><div><h1>ZapAuto</h1><small class="muted">Atendimento e vendas</small></div></div>
+    <div class="hero"><img src="/brand/logo" alt="Logo" /><small id="loginName">Migra Hub · Atendimento e vendas</small></div>
     <p id="intro" class="hint">Entre com o seu login e senha.</p>
     <label id="nameWrap" hidden>Seu nome <input name="name" autocomplete="name" /></label>
     <label>Login <input name="login" autocomplete="username" required placeholder="ex.: marcos" /></label>
@@ -29,8 +33,13 @@
   <script>
     const form = document.getElementById('form');
     let setup = false;
+    const back = () => `/${new URLSearchParams(location.search).get('volta') || ''}`;
+    fetch('/api/brand').then((r) => r.json()).then((b) => {
+      document.getElementById('loginName').textContent = `${b.name || 'Migra Hub'} · ${b.tagline || 'Atendimento e vendas'}`;
+      document.title = `Entrar · ${b.name || 'Migra Hub'}`;
+    }).catch(() => {});
     fetch('/api/auth/state').then((r) => r.json()).then((s) => {
-      if (s.user) return (location.href = '/');
+      if (s.user) return (location.href = back());
       setup = s.needsSetup;
       if (setup) {
         document.getElementById('intro').textContent = 'Primeiro acesso: crie a conta do administrador (o dono da empresa). Depois ele cadastra os vendedores.';
@@ -51,7 +60,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return (document.getElementById('err').textContent = data.error || 'Não foi possível entrar');
-      location.href = '/';
+      location.href = back();
     });
   </script>
 </body>

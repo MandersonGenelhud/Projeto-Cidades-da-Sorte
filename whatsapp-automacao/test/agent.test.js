@@ -251,3 +251,32 @@ test('outro negócio não é tocado pela atualização da Migra', async () => {
   const { presetUpgrade } = await import('../src/agent/presets.js');
   assert.equal(presetUpgrade({ business: { name: 'Clínica Sorriso' } }), null);
 });
+
+test('peneira: o agente encaminha o cliente quente e só então recebe o link do vendedor', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const routed = [];
+  const llm = new ScriptedLLM([
+    (messages) => {
+      assert.match(messages[0].content, /Peneira e encaminhamento/);
+      assert.match(messages[0].content, /R\$ 1\.000 \+ R\$ 800 por adulto/);
+      return { content: '', tool_calls: [call('r1', 'encaminhar_para_vendedor', { resumo: 'Quer o Ouro', temperatura: 'quente' })] };
+    },
+    (messages) => {
+      const tool = JSON.parse(messages.at(-1).content);
+      return { content: `Perfeito! A Ana vai continuar com você: ${tool.link}`, tool_calls: [] };
+    },
+  ]);
+  const agent = new Agent({
+    store, llm, now: () => NOW,
+    routeLead: async (conv, args) => { routed.push(args); return { ok: true, vendedor: 'Ana', link: 'https://wa.me/5511987654321?text=oi' }; },
+  });
+  const r = await agent.simulate({ text: 'Quero fechar o pacote ouro, já tenho a entrada' });
+  assert.equal(routed[0].temperatura, 'quente');
+  assert.match(r.text, /wa\.me\/5511987654321/);
+  // Sem roteador, a ferramenta nem é oferecida.
+  const plain = new Agent({ store, llm: new ScriptedLLM([{ content: 'oi', tool_calls: [] }]), now: () => NOW });
+  await plain.simulate({ text: 'oi' });
+  assert.ok(!plain.llm.calls[0][0].content.includes('Peneira'));
+});

@@ -15,7 +15,9 @@ const plusMonths = (n) => {
   const d = new Date(b.getFullYear(), b.getMonth() + n, b.getDate());
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
-const SOURCE_ICON = { whatsapp: '💬', instagram: '📸', manual: '✍️', indicacao: '🤝', site: '🌐', evento: '🎪' };
+const SOURCE_ICON = { whatsapp: '💬', instagram: '📸', instagram_ads: '📣', whatsapp_ads: '📣', manual: '✍️', indicacao: '🤝', site: '🌐', evento: '🎪' };
+const TEMP = { quente: { icon: '🔥', label: 'Quente' }, morno: { icon: '🌤️', label: 'Morno' }, frio: { icon: '❄️', label: 'Frio' } };
+const MONEY_LABEL = { sim: 'Tem o valor para começar', parcial: 'Tem parte do valor', nao: 'Ainda não tem o valor', nao_informou: 'Não informou' };
 const DUE_LABEL = { atrasado: '⚠️ Atrasado', hoje: '🔔 Hoje', agendado: '📅' };
 const TL_ICON = { criado: '✨', etapa: '➡️', retorno: '📅', nota: '📝', dono: '👤', ia: '🧠', aviso: '🔔', mensagem: '💬' };
 
@@ -159,12 +161,13 @@ function leadQuery() {
 function leadCard(l) {
   const who = l.name || (l.phone ? fmtPhone(l.phone) : l.instagram ? `@${l.instagram}` : 'Sem nome');
   return `<article class="lead-card${l.due === 'atrasado' ? ' overdue' : ''}" draggable="true" data-id="${esc(l.id)}">
-    <div class="lead-top"><b>${esc(who)}</b><span title="Origem">${SOURCE_ICON[l.source] || '•'}</span></div>
+    <div class="lead-top"><b>${esc(who)}</b><span>${l.qualification?.temperature ? `<span title="${TEMP[l.qualification.temperature].label}">${TEMP[l.qualification.temperature].icon}</span> ` : ''}<span title="Origem">${SOURCE_ICON[l.source] || '•'}</span></span></div>
     ${l.interest ? `<div class="lead-meta">${esc(l.interest)}${l.people > 1 ? ` · ${l.people} pessoas` : ''}</div>` : ''}
     ${l.value ? `<div class="lead-value">${money(l.stage === 'ganho' ? l.closedValue : l.value)}</div>` : ''}
     ${l.followUpAt && l.due ? `<div class="lead-due ${l.due}">${DUE_LABEL[l.due]} ${dateBR(l.followUpAt)}${l.followUpReason ? ` · ${esc(l.followUpReason)}` : ''}</div>` : ''}
     ${l.stage === 'perdido' && l.lostReason ? `<div class="lead-meta">✖ ${esc(l.lostReason)}</div>` : ''}
-    <div class="lead-owner">${l.ownerName ? `👤 ${esc(l.ownerName)}` : '<span class="free">Disponível</span>'}</div>
+    ${l.stage === 'ganho' && !l.closedConfirmed ? '<div class="lead-meta">⏳ aguardando confirmação</div>' : ''}
+    <div class="lead-owner">${l.ownerName ? `👤 ${esc(l.ownerName)}` : '<span class="free">Disponível</span>'} <span class="lead-code">${esc(l.code || '')}</span></div>
   </article>`;
 }
 
@@ -322,6 +325,26 @@ function fillLead(l) {
   $('#leadWa').hidden = !l.phone;
   if (l.phone) $('#leadWa').href = `https://wa.me/${l.phone}`;
 
+  const t = TEMP[l.qualification?.temperature];
+  $('#leadBadges').innerHTML = l.id ? [
+    l.code && `<span class="chip">🔖 ${esc(l.code)}</span>`,
+    t && `<span class="chip temp-${esc(l.qualification.temperature)}">${t.icon} ${t.label}</span>`,
+    l.adTitle && `<span class="chip">📣 Anúncio: ${esc(l.adTitle)}</span>`,
+    l.stage === 'ganho' && (l.closedConfirmed ? '<span class="chip ok">✅ Venda confirmada</span>' : '<span class="chip warn">⏳ Venda aguardando confirmação do administrador</span>'),
+  ].filter(Boolean).join('') : '';
+  const q = l.qualification;
+  $('#leadQual').hidden = !q;
+  if (q) {
+    $('#leadQual').innerHTML = `<b>🔎 Peneira da IA</b>
+      <dl>
+        ${t ? `<dt>Temperatura</dt><dd>${t.icon} ${t.label}</dd>` : ''}
+        ${q.money ? `<dt>Dinheiro</dt><dd>${esc(MONEY_LABEL[q.money] || q.money)}${q.moneyEvidence ? `<br><i>"${esc(q.moneyEvidence)}"</i>` : ''}</dd>` : ''}
+        ${q.start ? `<dt>Quer iniciar</dt><dd>${esc(q.start)}</dd>` : ''}
+        ${q.objections ? `<dt>Dúvidas</dt><dd>${esc(q.objections)}</dd>` : ''}
+      </dl><p class="hint">Avaliado em ${fmtDate(q.at)}. Frases entre aspas são do próprio cliente.</p>`;
+  }
+  $('#btnConfirmSale').hidden = !(isAdmin() && l.stage === 'ganho' && !l.closedConfirmed);
+
   const ai = [l.aiSummary && `🧠 <b>Resumo da IA:</b> ${esc(l.aiSummary)}`, l.objective && `🎯 <b>Objetivo:</b> ${esc(l.objective)}`].filter(Boolean);
   $('#leadAi').hidden = !ai.length;
   $('#leadAi').innerHTML = ai.join('<br>');
@@ -440,6 +463,16 @@ $('#btnTakeLead').addEventListener('click', async () => {
     toast(err.message, true);
   }
 });
+$('#btnConfirmSale').addEventListener('click', async () => {
+  try {
+    await api(`/api/leads/${crmState.current.id}/confirm`, { method: 'POST' });
+    toast('Venda confirmada: já conta no ranking 🏆');
+    openLead(crmState.current.id);
+    refreshCrmViews();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 $('#btnDeleteLead').addEventListener('click', async () => {
   if (!confirm('Excluir este prospecto e todo o histórico? Para clientes que não fecharam, prefira marcar "Perdido" com o motivo.')) return;
   await api(`/api/leads/${crmState.current.id}`, { method: 'DELETE' });
@@ -499,21 +532,31 @@ async function refreshDueBadge() {
 loaders.team = async () => {
   const [users, settings] = await Promise.all([api('/api/users'), api('/api/settings')]);
   const active = users.filter((u) => u.active);
+  const inRotation = active.filter((u) => u.whatsapp && u.receivesLeads)
+    .sort((a, b) => (a.rotationSeq || 0) - (b.rotationSeq || 0) || a.name.localeCompare(b.name));
+  $('#rotationInfo').innerHTML = inRotation.length
+    ? `🔄 <b>Rodízio:</b> ${inRotation.map((u, i) => `${i === 0 ? '<b>➡️ ' : ''}${esc(u.name)}${i === 0 ? ' (próximo)</b>' : ''}`).join(' → ')}`
+    : '⚠️ Ninguém no rodízio. Cadastre vendedores com WhatsApp e marque "Entra no rodízio" para a IA poder encaminhar clientes.';
   $('#teamList').innerHTML = users.map((u) => `
     <div class="item ${u.active ? '' : 'disabled'}" data-user="${esc(u.id)}">
       <div class="grow"><b>${esc(u.name)}</b> ${u.role === 'admin' ? '<span class="badge running">Administrador</span>' : '<span class="badge pending">Vendedor</span>'}
         ${u.active ? '' : '<span class="badge canceled">Inativo</span>'}
-        <div class="meta">login: ${esc(u.login)}${u.whatsapp ? ` · WhatsApp ${esc(fmtPhone(u.whatsapp))}` : ' · sem WhatsApp para avisos'}</div></div>
+        <div class="meta">login: ${esc(u.login)}${u.whatsapp ? ` · WhatsApp ${esc(fmtPhone(u.whatsapp))}` : ' · sem WhatsApp (fora do rodízio)'}
+          · ${u.receivesLeads && u.whatsapp ? `🔄 no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : '⏸️ fora do rodízio'}</div></div>
+      ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? '⏸️ Pausar rodízio' : '▶️ Pôr no rodízio'}</button>` : ''}
       <button class="btn small" data-act="edit">✏️ Editar</button>
       <button class="btn small" data-act="password">🔑 Senha</button>
       ${u.id === window.currentUser.id ? '' : `<button class="btn small ${u.active ? 'danger' : ''}" data-act="toggle">${u.active ? 'Desativar' : 'Reativar'}</button>`}
       <button class="btn small" data-act="transfer" title="Passar os prospectos em aberto para outra pessoa">🔁 Passar carteira</button>
     </div>`).join('');
-  $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name }) => ({ id, name })));
+  $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads }) => ({ id, name, receivesLeads })));
 
   const c = settings.crm || {};
   const f = $('#formCrmSettings');
-  f.autoAssign.value = c.autoAssign || 'none';
+  f.autoAssign.value = c.autoAssign || 'qualified';
+  f.routingEnabled.checked = c.routing?.enabled !== false;
+  f.routingCriteria.value = c.routing?.criteria || '';
+  f.panelUrl.value = c.panelUrl || '';
   f.autoCreate.checked = c.autoCreate !== false;
   f.aiExtract.checked = c.aiExtract !== false;
   f.notifyFollowUps.checked = c.notifyFollowUps !== false;
@@ -525,7 +568,10 @@ $('#teamList').addEventListener('click', async (e) => {
   const id = e.target.closest('[data-user]')?.dataset.user;
   if (!act || !id) return;
   try {
-    if (act === 'edit') {
+    if (act === 'rotation') {
+      const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
+      await api(`/api/users/${id}`, { method: 'PATCH', body: { receivesLeads: !u?.receivesLeads } });
+    } else if (act === 'edit') {
       const name = prompt('Nome:');
       if (name === null) return;
       const whatsapp = prompt('WhatsApp para os avisos (deixe vazio para não receber):');
@@ -558,7 +604,7 @@ $('#teamList').addEventListener('click', async (e) => {
 
 $('#formUser').addEventListener('submit', withBusy($('#formUser'), async (e) => {
   const f = e.target;
-  await api('/api/users', { method: 'POST', body: Object.fromEntries(new FormData(f)) });
+  await api('/api/users', { method: 'POST', body: { ...Object.fromEntries(new FormData(f)), receivesLeads: f.receivesLeads.checked } });
   toast(`Cadastrado! Passe o login "${f.login.value}" e a senha para a pessoa.`);
   f.reset();
   crmState.stages = [];
@@ -574,16 +620,140 @@ $('#formCrmSettings').addEventListener('submit', withBusy($('#formCrmSettings'),
   }).filter(Boolean);
   await api('/api/settings', {
     method: 'PUT',
-    body: { crm: { autoAssign: f.autoAssign.value, autoCreate: f.autoCreate.checked, aiExtract: f.aiExtract.checked, notifyFollowUps: f.notifyFollowUps.checked, packages } },
+    body: { crm: {
+      autoAssign: f.autoAssign.value, autoCreate: f.autoCreate.checked, aiExtract: f.aiExtract.checked, notifyFollowUps: f.notifyFollowUps.checked, packages,
+      routing: { enabled: f.routingEnabled.checked, criteria: f.routingCriteria.value },
+      panelUrl: f.panelUrl.value.trim(),
+    } },
   });
   crmState.stages = [];
   toast('Regras do CRM salvas');
   loaders.team();
 }));
 
+// ---------- RANKING ----------
+const monthLabel = (ym) => {
+  const [y, m] = ym.split('-').map(Number);
+  const s = new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  return s[0].toUpperCase() + s.slice(1);
+};
+(() => {
+  const d = new Date();
+  const opts = [];
+  for (let i = 0; i < 12; i++) {
+    const x = new Date(d.getFullYear(), d.getMonth() - i, 1);
+    const ym = `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`;
+    opts.push(`<option value="${ym}">${monthLabel(ym)}</option>`);
+  }
+  $('#rankMonth').innerHTML = opts.join('');
+})();
+$('#rankMonth').addEventListener('change', () => loaders.ranking());
+
+const goalText = (metric, v) => (metric === 'revenue' ? money(v) : `${v} venda${v === 1 ? '' : 's'}`);
+function progressBar(pct, tiers) {
+  const max = Math.max(100, ...tiers.map((t) => Number(t.percent)), pct || 0);
+  const marks = tiers.map((t) => `<span class="pmark" style="left:${(t.percent / max) * 100}%" title="${esc(t.name)}: ${t.percent}%"></span>`).join('');
+  return `<div class="pbar" role="img" aria-label="${pct ?? 0}% da meta"><span class="pfill" style="width:${Math.min(100, ((pct || 0) / max) * 100)}%"></span>${marks}</div>`;
+}
+
+loaders.ranking = async () => {
+  const r = await api(`/api/crm/ranking?month=${$('#rankMonth').value}`);
+  const me = window.currentUser.id;
+  const team = r.team;
+  $('#rankTeam').innerHTML = team.target
+    ? `<div class="conv-header"><h2>🤝 Meta da equipe: ${goalText(r.metric, team.achieved)} de ${goalText(r.metric, team.target)}</h2><b>${team.percent}%</b></div>
+       ${progressBar(team.percent, [{ name: 'Meta', percent: 100 }])}
+       <p class="hint">${team.percent >= 100 ? '🎉 Meta da equipe batida!' : 'Faltam ' + goalText(r.metric, Math.max(0, team.target - team.achieved)) + '.'}${team.reward ? ` Prêmio para todos: <b>${esc(team.reward)}</b>` : ''}</p>`
+    : '<p class="muted">Sem meta de equipe definida.</p>';
+
+  const medals = ['🥇', '🥈', '🥉'];
+  const top = r.rows.slice(0, 3);
+  $('#rankPodium').innerHTML = top.length && top[0].points > 0 ? top.map((x, i) => `
+    <div class="podium-card p${i + 1}${x.id === me ? ' me' : ''}">
+      <div class="medal">${medals[i]}</div>
+      <b>${esc(x.name)}</b>
+      <div class="pts">${x.points} pts</div>
+      <div class="muted small">${goalText('sales', x.sales)} · ${money(x.revenue)}</div>
+    </div>`).join('') : '<p class="muted">O pódio aparece quando alguém marcar pontos neste mês. Bora! 💪</p>';
+
+  $('#rankTable').innerHTML = `<thead><tr><th>#</th><th>Vendedor</th><th>Pontos</th><th>Vendas</th><th>Vendido</th><th>Propostas</th><th>Conversão</th><th>Clientes recebidos</th><th>Meta</th><th>Conquistas</th></tr></thead>
+    <tbody>${r.rows.map((x) => {
+      const g = x.goal;
+      return `<tr class="${x.id === me ? 'me' : ''}">
+        <td>${medals[x.position - 1] || x.position}</td>
+        <td><b>${esc(x.name)}</b>${x.id === me ? ' <span class="muted">(você)</span>' : ''}</td>
+        <td><b>${x.points}</b></td>
+        <td>${x.sales}${x.pendingConfirmation ? ` <span class="muted" title="aguardando confirmação">+${x.pendingConfirmation} ⏳</span>` : ''}</td>
+        <td>${money(x.revenue)}</td><td>${x.proposals}</td>
+        <td>${x.conversion === null ? '—' : `${x.conversion}%`}</td>
+        <td>${x.received}</td>
+        <td class="goal-cell">${g.target ? `${progressBar(g.percent, r.tiers)}<div class="small">${goalText(r.metric, g.achieved)} de ${goalText(r.metric, g.target)} · ${g.percent}%
+          ${g.tier ? ` · <b>${esc(g.tier.name)}</b>` : ''}${g.nextTier ? `<br><span class="muted">Faltam ${goalText(r.metric, g.missing)} para ${esc(g.nextTier.name)} (${esc(g.nextTier.reward || '')})</span>` : g.tier ? ' 🎉' : ''}</div>` : '—'}</td>
+        <td>${x.badges.map((b) => `<span title="${esc(b.label)}" class="badge-ico">${b.icon}</span>`).join(' ') || '<span class="muted">—</span>'}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="10" class="muted">Nenhum vendedor cadastrado ainda.</td></tr>'}</tbody>`;
+
+  const P = r.rules.points;
+  $('#rankRules').innerHTML = [
+    `🏆 Venda fechada${r.rules.requireConfirmation ? ' (confirmada pelo administrador)' : ''}: <b>+${P.sale}</b>`,
+    `💰 Cada R$ 1.000 vendidos: <b>+${P.perThousand}</b>`,
+    `📨 Proposta enviada (mover para "Proposta enviada"): <b>+${P.proposal}</b>`,
+    `⚠️ Cada retorno atrasado na carteira: <b>${P.overdue}</b>`,
+    ...r.tiers.map((t) => `🎁 <b>${esc(t.name)}</b>: ${t.percent}% da meta → ${esc(t.reward || '')}`),
+    '🎯 🏆 📅 🎓 📨 Conquistas: primeira venda, meta batida, carteira em dia, melhor conversão e mais propostas.',
+  ].map((t) => `<li>${t}</li>`).join('');
+
+  if (isAdmin()) fillGoalsForm(r);
+};
+
+async function fillGoalsForm() {
+  const [settings, users] = await Promise.all([api('/api/settings'), api('/api/users')]);
+  const g = settings.crm?.goals || {};
+  const f = $('#formGoals');
+  f.metric.value = g.metric || 'sales';
+  f.target.value = g.target ?? '';
+  f.teamTarget.value = g.team?.target ?? '';
+  f.teamReward.value = g.team?.reward || '';
+  f.requireConfirmation.checked = settings.crm?.requireConfirmation !== false;
+  $('#goalPerUser').innerHTML = `<h3>Meta individual (deixe vazio para usar a meta padrão)</h3>` + users.filter((u) => u.active && (u.role === 'seller' || u.receivesLeads))
+    .map((u) => `<label>${esc(u.name)} <input type="number" min="0" data-user="${esc(u.id)}" value="${g.perUser?.[u.id] ?? ''}" placeholder="padrão" /></label>`).join('');
+  renderTiers(g.tiers || []);
+}
+function renderTiers(tiers) {
+  $('#goalTiers').innerHTML = tiers.map((t) => `<div class="row tier-row">
+    <label>Nível <input data-k="name" value="${esc(t.name)}" placeholder="Ouro" /></label>
+    <label>% da meta <input data-k="percent" type="number" min="1" value="${esc(t.percent)}" /></label>
+    <label class="grow">Bonificação <input data-k="reward" value="${esc(t.reward || '')}" placeholder="ex.: R$ 500, folga, viagem" /></label>
+    <button type="button" class="btn small danger" data-del-tier>✕</button></div>`).join('');
+}
+const readTiers = () => $$('#goalTiers .tier-row').map((row) => ({
+  name: $('[data-k="name"]', row).value.trim(),
+  percent: Number($('[data-k="percent"]', row).value) || 100,
+  reward: $('[data-k="reward"]', row).value.trim(),
+})).filter((t) => t.name);
+$('#btnAddTier').addEventListener('click', () => renderTiers([...readTiers(), { name: '', percent: 200, reward: '' }]));
+$('#goalTiers').addEventListener('click', (e) => {
+  if (!e.target.closest('[data-del-tier]')) return;
+  e.target.closest('.tier-row').remove();
+});
+$('#formGoals').addEventListener('submit', withBusy($('#formGoals'), async (e) => {
+  const f = e.target;
+  const perUser = {};
+  for (const inp of $$('#goalPerUser [data-user]')) perUser[inp.dataset.user] = inp.value === '' ? null : Number(inp.value);
+  await api('/api/settings', {
+    method: 'PUT',
+    body: { crm: {
+      requireConfirmation: f.requireConfirmation.checked,
+      goals: { metric: f.metric.value, target: Number(f.target.value || 0), perUser, tiers: readTiers(), team: { target: Number(f.teamTarget.value || 0), reward: f.teamReward.value.trim() } },
+    } },
+  });
+  toast('Metas salvas 🎯');
+  loaders.ranking();
+}));
+
 // ---------- Atualização em tempo real ----------
 function refreshCrmViews() {
-  for (const tab of ['leads', 'followups', 'sales']) {
+  for (const tab of ['leads', 'followups', 'sales', 'ranking']) {
     if ($(`#tab-${tab}`).classList.contains('active')) loaders[tab]();
   }
   refreshDueBadge();
@@ -599,4 +769,9 @@ function onCrmEvent() {
 function onCrmDue() {
   toast('🔔 Chegou o dia de um retorno — veja em "Retornos"');
   refreshDueBadge();
+}
+
+function onCrmAssigned(data) {
+  if (data.ownerId === window.currentUser?.id) toast('🎯 Novo cliente encaminhado para você! Veja em Prospectos.');
+  onCrmEvent();
 }

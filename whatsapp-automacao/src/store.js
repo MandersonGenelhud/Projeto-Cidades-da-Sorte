@@ -40,7 +40,22 @@ const DEFAULT_DATA = {
     defaultDelayMax: 20,
     crm: {
       autoCreate: true, // cliente mandou mensagem → vira prospecto
-      autoAssign: 'none', // none (fica para a equipe) | roundrobin (rodízio entre vendedores)
+      autoAssign: 'qualified', // qualified (rodízio depois da peneira da IA) | roundrobin (na 1ª mensagem) | none
+      routing: { enabled: true, criteria: PRESET.crm?.routing?.criteria || '' },
+      panelUrl: '', // endereço do painel na internet, para o link da ficha no aviso ao vendedor
+      codePrefix: 'MIG',
+      requireConfirmation: true, // venda do vendedor só entra no ranking depois que o administrador confirma
+      goals: {
+        metric: 'sales', // sales (nº de vendas) | revenue (R$ vendido)
+        target: 4, // meta mensal padrão por vendedor
+        perUser: {}, // { idDoVendedor: meta }
+        tiers: [
+          { name: 'Bronze', percent: 100, reward: 'Bônus de R$ 300' },
+          { name: 'Prata', percent: 130, reward: 'Bônus de R$ 600' },
+          { name: 'Ouro', percent: 160, reward: 'Bônus de R$ 1.000 + folga' },
+        ],
+        team: { target: 15, reward: 'Churrasco da equipe' },
+      },
       aiExtract: true, // IA lê as conversas e preenche o prospecto
       notifyFollowUps: true, // avisa o vendedor no WhatsApp no dia do retorno
       packages: (PRESET.crm?.packages || []).map((x) => ({ ...x })),
@@ -80,6 +95,8 @@ const DEFAULT_DATA = {
       pendingMaxDays: 7,
       ...PRESET.agent,
     },
+    // Nome e marca do painel (a logo fica em public/img ou é enviada em Configurações).
+    brand: { name: 'Migra Hub', tagline: 'Atendimento e vendas · Migra Paraguai' },
     business: { ...PRESET.business },
     agenda: {
       enabled: PRESET.agenda.enabled, // o agente pode consultar/marcar horários

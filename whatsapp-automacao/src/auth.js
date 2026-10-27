@@ -22,7 +22,10 @@ export function checkPassword(password, stored) {
   return expected.length === test.length && crypto.timingSafeEqual(expected, test);
 }
 
-const publicUser = (u) => (u ? { id: u.id, name: u.name, login: u.login, role: u.role, whatsapp: u.whatsapp || '', active: u.active !== false } : null);
+const publicUser = (u) => (u ? {
+  id: u.id, name: u.name, login: u.login, role: u.role, whatsapp: u.whatsapp || '', active: u.active !== false,
+  receivesLeads: u.receivesLeads ?? u.role === 'seller', leadsReceived: u.leadsReceived || 0, lastLeadAt: u.lastLeadAt || null, rotationSeq: u.rotationSeq || 0,
+} : null);
 
 export class Auth {
   constructor({ store, dataDir }) {
@@ -53,7 +56,7 @@ export class Auth {
     return this.users.filter((u) => u.active !== false);
   }
 
-  create({ name, login, password, role = 'seller', whatsapp = '' }) {
+  create({ name, login, password, role = 'seller', whatsapp = '', receivesLeads }) {
     name = String(name || '').trim();
     login = String(login || '').trim().toLowerCase();
     if (!name) throw Object.assign(new Error('Informe o nome'), { status: 400 });
@@ -67,6 +70,7 @@ export class Auth {
       role: role === 'admin' ? 'admin' : 'seller',
       whatsapp: whatsapp ? normalizePhone(whatsapp) || '' : '',
       passwordHash: hashPassword(password),
+      receivesLeads: receivesLeads === undefined ? role !== 'admin' : Boolean(receivesLeads),
       active: true,
       createdAt: new Date().toISOString(),
     };
@@ -87,6 +91,7 @@ export class Auth {
     if (patch.whatsapp !== undefined) u.whatsapp = patch.whatsapp ? normalizePhone(patch.whatsapp) || '' : '';
     if (patch.role !== undefined) u.role = patch.role === 'admin' ? 'admin' : 'seller';
     if (patch.active !== undefined) u.active = Boolean(patch.active);
+    if (patch.receivesLeads !== undefined) u.receivesLeads = Boolean(patch.receivesLeads);
     if (patch.password) {
       if (String(patch.password).length < 6) throw Object.assign(new Error('A senha precisa ter pelo menos 6 caracteres'), { status: 400 });
       u.passwordHash = hashPassword(patch.password);

@@ -1,4 +1,4 @@
-# ZapAuto: seu WhatsApp atendendo sozinho 🤖💬
+# Migra Hub: seu WhatsApp atendendo sozinho 🤖💬
 
 Ferramenta completa de automação de WhatsApp com **agente de IA**. Ele conversa com o cliente, **lembra da conversa**, **responde sobre o seu negócio** e **age**: consulta a agenda, marca, lista e cancela horários, e chama um humano quando precisa.
 
@@ -172,6 +172,23 @@ No **primeiro acesso** o painel pede para criar o **administrador** (o dono). De
 - Vendedores só veem os próprios prospectos e os que estão sem responsável; as configurações do robô ficam só com o administrador.
 
 Para a equipe acessar de outros computadores/celulares, o sistema precisa estar na VPS (endereço com HTTPS).
+
+### Peneira no Instagram e rodízio de vendedores
+
+1. Em **Equipe**, cadastre cada vendedor com o **WhatsApp** dele e deixe marcado **Entra no rodízio**.
+2. O agente atende no Direct (e no WhatsApp), faz a **peneira** (objetivo, nº de pessoas, quando quer começar e se tem o valor da entrada) seguindo os critérios em *Equipe → Regras do CRM*.
+3. Cliente **quente** → o sistema escolhe o **vendedor da vez** (rodízio justo: quem recebeu há mais tempo), grava tudo no CRM e:
+   - manda para o cliente o link `wa.me` do vendedor, com a mensagem pronta e um **código** (ex.: `MIG-4K7P`);
+   - avisa o vendedor no WhatsApp com o resumo, as frases do cliente sobre dinheiro e prazo e o link da ficha (precisa de um WhatsApp conectado na aba Conexão; sem ele, o aviso aparece só no painel).
+4. O vendedor busca o código em **Prospectos** (ou toca no link do aviso) e vê a conversa inteira do Instagram antes de responder.
+
+Clientes de **anúncio patrocinado** ficam marcados com o nome do anúncio. Ao conectar o Instagram, o sistema busca o Direct: quem chamou nas últimas 24h vai para o agente responder; os mais antigos viram prospectos para a equipe responder pelo app (regra de 24h da Meta).
+
+### Ranking, metas e bonificações
+
+A aba **🏆 Ranking** (todos veem) mostra pontos, pódio, meta da equipe, progresso de cada vendedor até os níveis de bônus (Bronze, Prata, Ouro… editáveis) e conquistas. Pontos: venda +100, cada R$ 1.000 +1, proposta enviada +10, retorno atrasado −5. Para evitar concorrência desleal, os clientes chegam pelo mesmo rodízio, só o administrador transfere carteiras e a venda só conta depois que ele **confirma** o contrato.
+
+Nome e logo do sistema: **Configurações → Nome e logo do sistema**.
 
 ## Instagram Direct
 

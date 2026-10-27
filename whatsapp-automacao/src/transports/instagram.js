@@ -38,6 +38,7 @@ export class InstagramClient extends EventEmitter {
     this.sentIds = new Set();
     this.recentSends = []; // { to, text, at } para reconhecer o eco das nossas mensagens
     this.names = new Map();
+    this.referrals = new Map(); // cliente -> anúncio de onde veio (chega antes da 1ª mensagem)
     this.refreshTimer = null;
   }
 
@@ -132,6 +133,8 @@ export class InstagramClient extends EventEmitter {
     const myId = this.me?.id;
     for (const entry of payload.entry || []) {
       for (const ev of entry.messaging || []) {
+        const ref = parseReferral(ev.referral || ev.message?.referral || ev.postback?.referral);
+        if (ref && ev.sender?.id) this.referrals.set(String(ev.sender.id), ref);
         const m = ev.message;
         if (!m?.mid || m.is_deleted || this.seen.has(m.mid)) continue;
         this.seen.add(m.mid);
@@ -151,6 +154,8 @@ export class InstagramClient extends EventEmitter {
 
         const igsid = String(ev.sender?.id);
         const profile = await this.#profile(igsid);
+        const referral = this.referrals.get(igsid) || null;
+        this.referrals.delete(igsid);
         const msg = {
           id: m.mid,
           jid: `${IG_PREFIX}${igsid}`,
@@ -161,6 +166,7 @@ export class InstagramClient extends EventEmitter {
           name: profile.name || (profile.username ? `@${profile.username}` : ''),
           text,
           timestamp,
+          ...(referral ? { referral } : {}),
         };
         out.push(msg);
         this.emit('message', msg);
@@ -186,6 +192,47 @@ export class InstagramClient extends EventEmitter {
     }
     this.names.set(igsid, profile);
     return profile;
+  }
+
+  /**
+   * Conversas recentes do Direct (para responder quem chamou antes do sistema ligar).
+   * Devolve mensagens no formato interno, com fromMe, como o histórico do WhatsApp.
+   */
+  async recentMessages({ maxConversations = 50 } = {}) {
+    if (this.status !== 'connected') throw new Error('Instagram não está conectado');
+    const myId = this.me.id;
+    const fields = 'participants,updated_time,messages.limit(10){id,message,from,created_time}';
+    const out = [];
+    let url = `/${myId}/conversations?platform=instagram&fields=${encodeURIComponent(fields)}&limit=25`;
+    let fetched = 0;
+    while (url && fetched < maxConversations) {
+      const page = await this.#graph(url);
+      for (const c of page.data || []) {
+        fetched++;
+        const other = (c.participants?.data || []).find((p) => String(p.id) !== myId && p.username !== this.me.username);
+        if (!other) continue;
+        const igsid = String(other.id);
+        if (other.username) this.names.set(igsid, { username: other.username, name: this.names.get(igsid)?.name || '' });
+        for (const m of c.messages?.data || []) {
+          const fromMe = String(m.from?.id) === myId || m.from?.username === this.me.username;
+          out.push({
+            id: m.id,
+            jid: `${IG_PREFIX}${igsid}`,
+            channel: 'instagram',
+            isGroup: false,
+            fromMe,
+            phone: null,
+            username: other.username || '',
+            name: other.username ? `@${other.username}` : '',
+            text: m.message || '',
+            timestamp: Date.parse(m.created_time) || 0,
+          });
+        }
+      }
+      const next = page.paging?.next;
+      url = next ? next.replace(/^https:\/\/[^/]+\/v[\d.]+/, '') : null;
+    }
+    return out;
   }
 
   // ---------- Envio ----------
@@ -222,4 +269,12 @@ export class InstagramClient extends EventEmitter {
     }
     return { id: last?.message_id, jid: `${IG_PREFIX}${igsid}` };
   }
+}
+
+/** Origem de anúncio (Click-to-Direct) que a Meta manda junto da conversa. */
+export function parseReferral(r) {
+  if (!r) return null;
+  const isAd = r.source === 'ADS' || r.ad_id || r.ads_context_data;
+  if (!isAd) return null;
+  return { adId: r.ad_id ? String(r.ad_id) : '', title: r.ads_context_data?.ad_title || r.ref || '' };
 }
