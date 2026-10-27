@@ -55,6 +55,8 @@ const DEFAULT_DATA = {
       testNumbers: [],
       // Número da equipe que recebe um aviso no WhatsApp quando o agente transfere um atendimento.
       handoffNotifyPhone: '',
+      // Se o dono responder um cliente pelo celular, o agente para de responder aquele cliente.
+      pauseOnOwnerReply: true,
       ...PRESET.agent,
     },
     business: { ...PRESET.business },

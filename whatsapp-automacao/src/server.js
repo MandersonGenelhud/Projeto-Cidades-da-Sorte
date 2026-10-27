@@ -92,6 +92,7 @@ wa.on('status', (state) => {
   if (state.status === 'qr') console.log(`📱 Abra http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT} e escaneie o QR Code`);
 });
 wa.on('log', (entry) => store.addLog(entry));
+wa.on('ownerMessage', (msg) => agent.ownerReplied({ key: msg.jid, phone: msg.phone, text: msg.text }));
 wa.on('message', (msg) => {
   notify('message', msg);
   autoReply.handle(msg).catch((err) => store.addLog({ type: 'error', message: err.message }));
@@ -165,6 +166,11 @@ app.post('/api/connection/logout', async (_req, res) => {
 app.post('/api/connection/restart', async (_req, res) => {
   wa.restart();
   res.json({ ok: true });
+});
+app.post('/api/connection/pairing-code', async (req, res) => {
+  const code = await wa.requestPairingCode(req.body.phone);
+  store.addLog({ type: 'system', message: `Código de conexão gerado: ${code}` });
+  res.json({ code });
 });
 app.post('/api/connection/mode', async (req, res) => {
   const mode = req.body.mode === 'cloud' ? 'cloud' : 'qr';

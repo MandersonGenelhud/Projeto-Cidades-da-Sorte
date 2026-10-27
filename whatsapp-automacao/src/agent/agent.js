@@ -58,6 +58,24 @@ export class Agent {
     return conv;
   }
 
+  /**
+   * O dono respondeu pelo próprio celular: guarda na memória e, se configurado,
+   * pausa o agente nesta conversa para os dois não responderem ao mesmo tempo.
+   */
+  ownerReplied({ key, phone, text }) {
+    const conv = this.conversation(key, { create: false });
+    if (!conv) return null; // conversa que o agente nunca atendeu
+    if (text) this.remember(conv, 'assistant', text);
+    if (this.config.pauseOnOwnerReply !== false && !conv.handoff) {
+      conv.handoff = true;
+      conv.handoffReason = 'Você respondeu pelo celular';
+      this.store.save();
+      this.store.addLog({ type: 'system', phone: phone || key, message: '🙋 Você respondeu pelo celular: o agente pausou nesta conversa' });
+      this.notify('conversation', { key, handoff: true });
+    }
+    return conv;
+  }
+
   clearConversation(key) {
     delete this.store.data.conversations[key];
     this.store.save();

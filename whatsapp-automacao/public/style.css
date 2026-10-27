@@ -272,3 +272,7 @@ details[open] summary { margin-bottom: 12px; }
   .chat { height: 340px; }
 }
 .form > .btn, .form > .row > .btn, form.panel > .btn { align-self: flex-start; }
+
+.pairing { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.pairing input { max-width: 360px; }
+.pairing-code { font: 700 34px/1.2 ui-monospace, Consolas, monospace; letter-spacing: .12em; margin: 8px 0; color: var(--green-dark); }

@@ -12,6 +12,7 @@ export class ConnectionManager extends EventEmitter {
     for (const [mode, client] of Object.entries(clients)) {
       client.on('status', (state) => mode === this.mode && this.emit('status', { ...state, mode }));
       client.on('message', (msg) => mode === this.mode && this.emit('message', msg));
+      client.on('ownerMessage', (msg) => mode === this.mode && this.emit('ownerMessage', msg));
       client.on('log', (entry) => this.emit('log', entry));
     }
     for (const method of FORWARDED) {
@@ -33,6 +34,11 @@ export class ConnectionManager extends EventEmitter {
 
   getState() {
     return { ...this.current.getState(), mode: this.mode };
+  }
+
+  async requestPairingCode(phone) {
+    if (this.mode !== 'qr') throw new Error('A conexão por código só existe no modo QR Code');
+    return this.clients.qr.requestPairingCode(phone);
   }
 
   async start() {

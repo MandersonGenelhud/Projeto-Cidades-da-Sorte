@@ -22,6 +22,7 @@ export class WhatsAppClient extends EventEmitter {
     this.qr = null; // data URL da imagem do QR Code
     this.me = null;
     this.jidCache = new Map();
+    this.sentIds = new Set(); // mensagens enviadas por este sistema (para não confundir com o dono)
     this.stopping = false;
   }
 
@@ -90,6 +91,13 @@ export class WhatsAppClient extends EventEmitter {
     sock.ev.on('messages.upsert', ({ messages, type }) => {
       if (this.sock !== sock || type !== 'notify') return;
       for (const msg of messages) {
+        if (msg.key.fromMe) {
+          // Mensagem que o dono mandou pelo celular (as deste sistema não chegam como "notify").
+          if (this.sentIds.has(msg.key.id)) continue;
+          const parsed = this.#parseIncoming({ ...msg, key: { ...msg.key, fromMe: false } });
+          if (parsed && !parsed.isGroup) this.emit('ownerMessage', parsed);
+          continue;
+        }
         const parsed = this.#parseIncoming(msg);
         if (parsed) this.emit('message', parsed);
       }
@@ -217,9 +225,28 @@ export class WhatsAppClient extends EventEmitter {
       content = { text };
     }
     const sent = await this.sock.sendMessage(jid, content);
+    if (sent?.key?.id) {
+      this.sentIds.add(sent.key.id);
+      if (this.sentIds.size > 5000) this.sentIds.delete(this.sentIds.values().next().value);
+    }
     // Áudio não aceita legenda: envia o texto separado.
     if (media?.mimetype?.startsWith('audio/') && text) await this.sock.sendMessage(jid, { text });
     return { id: sent?.key?.id, jid };
+  }
+
+  /**
+   * Conexão por código (sem câmera): o dono do número digita o código no celular em
+   * Dispositivos conectados → Conectar dispositivo → Conectar com número de telefone.
+   */
+  async requestPairingCode(phoneInput) {
+    const digits = String(phoneInput || '').replace(/\D/g, '');
+    if (digits.length < 11 || digits.length > 15) {
+      throw new Error('Informe o número completo com o código do país (ex.: +595 981 123456 ou +55 11 98765-4321)');
+    }
+    if (this.status === 'connected') throw new Error('Já existe um WhatsApp conectado. Desconecte antes.');
+    if (!this.sock || this.status !== 'qr') throw new Error('Aguarde o QR Code aparecer e tente de novo');
+    const code = await this.sock.requestPairingCode(digits);
+    return code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
   }
 
   async getGroups() {

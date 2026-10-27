@@ -81,7 +81,16 @@
           <button class="btn" id="btnRestart">🔄 Reconectar</button>
           <button class="btn danger" id="btnLogout">🚪 Desconectar número</button>
         </div>
-        <p class="hint">No celular: WhatsApp → ⋮ / Configurações → <b>Aparelhos conectados</b> → <b>Conectar aparelho</b> e aponte para o QR Code.</p>
+        <p class="hint">No celular: WhatsApp → ⋮ / Configurações → <b>Dispositivos conectados</b> → <b>Conectar dispositivo</b> e aponte para o QR Code.</p>
+        <div class="pairing" id="pairingBox">
+          <h3>📲 O celular está longe? Conecte por código</h3>
+          <p class="hint">Sem câmera: gere um código aqui e mande para o dono do número. Ele digita o código no celular dele.</p>
+          <form id="formPairing" class="row center-row">
+            <input name="phone" placeholder="Número com código do país, ex.: +595 981 123456" autocomplete="off" />
+            <button class="btn primary">Gerar código</button>
+          </form>
+          <div id="pairingResult" class="preview"></div>
+        </div>
       </div>
 
       <div class="panel" id="cloudPanel" hidden>
@@ -134,14 +143,15 @@
             </label>
           </div>
           <div class="grid2 tight">
-            <label>Números de teste (um por linha, com DDD)
-              <textarea name="testNumbers" rows="3" placeholder="(11) 98765-4321"></textarea>
+            <label>Números de teste (um por linha, com DDD; de outro país, comece com +)
+              <textarea name="testNumbers" rows="3" placeholder="(11) 98765-4321&#10;+595 981 123456"></textarea>
             </label>
             <label>WhatsApp da equipe para avisos de transferência (opcional)
               <input name="handoffNotifyPhone" placeholder="(11) 91234-5678" />
               <span class="hint">Quando o agente passar um atendimento para humano, este número recebe um resumo.</span>
             </label>
           </div>
+          <label class="check"><input type="checkbox" name="pauseOnOwnerReply" /> Se eu responder um cliente pelo celular, o agente para de responder aquele cliente</label>
         </div>
         <div class="grid2">
           <div class="panel">

@@ -98,6 +98,7 @@ function renderStatus(state) {
       : `<p>⚠️ ${esc(state.error || 'Não conectado')}</p>`;
   }
 
+  $('#pairingBox').hidden = state.status === 'connected';
   const area = $('#qrArea');
   if (state.status === 'connected') {
     area.innerHTML = `<div class="ok">✅</div><h2>WhatsApp conectado</h2><p>${esc(state.me?.name || '')} · ${esc(fmtPhone(state.me?.phone))}</p>`;
@@ -646,6 +647,13 @@ loaders.connection = async () => {
   for (const [k, fromEnv] of Object.entries(env)) if (fromEnv) f[k].placeholder = 'definido no arquivo .env';
 };
 
+$('#formPairing').addEventListener('submit', withBusy($('#formPairing'), async (e) => {
+  const r = await api('/api/connection/pairing-code', { method: 'POST', body: { phone: e.target.phone.value } });
+  $('#pairingResult').innerHTML = `<div class="pairing-code">${esc(r.code)}</div>
+    <p>Mande este código para o dono do número. No celular dele: WhatsApp → <b>Configurações</b> (ou ⋮) → <b>Dispositivos conectados</b> → <b>Conectar dispositivo</b> → <b>Conectar com número de telefone</b> → digitar o código.</p>
+    <p class="hint">O código vale por poucos minutos. Se expirar, gere outro.</p>`;
+}));
+
 $('#formCloud').addEventListener('submit', withBusy($('#formCloud'), async (e) => {
   const f = e.target;
   await api('/api/settings', {
@@ -684,6 +692,7 @@ loaders.agent = async () => {
   const a = s.agent;
   f.enabled.checked = a.enabled;
   f.rulesFirst.checked = a.rulesFirst;
+  f.pauseOnOwnerReply.checked = a.pauseOnOwnerReply !== false;
   for (const k of ['apiKey', 'model', 'geminiKey', 'geminiModel', 'temperature', 'memoryMessages', 'agentName', 'roleLabel', 'instructions', 'handoffNotifyPhone']) f[k].value = a[k] ?? '';
   f.provider.value = a.provider === 'openrouter' ? 'openrouter' : 'gemini';
   f.provider.dispatchEvent(new Event('change'));
@@ -721,6 +730,7 @@ $('#formAgent').addEventListener('submit', withBusy($('#formAgent'), async (e) =
         audience: $('[name="audience"]:checked', f)?.value || 'test',
         testNumbers: f.testNumbers.value.split('\n').map((n) => n.trim()).filter(Boolean),
         handoffNotifyPhone: f.handoffNotifyPhone.value.trim(),
+        pauseOnOwnerReply: f.pauseOnOwnerReply.checked,
       },
       business,
     },
