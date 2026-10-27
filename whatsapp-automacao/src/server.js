@@ -16,6 +16,7 @@ import { ConnectionManager } from './connection.js';
 import { CampaignRunner } from './campaigns.js';
 import { AutoReply } from './autoreply.js';
 import { Scheduler } from './scheduler.js';
+import { PendingInbox } from './pending.js';
 import { LLMClient } from './agent/llm.js';
 import { createCalendar, toDateStr } from './agent/calendar.js';
 import { Agent, STRESS_TESTS } from './agent/agent.js';
@@ -84,6 +85,7 @@ const agent = new Agent({
 const campaigns = new CampaignRunner({ store, wa, notify });
 const autoReply = new AutoReply({ store, wa, notify, agent });
 const scheduler = new Scheduler({ store, wa, campaigns, notify });
+const pending = new PendingInbox({ store, agent, wa, autoReply, notify });
 
 wa.on('status', (state) => {
   notify('status', state);
@@ -92,8 +94,17 @@ wa.on('status', (state) => {
   if (state.status === 'qr') console.log(`📱 Abra http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT} e escaneie o QR Code`);
 });
 wa.on('log', (entry) => store.addLog(entry));
-wa.on('ownerMessage', (msg) => agent.ownerReplied({ key: msg.jid, phone: msg.phone, text: msg.text }));
+wa.on('ownerMessage', (msg) => {
+  pending.resolve(msg.jid);
+  agent.ownerReplied({ key: msg.jid, phone: msg.phone, text: msg.text });
+});
+wa.on('history', (msgs) => pending.ingestHistory(msgs));
+wa.on('sent', ({ to, jid }) => {
+  pending.resolve(jid);
+  pending.resolve(to);
+});
 wa.on('message', (msg) => {
+  pending.onIncoming(msg);
   notify('message', msg);
   autoReply.handle(msg).catch((err) => store.addLog({ type: 'error', message: err.message }));
 });
@@ -548,6 +559,21 @@ app.post('/api/conversations/:key/reply', async (req, res) => {
 app.delete('/api/conversations/:key', (req, res) => {
   agent.clearConversation(req.params.key);
   res.json({ ok: true });
+});
+
+// Conversas sem resposta
+app.get('/api/pending', (_req, res) => res.json({ ...pending.status(), items: pending.list() }));
+app.post('/api/pending/reply', (req, res) => {
+  const jids = req.body.all ? pending.list().map((p) => p.jid) : req.body.jids || [];
+  res.json(pending.enqueue(jids));
+});
+app.post('/api/pending/cancel', (_req, res) => {
+  pending.cancel();
+  res.json(pending.status());
+});
+app.post('/api/pending/dismiss', (req, res) => {
+  pending.dismiss(req.body.jids || []);
+  res.json(pending.status());
 });
 
 // Agenda

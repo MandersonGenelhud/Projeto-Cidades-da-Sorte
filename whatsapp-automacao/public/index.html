@@ -260,6 +260,22 @@
     <!-- CONVERSAS -->
     <section id="tab-conversations" class="tab">
       <h1>Conversas</h1>
+      <div class="panel" id="pendingPanel">
+        <div class="conv-header">
+          <div>
+            <h2>📥 Clientes esperando resposta <span class="badge pending" id="pendingCount">0</span></h2>
+            <p class="hint">Quem mandou mensagem e ainda não teve resposta (inclui o histórico dos últimos 7 dias, que o celular envia ao conectar). O agente responde um por vez, com um intervalo entre as respostas, começando com um pedido de desculpas pela demora.</p>
+          </div>
+          <div class="row">
+            <button class="btn small" id="btnPendingAll">☑️ Marcar todos</button>
+            <button class="btn small primary" id="btnPendingReply">🤖 Agente responder marcados</button>
+            <button class="btn small" id="btnPendingDismiss">🙈 Ignorar marcados</button>
+            <button class="btn small danger" id="btnPendingCancel" hidden>⏹️ Parar</button>
+          </div>
+        </div>
+        <p id="pendingStatus" class="hint"></p>
+        <div id="pendingList" class="pending-list"></div>
+      </div>
       <div class="conv-layout">
         <div class="panel conv-list" id="convList"></div>
         <div class="panel conv-view">

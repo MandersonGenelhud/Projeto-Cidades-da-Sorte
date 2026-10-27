@@ -2,7 +2,7 @@
 // O resto do sistema conversa só com este objeto.
 import { EventEmitter } from 'node:events';
 
-const FORWARDED = ['send', 'checkNumber', 'getGroups', 'getGroupParticipants', 'resolveJid'];
+const FORWARDED = ['checkNumber', 'getGroups', 'getGroupParticipants', 'resolveJid'];
 
 export class ConnectionManager extends EventEmitter {
   constructor({ store, clients }) {
@@ -13,6 +13,7 @@ export class ConnectionManager extends EventEmitter {
       client.on('status', (state) => mode === this.mode && this.emit('status', { ...state, mode }));
       client.on('message', (msg) => mode === this.mode && this.emit('message', msg));
       client.on('ownerMessage', (msg) => mode === this.mode && this.emit('ownerMessage', msg));
+      client.on('history', (msgs) => mode === this.mode && this.emit('history', msgs));
       client.on('log', (entry) => this.emit('log', entry));
     }
     for (const method of FORWARDED) {
@@ -34,6 +35,13 @@ export class ConnectionManager extends EventEmitter {
 
   getState() {
     return { ...this.current.getState(), mode: this.mode };
+  }
+
+  /** Envia e avisa quem estiver ouvindo (ex.: lista de conversas sem resposta). */
+  async send(to, payload) {
+    const result = await this.current.send(to, payload);
+    this.emit('sent', { to, jid: result?.jid });
+    return result;
   }
 
   async requestPairingCode(phone) {

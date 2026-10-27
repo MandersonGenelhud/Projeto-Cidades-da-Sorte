@@ -12,6 +12,39 @@ import pino from 'pino';
 import QRCode from 'qrcode';
 import { jidToPhone, normalizePhone, randomBetween, sleep } from '../utils.js';
 
+/**
+ * Converte uma mensagem do Baileys no formato interno.
+ * `lidToPn` resolve contas com LID (@lid) para o número real.
+ */
+export function normalizeMessage(msg, lidToPn = new Map()) {
+  if (!msg?.message) return null;
+  const jid = msg.key.remoteJid;
+  if (!jid || jid === 'status@broadcast' || jid.endsWith('@newsletter')) return null;
+  const isGroup = jid.endsWith('@g.us');
+  const m = msg.message.ephemeralMessage?.message || msg.message;
+  const text =
+    m.conversation ||
+    m.extendedTextMessage?.text ||
+    m.imageMessage?.caption ||
+    m.videoMessage?.caption ||
+    m.buttonsResponseMessage?.selectedDisplayText ||
+    m.listResponseMessage?.title ||
+    '';
+  // Em contas com LID o número real vem em remoteJidAlt (ou no mapeamento LID → número).
+  const pnJid = [msg.key.remoteJidAlt, lidToPn.get(jid), jid].find((j) => j && j.endsWith('@s.whatsapp.net'));
+  const senderJid = isGroup ? msg.key.participantAlt || msg.key.participant : pnJid;
+  return {
+    id: msg.key.id,
+    jid,
+    isGroup,
+    fromMe: Boolean(msg.key.fromMe),
+    phone: senderJid ? jidToPhone(senderJid) : null,
+    name: msg.key.fromMe ? '' : msg.pushName || '',
+    text,
+    timestamp: Number(msg.messageTimestamp) * 1000 || Date.now(),
+  };
+}
+
 export class WhatsAppClient extends EventEmitter {
   constructor({ authDir, logLevel = 'silent' }) {
     super();
@@ -88,6 +121,15 @@ export class WhatsAppClient extends EventEmitter {
       }
     });
 
+    // Histórico enviado pelo celular logo depois de conectar: usado para achar
+    // clientes que estavam esperando resposta.
+    sock.ev.on('messaging-history.set', ({ messages, lidPnMappings }) => {
+      if (this.sock !== sock || !messages?.length) return;
+      const lidToPn = new Map((lidPnMappings || []).map((x) => [x.lid, x.pn]));
+      const normalized = messages.map((msg) => normalizeMessage(msg, lidToPn)).filter((x) => x && !x.isGroup);
+      if (normalized.length) this.emit('history', normalized);
+    });
+
     sock.ev.on('messages.upsert', ({ messages, type }) => {
       if (this.sock !== sock || type !== 'notify') return;
       for (const msg of messages) {
@@ -106,29 +148,7 @@ export class WhatsAppClient extends EventEmitter {
 
   #parseIncoming(msg) {
     if (!msg.message || msg.key.fromMe) return null;
-    const jid = msg.key.remoteJid;
-    if (!jid || jid === 'status@broadcast' || jid.endsWith('@newsletter')) return null;
-    const isGroup = jid.endsWith('@g.us');
-    const m = msg.message.ephemeralMessage?.message || msg.message;
-    const text =
-      m.conversation ||
-      m.extendedTextMessage?.text ||
-      m.imageMessage?.caption ||
-      m.videoMessage?.caption ||
-      m.buttonsResponseMessage?.selectedDisplayText ||
-      m.listResponseMessage?.title ||
-      '';
-    // Em contas com LID o número real vem em remoteJidAlt.
-    const pnJid = [msg.key.remoteJidAlt, jid].find((j) => j && j.endsWith('@s.whatsapp.net'));
-    const senderJid = isGroup ? msg.key.participantAlt || msg.key.participant : pnJid;
-    return {
-      jid,
-      isGroup,
-      phone: senderJid ? jidToPhone(senderJid) : null,
-      name: msg.pushName || '',
-      text,
-      timestamp: Number(msg.messageTimestamp) * 1000 || Date.now(),
-    };
+    return normalizeMessage(msg);
   }
 
   #clearAuth() {

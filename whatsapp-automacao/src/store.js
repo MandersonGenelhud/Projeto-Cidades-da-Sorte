@@ -16,6 +16,7 @@ const DEFAULT_DATA = {
   logs: [],
   conversations: {},
   appointments: [],
+  pending: {},
   settings: {
     autoReplyEnabled: true,
     ignoreGroups: true,
@@ -57,6 +58,8 @@ const DEFAULT_DATA = {
       handoffNotifyPhone: '',
       // Se o dono responder um cliente pelo celular, o agente para de responder aquele cliente.
       pauseOnOwnerReply: true,
+      // Conversas sem resposta: considera mensagens dos últimos N dias.
+      pendingMaxDays: 7,
       ...PRESET.agent,
     },
     business: { ...PRESET.business },

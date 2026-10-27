@@ -86,10 +86,13 @@ export class Agent {
    * Gera a resposta para a conversa `key` (o texto do cliente já está na memória).
    * Retorna { text, actions } — actions lista as ferramentas usadas.
    */
-  async think(conv, { dryRun = false } = {}) {
+  async think(conv, { dryRun = false, delayed = false } = {}) {
     const cfg = this.config;
     const settings = this.store.settings;
-    const system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name });
+    let system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name });
+    if (delayed) {
+      system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece pedindo desculpas pela demora, de forma breve e natural, e então responda.';
+    }
     // Sem agenda, o agente só pode transferir para a equipe.
     const tools = canSchedule(settings)
       ? TOOL_DEFINITIONS
@@ -149,13 +152,14 @@ export class Agent {
    * (enquanto a IA pensa) são agrupadas numa só resposta.
    * `send(text)` envia a resposta ao cliente.
    */
-  handleIncoming({ key, phone, name, text }, send) {
+  handleIncoming({ key, phone, name, text, delayed = false }, send) {
     let q = this.queues.get(key);
     if (!q) {
-      q = { pending: [], running: false };
+      q = { pending: [], running: false, delayed: false };
       this.queues.set(key, q);
     }
     q.pending.push(text);
+    if (delayed) q.delayed = true;
     if (!q.running) {
       q.running = true;
       return this.#drain(key, q, { phone, name }, send).finally(() => {
@@ -177,7 +181,9 @@ export class Agent {
 
       let result;
       try {
-        result = await this.think(conv);
+        const delayed = q.delayed;
+        q.delayed = false;
+        result = await this.think(conv, { delayed });
       } catch (err) {
         this.store.addLog({ type: 'error', phone, message: `Agente IA: ${err.message}` });
         result = { text: FALLBACK_REPLY, actions: [] };

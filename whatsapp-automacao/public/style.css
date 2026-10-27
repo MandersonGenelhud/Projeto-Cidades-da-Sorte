@@ -28,6 +28,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -276,3 +277,10 @@ details[open] summary { margin-bottom: 12px; }
 .pairing { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
 .pairing input { max-width: 360px; }
 .pairing-code { font: 700 34px/1.2 ui-monospace, Consolas, monospace; letter-spacing: .12em; margin: 8px 0; color: var(--green-dark); }
+
+.pending-list { display: grid; gap: 6px; max-height: 360px; overflow-y: auto; }
+.pending-item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; padding: 10px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+.pending-item input { margin-top: 4px; }
+.pending-item .txt { color: var(--muted); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pending-item .when { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.pending-item.queued { border-color: var(--green); }

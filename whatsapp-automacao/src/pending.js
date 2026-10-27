@@ -1,0 +1,186 @@
+// Conversas sem resposta: clientes cuja última mensagem ainda não foi respondida.
+// Vêm do histórico que o celular envia ao conectar e de mensagens que o agente
+// não respondeu (agente desligado ou em modo de teste).
+import { randomBetween } from './utils.js';
+
+/**
+ * A partir de mensagens normalizadas (de várias conversas), devolve as conversas
+ * em que o cliente falou por último, com as mensagens que ficaram sem resposta.
+ */
+export function extractPending(messages, { now = Date.now(), maxDays = 7 } = {}) {
+  const byJid = new Map();
+  for (const m of messages) {
+    if (!m || m.isGroup) continue;
+    if (!byJid.has(m.jid)) byJid.set(m.jid, []);
+    byJid.get(m.jid).push(m);
+  }
+  const limit = now - maxDays * 86_400_000;
+  const out = [];
+  for (const [jid, list] of byJid) {
+    list.sort((a, b) => a.timestamp - b.timestamp);
+    const trailing = [];
+    for (let i = list.length - 1; i >= 0 && !list[i].fromMe; i--) trailing.unshift(list[i]);
+    const withText = trailing.filter((m) => m.text);
+    if (!withText.length) continue;
+    const last = withText.at(-1);
+    if (last.timestamp < limit) continue;
+    out.push({
+      jid,
+      phone: withText.find((m) => m.phone)?.phone || null,
+      name: withText.find((m) => m.name)?.name || '',
+      texts: withText.map((m) => m.text).slice(-5),
+      at: last.timestamp,
+    });
+  }
+  return out;
+}
+
+export class PendingInbox {
+  constructor({ store, agent, wa, autoReply, notify, delay = [20, 45] }) {
+    this.store = store;
+    this.agent = agent;
+    this.wa = wa;
+    this.autoReply = autoReply;
+    this.notify = notify || (() => {});
+    this.delay = delay; // segundos entre uma resposta e outra
+    this.queue = [];
+    this.running = false;
+    this.wakeUp = null;
+    store.data.pending ||= {};
+  }
+
+  get items() {
+    return this.store.data.pending;
+  }
+
+  #changed() {
+    this.store.save();
+    this.notify('pending', { count: Object.keys(this.items).length, queue: this.queue.length, running: this.running });
+  }
+
+  list() {
+    return Object.values(this.items)
+      .filter((p) => !(p.phone && this.store.isBlacklisted(p.phone)))
+      .map((p) => ({ ...p, queued: this.queue.includes(p.jid) }))
+      .sort((a, b) => b.at - a.at);
+  }
+
+  status() {
+    return { count: this.list().length, queue: this.queue.length, running: this.running };
+  }
+
+  /** Histórico do celular: adiciona quem estava esperando (sem apagar o que já existe). */
+  ingestHistory(messages) {
+    const maxDays = Number(this.store.settings.agent.pendingMaxDays || 7);
+    let added = 0;
+    for (const p of extractPending(messages, { maxDays })) {
+      const current = this.items[p.jid];
+      if (current && current.at >= p.at) continue;
+      if (this.store.data.conversations[p.jid]?.messages?.at(-1)?.role === 'assistant') {
+        // Já respondido pelo agente depois disso? Só conta se a mensagem do cliente é mais nova.
+        const lastReply = Date.parse(this.store.data.conversations[p.jid].messages.at(-1).at);
+        if (lastReply >= p.at) continue;
+      }
+      this.items[p.jid] = { ...p, source: 'histórico' };
+      added++;
+    }
+    if (added) {
+      this.store.addLog({ type: 'system', message: `📥 ${added} conversa(s) sem resposta encontrada(s) no histórico do WhatsApp` });
+      this.#changed();
+    }
+    return added;
+  }
+
+  /** Mensagem recebida agora: entra na lista até alguém responder. */
+  onIncoming(msg) {
+    if (!msg?.text || msg.isGroup) return;
+    const current = this.items[msg.jid];
+    this.items[msg.jid] = {
+      jid: msg.jid,
+      phone: msg.phone || current?.phone || null,
+      name: msg.name || current?.name || '',
+      texts: [...(current?.texts || []), msg.text].slice(-5),
+      at: msg.timestamp || Date.now(),
+      source: 'recebida',
+    };
+    this.#changed();
+  }
+
+  /** Alguém (agente, painel ou o dono pelo celular) respondeu: sai da lista. */
+  resolve(jid) {
+    if (jid && this.items[jid]) {
+      delete this.items[jid];
+      this.queue = this.queue.filter((j) => j !== jid);
+      this.#changed();
+    }
+  }
+
+  dismiss(jids) {
+    for (const jid of jids) delete this.items[jid];
+    this.queue = this.queue.filter((j) => !jids.includes(j));
+    this.#changed();
+  }
+
+  /** Coloca conversas na fila para o agente responder, uma de cada vez. */
+  enqueue(jids) {
+    if (!this.agent.active) throw new Error('Ligue o agente e configure a chave da IA antes');
+    if (this.wa.status !== 'connected') throw new Error('Conecte o WhatsApp antes');
+    const allowed = [];
+    const blocked = [];
+    for (const jid of jids) {
+      const p = this.items[jid];
+      if (!p || this.queue.includes(jid)) continue;
+      if (this.autoReply.agentAllowed({ phone: p.phone })) allowed.push(jid);
+      else blocked.push(jid);
+    }
+    this.queue.push(...allowed);
+    this.#changed();
+    if (!this.running) this.#run().catch((err) => this.store.addLog({ type: 'error', message: `Fila de pendentes: ${err.message}` }));
+    return { queued: allowed.length, blocked: blocked.length };
+  }
+
+  cancel() {
+    this.queue = [];
+    this.wakeUp?.();
+    this.#changed();
+  }
+
+  #wait(ms) {
+    return new Promise((resolve) => {
+      const t = setTimeout(resolve, ms);
+      this.wakeUp = () => { clearTimeout(t); resolve(); };
+    });
+  }
+
+  async #run() {
+    this.running = true;
+    this.#changed();
+    try {
+      while (this.queue.length) {
+        const jid = this.queue[0];
+        const p = this.items[jid];
+        if (p && this.wa.status === 'connected') {
+          await this.agent.handleIncoming(
+            { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true },
+            async (text) => {
+              try {
+                await this.wa.send(jid, { text });
+                this.store.addLog({ type: 'autoreply', phone: p.phone || jid, message: text, rule: 'Agente IA (pendente)' });
+              } catch (err) {
+                this.store.addLog({ type: 'error', phone: p.phone || jid, message: `Pendente: ${err.message}` });
+              }
+            },
+          );
+        }
+        this.queue = this.queue.filter((j) => j !== jid);
+        if (this.items[jid]) delete this.items[jid];
+        this.#changed();
+        if (this.queue.length) await this.#wait(randomBetween(this.delay[0], this.delay[1]) * 1000);
+      }
+    } finally {
+      this.running = false;
+      this.wakeUp = null;
+      this.#changed();
+    }
+  }
+}

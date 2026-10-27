@@ -5,8 +5,12 @@ const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
 const fmtPhone = (p) => {
-  const m = String(p || '').match(/^55(\d{2})(\d{4,5})(\d{4})$/);
-  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : p;
+  const s = String(p || '');
+  const br = s.match(/^55(\d{2})(\d{4,5})(\d{4})$/);
+  if (br) return `(${br[1]}) ${br[2]}-${br[3]}`;
+  const py = s.match(/^595(\d{3})(\d{3})(\d{3,4})$/);
+  if (py) return `+595 ${py[1]} ${py[2]} ${py[3]}`;
+  return /^\d{8,15}$/.test(s) ? `+${s}` : s;
 };
 
 const STATUS_LABEL = {
@@ -860,9 +864,63 @@ $('#btnStressRun').addEventListener('click', async (e) => {
   toast(`${ok}/${items.length} testes responderam. Leia as respostas e ajuste a base se precisar.`);
 });
 
+// ---------- Conversas sem resposta ----------
+const ago = (ms) => {
+  const min = Math.round((Date.now() - ms) / 60000);
+  if (min < 60) return `há ${Math.max(min, 1)} min`;
+  const h = Math.round(min / 60);
+  return h < 48 ? `há ${h} h` : `há ${Math.round(h / 24)} dias`;
+};
+async function loadPending() {
+  const r = await api('/api/pending');
+  $('#pendingCount').textContent = r.count;
+  const checked = new Set($$('.pendingCheck:checked').map((c) => c.value));
+  $('#pendingList').innerHTML = r.items.map((p) => `
+    <label class="pending-item ${p.queued ? 'queued' : ''}">
+      <input type="checkbox" class="pendingCheck" value="${esc(p.jid)}" ${checked.has(p.jid) ? 'checked' : ''} />
+      <div><b>${esc(p.name || fmtPhone(p.phone) || 'Contato')}</b> <span class="muted">${esc(p.name ? fmtPhone(p.phone) || '' : '')}</span>
+        <div class="txt">${esc(p.texts.join(' · '))}</div></div>
+      <span class="when">${p.queued ? '⏳ na fila' : ago(p.at)}</span>
+    </label>`).join('') || '<p class="muted">Ninguém esperando resposta. 🎉</p>';
+  $('#pendingStatus').textContent = r.running
+    ? `🤖 Respondendo… ${r.queue} na fila. Pode deixar esta tela aberta ou fechada.`
+    : '';
+  $('#btnPendingCancel').hidden = !r.running;
+}
+const markedPending = () => $$('.pendingCheck:checked').map((c) => c.value);
+$('#btnPendingAll').addEventListener('click', () => {
+  const boxes = $$('.pendingCheck');
+  const all = boxes.every((c) => c.checked);
+  boxes.forEach((c) => (c.checked = !all));
+});
+$('#btnPendingReply').addEventListener('click', async () => {
+  const jids = markedPending();
+  if (!jids.length) return toast('Marque os clientes que o agente deve responder');
+  try {
+    const r = await api('/api/pending/reply', { method: 'POST', body: { jids } });
+    let msg = `${r.queued} cliente(s) na fila do agente`;
+    if (r.blocked) msg += `. ${r.blocked} ignorado(s): o agente está em modo de teste (só responde os números de teste)`;
+    toast(msg, Boolean(r.blocked && !r.queued));
+    loadPending();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+$('#btnPendingDismiss').addEventListener('click', async () => {
+  const jids = markedPending();
+  if (!jids.length) return toast('Marque os clientes que quer tirar da lista');
+  await api('/api/pending/dismiss', { method: 'POST', body: { jids } });
+  loadPending();
+});
+$('#btnPendingCancel').addEventListener('click', async () => {
+  await api('/api/pending/cancel', { method: 'POST' });
+  loadPending();
+});
+
 // ---------- Conversas ----------
 let currentConv = null;
 loaders.conversations = async () => {
+  loadPending();
   const list = await api('/api/conversations');
   $('#convList').innerHTML = list.map((c) => `
     <div class="conv-item ${c.key === currentConv ? 'active' : ''}" data-key="${esc(c.key)}">
@@ -1028,6 +1086,9 @@ function connectEvents() {
     if ($(`#tab-${tab}`).classList.contains('active')) loaders[tab]();
   };
   es.addEventListener('conversation', refreshIfActive('conversations'));
+  es.addEventListener('pending', () => {
+    if ($('#tab-conversations').classList.contains('active')) loadPending();
+  });
   es.addEventListener('appointments', refreshIfActive('agenda'));
   es.addEventListener('message', refreshIfActive('conversations'));
   es.onerror = () => renderStatus({ ...connState, status: 'disconnected' });
