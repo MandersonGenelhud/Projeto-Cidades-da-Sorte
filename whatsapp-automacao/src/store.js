@@ -17,6 +17,8 @@ const DEFAULT_DATA = {
   conversations: {},
   appointments: [],
   pending: {},
+  users: [],
+  leads: [],
   settings: {
     autoReplyEnabled: true,
     ignoreGroups: true,
@@ -36,6 +38,13 @@ const DEFAULT_DATA = {
     },
     defaultDelayMin: 8,
     defaultDelayMax: 20,
+    crm: {
+      autoCreate: true, // cliente mandou mensagem → vira prospecto
+      autoAssign: 'none', // none (fica para a equipe) | roundrobin (rodízio entre vendedores)
+      aiExtract: true, // IA lê as conversas e preenche o prospecto
+      notifyFollowUps: true, // avisa o vendedor no WhatsApp no dia do retorno
+      packages: (PRESET.crm?.packages || []).map((x) => ({ ...x })),
+    },
     instagram: {
       enabled: false,
       accessToken: '', // token de longa duração do Instagram (renovado automaticamente)

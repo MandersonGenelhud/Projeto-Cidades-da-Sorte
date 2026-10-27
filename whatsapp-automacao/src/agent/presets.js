@@ -111,6 +111,18 @@ Não faça promessas legais. Isto não é orientação jurídica.`,
     ],
   },
   agenda: { enabled: false },
+  // Pacotes e valores (por pessoa) usados no CRM para estimar o valor de cada prospecto.
+  crm: {
+    packages: [
+      { name: 'Pacote Inicial', price: 10997 },
+      { name: 'Pacote Prata', price: 11997 },
+      { name: 'Pacote Ouro', price: 12997 },
+      { name: 'Pacote Empresa Unipersonal', price: 17997 },
+      { name: 'Pacote Empresa (EAS)', price: 20997 },
+      { name: 'Pacote Empresa (S.A.)', price: 25997 },
+      { name: 'Pacote Estudantil', price: 5997 },
+    ],
+  },
 };
 
 const CLINICA_SORRISO = {
@@ -169,6 +181,7 @@ export function presetUpgrade(settings) {
       patch: {
         business: { ...p.business },
         agent: { instructions: p.agent.instructions, testMessages: [...p.agent.testMessages] },
+        ...(p.crm ? { crm: { packages: p.crm.packages.map((x) => ({ ...x })) } } : {}),
         knowledgeVersion: { ...(settings.knowledgeVersion || {}), [id]: p.version },
       },
     };
@@ -184,6 +197,7 @@ export function presetSettings(id) {
     business: { ...p.business },
     agent: { ...p.agent },
     agenda: { ...p.agenda },
+    ...(p.crm ? { crm: { packages: p.crm.packages.map((x) => ({ ...x })) } } : {}),
     ...(p.version ? { knowledgeVersion: { [id]: p.version } } : {}),
   };
 }

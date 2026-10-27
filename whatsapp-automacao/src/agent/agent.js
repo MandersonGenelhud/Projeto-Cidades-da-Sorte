@@ -10,8 +10,9 @@ const randomPause = () => 600 + Math.floor(Math.random() * 1400); // entre uma m
 const FALLBACK_REPLY = 'Desculpe, tive um probleminha aqui. 😅 Pode repetir, por favor? Se preferir, peça para falar com um atendente.';
 
 export class Agent {
-  constructor({ store, llm, calendar, notify, notifyTeam, now = () => new Date(), wait = sleep }) {
+  constructor({ store, llm, calendar, notify, notifyTeam, onReplied, now = () => new Date(), wait = sleep }) {
     this.store = store;
+    this.onReplied = onReplied || (() => {}); // (conversa) => usado pelo CRM para ler a conversa
     this.wait = wait; // espera (trocada nos testes para não demorar)
     this.notifyTeam = notifyTeam || (async () => {}); // (texto) => envia aviso no WhatsApp da equipe
     this.llm = llm;
@@ -245,6 +246,7 @@ export class Agent {
         if (human && i < bubbles.length - 1) await this.wait(randomPause());
       }
       last = result;
+      Promise.resolve(this.onReplied(conv, { handoff: conv.handoff })).catch(() => {});
     }
     return last;
   }

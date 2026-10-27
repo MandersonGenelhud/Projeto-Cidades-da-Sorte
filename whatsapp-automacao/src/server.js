@@ -19,6 +19,9 @@ import { AutoReply } from './autoreply.js';
 import { Scheduler } from './scheduler.js';
 import { PendingInbox } from './pending.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
+import { Auth, publicUser } from './auth.js';
+import { Crm, STAGES } from './crm.js';
+import { CrmAi } from './crm-ai.js';
 import { LLMClient } from './agent/llm.js';
 import { createCalendar, toDateStr } from './agent/calendar.js';
 import { Agent, STRESS_TESTS } from './agent/agent.js';
@@ -105,6 +108,29 @@ const campaigns = new CampaignRunner({ store, wa, notify });
 const autoReply = new AutoReply({ store, wa, notify, agent });
 const scheduler = new Scheduler({ store, wa, campaigns, notify });
 const pending = new PendingInbox({ store, agent, wa, autoReply, notify });
+const auth = new Auth({ store, dataDir: DATA_DIR });
+const crm = new Crm({ store, auth, notify });
+const crmAi = new CrmAi({ store, llm, crm });
+// Depois de cada resposta do agente, a IA lê a conversa e atualiza o prospecto.
+agent.onReplied = (conv, { handoff } = {}) => crmAi.afterReply(conv, { force: handoff });
+
+/** Avisa o responsável (ou os administradores) no dia do retorno agendado. */
+async function notifyFollowUps() {
+  for (const lead of crm.dueToNotify()) {
+    const owner = lead.ownerId ? auth.get(lead.ownerId) : null;
+    const targets = owner ? [owner] : auth.users.filter((u) => u.role === 'admin' && u.active !== false);
+    const who = lead.name || (lead.phone ? `+${lead.phone}` : lead.instagram ? `@${lead.instagram}` : 'cliente');
+    const text = `📅 *Retorno agendado para hoje*\nCliente: ${who}${lead.phone ? ` (+${lead.phone})` : ''}\nInteresse: ${lead.interest || '-'}\nMotivo da espera: ${lead.followUpReason || '-'}\n\nAbra o CRM em "Retornos" para retomar o atendimento.`;
+    if (store.settings.crm?.notifyFollowUps !== false && wa.status === 'connected') {
+      for (const u of targets) {
+        if (u.whatsapp) await wa.send(u.whatsapp, { text, typing: false }).catch(() => {});
+      }
+    }
+    store.addLog({ type: 'system', message: `📅 Retorno de hoje: ${who} (responsável: ${owner?.name || 'equipe'})` });
+    crm.markNotified(lead);
+    notify('crmDue', { id: lead.id });
+  }
+}
 
 wa.on('status', (state) => {
   notify('status', state);
@@ -129,6 +155,13 @@ wa.on('sent', ({ to, jid }) => {
 });
 wa.on('message', (msg) => {
   pending.onIncoming(msg);
+  if (!msg.isGroup) {
+    try {
+      crm.ensureFromConversation({ key: msg.jid, phone: msg.phone, name: msg.name, username: msg.username, channel: msg.channel || 'whatsapp' });
+    } catch (err) {
+      store.addLog({ type: 'error', message: `CRM: ${err.message}` });
+    }
+  }
   notify('message', msg);
   autoReply.handle(msg).catch((err) => store.addLog({ type: 'error', message: err.message }));
 });
@@ -180,6 +213,45 @@ if (PANEL_PASSWORD) {
 }
 
 app.use(express.static(path.join(ROOT, 'public')));
+
+// ---- Login (administrador e vendedores) ----
+app.get('/api/auth/state', (req, res) => {
+  res.json({ needsSetup: auth.needsSetup, user: publicUser(auth.fromRequest(req)) });
+});
+app.post('/api/auth/setup', (req, res) => {
+  if (!auth.needsSetup) throw httpError(403, 'O administrador já foi criado. Entre com login e senha.');
+  const user = auth.create({ ...req.body, role: 'admin' });
+  res.set('Set-Cookie', auth.sessionCookie(auth.get(user.id))).json(user);
+});
+app.post('/api/auth/login', (req, res) => {
+  const user = auth.login(req.body.login, req.body.password);
+  if (!user) throw httpError(401, 'Login ou senha incorretos');
+  store.addLog({ type: 'system', message: `🔑 ${user.name} entrou no painel` });
+  res.set('Set-Cookie', auth.sessionCookie(user)).json(publicUser(user));
+});
+app.post('/api/auth/logout', (_req, res) => {
+  res.set('Set-Cookie', auth.clearCookie()).json({ ok: true });
+});
+
+// O que um vendedor pode acessar (o resto é só do administrador).
+const SELLER_ROUTES = [
+  ['GET', /^\/(status|events|me|users|pending|agent\/status|instagram\/status|crm\/agenda|crm\/stats|crm\/stages)$/],
+  ['*', /^\/leads(\/|$)/],
+  ['GET', /^\/conversations(\/|$)/],
+  ['POST', /^\/conversations\/[^/]+\/(reply|handoff)$/],
+];
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/auth/')) return next();
+  const user = auth.fromRequest(req);
+  if (!user) return res.status(401).json({ error: auth.needsSetup ? 'Crie o administrador para começar' : 'Entre com seu login', login: true });
+  req.user = user;
+  if (user.role === 'admin') return next();
+  const ok = SELLER_ROUTES.some(([method, re]) => (method === '*' || method === req.method) && re.test(req.path));
+  if (!ok) return res.status(403).json({ error: 'Esta área é só do administrador' });
+  if (req.method === 'DELETE' && !req.path.startsWith('/leads')) return res.status(403).json({ error: 'Esta área é só do administrador' });
+  next();
+});
+app.get('/api/me', (req, res) => res.json(publicUser(req.user)));
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -600,6 +672,8 @@ app.post('/api/conversations/:key/reply', async (req, res) => {
   if (!text) throw httpError(400, 'Mensagem vazia');
   await wa.send(conv.key, { text, typing: false });
   agent.remember(conv, 'assistant', text);
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
+  if (lead && crm.canSee(req.user, lead)) crm.addNote(req.user, lead.id, `💬 Respondeu o cliente: "${text.slice(0, 200)}"`);
   store.addLog({ type: 'sent', phone: conv.phone || conv.key, message: text });
   res.json(conv);
 });
@@ -636,6 +710,72 @@ app.post('/api/update', async (_req, res) => {
     await wa.stop().catch(() => {});
     process.exit(RESTART_EXIT_CODE);
   }, 1500);
+});
+
+// Equipe (usuários)
+app.get('/api/users', (req, res) => {
+  const list = auth.list();
+  res.json(req.user.role === 'admin' ? list : list.filter((u) => u.active).map(({ id, name }) => ({ id, name })));
+});
+app.post('/api/users', (req, res) => res.json(auth.create(req.body)));
+app.patch('/api/users/:id', (req, res) => res.json(auth.update(req.params.id, req.body)));
+app.post('/api/users/:id/transfer', (req, res) => res.json(crm.transfer(req.user, req.params.id, req.body.toId || null)));
+
+// CRM: prospectos
+app.get('/api/crm/stages', (_req, res) => res.json({ stages: STAGES, packages: store.settings.crm?.packages || [] }));
+app.get('/api/leads', (req, res) => res.json(crm.list(req.user, req.query)));
+app.post('/api/leads', (req, res) => res.json(crm.create(req.user, req.body)));
+app.post('/api/leads/from-conversation', (req, res) => {
+  const conv = agent.conversation(String(req.body.key || ''), { create: false });
+  if (!conv) throw httpError(404, 'Conversa não encontrada');
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone }) ||
+    crm.leads.find((l) => l.id === crm.create(req.user, {
+      name: conv.name,
+      phone: conv.phone,
+      source: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp',
+      conversationKey: conv.key,
+    }).id);
+  lead.conversationKey ||= conv.key;
+  store.save();
+  crmAi.afterReply(conv, { force: true }).catch(() => {});
+  res.json(crm.get(req.user, lead.id));
+});
+app.get('/api/leads/:id', (req, res) => {
+  const lead = crm.get(req.user, req.params.id);
+  const conv = lead.conversationKey ? agent.conversation(lead.conversationKey, { create: false }) : null;
+  res.json({ ...lead, conversation: conv ? conv.messages.slice(-40) : [] });
+});
+app.patch('/api/leads/:id', (req, res) => res.json(crm.update(req.user, req.params.id, req.body)));
+app.post('/api/leads/:id/notes', (req, res) => res.json(crm.addNote(req.user, req.params.id, req.body.text)));
+app.post('/api/leads/:id/followup', (req, res) => res.json(crm.followUp(req.user, req.params.id, req.body)));
+app.post('/api/leads/:id/assign', (req, res) => res.json(crm.assign(req.user, req.params.id, req.body.ownerId)));
+app.post('/api/leads/:id/ai', async (req, res) => {
+  const lead = crm.get(req.user, req.params.id);
+  const conv = lead.conversationKey ? agent.conversation(lead.conversationKey, { create: false }) : null;
+  if (!conv) throw httpError(400, 'Este prospecto não tem conversa ligada');
+  const info = await crmAi.afterReply(conv, { force: true });
+  res.json({ info, lead: crm.get(req.user, lead.id) });
+});
+app.delete('/api/leads/:id', (req, res) => {
+  crm.remove(req.user, req.params.id);
+  res.json({ ok: true });
+});
+
+// CRM: retornos e números
+app.get('/api/crm/agenda', (req, res) => res.json(crm.agenda(req.user)));
+app.get('/api/crm/stats', (req, res) => {
+  const ownerId = req.user.role === 'admin' ? req.query.owner || undefined : req.user.id;
+  res.json(crm.stats({ from: req.query.from, to: req.query.to, ownerId }));
+});
+app.get('/api/crm/insights', (_req, res) => res.json(store.data.crmInsights || null));
+app.post('/api/crm/insights', async (req, res) => {
+  const stats = crm.stats({ from: req.body.from, to: req.body.to });
+  const today = toDateStr(new Date());
+  const stuck = crm.leads
+    .filter((l) => ['novo', 'em_contato', 'proposta'].includes(l.stage) && Date.now() - Date.parse(l.updatedAt) > 7 * 86_400_000)
+    .slice(0, 15)
+    .map((l) => ({ etapa: l.stage, interesse: l.interest, responsavel: crm.ownerName(l.ownerId) || 'sem responsável', parado_desde: l.updatedAt.slice(0, 10) }));
+  res.json(await crmAi.advise(stats, { ownerName: req.user.name, context: { hoje: today, prospectos_parados_ha_7_dias: stuck } }));
 });
 
 // Agenda
@@ -679,7 +819,7 @@ app.use((err, _req, res, _next) => {
   res.status(status).json({ error: err.message || 'Erro interno' });
 });
 
-export { app, store, wa, agent };
+export { app, store, wa, agent, crm, auth };
 
 const isLoopback = ['127.0.0.1', 'localhost', '::1'].includes(HOST);
 if (process.env.NODE_ENV === 'production' && !isLoopback && !PANEL_PASSWORD) {
@@ -703,6 +843,9 @@ if (process.env.NODE_ENV !== 'test') {
   wa.start().catch((err) => console.error('Erro ao iniciar o WhatsApp:', err));
   instagram.start().catch((err) => console.error('Erro ao iniciar o Instagram:', err));
   scheduler.start();
+  // Retornos agendados: confere a cada 10 minutos.
+  setInterval(() => notifyFollowUps().catch((err) => store.addLog({ type: 'error', message: `Retornos: ${err.message}` })), 10 * 60_000).unref();
+  setTimeout(() => notifyFollowUps().catch(() => {}), 60_000).unref();
 
   const shutdown = async () => {
     scheduler.stop();
