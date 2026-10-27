@@ -41,4 +41,12 @@ echo "  Tudo pronto! O painel vai abrir no navegador."
 echo "  NÃO FECHE esta janela enquanto estiver usando o agente."
 echo "  Para desligar, feche esta janela."
 echo ""
-OPEN_BROWSER=1 node src/server.js
+export OPEN_BROWSER=1
+while true; do
+  node src/server.js
+  # Código 3 = o painel acabou de se atualizar: abre de novo sozinho.
+  if [ $? -ne 3 ]; then break; fi
+  unset OPEN_BROWSER
+  echo ""
+  echo "  Atualizado! Reabrindo o agente..."
+done

@@ -18,6 +18,7 @@ import { CampaignRunner } from './campaigns.js';
 import { AutoReply } from './autoreply.js';
 import { Scheduler } from './scheduler.js';
 import { PendingInbox } from './pending.js';
+import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { LLMClient } from './agent/llm.js';
 import { createCalendar, toDateStr } from './agent/calendar.js';
 import { Agent, STRESS_TESTS } from './agent/agent.js';
@@ -620,6 +621,21 @@ app.post('/api/pending/cancel', (_req, res) => {
 app.post('/api/pending/dismiss', (req, res) => {
   pending.dismiss(req.body.jids || []);
   res.json(pending.status());
+});
+
+// Atualização do programa
+const updater = new Updater({ root: ROOT, dataDir: DATA_DIR });
+app.get('/api/update/check', async (_req, res) => res.json(await updater.check()));
+app.post('/api/update', async (_req, res) => {
+  const result = await updater.update();
+  store.addLog({ type: 'system', message: `⬆️ Agente atualizado: ${result.version.message || result.version.sha.slice(0, 7)}. Reiniciando…` });
+  res.json(result);
+  // Reinicia para carregar o código novo (os atalhos INICIAR reabrem sozinhos).
+  setTimeout(async () => {
+    store.flush();
+    await wa.stop().catch(() => {});
+    process.exit(RESTART_EXIT_CODE);
+  }, 1500);
 });
 
 // Agenda

@@ -47,6 +47,14 @@ echo  NAO FECHE esta janela enquanto estiver usando o agente.
 echo  Para desligar, feche esta janela.
 echo.
 set OPEN_BROWSER=1
+:rodar
 node src/server.js
+rem Codigo 3 = o painel acabou de se atualizar: abre de novo sozinho.
+if %errorlevel%==3 (
+  set OPEN_BROWSER=
+  echo.
+  echo  Atualizado! Reabrindo o agente...
+  goto rodar
+)
 echo.
 pause

@@ -1096,6 +1096,35 @@ $('#formAppt').addEventListener('submit', withBusy($('#formAppt'), async (e) => 
   loaders.agenda();
 }));
 
+// ---------- Atualização ----------
+$('#btnUpdateCheck').addEventListener('click', async () => {
+  $('#updateStatus').textContent = 'Verificando…';
+  try {
+    const r = await api('/api/update/check');
+    const when = r.latest.date ? new Date(r.latest.date).toLocaleString('pt-BR') : '';
+    $('#updateStatus').textContent = r.updateAvailable
+      ? `Há uma versão nova (${when}): ${r.latest.message}`
+      : `Você já está com a versão mais nova (${when}).`;
+  } catch (err) {
+    $('#updateStatus').textContent = `Não foi possível verificar: ${err.message}`;
+  }
+});
+$('#btnUpdateNow').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  $('#updateStatus').textContent = 'Baixando e instalando… (pode levar até 1 minuto)';
+  try {
+    await api('/api/update', { method: 'POST' });
+    $('#updateStatus').textContent = '✅ Atualizado! Reiniciando… a página recarrega sozinha.';
+    // Espera o programa voltar e recarrega a página.
+    setTimeout(function wait() {
+      fetch('/api/status').then((r) => (r.ok ? location.reload() : setTimeout(wait, 1500))).catch(() => setTimeout(wait, 1500));
+    }, 4000);
+  } catch (err) {
+    $('#updateStatus').textContent = `Falha na atualização: ${err.message}`;
+    e.target.disabled = false;
+  }
+});
+
 // ---------- Tempo real ----------
 function connectEvents() {
   const es = new EventSource('/api/events');
