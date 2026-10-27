@@ -131,19 +131,21 @@ export class CloudApiClient extends EventEmitter {
           };
           out.push(msg);
           this.emit('message', msg);
-          this.markRead(m.id).catch(() => {});
         }
       }
     }
     return out;
   }
 
-  async markRead(messageId) {
+  /** Marca como lida (chamado pelo agente no momento em que "lê" a mensagem). */
+  async markRead(_jid, ids = []) {
     if (this.status !== 'connected') return;
-    await this.#graph(`${this.baseUrl}/messages`, {
-      method: 'POST',
-      body: { messaging_product: 'whatsapp', status: 'read', message_id: messageId },
-    });
+    for (const id of ids.filter(Boolean)) {
+      await this.#graph(`${this.baseUrl}/messages`, {
+        method: 'POST',
+        body: { messaging_product: 'whatsapp', status: 'read', message_id: id },
+      }).catch(() => {});
+    }
   }
 
   // ---------- Envio ----------
@@ -168,9 +170,10 @@ export class CloudApiClient extends EventEmitter {
     return data.id;
   }
 
-  async send(to, { text = '', media = null } = {}) {
+  async send(to, { text = '', media = null, typingMs = 0 } = {}) {
     if (this.status !== 'connected') throw new Error('API oficial da Meta não está conectada');
     const phone = await this.resolveJid(to);
+    if (typingMs > 0) await new Promise((r) => setTimeout(r, typingMs)); // ritmo humano
     let body;
     if (media?.path) {
       const id = await this.#uploadMedia(media);

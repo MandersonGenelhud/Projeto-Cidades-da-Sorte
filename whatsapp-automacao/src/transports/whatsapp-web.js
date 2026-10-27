@@ -215,11 +215,11 @@ export class WhatsAppClient extends EventEmitter {
   }
 
   /** Mostra "digitando..." por um tempo proporcional ao tamanho do texto. */
-  async #simulateTyping(jid, text) {
+  async #simulateTyping(jid, text, typingMs) {
     try {
       await this.sock.presenceSubscribe(jid);
       await this.sock.sendPresenceUpdate('composing', jid);
-      const ms = Math.min(6000, 800 + (text?.length || 0) * randomBetween(25, 45));
+      const ms = typingMs ?? Math.min(6000, 800 + (text?.length || 0) * randomBetween(25, 45));
       await sleep(ms);
       await this.sock.sendPresenceUpdate('paused', jid);
     } catch {
@@ -230,10 +230,21 @@ export class WhatsAppClient extends EventEmitter {
   /**
    * Envia uma mensagem. `media` é opcional: { path, mimetype, fileName }.
    */
-  async send(to, { text = '', media = null, typing = true } = {}) {
+  /** Marca as mensagens do cliente como lidas (os dois tracinhos azuis). */
+  async markRead(jid, ids = []) {
+    if (!this.sock || this.status !== 'connected' || !ids.length) return;
+    try {
+      await this.sock.readMessages(ids.filter(Boolean).map((id) => ({ remoteJid: jid, id, fromMe: false })));
+    } catch {
+      /* confirmação de leitura é opcional */
+    }
+  }
+
+  /** `typingMs` define quanto tempo aparece "digitando…" (senão, calcula pelo tamanho do texto). */
+  async send(to, { text = '', media = null, typing = true, typingMs } = {}) {
     this.#ensureConnected();
     const jid = await this.resolveJid(to);
-    if (typing) await this.#simulateTyping(jid, text);
+    if (typing && typingMs !== 0) await this.#simulateTyping(jid, text, typingMs);
 
     let content;
     if (media?.path) {

@@ -58,6 +58,16 @@ export class ConnectionManager extends EventEmitter {
     return result;
   }
 
+  /** Marca mensagens como lidas no canal da conversa (erros são ignorados). */
+  async markRead(to, ids) {
+    const client = String(to).startsWith(IG_PREFIX) ? this.instagram : this.current;
+    try {
+      await client?.markRead?.(to, ids);
+    } catch {
+      /* opcional */
+    }
+  }
+
   async requestPairingCode(phone) {
     if (this.mode !== 'qr') throw new Error('A conexão por código só existe no modo QR Code');
     return this.clients.qr.requestPairingCode(phone);

@@ -222,6 +222,12 @@
               <label>Como se apresenta <input name="roleLabel" placeholder="assistente virtual" /></label>
             </div>
             <label>Instruções / tom de voz <textarea name="instructions" rows="7"></textarea></label>
+            <label class="check"><input type="checkbox" name="humanizeEnabled" /> <b>Responder no ritmo de uma pessoa</b></label>
+            <p class="hint">Espera um pouco para "ver" a mensagem, marca como lida, mostra "digitando…" pelo tempo que alguém levaria e divide a resposta em mensagens curtas.</p>
+            <div class="row">
+              <label>Espera mínima para ver (s) <input type="number" min="0" max="300" name="noticeMin" /></label>
+              <label>Espera máxima para ver (s) <input type="number" min="0" max="600" name="noticeMax" /></label>
+            </div>
             <button type="button" class="btn small" id="btnShowPrompt">👁️ Ver prompt completo</button>
           </div>
         </div>

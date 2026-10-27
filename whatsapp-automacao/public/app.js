@@ -728,6 +728,9 @@ loaders.agent = async () => {
   f.enabled.checked = a.enabled;
   f.rulesFirst.checked = a.rulesFirst;
   f.pauseOnOwnerReply.checked = a.pauseOnOwnerReply !== false;
+  f.humanizeEnabled.checked = a.humanize?.enabled !== false;
+  f.noticeMin.value = a.humanize?.noticeMin ?? 5;
+  f.noticeMax.value = a.humanize?.noticeMax ?? 20;
   for (const k of ['apiKey', 'model', 'geminiKey', 'geminiModel', 'temperature', 'memoryMessages', 'agentName', 'roleLabel', 'instructions', 'handoffNotifyPhone']) f[k].value = a[k] ?? '';
   f.provider.value = a.provider === 'openrouter' ? 'openrouter' : 'gemini';
   f.provider.dispatchEvent(new Event('change'));
@@ -766,6 +769,11 @@ $('#formAgent').addEventListener('submit', withBusy($('#formAgent'), async (e) =
         testNumbers: f.testNumbers.value.split('\n').map((n) => n.trim()).filter(Boolean),
         handoffNotifyPhone: f.handoffNotifyPhone.value.trim(),
         pauseOnOwnerReply: f.pauseOnOwnerReply.checked,
+        humanize: {
+          enabled: f.humanizeEnabled.checked,
+          noticeMin: Math.max(0, Number(f.noticeMin.value || 0)),
+          noticeMax: Math.max(Number(f.noticeMin.value || 0), Number(f.noticeMax.value || 0)),
+        },
       },
       business,
     },

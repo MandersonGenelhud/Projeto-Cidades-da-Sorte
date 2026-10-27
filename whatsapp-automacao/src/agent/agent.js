@@ -1,14 +1,18 @@
 // Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age.
 import { buildSystemPrompt, canSchedule } from './prompt.js';
 import { TOOL_DEFINITIONS, runTool } from './tools.js';
+import { humanizeConfig, noticeDelayMs, readingTimeMs, splitIntoBubbles, typingTimeMs } from '../humanize.js';
+import { sleep } from '../utils.js';
 
 const MAX_STORED_MESSAGES = 200;
 const MAX_TOOL_ROUNDS = 6;
+const randomPause = () => 600 + Math.floor(Math.random() * 1400); // entre uma mensagem e outra
 const FALLBACK_REPLY = 'Desculpe, tive um probleminha aqui. 😅 Pode repetir, por favor? Se preferir, peça para falar com um atendente.';
 
 export class Agent {
-  constructor({ store, llm, calendar, notify, notifyTeam, now = () => new Date() }) {
+  constructor({ store, llm, calendar, notify, notifyTeam, now = () => new Date(), wait = sleep }) {
     this.store = store;
+    this.wait = wait; // espera (trocada nos testes para não demorar)
     this.notifyTeam = notifyTeam || (async () => {}); // (texto) => envia aviso no WhatsApp da equipe
     this.llm = llm;
     this.calendar = calendar;
@@ -154,13 +158,22 @@ export class Agent {
    * (enquanto a IA pensa) são agrupadas numa só resposta.
    * `send(text)` envia a resposta ao cliente.
    */
-  handleIncoming({ key, phone, name, text, delayed = false }, send) {
+  /**
+   * Processa uma mensagem recebida, no ritmo de uma pessoa: percebe a mensagem,
+   * espera o cliente terminar de escrever, lê, digita e responde em mensagens curtas.
+   * Mensagens que chegam em sequência são respondidas juntas.
+   * `send(text, { typingMs })` envia ao cliente; `hooks.markRead(ids)` marca como lida.
+   */
+  handleIncoming({ key, phone, name, text, id = null, delayed = false }, send, hooks = {}) {
     let q = this.queues.get(key);
     if (!q) {
-      q = { pending: [], running: false, delayed: false };
+      q = { pending: [], ids: [], running: false, delayed: false, lastAt: 0, hooks: {} };
       this.queues.set(key, q);
     }
     q.pending.push(text);
+    if (id) q.ids.push(id);
+    q.lastAt = Date.now();
+    q.hooks = hooks;
     if (delayed) q.delayed = true;
     if (!q.running) {
       q.running = true;
@@ -171,19 +184,40 @@ export class Agent {
     return Promise.resolve(null);
   }
 
+  /** Espera "ver" a mensagem e o cliente parar de escrever (máximo de alguns segundos). */
+  async #waitLikeHuman(q, h) {
+    const start = Date.now();
+    await this.wait(noticeDelayMs(h));
+    while (Date.now() - q.lastAt < h.quietSeconds * 1000 && Date.now() - start < h.maxWaitSeconds * 1000) {
+      await this.wait(1000);
+    }
+  }
+
   async #drain(key, q, { phone, name }, send) {
     let last = null;
     while (q.pending.length) {
+      const h = humanizeConfig(this.config.humanize);
+      const human = h.enabled !== false;
+      // Na fila de pendentes já existe intervalo entre clientes: não precisa "perceber".
+      if (human && !q.delayed) await this.#waitLikeHuman(q, h);
+
       const texts = q.pending.splice(0);
+      const ids = q.ids.splice(0);
       const conv = this.conversation(key);
       conv.phone = phone || conv.phone;
       if (name) conv.name = name;
       this.remember(conv, 'user', texts.join('\n'));
       if (conv.handoff) continue; // um humano está atendendo
 
+      if (human) {
+        await q.hooks.markRead?.(ids);
+        await this.wait(readingTimeMs(texts.join('\n')));
+      }
+
       let result;
       const delayed = q.delayed;
       q.delayed = false;
+      const thinkStart = Date.now();
       try {
         result = await this.think(conv, { delayed });
       } catch (err) {
@@ -200,8 +234,16 @@ export class Agent {
       }
       // Se chegaram mais mensagens enquanto a IA pensava, responde tudo junto.
       if (q.pending.length) continue;
-      this.remember(conv, 'assistant', result.text);
-      await send(result.text);
+
+      const bubbles = human && h.splitMessages ? splitIntoBubbles(result.text) : [result.text];
+      this.remember(conv, 'assistant', bubbles.join('\n\n'));
+      const thinking = Date.now() - thinkStart;
+      for (const [i, bubble] of bubbles.entries()) {
+        // O tempo que a IA levou pensando já conta como parte da digitação.
+        const typingMs = human ? Math.max(1200, typingTimeMs(bubble, h) - (i === 0 ? thinking : 0)) : undefined;
+        await send(bubble, { typingMs });
+        if (human && i < bubbles.length - 1) await this.wait(randomPause());
+      }
       last = result;
     }
     return last;

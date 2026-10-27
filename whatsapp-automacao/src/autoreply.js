@@ -177,15 +177,16 @@ export class AutoReply {
 
     if (decision.kind === 'agent') {
       await this.agent.handleIncoming(
-        { key: msg.jid, phone: msg.phone, name: msg.name, text: msg.text },
-        async (text) => {
+        { key: msg.jid, phone: msg.phone, name: msg.name, text: msg.text, id: msg.id },
+        async (text, { typingMs } = {}) => {
           try {
-            await this.wa.send(msg.jid, { text });
+            await this.wa.send(msg.jid, { text, typingMs });
             this.store.addLog({ type: 'autoreply', phone: msg.phone || msg.jid, message: text, rule: 'Agente IA' });
           } catch (err) {
             this.store.addLog({ type: 'error', phone: msg.phone || msg.jid, message: `Agente IA: ${err.message}` });
           }
         },
+        { markRead: (ids) => this.wa.markRead?.(msg.jid, ids)?.catch?.(() => {}) },
       );
       return;
     }

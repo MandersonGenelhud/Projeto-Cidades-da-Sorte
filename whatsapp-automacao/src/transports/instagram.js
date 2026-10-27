@@ -189,10 +189,28 @@ export class InstagramClient extends EventEmitter {
   }
 
   // ---------- Envio ----------
-  async send(to, { text = '' } = {}) {
+  async #senderAction(igsid, action) {
+    try {
+      await this.#graph(`/${this.me.id}/messages`, { method: 'POST', body: { recipient: { id: igsid }, sender_action: action } });
+    } catch {
+      /* indicadores são opcionais */
+    }
+  }
+
+  /** Marca a conversa como vista (chamado quando o agente "lê" a mensagem). */
+  async markRead(to) {
+    if (this.status !== 'connected') return;
+    await this.#senderAction(String(to).replace(IG_PREFIX, ''), 'mark_seen');
+  }
+
+  async send(to, { text = '', typingMs = 0 } = {}) {
     if (this.status !== 'connected') throw new Error('Instagram não está conectado');
     const igsid = String(to).replace(IG_PREFIX, '');
     if (!text) throw new Error('Mensagem vazia (no Instagram o agente envia só texto)');
+    if (typingMs > 0) {
+      await this.#senderAction(igsid, 'typing_on');
+      await new Promise((r) => setTimeout(r, typingMs));
+    }
     let last;
     for (const part of splitForInstagram(text)) {
       this.recentSends.push({ to: igsid, text: part, at: Date.now() });

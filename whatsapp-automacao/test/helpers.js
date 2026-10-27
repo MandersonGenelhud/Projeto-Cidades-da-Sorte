@@ -6,7 +6,10 @@ import { Store } from '../src/store.js';
 
 export function tempStore() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-test-'));
-  return new Store(dir);
+  const store = new Store(dir);
+  // Nos testes o agente responde na hora (o ritmo humano tem testes próprios).
+  store.updateSettings({ agent: { humanize: { enabled: false } } });
+  return store;
 }
 
 /** WhatsApp falso que só registra as mensagens enviadas. */

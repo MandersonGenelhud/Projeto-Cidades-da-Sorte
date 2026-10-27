@@ -168,9 +168,9 @@ export class PendingInbox {
         if (p && (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected')) {
           await this.agent.handleIncoming(
             { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true },
-            async (text) => {
+            async (text, { typingMs } = {}) => {
               try {
-                await this.wa.send(jid, { text });
+                await this.wa.send(jid, { text, typingMs });
                 this.store.addLog({ type: 'autoreply', phone: p.phone || jid, message: text, rule: 'Agente IA (pendente)' });
               } catch (err) {
                 this.store.addLog({ type: 'error', phone: p.phone || jid, message: `Pendente: ${err.message}` });
