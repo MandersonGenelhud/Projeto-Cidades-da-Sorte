@@ -156,7 +156,10 @@ test('perfil padrão é a Migra Paraguai: sem agenda, sem notas internas, com tr
   assert.match(p, /Migra Paraguai/);
   assert.match(p, /assistente virtual/);
   assert.match(p, /Pré-qualificação/);
-  assert.match(p, /Nunca peça por mensagem foto de RG/);
+  assert.match(p, /Pacote Ouro: R\$ 12\.997,00/);
+  assert.match(p, /R\$ 1\.000,00 de entrada/);
+  assert.match(p, /90 a 120 dias úteis/);
+  assert.match(p, /Nunca peça CPF/);
   assert.doesNotMatch(p, /consultar_horarios_disponiveis/); // agenda desligada
   assert.doesNotMatch(p, /NOTAS PARA APROVAÇÃO|preços de referência para seis pacotes|Meta Business Agent/);
   assert.equal(store.settings.agenda.enabled, false);
@@ -218,4 +221,33 @@ test('modo de teste: só os números de teste falam com o agente', async () => {
 
   store.updateSettings({ agent: { audience: 'all' } });
   assert.ok(bot.agentAllowed({ phone: '5511911112222' }));
+});
+
+test('instalação com a base antiga da Migra recebe a base nova sozinha, sem perder os ajustes', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { Store } = await import('../src/store.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-upg-'));
+  fs.writeFileSync(path.join(dir, 'db.json'), JSON.stringify({
+    settings: {
+      business: { name: 'Migra Paraguai', prices: 'Não informe valores.' },
+      agent: { geminiKey: 'AQ.minha-chave', testNumbers: ['11 98765-4321'], instructions: 'antiga' },
+    },
+  }));
+  const store = new Store(dir);
+  assert.equal(store.upgradedPreset, 'migra-paraguai');
+  assert.match(store.settings.business.prices, /R\$ 10\.997,00/);
+  assert.equal(store.settings.agent.geminiKey, 'AQ.minha-chave');
+  assert.deepEqual(store.settings.agent.testNumbers, ['11 98765-4321']);
+  assert.match(store.settings.agent.instructions, /valores da tabela/);
+  // Na próxima vez não aplica de novo (respeita edições feitas depois)
+  store.updateSettings({ business: { prices: 'editado pelo dono' } });
+  store.flush();
+  assert.equal(new Store(dir).settings.business.prices, 'editado pelo dono');
+});
+
+test('outro negócio não é tocado pela atualização da Migra', async () => {
+  const { presetUpgrade } = await import('../src/agent/presets.js');
+  assert.equal(presetUpgrade({ business: { name: 'Clínica Sorriso' } }), null);
 });

@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { DEFAULT_PRESET, presetSettings } from './agent/presets.js';
+import { DEFAULT_PRESET, presetSettings, presetUpgrade } from './agent/presets.js';
 
 const PRESET = presetSettings(DEFAULT_PRESET);
 
@@ -106,6 +106,13 @@ export class Store extends EventEmitter {
     fs.mkdirSync(dataDir, { recursive: true });
     this.data = this.#load();
     this.saveTimer = null;
+    // Base de conhecimento do perfil atualizada? Aplica sozinho, mantendo os ajustes do usuário.
+    const upgrade = presetUpgrade(this.data.settings);
+    if (upgrade) {
+      this.data.settings = deepMerge(this.data.settings, upgrade.patch);
+      this.upgradedPreset = upgrade.id;
+      this.flush();
+    }
   }
 
   #load() {

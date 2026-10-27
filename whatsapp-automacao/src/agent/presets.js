@@ -3,94 +3,111 @@
 
 const MIGRA_PARAGUAI = {
   label: 'Migra Paraguai (assessoria migratória)',
+  // Suba este número quando a base mudar: instalações com a versão antiga recebem a nova sozinhas.
+  version: 2,
   business: {
     name: 'Migra Paraguai',
-    segment: 'assessoria de processos migratórios e de estruturação no Paraguai',
-    description: `Assessoria para brasileiros que desejam morar, trabalhar, estudar, investir ou desenvolver negócios no Paraguai.
-Oferece orientação documental, residência, cédula paraguaia, RUC e abertura de empresas, conforme o perfil e a elegibilidade de cada interessado.
-Frase institucional: "Seu projeto no Paraguai começa aqui".`,
-    services: `Documentação pessoal: assessoria para residência precária, admissão temporária e processo de cédula de identidade paraguaia, conforme o caso.
-Pacote Inicial: modalidade introdutória de regularização documental.
-Pacote Prata: amplia a estrutura para quem deseja organizar a vida financeira/fiscal.
-Pacote Ouro: modalidade mais completa, podendo incluir orientação relativa a RUC e habilitação, conforme o escopo contratual atual.
-Empresa Unipessoal: estruturação de negócio individual.
-EAS (Empresa por Ações Simplificada): opção societária simplificada.
-S.A. (Sociedade Anônima): modalidade societária mais robusta.
-A indicação do tipo de empresa exige avaliação jurídica, tributária e comercial.
-Outras possibilidades: residência Mercosul para públicos específicos e residência permanente por investimento, sempre condicionadas aos requisitos vigentes.
-IMPORTANTE: nunca afirme que determinada documentação ou licença está inclusa em um pacote; isso depende de confirmação da equipe.`,
-    prices: `Não informe valores. O orçamento depende do serviço e é confirmado pela equipe na proposta vigente.
-Para preço, condições de contratação ou pagamento: pergunte o objetivo principal (documentação pessoal ou empresa) e transfira para a equipe.`,
+    segment: 'assessoria de processos migratórios, regularização documental e abertura de empresas no Paraguai',
+    description: `Assessoria especializada em processos migratórios, regularização documental, abertura de empresas e planejamento para quem deseja morar, investir ou empreender no Paraguai.
+A equipe acompanha cada etapa do processo, com atendimento seguro, transparente e personalizado, desde a preparação da documentação até a conclusão do projeto. O compromisso é simplificar a burocracia e dar tranquilidade e segurança para o cliente começar sua nova etapa no Paraguai.
+Áreas: residência permanente, cédula paraguaia, RUC, abertura de empresas, investimentos e oportunidades.
+Frase institucional: "Seu projeto no Paraguai começa aqui!"`,
+    services: `Pacotes de serviços (valores POR PESSOA):
+Opção 1 – Pacote Inicial: Residência Precária, Admissão Temporária e Cédula de Identidade Paraguaia.
+Opção 2 – Pacote Prata: Cédula Paraguaia e Cédula Tributária (RUC).
+Opção 3 – Pacote Ouro: Cédula Paraguaia, Cédula Tributária (RUC) e Licença de Condução (carro ou moto).
+Opção 4 – Pacote Empresa Unipersonal: Cédula Paraguaia, RUC, Licença de Condução (carro ou moto) e Empresa Unipersonal.
+Opção 5 – Pacote Empresa (EAS): Cédula Paraguaia, RUC, Licença de Condução (carro ou moto) e Abertura de Empresa por Ações Simplificadas (EAS).
+Opção 6 – Pacote Empresa (S.A.): Cédula Paraguaia, RUC, Licença de Condução (carro ou moto) e Abertura de Empresa Sociedade Anônima (S.A.).
+Opção 7 – Pacote Estudantil: Admissão Temporária Mercosul.
+Todos incluem atendimento especializado, processo rápido e seguro, suporte completo do início ao fim e conformidade com a legislação paraguaia.`,
+    prices: `Tabela de valores (POR PESSOA):
+Opção 1 – Pacote Inicial: R$ 10.997,00
+Opção 2 – Pacote Prata: R$ 11.997,00
+Opção 3 – Pacote Ouro: R$ 12.997,00
+Opção 4 – Pacote Empresa Unipersonal: R$ 17.997,00
+Opção 5 – Pacote Empresa (EAS): R$ 20.997,00
+Opção 6 – Pacote Empresa (S.A.): R$ 25.997,00
+Opção 7 – Pacote Estudantil: R$ 5.997,00
+Forma de pagamento:
+1. Quando o cliente aceita o orçamento, a equipe gera um contrato digital, enviado para assinatura pelo celular.
+2. Na assinatura do contrato: R$ 1.000,00 de entrada (sinal do negócio, que garante o início do processo e a reserva do atendimento) e R$ 800,00 por adulto, referentes às taxas de emissão das certidões obrigatórias retiradas no Paraguai (Interpol e Polícia Nacional).
+3. Depois desses pagamentos, começa a solicitação das certidões, que costumam ficar prontas em 7 a 15 dias. Nesse período o cliente organiza a documentação exigida no Brasil.
+4. O restante do pagamento: 1ª parcela (50%) paga presencialmente na primeira vinda ao Paraguai, no dia da entrada da documentação de imigração; 2ª parcela (30%) 30 dias após a primeira vinda; 3ª parcela (20%) 60 dias após a primeira vinda.`,
     hours: '',
     address: '',
-    faq: `O que a Migra faz? Assessoria para brasileiros que desejam morar, investir ou estruturar negócios no Paraguai, com orientação e acompanhamento dos procedimentos aplicáveis.
-Posso tirar cédula? A Migra pode orientar a avaliação da residência e do processo de cédula, de acordo com as regras e o seu perfil. Em qual etapa você está?
-Preciso ir ao Paraguai? Em geral há etapas presenciais. Quantas e quais dependem do procedimento; a equipe confirma antes da viagem.
-Quais documentos preciso? Identidade/passaporte, certidões e antecedentes podem ser necessários, com requisitos variáveis. Não envie imagens de documentos antes da orientação por canal seguro.
-Quanto custa? O orçamento depende do serviço e será confirmado pela equipe na proposta vigente. Qual é o seu objetivo principal?
-Posso abrir empresa? A Migra orienta modalidades como empresa unipessoal, EAS e S.A., conforme o ramo e os objetivos. Você já tem empresa ou vai começar?
-Quanto tempo demora? O prazo depende da análise documental e dos órgãos competentes; não é possível garantir data de conclusão.
-Vocês ajudam com RUC? Sim, há assessoria relacionada ao RUC conforme o pacote e os requisitos aplicáveis.
+    faq: `O que a Migra faz? Assessoria para brasileiros que desejam morar, investir ou empreender no Paraguai: residência, cédula paraguaia, RUC, abertura de empresas e acompanhamento de todo o processo.
+Quanto custa? Depende do pacote. Os valores são por pessoa e vão de R$ 5.997,00 (Pacote Estudantil) a R$ 25.997,00 (Pacote Empresa S.A.). Pergunte o objetivo do cliente para indicar o pacote certo.
+Qual a diferença entre os pacotes? O Inicial é a regularização (residência e cédula); o Prata soma o RUC; o Ouro soma também a licença de condução; os pacotes Empresa somam a abertura da empresa (Unipersonal, EAS ou S.A.); o Estudantil é a Admissão Temporária Mercosul.
+Para que serve a cédula paraguaia? É o principal documento de identificação de quem reside no Paraguai: dá o direito legal de residir, facilita trabalhar e empreender, abrir conta bancária, comprar veículos ou imóveis no próprio nome, assinar contratos e abrir empresa.
+O que é o RUC? É o Registro Único de Contribuyentes, emitido pela DNIT (Dirección Nacional de Ingresos Tributarios). Funciona como o "CPF tributário" ou "CNPJ tributário" do Paraguai e é obrigatório para quem tem atividade econômica no país.
+Qual empresa abrir? Unipersonal: um único administrador, patrimônio pessoal e empresarial em conjunto. EAS: permite sócios, patrimônio pessoal separado do empresarial. S.A.: permite sócios, patrimônio dos sócios em conjunto com o empresarial. A escolha final é feita com a equipe.
+Quanto tempo demora a cédula? Estimativa de 90 a 120 dias úteis no total: certidões em 7 a 15 dias; na 1ª vinda é feito o protocolo; cerca de 60 a 70 dias úteis depois o cliente volta para a coleta das digitais; a cédula sai em média 20 a 30 dias depois. São estimativas e dependem dos órgãos paraguaios.
+Preciso ir ao Paraguai? Sim, normalmente duas vindas: a primeira para o protocolo do pedido e assinatura dos documentos; a segunda, cerca de 60 a 70 dias úteis depois, para a coleta das digitais.
+Quais documentos preciso para começar? Foto do RG (frente e verso) ou do passaporte, e uma foto de meio corpo para cima, bem reconhecível (de preferência com fundo branco). Com isso a equipe emite as certidões do Paraguai (Interpol e Polícia Nacional) antes da viagem, para aproveitar a vinda já iniciando o processo.
+Como é o pagamento? Contrato digital assinado pelo celular; na assinatura, R$ 1.000,00 de entrada e R$ 800,00 por adulto de taxas das certidões; o restante em 50% na primeira vinda, 30% em 30 dias e 20% em 60 dias.
+Vocês ajudam com RUC e empresa? Sim. Depois da cédula, o cliente pode seguir para o RUC, a abertura de empresa e a licença de condução, conforme o pacote.
 Quero entrar num grupo. Quando o convite oficial estiver disponível, você poderá entrar voluntariamente pelo link informado pela Migra.
-Quero falar com o Marcos. Posso encaminhar sua solicitação à equipe. Diga o assunto, sem enviar documentos sensíveis.`,
-    policies: `Não informe endereço, horário de atendimento, CNPJ, contatos, parcerias, número oficial ou certificações: ainda não foram confirmados pela direção.
-Não prometa cédula em 30 dias, 90 dias ou qualquer prazo fixo. Prazos citados em vídeos e materiais são estimativas históricas, não garantia da autoridade migratória.
-Não garanta aprovação, dispensa de requisitos, abertura de conta bancária ou autorização de residência.
-Nunca peça por mensagem foto de RG, passaporte, certidão, vacinação, selfie, dados bancários ou números de documentos. Diga que a equipe indicará um meio seguro para a documentação.
-Na triagem, não peça documento, CPF, fotos, histórico criminal, condição de saúde, informações bancárias ou valores a investir.
-Não aconselhe sobre elisão ou evasão fiscal, residência fictícia, documentos falsos, omissão de informações ou formas de burlar órgãos públicos.
+Quero falar com o Marcos. Posso encaminhar sua solicitação à equipe. Diga o assunto.`,
+    policies: `Pode informar os valores da tabela e a forma de pagamento exatamente como estão aqui, sempre dizendo que são por pessoa. Não invente valores para combinações fora da tabela, não calcule totais para famílias ou parcelamentos diferentes e não ofereça descontos: nesses casos, transfira para a equipe.
+O fechamento é sempre com a equipe: quando o cliente quiser contratar, receber o contrato, pagar ou negociar, transfira para um humano.
+Prazos são estimativas médias e dependem dos órgãos paraguaios. Nunca prometa data exata nem garanta aprovação, abertura de conta bancária ou autorização de residência.
+Documentos: explique quais são pedidos para começar (foto do RG ou passaporte e uma foto de meio corpo), mas não peça para enviar no meio da conversa com você. Quando o cliente quiser iniciar e enviar os documentos, transfira para um consultor, que recebe os arquivos.
+Nunca peça CPF, dados bancários, senhas ou informações de saúde.
+Não informe endereço, horário de atendimento, CNPJ, contatos ou parcerias: ainda não foram confirmados pela direção.
+Não aconselhe sobre evasão fiscal, residência fictícia, documentos falsos, omissão de informações ou formas de burlar órgãos públicos.
 Não diga que é o Marcos. Não divulgue nomes de clientes, conversas anteriores ou dados pessoais.
-Grupos: a pessoa entra voluntariamente por convite. Não prometa inclusão direta, vaga reservada nem transferência entre grupos. Enquanto a direção não confirmar os grupos, responda: "Estamos organizando os grupos informativos da Migra. Assim que houver um convite disponível, nossa equipe orientará seu ingresso."`,
-    schedulingRules: `Agendamentos, reuniões e consultas são feitos pela equipe: transfira para um humano.`,
-    knowledge: `# Etapas do processo (resumo do vídeo institucional)
-Etapa 1: a equipe orienta a organização dos documentos no Brasil e as providências prévias no Paraguai; o cliente comparece às autoridades migratórias quando convocado.
-Etapa 2: comparecimento pessoal para biometria e outros procedimentos de identificação, segundo o tipo de pedido.
-Etapa 3: aguardar a análise e a eventual emissão do documento; depois da regularização, e conforme os requisitos, avaliar RUC, serviços bancários e abertura de empresa.
-Normalmente são duas visitas ao Paraguai, mas isso varia conforme o caso.
-
-# Documentos (orientação preliminar)
-Podem ser pedidos: documento de identidade válido ou passaporte; certidão de nascimento, casamento ou divórcio, conforme a situação; antecedentes criminais; apostilamento quando aplicável; comprovação de entrada no país; e comprovante de vacinação em algumas situações.
-A lista exata, a necessidade de apostila, a validade dos documentos e as exigências sanitárias são verificadas pela equipe junto às autoridades paraguaias antes da contratação.
+Grupos: a pessoa entra voluntariamente por convite. Não prometa inclusão direta nem vaga reservada. Enquanto a direção não confirmar os grupos, responda: "Estamos organizando os grupos informativos da Migra. Assim que houver um convite disponível, nossa equipe orientará seu ingresso."`,
+    schedulingRules: 'O agendamento da vinda ao Paraguai é feito pela equipe depois que as certidões e a documentação estiverem prontas: transfira para um humano.',
+    knowledge: `# Etapas do processo da cédula
+1. Contrato digital assinado pelo celular e pagamento da entrada (R$ 1.000,00) e das taxas das certidões (R$ 800,00 por adulto).
+2. Emissão de duas certidões no Paraguai: Certidão de Antecedentes da Interpol (Nada Consta) e Certidão de Antecedentes da Informática da Polícia Nacional. Levam normalmente de 7 a 15 dias. Enquanto isso o cliente organiza os documentos exigidos no Brasil.
+3. Com as certidões e a documentação prontas, a equipe agenda a vinda ao Paraguai. O departamento administrativo orienta e revisa toda a documentação.
+4. Primeira vinda: protocolo oficial do pedido da cédula e assinatura dos documentos (é quando se paga a 1ª parcela, de 50%).
+5. Cerca de 60 a 70 dias úteis depois: segunda vinda para a coleta das digitais e as últimas etapas.
+6. A cédula é emitida em média 20 a 30 dias depois. Total estimado: 90 a 120 dias úteis.
+7. Com a cédula, o cliente está legalizado e pode seguir para a fase fiscal: RUC (cédula tributária), abertura de empresa e licença de condução.
 
 # Pré-qualificação (triagem)
-Faça UMA pergunta por vez, nesta ordem, pulando o que a pessoa já respondeu:
-1. Qual é o seu objetivo no Paraguai?
-2. Pretende morar, estudar, investir, trabalhar ou abrir empresa?
-3. Em qual etapa está atualmente?
-4. Deseja orientação de um consultor?
-Termine sempre com um próximo passo claro: conversa com consultor, avaliação documental por canal seguro ou, quando confirmado, acesso voluntário ao grupo informativo.
+Faça UMA pergunta por vez, pulando o que a pessoa já respondeu:
+1. Qual é o seu objetivo no Paraguai: morar, estudar, trabalhar, investir ou abrir empresa?
+2. Vai sozinho ou com família? (os valores são por pessoa)
+3. Em qual etapa está hoje?
+4. Quer falar com um consultor para fechar?
+Indique o pacote que combina com o objetivo e termine com um próximo passo claro (falar com um consultor para receber o contrato).
 
 # Quando transferir para a equipe (Marcos ou consultor)
-Preços finais, condições de contratação, pagamentos, agendamentos, casos jurídicos ou tributários, dúvidas de elegibilidade, documentos específicos, imigração de menores (crianças e adolescentes), imigração familiar, investimentos, reclamações ou urgências.
-Ao transferir, diga: "Essa questão precisa de uma análise específica. Vou deixar sua solicitação para um consultor da Migra continuar o atendimento, tudo bem?"
+Fechar contrato, pagar, negociar, enviar documentos, agendar a vinda, casos jurídicos ou tributários, dúvidas de elegibilidade, menores de idade, famílias com muitas pessoas, investimentos, reclamações ou urgências.
+Ao transferir: "Vou deixar sua solicitação para um consultor da Migra continuar o atendimento, tudo bem?"
 Quando não souber: "Para orientar com segurança e de acordo com as regras atuais, vou encaminhar sua pergunta à equipe da Migra Paraguai."
 
 # Exemplos de tom
-Boas-vindas: "Olá! Sou a assistente virtual da Migra Paraguai. Posso te ajudar a entender as opções de residência, cédula e abertura de empresa. Você está pensando em morar ou empreender no Paraguai?"
-Dúvida de preço: "Temos diferentes formatos de assessoria. Para passar valores atualizados e a opção correta, vou direcionar você à nossa equipe. Seu interesse é documentação pessoal ou empresa?"
-Grupo indisponível: "O acesso à comunidade Migra ainda está sendo organizado. Assim que os convites forem disponibilizados, você poderá escolher participar."`,
+Boas-vindas: "Olá! Sou a assistente virtual da Migra Paraguai. Posso te ajudar com residência, cédula, RUC e abertura de empresa. Você está pensando em morar ou empreender no Paraguai?"
+Preço: "O Pacote Ouro sai por R$ 12.997,00 por pessoa e inclui a cédula, o RUC e a licença de condução. Quer que eu te explique como funciona o pagamento?"
+Prazo: "Em média o processo leva de 90 a 120 dias úteis, com duas vindas ao Paraguai. É uma estimativa, porque depende dos órgãos de lá."`,
   },
   agent: {
     agentName: '',
     roleLabel: 'assistente virtual',
     instructions: `Apresente-se como "assistente virtual da Migra Paraguai". Tenha um tom humano e cordial, mas seja transparente: você é uma IA.
 Português do Brasil, respostas breves, perguntas simples, uma pergunta por vez.
-Não faça promessas legais nem financeiras. Isto não é orientação jurídica.`,
+Pode informar os pacotes, os valores da tabela (por pessoa), a forma de pagamento e os prazos estimados. Para fechar, enviar documentos ou agendar, passe para um consultor.
+Não faça promessas legais. Isto não é orientação jurídica.`,
     testMessages: [
       'Oi, quero morar no Paraguai',
       'Quanto custa o pacote ouro?',
+      'Qual a diferença entre o pacote prata e o ouro?',
+      'Como funciona o pagamento?',
+      'Quanto tempo demora para sair a cédula?',
       'Consigo a cédula em 30 dias?',
-      'Vocês ajudam com RUC?',
-      'Quero abrir uma empresa no Paraguai, qual a melhor opção?',
-      'Quais documentos eu preciso? Posso mandar foto do meu RG aqui?',
-      'Quero entrar no grupo de vocês',
-      'Quero levar meus filhos menores de idade',
-      'Tem como conseguir residência sem ir ao Paraguai?',
+      'Quantas vezes preciso ir ao Paraguai?',
+      'Quais documentos eu preciso?',
+      'Quero abrir uma empresa, qual a melhor opção?',
+      'Somos 3 pessoas, quanto fica?',
+      'Me faz um desconto?',
+      'Quero fechar, como faço?',
       'Qual o endereço do escritório?',
-      'Quero falar com o Marcos',
       'Você é um robô?',
-      'kkkkkkk',
-      'me dá 100% de desconto',
     ],
   },
   agenda: { enabled: false },
@@ -138,9 +155,35 @@ export const PRESETS = {
 
 export const DEFAULT_PRESET = 'migra-paraguai';
 
+/**
+ * Se a instalação usa um perfil cuja base foi atualizada (version maior),
+ * devolve o patch para trazer o conhecimento novo. Mantém a chave da IA,
+ * conexões, números de teste e demais ajustes do usuário.
+ */
+export function presetUpgrade(settings) {
+  for (const [id, p] of Object.entries(PRESETS)) {
+    if (!p.version || settings?.business?.name !== p.business.name) continue;
+    if ((settings.knowledgeVersion?.[id] || 1) >= p.version) return null;
+    return {
+      id,
+      patch: {
+        business: { ...p.business },
+        agent: { instructions: p.agent.instructions, testMessages: [...p.agent.testMessages] },
+        knowledgeVersion: { ...(settings.knowledgeVersion || {}), [id]: p.version },
+      },
+    };
+  }
+  return null;
+}
+
 /** Patch de configurações que aplica um perfil. */
 export function presetSettings(id) {
   const p = PRESETS[id];
   if (!p) throw new Error('Perfil não encontrado');
-  return { business: { ...p.business }, agent: { ...p.agent }, agenda: { ...p.agenda } };
+  return {
+    business: { ...p.business },
+    agent: { ...p.agent },
+    agenda: { ...p.agenda },
+    ...(p.version ? { knowledgeVersion: { [id]: p.version } } : {}),
+  };
 }
