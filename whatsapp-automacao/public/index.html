@@ -116,6 +116,29 @@
           <button class="btn primary">Salvar e conectar</button>
         </form>
       </div>
+      <div class="panel" id="igPanel">
+        <h2>📸 Instagram Direct (opcional, funciona junto com o WhatsApp)</h2>
+        <p class="hint">O mesmo agente, com o mesmo conhecimento, responde as mensagens do Direct. Usa a API oficial da Meta (gratuita). Precisa de um perfil <b>profissional</b> (comercial ou criador) e de uma URL pública com HTTPS, ou seja, na VPS.</p>
+        <div id="igStatus" class="preview"></div>
+        <ol class="steps small">
+          <li>No app do Instagram: <b>Configurações → Tipo de conta e ferramentas → Mudar para conta profissional</b> (se ainda não for).</li>
+          <li>Em <b>developers.facebook.com</b> → <b>Criar app</b> → caso de uso <b>"Gerenciar mensagens e conteúdo no Instagram"</b>.</li>
+          <li>Em <b>Instagram → Configuração da API com login do Instagram</b>: adicione a conta do Instagram e clique em <b>Gerar token</b>. Copie o token.</li>
+          <li>Na mesma tela, em <b>Configurar webhooks</b>: cole a <b>URL do webhook</b> abaixo, invente um <b>token de verificação</b> (o mesmo daqui) e assine o campo <code>messages</code>.</li>
+          <li>Copie a <b>Chave secreta do app do Instagram</b> (Instagram app secret) para validar as mensagens.</li>
+        </ol>
+        <form id="formInstagram" class="form">
+          <label class="check big"><input type="checkbox" name="enabled" /> <b>Instagram ligado</b></label>
+          <label>Token de acesso do Instagram <input name="accessToken" placeholder="IGAA…" autocomplete="off" /></label>
+          <div class="row">
+            <label>Token de verificação (você inventa) <input name="verifyToken" placeholder="minha-senha-instagram" /></label>
+            <label>Chave secreta do app do Instagram <input name="appSecret" autocomplete="off" /></label>
+          </div>
+          <label>URL do webhook do Instagram (cole na Meta) <input id="igWebhookUrl" readonly /></label>
+          <p class="hint">O token vale 60 dias e o sistema renova sozinho todo dia. O Instagram só deixa responder até 24 horas depois da última mensagem do cliente.</p>
+          <button class="btn primary">Salvar e conectar Instagram</button>
+        </form>
+      </div>
     </section>
 
     <!-- AGENTE IA -->
@@ -143,8 +166,8 @@
             </label>
           </div>
           <div class="grid2 tight">
-            <label>Números de teste (um por linha, com DDD; de outro país, comece com +)
-              <textarea name="testNumbers" rows="3" placeholder="(11) 98765-4321&#10;+595 981 123456"></textarea>
+            <label>Números de teste (um por linha, com DDD; de outro país, comece com +; Instagram: @usuario)
+              <textarea name="testNumbers" rows="3" placeholder="(11) 98765-4321&#10;+595 981 123456&#10;@meu.instagram"></textarea>
             </label>
             <label>WhatsApp da equipe para avisos de transferência (opcional)
               <input name="handoffNotifyPhone" placeholder="(11) 91234-5678" />

@@ -121,7 +121,12 @@ export class AutoReply {
     if (!this.agent?.active) return false;
     const cfg = this.store.settings.agent;
     if (cfg.audience !== 'test') return true;
-    return Boolean(msg.phone) && (cfg.testNumbers || []).some((n) => samePhone(n, msg.phone));
+    const list = cfg.testNumbers || [];
+    if (msg.username) {
+      const user = msg.username.toLowerCase();
+      if (list.some((n) => String(n).trim().toLowerCase() === `@${user}`)) return true;
+    }
+    return Boolean(msg.phone) && list.some((n) => !String(n).trim().startsWith('@') && samePhone(n, msg.phone));
   }
 
   #contactFor(msg) {
@@ -163,7 +168,7 @@ export class AutoReply {
       this.store.addLog({
         type: 'system',
         phone: msg.phone || msg.jid,
-        message: `Modo de teste: o agente não respondeu ${msg.phone ? `+${msg.phone}` : msg.jid} (não está na lista de números de teste)`,
+        message: `Modo de teste: o agente não respondeu ${msg.username ? `@${msg.username} (Instagram)` : msg.phone ? `+${msg.phone}` : msg.jid} (não está na lista de números de teste)`,
       });
     }
     const contact = this.#rememberContact(msg);

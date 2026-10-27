@@ -36,6 +36,13 @@ const DEFAULT_DATA = {
     },
     defaultDelayMin: 8,
     defaultDelayMax: 20,
+    instagram: {
+      enabled: false,
+      accessToken: '', // token de longa duração do Instagram (renovado automaticamente)
+      verifyToken: '',
+      appSecret: '',
+      graphVersion: 'v25.0',
+    },
     connection: {
       mode: 'qr', // qr (WhatsApp Web) | cloud (API oficial da Meta)
       cloud: { accessToken: '', phoneNumberId: '', verifyToken: '', appSecret: '', graphVersion: 'v22.0' },

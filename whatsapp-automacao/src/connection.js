@@ -1,14 +1,21 @@
-// Gerencia qual conexão está ativa: QR Code (WhatsApp Web) ou API oficial da Meta.
-// O resto do sistema conversa só com este objeto.
+// Gerencia as conexões: WhatsApp (QR Code ou API oficial da Meta, um de cada vez)
+// e, em paralelo, o Instagram Direct. O resto do sistema conversa só com este objeto.
 import { EventEmitter } from 'node:events';
+import { IG_PREFIX } from './transports/instagram.js';
 
 const FORWARDED = ['checkNumber', 'getGroups', 'getGroupParticipants', 'resolveJid'];
 
 export class ConnectionManager extends EventEmitter {
-  constructor({ store, clients }) {
+  constructor({ store, clients, instagram = null }) {
     super();
     this.store = store;
     this.clients = clients; // { qr: WhatsAppClient, cloud: CloudApiClient }
+    this.instagram = instagram; // InstagramClient (opcional), funciona junto com o WhatsApp
+    if (instagram) {
+      instagram.on('status', (state) => this.emit('instagramStatus', state));
+      instagram.on('message', (msg) => this.emit('message', msg));
+      instagram.on('ownerMessage', (msg) => this.emit('ownerMessage', msg));
+    }
     for (const [mode, client] of Object.entries(clients)) {
       client.on('status', (state) => mode === this.mode && this.emit('status', { ...state, mode }));
       client.on('message', (msg) => mode === this.mode && this.emit('message', msg));
@@ -38,8 +45,15 @@ export class ConnectionManager extends EventEmitter {
   }
 
   /** Envia e avisa quem estiver ouvindo (ex.: lista de conversas sem resposta). */
+  /** O canal de uma conversa está conectado? */
+  isConnected(to) {
+    return String(to).startsWith(IG_PREFIX) ? this.instagram?.status === 'connected' : this.status === 'connected';
+  }
+
   async send(to, payload) {
-    const result = await this.current.send(to, payload);
+    const client = String(to).startsWith(IG_PREFIX) ? this.instagram : this.current;
+    if (!client) throw new Error('Instagram não configurado');
+    const result = await client.send(to, payload);
     this.emit('sent', { to, jid: result?.jid });
     return result;
   }
@@ -71,6 +85,6 @@ export class ConnectionManager extends EventEmitter {
   }
 
   async stop() {
-    await Promise.all(Object.values(this.clients).map((c) => c.stop()));
+    await Promise.all([...Object.values(this.clients), this.instagram].filter(Boolean).map((c) => c.stop()));
   }
 }

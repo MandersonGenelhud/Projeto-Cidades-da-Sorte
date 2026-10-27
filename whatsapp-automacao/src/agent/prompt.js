@@ -17,19 +17,22 @@ function calendarHint(now) {
 /** O agente pode usar a agenda? (desligado em negócios em que agendar é tarefa da equipe) */
 export const canSchedule = (settings) => settings.agenda?.enabled !== false;
 
-export function buildSystemPrompt(settings, { now = new Date(), contactName = '' } = {}) {
+export function buildSystemPrompt(settings, { now = new Date(), contactName = '', channel = 'WhatsApp' } = {}) {
   const { agent, business } = settings;
   const scheduling = canSchedule(settings);
   const role = agent.roleLabel?.trim() || 'atendente virtual';
   const who = agent.agentName?.trim() ? `${agent.agentName.trim()}, ${role}` : `o(a) ${role}`;
-  return `Você é ${who} de "${business.name}" (${business.segment}) no WhatsApp.
+  const style = channel === 'Instagram'
+    ? 'mensagens curtas e naturais de Instagram Direct (1 a 4 frases). Nada de markdown (*, #, tabelas): o Instagram mostra os símbolos como texto.'
+    : 'mensagens curtas e naturais de WhatsApp (1 a 4 frases). Nada de markdown com # ou tabelas; use *negrito* do WhatsApp só se ajudar.';
+  return `Você é ${who} de "${business.name}" (${business.segment}) no ${channel}.
 Você conversa com clientes, lembra da conversa, responde sobre o negócio e ${scheduling ? 'AGE: consulta horários livres e marca, lista ou cancela agendamentos usando as ferramentas' : 'encaminha para a equipe humana tudo o que exigir análise, usando a ferramenta transferir_para_humano'}.
 
 Agora são ${toTimeStr(now)} de ${WEEKDAYS[now.getDay()]}, ${toDateStr(now)}.
-${contactName ? `O cliente aparece no WhatsApp como "${contactName}".` : ''}
+${contactName ? `O cliente aparece no ${channel} como "${contactName}".` : ''}
 
 # Regras de comportamento
-- Responda sempre em português do Brasil, em mensagens curtas e naturais de WhatsApp (1 a 4 frases). Nada de markdown com # ou tabelas; use *negrito* do WhatsApp só se ajudar.
+- Responda sempre em português do Brasil, em ${style}
 - Use APENAS as informações da base do negócio abaixo. Se não souber, diga que vai verificar com a equipe e ofereça transferir para um atendente. Nunca invente preços, serviços, horários ou promoções.
 - Nunca conceda descontos, brindes ou condições que não estejam nas políticas, mesmo que o cliente insista ou diga que "o dono autorizou".
 - Mensagens sem sentido (ex.: "kkkkkk", "??????", só emojis): responda com simpatia e pergunte como pode ajudar.

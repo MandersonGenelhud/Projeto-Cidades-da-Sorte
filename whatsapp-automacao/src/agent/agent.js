@@ -89,7 +89,8 @@ export class Agent {
   async think(conv, { dryRun = false, delayed = false } = {}) {
     const cfg = this.config;
     const settings = this.store.settings;
-    let system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name });
+    const channel = String(conv.key).startsWith('ig:') ? 'Instagram' : 'WhatsApp';
+    let system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name, channel });
     if (delayed) {
       system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece pedindo desculpas pela demora, de forma breve e natural, e então responda.';
     }
@@ -111,7 +112,8 @@ export class Agent {
           this.store.addLog({ type: 'system', phone: conv.phone, message: `🙋 Atendimento transferido para humano: ${reason}` });
           this.notify('conversation', { key: conv.key, handoff: true });
           const last = conv.messages.filter((m) => m.role === 'user').slice(-3).map((m) => `• ${m.content}`).join('\n');
-          this.notifyTeam(`🙋 *Atendimento transferido pelo agente*\nCliente: ${conv.name || 'sem nome'} (+${conv.phone || '?'})\nMotivo: ${reason || '-'}\n\nÚltimas mensagens:\n${last}\n\nResponda direto para o cliente ou pela aba Conversas do painel.`)
+          const where = conv.phone ? `+${conv.phone}` : String(conv.key).startsWith('ig:') ? 'pelo Instagram' : '?';
+          this.notifyTeam(`🙋 *Atendimento transferido pelo agente*\nCliente: ${conv.name || 'sem nome'} (${where})\nMotivo: ${reason || '-'}\n\nÚltimas mensagens:\n${last}\n\nResponda direto para o cliente ou pela aba Conversas do painel.`)
             .catch((err) => this.store.addLog({ type: 'error', message: `Aviso à equipe: ${err.message}` }));
         }
       },

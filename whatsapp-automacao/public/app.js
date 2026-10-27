@@ -640,9 +640,25 @@ $$('[name="connMode"]').forEach((r) => r.addEventListener('change', async () => 
   }
 }));
 
+function renderInstagram(st) {
+  const box = $('#igStatus');
+  if (!box) return;
+  box.innerHTML = st.status === 'connected'
+    ? `<p>✅ Instagram conectado: <b>@${esc(st.me?.username || '')}</b></p>`
+    : st.error ? `<p>⚠️ ${esc(st.error)}</p>` : '<p class="muted">Instagram desligado.</p>';
+}
+
 loaders.connection = async () => {
-  const [info, s] = await Promise.all([api('/api/connection/info'), api('/api/settings')]);
+  const [info, s, ig] = await Promise.all([api('/api/connection/info'), api('/api/settings'), api('/api/instagram/status')]);
   settingsCache = s;
+  renderInstagram(ig);
+  $('#igWebhookUrl').value = info.instagramWebhookUrl.replace(/^http:\/\/(?!localhost|127\.)/, 'https://');
+  const fi = $('#formInstagram');
+  fi.enabled.checked = Boolean(s.instagram?.enabled);
+  for (const k of ['accessToken', 'verifyToken', 'appSecret']) fi[k].value = s.instagram?.[k] || '';
+  if (info.fromEnv.igToken) fi.accessToken.placeholder = 'definido no arquivo .env';
+  if (info.fromEnv.igVerifyToken) fi.verifyToken.placeholder = 'definido no arquivo .env';
+  if (info.fromEnv.igAppSecret) fi.appSecret.placeholder = 'definido no arquivo .env';
   $('#webhookUrl').value = info.webhookUrl.replace(/^http:\/\/(?!localhost|127\.)/, 'https://');
   const f = $('#formCloud');
   const c = s.connection.cloud;
@@ -656,6 +672,21 @@ $('#formPairing').addEventListener('submit', withBusy($('#formPairing'), async (
   $('#pairingResult').innerHTML = `<div class="pairing-code">${esc(r.code)}</div>
     <p>Mande este código para o dono do número. No celular dele: WhatsApp → <b>Configurações</b> (ou ⋮) → <b>Dispositivos conectados</b> → <b>Conectar dispositivo</b> → <b>Conectar com número de telefone</b> → digitar o código.</p>
     <p class="hint">O código vale por poucos minutos. Se expirar, gere outro.</p>`;
+}));
+
+$('#formInstagram').addEventListener('submit', withBusy($('#formInstagram'), async (e) => {
+  const f = e.target;
+  await api('/api/settings', {
+    method: 'PUT',
+    body: { instagram: {
+      enabled: f.enabled.checked,
+      accessToken: f.accessToken.value.trim(),
+      verifyToken: f.verifyToken.value.trim(),
+      appSecret: f.appSecret.value.trim(),
+    } },
+  });
+  toast(f.enabled.checked ? 'Instagram salvo. Conectando…' : 'Instagram desligado');
+  setTimeout(loaders.connection, 1500);
 }));
 
 $('#formCloud').addEventListener('submit', withBusy($('#formCloud'), async (e) => {
@@ -878,7 +909,7 @@ async function loadPending() {
   $('#pendingList').innerHTML = r.items.map((p) => `
     <label class="pending-item ${p.queued ? 'queued' : ''}">
       <input type="checkbox" class="pendingCheck" value="${esc(p.jid)}" ${checked.has(p.jid) ? 'checked' : ''} />
-      <div><b>${esc(p.name || fmtPhone(p.phone) || 'Contato')}</b> <span class="muted">${esc(p.name ? fmtPhone(p.phone) || '' : '')}</span>
+      <div>${p.channel === 'instagram' ? '📸' : '💬'} <b>${esc(p.name || fmtPhone(p.phone) || 'Contato')}</b> <span class="muted">${esc(p.name ? fmtPhone(p.phone) || '' : '')}</span>
         <div class="txt">${esc(p.texts.join(' · '))}</div></div>
       <span class="when">${p.queued ? '⏳ na fila' : ago(p.at)}</span>
     </label>`).join('') || '<p class="muted">Ninguém esperando resposta. 🎉</p>';
@@ -924,7 +955,7 @@ loaders.conversations = async () => {
   const list = await api('/api/conversations');
   $('#convList').innerHTML = list.map((c) => `
     <div class="conv-item ${c.key === currentConv ? 'active' : ''}" data-key="${esc(c.key)}">
-      <b>${esc(c.name || fmtPhone(c.phone) || c.key)}</b> ${c.handoff ? '<span class="badge paused">humano</span>' : ''}
+      ${String(c.key).startsWith('ig:') ? '📸' : '💬'} <b>${esc(c.name || fmtPhone(c.phone) || c.key)}</b> ${c.handoff ? '<span class="badge paused">humano</span>' : ''}
       <div class="last">${c.last ? `${c.last.role === 'user' ? '' : '🤖 '}${esc(c.last.content)}` : ''}</div>
     </div>`).join('') || '<p class="muted">Nenhuma conversa ainda. Quando clientes falarem com o agente, elas aparecem aqui.</p>';
   if (currentConv) openConversation(currentConv);
@@ -1086,6 +1117,7 @@ function connectEvents() {
     if ($(`#tab-${tab}`).classList.contains('active')) loaders[tab]();
   };
   es.addEventListener('conversation', refreshIfActive('conversations'));
+  es.addEventListener('instagramStatus', (e) => renderInstagram(JSON.parse(e.data)));
   es.addEventListener('pending', () => {
     if ($('#tab-conversations').classList.contains('active')) loadPending();
   });

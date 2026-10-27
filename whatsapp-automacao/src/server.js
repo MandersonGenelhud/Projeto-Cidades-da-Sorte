@@ -12,6 +12,7 @@ import multer from 'multer';
 import { Store } from './store.js';
 import { WhatsAppClient } from './transports/whatsapp-web.js';
 import { CloudApiClient } from './transports/cloudapi.js';
+import { InstagramClient } from './transports/instagram.js';
 import { ConnectionManager } from './connection.js';
 import { CampaignRunner } from './campaigns.js';
 import { AutoReply } from './autoreply.js';
@@ -55,8 +56,25 @@ const agentConfig = () => {
     : { ...a, provider, apiKey: process.env.OPENROUTER_API_KEY || a.apiKey, model: a.model };
 };
 
+const instagramConfig = () => {
+  const c = store.settings.instagram;
+  return {
+    ...c,
+    accessToken: process.env.IG_ACCESS_TOKEN || c.accessToken,
+    verifyToken: process.env.IG_VERIFY_TOKEN || c.verifyToken,
+    appSecret: process.env.IG_APP_SECRET || c.appSecret,
+  };
+};
+const instagram = new InstagramClient({
+  getConfig: instagramConfig,
+  onTokenRefreshed: (token) => {
+    if (!process.env.IG_ACCESS_TOKEN) store.updateSettings({ instagram: { accessToken: token } });
+  },
+});
+
 const wa = new ConnectionManager({
   store,
+  instagram,
   clients: {
     qr: new WhatsAppClient({ authDir: path.join(DATA_DIR, 'auth'), logLevel: process.env.LOG_LEVEL || 'silent' }),
     cloud: new CloudApiClient({ getConfig: cloudConfig }),
@@ -94,6 +112,11 @@ wa.on('status', (state) => {
   if (state.status === 'qr') console.log(`📱 Abra http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT} e escaneie o QR Code`);
 });
 wa.on('log', (entry) => store.addLog(entry));
+wa.on('instagramStatus', (state) => {
+  notify('instagramStatus', state);
+  if (state.status === 'connected') console.log(`✅ Instagram conectado: @${state.me?.username}`);
+  if (state.error) console.log(`⚠️  Instagram: ${state.error}`);
+});
 wa.on('ownerMessage', (msg) => {
   pending.resolve(msg.jid);
   agent.ownerReplied({ key: msg.jid, phone: msg.phone, text: msg.text });
@@ -124,6 +147,20 @@ app.get('/webhook', (req, res) => {
   if (challenge === null) return res.sendStatus(403);
   store.addLog({ type: 'system', message: 'Webhook da Meta verificado com sucesso ✅' });
   res.status(200).send(challenge);
+});
+// Webhook do Instagram (Direct)
+app.get('/webhook/instagram', (req, res) => {
+  const challenge = instagram.verifyWebhook(req.query);
+  if (challenge === null) return res.sendStatus(403);
+  store.addLog({ type: 'system', message: 'Webhook do Instagram verificado com sucesso ✅' });
+  res.status(200).send(challenge);
+});
+app.post('/webhook/instagram', (req, res) => {
+  if (!instagram.checkSignature(req.rawBody, req.get('x-hub-signature-256'))) return res.sendStatus(401);
+  res.sendStatus(200);
+  if (instagram.status === 'connected') {
+    instagram.handleWebhook(req.body).catch((err) => store.addLog({ type: 'error', message: `Instagram: ${err.message}` }));
+  }
 });
 app.post('/webhook', (req, res) => {
   if (!cloud.checkSignature(req.rawBody, req.get('x-hub-signature-256'))) return res.sendStatus(401);
@@ -188,11 +225,13 @@ app.post('/api/connection/mode', async (req, res) => {
   await wa.switchMode(mode);
   res.json(wa.getState());
 });
+app.get('/api/instagram/status', (_req, res) => res.json(instagram.getState()));
 app.get('/api/connection/info', (req, res) => {
   const c = cloudConfig();
   res.json({
     mode: wa.mode,
     webhookUrl: `${req.protocol}://${req.get('host')}/webhook`,
+    instagramWebhookUrl: `${req.protocol}://${req.get('host')}/webhook/instagram`,
     cloudConfigured: Boolean(c.accessToken && c.phoneNumberId),
     verifyTokenSet: Boolean(c.verifyToken),
     fromEnv: {
@@ -202,6 +241,9 @@ app.get('/api/connection/info', (req, res) => {
       appSecret: Boolean(process.env.WA_APP_SECRET),
       openrouter: Boolean(process.env.OPENROUTER_API_KEY),
       gemini: Boolean(process.env.GEMINI_API_KEY),
+      igToken: Boolean(process.env.IG_ACCESS_TOKEN),
+      igVerifyToken: Boolean(process.env.IG_VERIFY_TOKEN),
+      igAppSecret: Boolean(process.env.IG_APP_SECRET),
     },
   });
 });
@@ -460,6 +502,8 @@ const SECRET_PATHS = [
   ['connection', 'cloud', 'accessToken'],
   ['connection', 'cloud', 'appSecret'],
   ['agenda', 'calcom', 'apiKey'],
+  ['instagram', 'accessToken'],
+  ['instagram', 'appSecret'],
 ];
 const MASK = '••••••';
 const mask = (v) => (v ? `${MASK}${String(v).slice(-4)}` : '');
@@ -481,9 +525,11 @@ function stripMaskedSecrets(patch) {
 app.get('/api/settings', (_req, res) => res.json(publicSettings()));
 app.put('/api/settings', async (req, res) => {
   const before = JSON.stringify(cloudConfig());
+  const igBefore = JSON.stringify(instagramConfig());
   store.updateSettings(stripMaskedSecrets(req.body));
   // Credenciais da Meta mudaram: reconecta para validar.
   if (wa.mode === 'cloud' && JSON.stringify(cloudConfig()) !== before) wa.restart();
+  if (JSON.stringify(instagramConfig()) !== igBefore) instagram.start();
   res.json(publicSettings());
 });
 
@@ -639,6 +685,7 @@ if (process.env.NODE_ENV !== 'test') {
     }
   });
   wa.start().catch((err) => console.error('Erro ao iniciar o WhatsApp:', err));
+  instagram.start().catch((err) => console.error('Erro ao iniciar o Instagram:', err));
   scheduler.start();
 
   const shutdown = async () => {

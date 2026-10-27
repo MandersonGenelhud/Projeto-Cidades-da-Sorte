@@ -159,6 +159,26 @@ Nesse caso, coloque um proxy com HTTPS (Caddy ou Nginx + Certbot) na frente da p
 
 ---
 
+## Instagram Direct
+
+O mesmo agente, com o mesmo conhecimento e a mesma memória, também responde o **Direct do Instagram**, ao mesmo tempo que o WhatsApp. Usa a API oficial da Meta (gratuita) e precisa de:
+- perfil do Instagram **profissional** (comercial ou criador);
+- um app em developers.facebook.com com o caso de uso *Gerenciar mensagens e conteúdo no Instagram* (acesso padrão, sem revisão da Meta, já que é a sua própria conta);
+- URL pública com HTTPS para o webhook (`https://seu-dominio/webhook/instagram`), ou seja, a VPS.
+
+Configure em **Conexão → Instagram Direct**. Regras do Instagram: só é possível responder até 24 horas depois da última mensagem do cliente, cada mensagem tem no máximo 1.000 bytes (o sistema divide as longas) e o agente envia só texto. Para testar, coloque `@seu.usuario` nos números de teste.
+
+> Não use ferramentas que entram no Instagram com usuário e senha (não oficiais): o Instagram bloqueia contas que fazem isso.
+
+## Mudar do computador para a VPS
+
+Tudo o que o sistema guarda (configurações, conhecimento, conversas, conexão do WhatsApp) fica na pasta `data/`.
+1. Feche o programa no computador.
+2. Copie a pasta `data/` para a VPS, no mesmo lugar (`whatsapp-automacao/data`). Com Docker, copie para o volume: `docker compose cp ./data/. zapauto:/app/data` e reinicie.
+3. Ligue na VPS. O WhatsApp continua conectado. Se pedir QR Code de novo, conecte por código.
+
+Nunca deixe o computador e a VPS ligados ao mesmo tempo com o mesmo número: os dois responderiam o cliente.
+
 ## Como o agente decide o que responder
 
 1. **SAIR / PARAR** → descadastra (LGPD). **VOLTAR** → recadastra. Isso sempre funciona, com ou sem IA.
@@ -185,6 +205,7 @@ Mensagens enviadas em sequência (enquanto a IA pensa) são respondidas juntas, 
 | `GEMINI_API_KEY` | Chave do Google Gemini (gratuito) |
 | `OPENROUTER_API_KEY` | Chave do OpenRouter (pago) |
 | `WA_CLOUD_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_VERIFY_TOKEN`, `WA_APP_SECRET` | API oficial da Meta |
+| `IG_ACCESS_TOKEN`, `IG_VERIFY_TOKEN`, `IG_APP_SECRET` | Instagram Direct (API oficial) |
 | `DATA_DIR` | Onde ficam os dados (padrão `./data`) |
 
 As variáveis de ambiente têm prioridade sobre o que foi salvo no painel. Os segredos nunca voltam completos para o navegador.

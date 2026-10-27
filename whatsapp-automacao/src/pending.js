@@ -97,6 +97,8 @@ export class PendingInbox {
     const current = this.items[msg.jid];
     this.items[msg.jid] = {
       jid: msg.jid,
+      channel: msg.channel || 'whatsapp',
+      username: msg.username || current?.username || '',
       phone: msg.phone || current?.phone || null,
       name: msg.name || current?.name || '',
       texts: [...(current?.texts || []), msg.text].slice(-5),
@@ -124,15 +126,18 @@ export class PendingInbox {
   /** Coloca conversas na fila para o agente responder, uma de cada vez. */
   enqueue(jids) {
     if (!this.agent.active) throw new Error('Ligue o agente e configure a chave da IA antes');
-    if (this.wa.status !== 'connected') throw new Error('Conecte o WhatsApp antes');
     const allowed = [];
     const blocked = [];
+    const isConnected = (jid) => (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected');
     for (const jid of jids) {
       const p = this.items[jid];
       if (!p || this.queue.includes(jid)) continue;
-      if (this.autoReply.agentAllowed({ phone: p.phone })) allowed.push(jid);
+      // O Instagram só permite responder até 24h depois da última mensagem do cliente.
+      const igExpired = jid.startsWith('ig:') && Date.now() - p.at > 24 * 3600 * 1000;
+      if (isConnected(jid) && !igExpired && this.autoReply.agentAllowed({ phone: p.phone, username: p.username, channel: p.channel })) allowed.push(jid);
       else blocked.push(jid);
     }
+    if (!allowed.length && !blocked.length) return { queued: 0, blocked: 0 };
     this.queue.push(...allowed);
     this.#changed();
     if (!this.running) this.#run().catch((err) => this.store.addLog({ type: 'error', message: `Fila de pendentes: ${err.message}` }));
@@ -159,7 +164,7 @@ export class PendingInbox {
       while (this.queue.length) {
         const jid = this.queue[0];
         const p = this.items[jid];
-        if (p && this.wa.status === 'connected') {
+        if (p && (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected')) {
           await this.agent.handleIncoming(
             { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true },
             async (text) => {
