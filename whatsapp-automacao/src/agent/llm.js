@@ -87,7 +87,10 @@ export class LLMClient {
     let data = await res.json().catch(() => ({}));
     if (Array.isArray(data)) data = data[0] || {}; // o Gemini às vezes devolve o erro dentro de uma lista
     if (!res.ok || data.error) {
-      throw new Error(friendlyError(provider, res.status, data.error?.message || `HTTP ${res.status}`));
+      const raw = data.error?.message || `HTTP ${res.status}`;
+      const err = new Error(friendlyError(provider, res.status, raw));
+      err.quota = res.status === 429 || /quota|rate limit|resource_exhausted/i.test(raw);
+      throw err;
     }
     const message = data.choices?.[0]?.message;
     if (!message) throw new Error(`${p.label} não retornou resposta`);

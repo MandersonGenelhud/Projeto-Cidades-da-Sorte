@@ -182,12 +182,20 @@ export class Agent {
       if (conv.handoff) continue; // um humano está atendendo
 
       let result;
+      const delayed = q.delayed;
+      q.delayed = false;
       try {
-        const delayed = q.delayed;
-        q.delayed = false;
         result = await this.think(conv, { delayed });
       } catch (err) {
         this.store.addLog({ type: 'error', phone, message: `Agente IA: ${err.message}` });
+        if (err.quota) this.quotaHitAt = Date.now();
+        if (err.quota && delayed) {
+          // Fila de pendentes: não manda pedido de desculpas genérico; o cliente
+          // continua na lista para ser respondido quando o limite renovar.
+          conv.messages.pop();
+          this.store.save();
+          continue;
+        }
         result = { text: FALLBACK_REPLY, actions: [] };
       }
       // Se chegaram mais mensagens enquanto a IA pensava, responde tudo junto.

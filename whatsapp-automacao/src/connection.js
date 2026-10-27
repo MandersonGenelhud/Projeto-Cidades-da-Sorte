@@ -44,12 +44,12 @@ export class ConnectionManager extends EventEmitter {
     return { ...this.current.getState(), mode: this.mode };
   }
 
-  /** Envia e avisa quem estiver ouvindo (ex.: lista de conversas sem resposta). */
   /** O canal de uma conversa está conectado? */
   isConnected(to) {
     return String(to).startsWith(IG_PREFIX) ? this.instagram?.status === 'connected' : this.status === 'connected';
   }
 
+  /** Envia pelo canal da conversa e avisa quem estiver ouvindo (ex.: lista de conversas sem resposta). */
   async send(to, payload) {
     const client = String(to).startsWith(IG_PREFIX) ? this.instagram : this.current;
     if (!client) throw new Error('Instagram não configurado');

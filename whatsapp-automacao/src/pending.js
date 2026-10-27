@@ -164,6 +164,7 @@ export class PendingInbox {
       while (this.queue.length) {
         const jid = this.queue[0];
         const p = this.items[jid];
+        const startedAt = Date.now();
         if (p && (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected')) {
           await this.agent.handleIncoming(
             { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true },
@@ -176,6 +177,12 @@ export class PendingInbox {
               }
             },
           );
+        }
+        if ((this.agent.quotaHitAt || 0) >= startedAt) {
+          // Limite do plano da IA acabou: pausa a fila e mantém os clientes na lista.
+          this.queue = [];
+          this.store.addLog({ type: 'system', message: '⏸️ Limite de uso da IA atingido: a fila de clientes esperando foi pausada. Os clientes continuam na lista; tente de novo mais tarde (no plano gratuito, normalmente no dia seguinte).' });
+          break;
         }
         this.queue = this.queue.filter((j) => j !== jid);
         if (this.items[jid]) delete this.items[jid];

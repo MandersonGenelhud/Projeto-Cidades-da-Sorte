@@ -75,3 +75,30 @@ test('mensagem respondida (pelo agente ou pelo dono) sai da lista', () => {
   inbox.resolve('z@s.whatsapp.net');
   assert.equal(inbox.list().length, 0);
 });
+
+test('limite gratuito da IA: a fila pausa e ninguém recebe desculpa genérica', async () => {
+  const store = tempStore();
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  let calls = 0;
+  const llm = {
+    configured: true,
+    chat: async () => {
+      calls++;
+      if (calls === 1) return { content: 'Desculpe a demora! Como posso ajudar?', tool_calls: [] };
+      const err = new Error('Google Gemini: limite de uso atingido');
+      err.quota = true;
+      throw err;
+    },
+  };
+  const agent = new Agent({ store, llm, calendar: null });
+  const wa = new FakeWA();
+  const autoReply = new AutoReply({ store, wa, agent });
+  const inbox = new PendingInbox({ store, agent, wa, autoReply, delay: [0, 0] });
+  wa.send = async (to, payload) => { wa.sent.push({ to, ...payload }); inbox.resolve(to); return { jid: to }; };
+  for (const n of ['1', '2', '3']) inbox.onIncoming({ jid: `${n}@s.whatsapp.net`, phone: `55119000000${n}0`, text: 'oi' });
+  inbox.enqueue(inbox.list().map((p) => p.jid));
+  await waitFor(() => !inbox.running);
+  assert.equal(wa.sent.length, 1); // só o primeiro, antes do limite
+  assert.equal(inbox.list().length, 2); // os outros continuam esperando
+  assert.ok(store.data.logs.some((l) => /fila de clientes esperando foi pausada/.test(l.message)));
+});
