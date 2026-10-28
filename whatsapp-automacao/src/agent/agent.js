@@ -7,7 +7,6 @@ import { sleep } from '../utils.js';
 const MAX_STORED_MESSAGES = 200;
 const MAX_TOOL_ROUNDS = 6;
 const randomPause = () => 600 + Math.floor(Math.random() * 1400); // entre uma mensagem e outra
-const FALLBACK_REPLY = 'Desculpe, tive um probleminha aqui. 😅 Pode repetir, por favor? Se preferir, peça para falar com um atendente.';
 
 export class Agent {
   constructor({ store, llm, calendar, notify, notifyTeam, onReplied, routeLead, now = () => new Date(), wait = sleep }) {
@@ -137,7 +136,8 @@ export class Agent {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const reply = await this.llm.chat({ messages, tools });
       if (!reply.tool_calls.length) {
-        return { text: reply.content.trim() || FALLBACK_REPLY, actions };
+        if (!reply.content.trim()) throw new Error('A IA devolveu uma resposta vazia');
+        return { text: reply.content.trim(), actions };
       }
       messages.push({ role: 'assistant', content: reply.content || null, tool_calls: reply.tool_calls });
       for (const call of reply.tool_calls) {
@@ -155,7 +155,7 @@ export class Agent {
         messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
       }
     }
-    return { text: FALLBACK_REPLY, actions };
+    throw new Error('A IA ficou presa usando ferramentas sem responder');
   }
 
   /**
@@ -227,17 +227,18 @@ export class Agent {
       try {
         result = await this.think(conv, { delayed });
       } catch (err) {
-        this.store.addLog({ type: 'error', phone, message: `Agente IA: ${err.message}` });
+        // Nunca manda mensagem de erro para o cliente: ele continua em
+        // "Clientes esperando resposta" e o painel mostra o motivo.
+        this.store.addLog({ type: 'error', phone, message: `Agente IA (cliente não respondido, ficou em "esperando resposta"): ${err.message}` });
         if (err.quota) this.quotaHitAt = Date.now();
-        if (err.quota && delayed) {
-          // Fila de pendentes: não manda pedido de desculpas genérico; o cliente
-          // continua na lista para ser respondido quando o limite renovar.
-          conv.messages.pop();
-          this.store.save();
-          continue;
-        }
-        result = { text: FALLBACK_REPLY, actions: [] };
+        this.lastError = { at: new Date().toISOString(), message: err.message };
+        this.errorAt = Date.now();
+        this.notify('agentError', this.lastError);
+        conv.messages.pop();
+        this.store.save();
+        continue;
       }
+      this.lastError = null;
       // Se chegaram mais mensagens enquanto a IA pensava, responde tudo junto.
       if (q.pending.length) continue;
 

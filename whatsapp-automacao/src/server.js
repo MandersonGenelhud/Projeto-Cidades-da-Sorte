@@ -672,7 +672,19 @@ app.get('/api/agent/status', (_req, res) => {
     audience: a.audience,
     testNumbers: (a.testNumbers || []).length,
     business: store.settings.business.name,
+    lastError: agent.lastError || null,
   });
+});
+// Testa a chave e o modelo da IA na hora, mostrando o erro exato.
+app.post('/api/agent/check', async (_req, res) => {
+  const started = Date.now();
+  try {
+    const r = await llm.chat({ messages: [{ role: 'user', content: 'Responda só: OK' }] });
+    agent.lastError = null;
+    res.json({ ok: true, model: r.fallbackModel || agentConfig().model, fallback: Boolean(r.fallbackModel), ms: Date.now() - started, reply: String(r.content).slice(0, 60) });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
 });
 app.get('/api/agent/presets', (_req, res) => {
   res.json(Object.entries(PRESETS).map(([id, p]) => ({ id, label: p.label })));

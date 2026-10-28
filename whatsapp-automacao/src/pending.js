@@ -178,10 +178,13 @@ export class PendingInbox {
             },
           );
         }
-        if ((this.agent.quotaHitAt || 0) >= startedAt) {
-          // Limite do plano da IA acabou: pausa a fila e mantém os clientes na lista.
+        if ((this.agent.errorAt || 0) >= startedAt) {
+          // A IA falhou (limite do plano, chave, fora do ar): pausa a fila e mantém os clientes na lista.
           this.queue = [];
-          this.store.addLog({ type: 'system', message: '⏸️ Limite de uso da IA atingido: a fila de clientes esperando foi pausada. Os clientes continuam na lista; tente de novo mais tarde (no plano gratuito, normalmente no dia seguinte).' });
+          const quota = (this.agent.quotaHitAt || 0) >= startedAt;
+          this.store.addLog({ type: 'system', message: quota
+            ? '⏸️ Limite de uso da IA atingido: a fila de clientes esperando foi pausada. Os clientes continuam na lista; tente de novo mais tarde (no plano gratuito, normalmente no dia seguinte).'
+            : `⏸️ A IA falhou e a fila foi pausada (${this.agent.lastError?.message || 'erro'}). Os clientes continuam na lista.` });
           break;
         }
         this.queue = this.queue.filter((j) => j !== jid);

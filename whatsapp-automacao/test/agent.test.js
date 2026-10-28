@@ -281,3 +281,17 @@ test('peneira: o agente encaminha o cliente quente e só então recebe o link do
   await plain.simulate({ text: 'oi' });
   assert.ok(!plain.llm.calls[0][0].content.includes('Peneira'));
 });
+
+test('se a IA falhar, o cliente não recebe mensagem de erro e o painel mostra o motivo', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const llm = { configured: true, chat: async () => { throw new Error('Google Gemini: limite de uso atingido'); } };
+  const errors = [];
+  const agent = new Agent({ store, llm, now: () => NOW, notify: (ev, d) => ev === 'agentError' && errors.push(d) });
+  const sent = [];
+  await agent.handleIncoming({ key: '5511999990000@s.whatsapp.net', phone: '5511999990000', text: 'oi' }, async (t) => sent.push(t));
+  assert.equal(sent.length, 0);
+  assert.match(agent.lastError.message, /limite de uso/);
+  assert.equal(errors.length, 1);
+});

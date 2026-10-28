@@ -734,10 +734,26 @@ async function renderAgentStatus() {
   const who = st.audience === 'test'
     ? `🧪 <b>modo de teste</b> (${st.testNumbers} número(s))`
     : '🟢 <b>no ar</b> para todos os clientes';
-  box.innerHTML = st.active
+  box.innerHTML = (st.active
     ? `<p>🧠 Agente de <b>${esc(st.business)}</b> ligado · ${who} · modelo <code>${esc(st.model)}</code></p>`
-    : `<p class="muted">🧠 Agente IA desligado${st.configured ? '' : ' (falta a chave da IA)'}.</p>`;
+    : `<p class="muted">🧠 Agente IA desligado${st.configured ? '' : ' (falta a chave da IA)'}.</p>`)
+    + (st.lastError ? `<p class="ai-error">⚠️ <b>A IA falhou</b> (${fmtDate(st.lastError.at)}): ${esc(st.lastError.message)}<br>Os clientes não receberam mensagem de erro: eles estão em <b>Conversas → Clientes esperando resposta</b>. Clique em "Testar a IA agora" depois de corrigir.</p>` : '');
 }
+$('#btnAgentCheck').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  const old = e.target.textContent;
+  e.target.textContent = 'Testando…';
+  try {
+    const r = await api('/api/agent/check', { method: 'POST' });
+    if (r.ok) toast(`✅ A IA respondeu em ${(r.ms / 1000).toFixed(1)}s com o modelo ${r.model}${r.fallback ? ' (o modelo escolhido falhou; use este na aba Agente IA)' : ''}`);
+    else toast(`❌ ${r.error}`, true);
+    renderAgentStatus();
+  } catch (err) {
+    toast(err.message, true);
+  }
+  e.target.textContent = old;
+  e.target.disabled = false;
+});
 
 loaders.agent = async () => {
   const s = await api('/api/settings');
@@ -1181,6 +1197,10 @@ function connectEvents() {
   });
   es.addEventListener('appointments', refreshIfActive('agenda'));
   es.addEventListener('crm', () => onCrmEvent());
+  es.addEventListener('agentError', (e) => {
+    toast(`⚠️ A IA falhou: ${JSON.parse(e.data).message}`, true);
+    renderAgentStatus();
+  });
   es.addEventListener('crmAssigned', (e) => onCrmAssigned(JSON.parse(e.data)));
   es.addEventListener('crmDue', () => onCrmDue());
   es.addEventListener('message', refreshIfActive('conversations'));

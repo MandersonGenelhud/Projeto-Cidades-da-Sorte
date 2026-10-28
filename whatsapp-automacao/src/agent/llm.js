@@ -7,6 +7,11 @@ export const PROVIDERS = {
     url: () => `${process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai'}/chat/completions`,
     keyHint: 'Crie grátis em aistudio.google.com/apikey',
     headers: {},
+    // Os modelos Gemini 3 "pensam" antes de responder; "low" deixa a resposta rápida
+    // e evita que o raciocínio gaste todo o limite e a resposta venha vazia.
+    extraBody: { reasoning_effort: 'low' },
+    // Se o modelo escolhido falhar (fora do ar, sem cota grátis, nome errado), tenta estes.
+    fallbackModels: ['gemini-3.5-flash-lite', 'gemini-2.5-flash'],
   },
   openrouter: {
     label: 'OpenRouter',
@@ -49,19 +54,37 @@ export class LLMClient {
    * ({ content, tool_calls }).
    */
   async chat({ messages, tools }) {
-    const { provider = 'gemini', apiKey, model, temperature } = this.getConfig();
+    const { provider = 'gemini', apiKey, model } = this.getConfig();
     const p = PROVIDERS[provider] || PROVIDERS.gemini;
     if (!apiKey) {
       const err = new Error(`Configure a chave do ${p.label} na aba "Agente IA"`);
       err.status = 400;
       throw err;
     }
+    // Modelo escolhido e, se ele falhar por motivo que não seja a chave, os reservas.
+    const models = [model, ...(p.fallbackModels || []).filter((m) => m !== model)];
+    let lastErr;
+    for (const m of models) {
+      try {
+        const reply = await this.#call(p, provider, apiKey, m, { messages, tools });
+        if (m !== model) reply.fallbackModel = m;
+        return reply;
+      } catch (err) {
+        lastErr = err;
+        if (err.auth) break; // chave errada: trocar de modelo não resolve
+      }
+    }
+    throw lastErr;
+  }
 
+  async #call(p, provider, apiKey, model, { messages, tools }) {
+    const { temperature } = this.getConfig();
     const body = {
       model,
       messages,
       temperature: Number(temperature ?? 0.4),
-      max_tokens: 800,
+      max_tokens: 2048,
+      ...(p.extraBody || {}),
     };
     if (tools?.length) {
       body.tools = tools;
@@ -88,12 +111,17 @@ export class LLMClient {
     if (Array.isArray(data)) data = data[0] || {}; // o Gemini às vezes devolve o erro dentro de uma lista
     if (!res.ok || data.error) {
       const raw = data.error?.message || `HTTP ${res.status}`;
-      const err = new Error(friendlyError(provider, res.status, raw));
+      const err = new Error(`${friendlyError(provider, res.status, raw)} [modelo ${model}]`);
       err.quota = res.status === 429 || /quota|rate limit|resource_exhausted/i.test(raw);
+      err.auth = res.status === 401 || res.status === 403 || /api key not valid|invalid api key|unauthorized|permission/i.test(raw);
       throw err;
     }
     const message = data.choices?.[0]?.message;
-    if (!message) throw new Error(`${p.label} não retornou resposta`);
+    if (!message) throw new Error(`${p.label} não retornou resposta [modelo ${model}]`);
+    if (!message.content && !message.tool_calls?.length) {
+      const reason = data.choices?.[0]?.finish_reason;
+      throw new Error(`${p.label} devolveu uma resposta vazia${reason ? ` (${reason})` : ''} [modelo ${model}]`);
+    }
     // Garante um id em cada chamada de ferramenta (nem todo provedor envia).
     const toolCalls = (message.tool_calls || []).map((c, i) => ({ ...c, id: c.id || `call_${Date.now()}_${i}`, type: c.type || 'function' }));
     return { content: message.content || '', tool_calls: toolCalls, usage: data.usage };
