@@ -21,6 +21,7 @@ import { PendingInbox, extractPending } from './pending.js';
 import { LeadRouter } from './routing.js';
 import { buildRanking, currentMonth } from './ranking.js';
 import { clearDemo, hasDemo, loadDemo } from './demo.js';
+import { Tunnel } from './tunnel.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
 import { Crm, STAGES } from './crm.js';
@@ -208,6 +209,19 @@ wa.on('message', (msg) => {
 
 store.on('log', (log) => notify('log', log));
 
+// Endereço na internet sem VPS (túnel gratuito da Cloudflare), para o webhook do Instagram.
+const tunnel = new Tunnel({ dataDir: DATA_DIR, port: PORT });
+// O túnel é um programa à parte: fecha junto com o painel (inclusive ao atualizar).
+process.on('exit', () => tunnel.stop());
+tunnel.on('status', (st) => {
+  notify('tunnel', st);
+  if (st.url) {
+    store.addLog({ type: 'system', message: `🌐 Endereço na internet ligado: ${st.url} (webhook do Instagram: ${st.url}/webhook/instagram)` });
+    const current = store.settings.crm?.panelUrl || '';
+    if (!current || current.includes('trycloudflare.com')) store.updateSettings({ crm: { panelUrl: st.url } });
+  }
+});
+
 // ---- App ----
 const app = express();
 app.set('trust proxy', true);
@@ -353,12 +367,21 @@ app.post('/api/connection/mode', async (req, res) => {
 });
 app.get('/api/instagram/status', (_req, res) => res.json(instagram.getState()));
 app.post('/api/instagram/sync', async (_req, res) => res.json(await syncInstagram()));
+app.get('/api/tunnel', (_req, res) => res.json({ ...tunnel.state, auto: Boolean(store.settings.instagram?.tunnel) }));
+app.post('/api/tunnel/start', async (_req, res) => {
+  store.updateSettings({ instagram: { tunnel: true } });
+  res.json(await tunnel.start());
+});
+app.post('/api/tunnel/stop', (_req, res) => {
+  store.updateSettings({ instagram: { tunnel: false } });
+  res.json(tunnel.stop());
+});
 app.get('/api/connection/info', (req, res) => {
   const c = cloudConfig();
   res.json({
     mode: wa.mode,
     webhookUrl: `${req.protocol}://${req.get('host')}/webhook`,
-    instagramWebhookUrl: `${req.protocol}://${req.get('host')}/webhook/instagram`,
+    instagramWebhookUrl: tunnel.state.url ? `${tunnel.state.url}/webhook/instagram` : `${req.protocol}://${req.get('host')}/webhook/instagram`,
     cloudConfigured: Boolean(c.accessToken && c.phoneNumberId),
     verifyTokenSet: Boolean(c.verifyToken),
     fromEnv: {
@@ -936,6 +959,7 @@ if (process.env.NODE_ENV !== 'test') {
   });
   wa.start().catch((err) => console.error('Erro ao iniciar o WhatsApp:', err));
   instagram.start().catch((err) => console.error('Erro ao iniciar o Instagram:', err));
+  if (store.settings.instagram?.tunnel) tunnel.start().catch((err) => console.error('Erro ao ligar o túnel:', err.message));
   scheduler.start();
   // Retornos agendados: confere a cada 10 minutos.
   setInterval(() => notifyFollowUps().catch((err) => store.addLog({ type: 'error', message: `Retornos: ${err.message}` })), 10 * 60_000).unref();
@@ -943,6 +967,7 @@ if (process.env.NODE_ENV !== 'test') {
 
   const shutdown = async () => {
     scheduler.stop();
+    tunnel.stop();
     store.flush();
     await wa.stop();
     process.exit(0);

@@ -114,3 +114,11 @@ test('mensagem que vem de anúncio traz a origem', async () => {
   assert.deepEqual(parseReferral({ source: 'ADS', ad_id: 42, ads_context_data: { ad_title: 'Morar no Paraguai' } }), { adId: '42', title: 'Morar no Paraguai' });
   assert.equal(parseReferral({ source: 'SHORTLINK', ref: 'bio' }), null);
 });
+
+test('túnel: escolhe o arquivo certo e acha o endereço público', async () => {
+  const { downloadName, findTunnelUrl } = await import('../src/tunnel.js');
+  assert.equal(downloadName('win32', 'x64').file, 'cloudflared-windows-amd64.exe');
+  assert.equal(downloadName('darwin', 'arm64').file, 'cloudflared-darwin-arm64.tgz');
+  assert.equal(findTunnelUrl('INF |  https://bold-tree-cat-dog.trycloudflare.com  |'), 'https://bold-tree-cat-dog.trycloudflare.com');
+  assert.equal(findTunnelUrl('nada aqui'), null);
+});

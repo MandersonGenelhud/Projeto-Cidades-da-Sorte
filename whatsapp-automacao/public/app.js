@@ -661,6 +661,8 @@ loaders.connection = async () => {
   settingsCache = s;
   renderInstagram(ig);
   $('#igWebhookUrl').value = info.instagramWebhookUrl.replace(/^http:\/\/(?!localhost|127\.)/, 'https://');
+  $('#igPrivacyUrl').value = $('#igWebhookUrl').value.replace(/\/webhook\/instagram$/, '/privacidade.html');
+  renderTunnel(await api('/api/tunnel'));
   const fi = $('#formInstagram');
   fi.enabled.checked = Boolean(s.instagram?.enabled);
   for (const k of ['accessToken', 'verifyToken', 'appSecret']) fi[k].value = s.instagram?.[k] || '';
@@ -681,6 +683,47 @@ $('#formPairing').addEventListener('submit', withBusy($('#formPairing'), async (
     <p>Mande este código para o dono do número. No celular dele: WhatsApp → <b>Configurações</b> (ou ⋮) → <b>Dispositivos conectados</b> → <b>Conectar dispositivo</b> → <b>Conectar com número de telefone</b> → digitar o código.</p>
     <p class="hint">O código vale por poucos minutos. Se expirar, gere outro.</p>`;
 }));
+
+function renderTunnel(st) {
+  const box = $('#tunnelStatus');
+  if (!box) return;
+  const local = /localhost|127\.0\.0\.1/.test($('#igWebhookUrl').value);
+  box.innerHTML = {
+    off: local ? '⚪ Desligado. Sem ele, o Instagram não consegue entregar as mensagens neste computador.' : '⚪ Desligado.',
+    downloading: '⏬ Baixando o túnel da Cloudflare (só na primeira vez, uns 30 MB)…',
+    starting: '⏳ Ligando… (leva uns 10 segundos)',
+    on: `✅ Ligado: <b>${esc(st.url || '')}</b>. A URL do webhook abaixo já está com este endereço.`,
+    error: `⚠️ ${esc(st.error || 'Erro no túnel')}`,
+  }[st.status] || '';
+  $('#btnTunnelStart').hidden = st.status === 'on' || st.status === 'starting' || st.status === 'downloading';
+  $('#btnTunnelStop').hidden = st.status !== 'on';
+  if (st.url) {
+    $('#igWebhookUrl').value = `${st.url}/webhook/instagram`;
+    $('#igPrivacyUrl').value = `${st.url}/privacidade.html`;
+  }
+}
+$('#btnTunnelStart').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  renderTunnel({ status: 'starting' });
+  try {
+    const st = await api('/api/tunnel/start', { method: 'POST' });
+    renderTunnel(st);
+    if (st.url) toast('Endereço criado! Copie a URL do webhook e cole na Meta.');
+  } catch (err) {
+    renderTunnel({ status: 'error', error: err.message });
+  }
+  e.target.disabled = false;
+});
+$('#btnTunnelStop').addEventListener('click', async () => {
+  renderTunnel(await api('/api/tunnel/stop', { method: 'POST' }));
+  setTimeout(async () => renderTunnel(await api('/api/tunnel')), 1500);
+});
+for (const id of ['#igWebhookUrl', '#igPrivacyUrl']) {
+  $(id).addEventListener('click', (e) => {
+    e.target.select();
+    navigator.clipboard?.writeText(e.target.value).then(() => toast('Copiado ✅')).catch(() => {});
+  });
+}
 
 $('#btnIgSync').addEventListener('click', async (e) => {
   e.target.disabled = true;
@@ -1196,6 +1239,7 @@ function connectEvents() {
     if ($('#tab-conversations').classList.contains('active')) loadPending();
   });
   es.addEventListener('appointments', refreshIfActive('agenda'));
+  es.addEventListener('tunnel', (e) => renderTunnel(JSON.parse(e.data)));
   es.addEventListener('crm', () => onCrmEvent());
   es.addEventListener('agentError', (e) => {
     toast(`⚠️ A IA falhou: ${JSON.parse(e.data).message}`, true);

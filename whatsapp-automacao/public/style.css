@@ -438,3 +438,4 @@ dialog.lead-dialog { width: min(1000px, 96vw); max-height: 92vh; }
 .grid2 > form.panel label, .lead-grid .form > label { flex: none; }
 .demo-banner { background: color-mix(in srgb, var(--gold) 18%, var(--panel)); border: 1px solid var(--gold); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .ai-error { color: var(--red); background: color-mix(in srgb, var(--red) 8%, transparent); border-radius: 8px; padding: 8px 10px; }
+.tunnel-box { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin: 12px 0; } .tunnel-box h3, #igPanel h3 { margin-top: 4px; }

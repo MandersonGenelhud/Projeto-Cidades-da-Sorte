@@ -130,15 +130,27 @@
       </div>
       <div class="panel" id="igPanel">
         <h2>📸 Instagram Direct (opcional, funciona junto com o WhatsApp)</h2>
-        <p class="hint">O mesmo agente, com o mesmo conhecimento, responde as mensagens do Direct. Usa a API oficial da Meta (gratuita). Precisa de um perfil <b>profissional</b> (comercial ou criador) e de uma URL pública com HTTPS, ou seja, na VPS.</p>
+        <p class="hint">O mesmo agente, com o mesmo conhecimento, responde as mensagens do Direct. Usa a API oficial da Meta (gratuita). Precisa de um perfil <b>profissional</b> e de um endereço na internet (https), que dá para criar aqui mesmo, sem VPS.</p>
         <div id="igStatus" class="preview"></div>
+        <div class="tunnel-box">
+          <h3>1. Endereço na internet (grátis, sem VPS)</h3>
+          <p class="hint">O Instagram entrega as mensagens num endereço https. Este botão cria um pelo túnel gratuito da Cloudflare, a partir deste computador. Ele só funciona com o computador ligado e o programa aberto, e o endereço <b>muda toda vez</b> que o túnel é ligado de novo (aí é só colar o novo na Meta).</p>
+          <div class="row">
+            <button type="button" class="btn primary" id="btnTunnelStart">🌐 Criar endereço na internet</button>
+            <button type="button" class="btn small" id="btnTunnelStop" hidden>Desligar</button>
+          </div>
+          <div id="tunnelStatus" class="hint"></div>
+        </div>
+        <h3>2. Na Meta (uma vez só)</h3>
         <ol class="steps small">
-          <li>No app do Instagram: <b>Configurações → Tipo de conta e ferramentas → Mudar para conta profissional</b> (se ainda não for).</li>
-          <li>Em <b>developers.facebook.com</b> → <b>Criar app</b> → caso de uso <b>"Gerenciar mensagens e conteúdo no Instagram"</b>.</li>
-          <li>Em <b>Instagram → Configuração da API com login do Instagram</b>: adicione a conta do Instagram e clique em <b>Gerar token</b>. Copie o token.</li>
-          <li>Na mesma tela, em <b>Configurar webhooks</b>: cole a <b>URL do webhook</b> abaixo, invente um <b>token de verificação</b> (o mesmo daqui) e assine o campo <code>messages</code>.</li>
-          <li>Copie a <b>Chave secreta do app do Instagram</b> (Instagram app secret) para validar as mensagens.</li>
+          <li>No app do Instagram da Migra: <b>Configurações → Tipo de conta e ferramentas → Mudar para conta profissional</b> (se ainda não for). Depois: <b>Configurações → Mensagens e respostas ao story → Ferramentas conectadas → Permitir acesso às mensagens</b> (ligado).</li>
+          <li>No computador, entre em <b>developers.facebook.com</b> com o Facebook do Marcos → <b>Meus apps → Criar app</b> → dê um nome (ex.: "Migra Atendimento") → caso de uso <b>"Gerenciar mensagens e conteúdo no Instagram"</b> → criar.</li>
+          <li>No app criado: <b>Casos de uso → Personalizar → Configuração da API com login do Instagram</b>. Em <b>"Gerar tokens de acesso"</b>, clique em <b>Adicionar conta</b>, entre com o Instagram da Migra e depois em <b>Gerar token</b>. Copie o token e cole abaixo.</li>
+          <li>Na mesma tela, copie a <b>Chave secreta do app do Instagram</b> e cole abaixo. Invente um <b>token de verificação</b> (ex.: <code>migra2026</code>), coloque abaixo e clique em <b>Salvar e conectar Instagram</b>.</li>
+          <li>Ainda na Meta, em <b>"Configurar webhooks"</b>: cole a <b>URL do webhook</b> que aparece abaixo, o mesmo token de verificação, clique em <b>Verificar e salvar</b> e depois <b>assine o campo <code>messages</code></b>.</li>
+          <li>Para receber mensagens de qualquer pessoa: <b>Configurações do app → Básico</b> → em <b>URL da Política de Privacidade</b> cole a <b>URL da Política de Privacidade</b> que aparece abaixo, escolha uma categoria e salve. Depois mude o app de <b>Desenvolvimento</b> para <b>Publicado (Live)</b>. Como o app é só da própria empresa, não precisa de revisão da Meta.</li>
         </ol>
+        <h3>3. Cole aqui</h3>
         <form id="formInstagram" class="form">
           <label class="check big"><input type="checkbox" name="enabled" /> <b>Instagram ligado</b></label>
           <label>Token de acesso do Instagram <input name="accessToken" placeholder="IGAA…" autocomplete="off" /></label>
@@ -147,6 +159,7 @@
             <label>Chave secreta do app do Instagram <input name="appSecret" autocomplete="off" /></label>
           </div>
           <label>URL do webhook do Instagram (cole na Meta) <input id="igWebhookUrl" readonly /></label>
+          <label>URL da Política de Privacidade (cole na Meta) <input id="igPrivacyUrl" readonly /></label>
           <p class="hint">O token vale 60 dias e o sistema renova sozinho todo dia. O Instagram só deixa responder até 24 horas depois da última mensagem do cliente.</p>
           <div class="row">
             <button class="btn primary">Salvar e conectar Instagram</button>
