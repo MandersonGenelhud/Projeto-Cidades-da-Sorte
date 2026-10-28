@@ -240,7 +240,8 @@ test('instalação com a base antiga da Migra recebe a base nova sozinha, sem pe
   assert.match(store.settings.business.prices, /R\$ 10\.997,00/);
   assert.equal(store.settings.agent.geminiKey, 'AQ.minha-chave');
   assert.deepEqual(store.settings.agent.testNumbers, ['11 98765-4321']);
-  assert.match(store.settings.agent.instructions, /valores da tabela/);
+  assert.match(store.settings.agent.instructions, /Valor antes do preço/);
+  assert.equal(store.settings.agent.roleLabel, 'atendente');
   // Na próxima vez não aplica de novo (respeita edições feitas depois)
   store.updateSettings({ business: { prices: 'editado pelo dono' } });
   store.flush();
