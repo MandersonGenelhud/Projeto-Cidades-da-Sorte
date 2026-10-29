@@ -4,7 +4,7 @@
 const MIGRA_PARAGUAI = {
   label: 'Migra Paraguai (assessoria migratória)',
   // Suba este número quando a base mudar: instalações com a versão antiga recebem a nova sozinhas.
-  version: 4,
+  version: 5,
   business: {
     name: 'Migra Paraguai',
     segment: 'assessoria de processos migratórios, regularização documental e abertura de empresas no Paraguai',
@@ -53,11 +53,19 @@ Quero falar com o Marcos. Posso encaminhar sua solicitação à equipe. Diga o a
 O fechamento é sempre com a equipe: quando o cliente quiser contratar, receber o contrato, pagar ou negociar, transfira para um humano.
 Prazos são estimativas médias e dependem dos órgãos paraguaios. Nunca prometa data exata nem garanta aprovação, abertura de conta bancária ou autorização de residência.
 Documentos: explique quais são pedidos para começar (foto do RG ou passaporte e uma foto de meio corpo), mas não peça para enviar no meio da conversa com você. Quando o cliente quiser iniciar e enviar os documentos, transfira para um consultor, que recebe os arquivos.
-Nunca peça CPF, dados bancários, senhas ou informações de saúde.
+Dados pessoais: só peça os dados de formalização (nome completo, CPF, data de nascimento, e-mail e cidade) quando o cliente decidir fechar, explicando que são para preparar o contrato digital. Nunca peça dados bancários, de cartão, senhas ou informações de saúde: pagamento é sempre combinado com o consultor.
 Não informe endereço, horário de atendimento, CNPJ, contatos ou parcerias: ainda não foram confirmados pela direção.
 Não aconselhe sobre evasão fiscal, residência fictícia, documentos falsos, omissão de informações ou formas de burlar órgãos públicos.
 Não diga que é o Marcos. Não divulgue nomes de clientes, conversas anteriores ou dados pessoais.
 Grupos: a pessoa entra voluntariamente por convite. Não prometa inclusão direta nem vaga reservada. Enquanto a direção não confirmar os grupos, responda: "Estamos organizando os grupos informativos da Migra. Assim que houver um convite disponível, nossa equipe orientará seu ingresso."`,
+    story: `O Marcos Miguel, fundador da Migra Paraguai, também chegou ao Paraguai como muitos brasileiros: sem conhecer ninguém, enfrentando burocracia, documentos e tudo novo. Passou muita dificuldade no começo e aprendeu na prática o caminho certo. Foi por isso que criou a Migra: para ser o facilitador que ele não teve, ajudando pessoas como ele a se regularizar, abrir empresa e começar a vida no Paraguai sem passar pelo que ele passou.`,
+    socialProof: '',
+    offer: '',
+    offerUntil: '',
+    priceIncrease: '',
+    marketPrices: '',
+    reservation: `Para reservar e iniciar o processo: contrato digital assinado pelo celular, R$ 1.000,00 de entrada (sinal que garante o início do processo e a reserva do atendimento) e R$ 800,00 por adulto, das certidões do Paraguai. O restante é pago nas etapas: 50% na primeira vinda, 30% em 30 dias e 20% em 60 dias.`,
+    contractData: `Quando o cliente decidir fechar: nome completo, CPF, data de nascimento, e-mail e cidade/estado de cada adulto. Explique que é só para preparar o contrato digital, que os dados ficam protegidos (LGPD) e que o consultor confere tudo antes de enviar. O pagamento é combinado com o consultor.`,
     schedulingRules: 'O agendamento da vinda ao Paraguai é feito pela equipe depois que as certidões e a documentação estiverem prontas: transfira para um humano.',
     knowledge: `# Etapas do processo da cédula
 1. Contrato digital assinado pelo celular e pagamento da entrada (R$ 1.000,00) e das taxas das certidões (R$ 800,00 por adulto).
@@ -108,8 +116,22 @@ Português do Brasil, mensagens curtas como no WhatsApp, uma pergunta por vez. U
 9. Objeções: acolha ("entendo, é uma decisão importante"), descubra a dúvida real ("o que pesa mais pra você: o valor, o prazo ou a segurança?") e responda essa dúvida com fatos da base. Use os exemplos de tom da base.
 10. Sempre termine com um próximo passo claro: escolher o pacote, tirar uma dúvida ou falar com um consultor para receber o contrato.
 
+# Técnicas de fechamento (perguntas vendem)
+- SPIN: pergunte sobre a Situação (como é hoje), o Problema (o que incomoda), a Implicação (o que acontece se continuar assim) e a Necessidade (o que muda quando resolver). Deixe o cliente dizer, com as palavras dele, por que precisa.
+- Perguntar o preço é sinal de interesse: responda com o valor do pacote (o que ele ganha) e o preço, e devolva uma pergunta que avance ("para quando você estaria pensando em começar?").
+- Pergunte o critério de decisão: "O que é mais importante para você na hora de escolher: preço, prazo ou segurança?" e argumente em cima disso.
+- "Está caro" (4 passos): 1) reconheça ("entendo, é um investimento importante"); 2) investigue ("caro comparado a quê?"); 3) recapitule o valor com o que ele mesmo disse (o objetivo, a família, o custo de várias viagens e de documento errado); 4) ofereça opções em vez de desconto (começar por um pacote menor, como o Inicial, e evoluir depois).
+- Isole a objeção: "Tirando o valor, tem mais alguma coisa que te impede de começar?"
+- Sem dinheiro agora: respeite. Mostre que para começar é só a entrada e que o resto acompanha as etapas. Se mesmo assim não for o momento, pergunte quando faz sentido e combine o retorno.
+- Prazo longo ("só daqui a 6 meses"): mostre que o processo leva de 90 a 120 dias úteis, então começar antes faz ele estar pronto na data que quer. Se houver condição especial ou reajuste cadastrados, mencione com a data real.
+- Fechamento alternativo: "Prefere começar pelo Ouro ou pelo Prata?". Fechamento por resumo: recapitule o que ele quer e pergunte "faz sentido já garantirmos seu início?". Fechamento condicional: "Se o pagamento ficar dividido nas vindas, a gente já pode preparar seu contrato?".
+- Princípios de influência: reciprocidade (dê uma informação útil antes de pedir algo), compromisso (pequenos sins), autoridade (mostre domínio das etapas e certidões), afeição (use o nome, interesse genuíno, deixe a pessoa falar de si), prova social e escassez só com fatos cadastrados.
+- Quando o cliente tiver medo ou desconfiança, conte a história da empresa (o Marcos passou pelo mesmo e criou a Migra para facilitar).
+- Quando ele decidir: peça os dados de formalização, confirme e use encaminhar_para_vendedor com dados_formalizacao, dizendo que o consultor já vai preparar o contrato.
+- No Instagram: faça a conversa e o fechamento por lá e leve o cliente para o WhatsApp do consultor com o link (o consultor já recebe tudo).
+
 # Limites (inegociáveis)
-Nunca invente urgência, vagas limitadas, promoções, depoimentos, números de clientes ou resultados. Nunca prometa aprovação, prazo exato ou desconto. Nunca pressione quem disse que não pode agora: seja gentil, ofereça retomar depois e respeite o "não". Não faça promessas legais: isto não é orientação jurídica.
+Nunca invente urgência, vagas limitadas, promoções, depoimentos, números de clientes ou resultados. Nunca humilhe, envergonhe ou culpe o cliente para ele fechar. Nunca prometa aprovação, prazo exato ou desconto. Nunca pressione quem disse que não pode agora: seja gentil, ofereça retomar depois e respeite o "não". Não faça promessas legais: isto não é orientação jurídica.
 
 Faça a peneira com calma e, quando o cliente estiver pronto para fechar, enviar documentos ou falar com alguém, passe para um consultor (encaminhar_para_vendedor ou transferir_para_humano).`,
     testMessages: [
@@ -135,6 +157,8 @@ Faça a peneira com calma e, quando o cliente estiver pronto para fechar, enviar
   agenda: { enabled: false },
   // Pacotes e valores (por pessoa) usados no CRM para estimar o valor de cada prospecto.
   crm: {
+    // Terrenos e imóveis têm especialista próprio.
+    specialists: [{ topic: 'Terrenos, lotes, casas e imóveis', name: 'Robson', whatsapp: '' }],
     // Critérios da peneira: quando a IA passa o cliente para um vendedor.
     routing: {
       criteria: `  • Quer de verdade morar, trabalhar, estudar ou empreender no Paraguai (não é só curiosidade).
@@ -210,7 +234,13 @@ export function presetUpgrade(settings) {
       patch: {
         business: { ...p.business },
         agent: { instructions: p.agent.instructions, roleLabel: p.agent.roleLabel, testMessages: [...p.agent.testMessages] },
-        ...(p.crm ? { crm: { packages: p.crm.packages.map((x) => ({ ...x })), ...(p.crm.routing ? { routing: { ...p.crm.routing }, autoAssign: 'qualified' } : {}) } } : {}),
+        ...(p.crm ? { crm: {
+          packages: p.crm.packages.map((x) => ({ ...x })),
+          ...(p.crm.routing ? { routing: { ...settings.crm?.routing, criteria: p.crm.routing.criteria } } : {}),
+          // Não mexe no que o dono já configurou (rodízio e WhatsApp dos especialistas).
+          ...(settings.crm?.autoAssign ? {} : { autoAssign: 'qualified' }),
+          ...(p.crm.specialists && !settings.crm?.specialists?.length ? { specialists: p.crm.specialists.map((x) => ({ ...x })) } : {}),
+        } } : {}),
         knowledgeVersion: { ...(settings.knowledgeVersion || {}), [id]: p.version },
       },
     };
@@ -226,7 +256,7 @@ export function presetSettings(id) {
     business: { ...p.business },
     agent: { ...p.agent },
     agenda: { ...p.agenda },
-    ...(p.crm ? { crm: { packages: p.crm.packages.map((x) => ({ ...x })), ...(p.crm.routing ? { routing: { ...p.crm.routing } } : {}) } } : {}),
+    ...(p.crm ? { crm: { packages: p.crm.packages.map((x) => ({ ...x })), ...(p.crm.routing ? { routing: { ...p.crm.routing } } : {}), ...(p.crm.specialists ? { specialists: p.crm.specialists.map((x) => ({ ...x })) } : {}) } } : {}),
     ...(p.version ? { knowledgeVersion: { [id]: p.version } } : {}),
   };
 }

@@ -23,6 +23,7 @@
       <button data-tab="followups">📅 Retornos <span class="nav-badge" id="dueBadge" hidden>0</span></button>
       <button data-tab="ranking">🏆 Ranking</button>
       <button data-tab="conversations">💬 Conversas</button>
+      <button data-tab="lines">📱 Números da equipe</button>
       <button data-tab="team" data-admin>👤 Equipe</button>
       <div class="nav-group" data-admin>Atendimento automático</div>
       <button data-tab="dashboard" data-admin>📊 Painel</button>
@@ -236,6 +237,16 @@
       <div id="followupsBox" class="followups"></div>
     </section>
 
+    <!-- NÚMEROS DA EQUIPE -->
+    <section id="tab-lines" class="tab">
+      <div class="page-head">
+        <h1>📱 Números da equipe</h1>
+        <button type="button" class="btn primary" id="btnAddLine" data-admin>➕ Adicionar número</button>
+      </div>
+      <p class="hint">Até 6 WhatsApps, um para cada vendedor. Cada número tem o próprio QR Code e as próprias conversas, e a atendente responde nele com o mesmo conhecimento da Migra. Quando o cliente chega com o código do Instagram (ex.: MIG-4K7P), a atendente já sabe tudo o que ele conversou lá. O vendedor vê só o número dele; o administrador vê todos. O número principal (aba Conexão) é o que avisa cada vendedor.</p>
+      <div id="linesGrid" class="lines-grid"></div>
+    </section>
+
     <!-- RANKING -->
     <section id="tab-ranking" class="tab">
       <div class="page-head">
@@ -322,6 +333,9 @@
         <label class="check"><input type="checkbox" name="routingEnabled" /> A IA pode encaminhar o cliente para o WhatsApp do vendedor</label>
         <label>Critérios da peneira (quando o cliente está pronto para o vendedor)
           <textarea name="routingCriteria" rows="5"></textarea>
+        </label>
+        <label>Especialistas por assunto (um por linha: Assunto = Nome = WhatsApp)
+          <textarea name="specialists" rows="3" placeholder="Terrenos, lotes, casas e imóveis = Robson = +595 981 000000"></textarea>
         </label>
         <label>Endereço do painel na internet (vai no aviso ao vendedor) <input name="panelUrl" placeholder="https://painel.suaempresa.com" /></label>
         <label class="check"><input type="checkbox" name="autoCreate" /> Criar prospecto automaticamente para quem manda mensagem</label>
@@ -444,6 +458,20 @@
           <label>Conhecimento adicional (etapas, documentos, triagem, quando transferir, exemplos de tom…)
             <textarea name="b_knowledge" rows="14"></textarea>
           </label>
+        </div>
+        <div class="panel">
+          <h2>💰 Argumentos de venda (só o que for verdade)</h2>
+          <p class="hint">A atendente usa estes argumentos para criar desejo e urgência. Ela <b>só</b> fala de oferta, reajuste, procura alta ou preço de concorrente se estiver escrito aqui. Campo vazio = ela não menciona. Assim a venda fica forte sem mentir para o cliente (o que gera denúncia, bloqueio do número e cliente perdido).</p>
+          <label>História da empresa (storytelling) <textarea name="b_story" rows="4"></textarea></label>
+          <label>Prova social real (links de vídeos no YouTube, depoimentos com autorização, nº de clientes atendidos…) <textarea name="b_socialProof" rows="3" placeholder="ex.: Depoimentos no YouTube: https://youtube.com/@migraparaguai"></textarea></label>
+          <div class="grid2 tight">
+            <label>Condição especial em vigor (deixe vazio se não houver) <textarea name="b_offer" rows="3" placeholder="ex.: Grupo de novembro: quem fechar até sexta mantém a tabela atual"></textarea></label>
+            <label>Válida até <input type="date" name="b_offerUntil" /></label>
+            <label>Reajuste previsto (só se a direção confirmou) <textarea name="b_priceIncrease" rows="3" placeholder="ex.: Os valores serão reajustados em janeiro de 2027 por causa do aumento dos custos operacionais"></textarea></label>
+            <label>Preços de referência do mercado (concorrentes, com fonte) <textarea name="b_marketPrices" rows="3" placeholder="ex.: Assessorias em Assunção cobram de R$ 15 mil a R$ 20 mil por pessoa (pesquisa de 10/2026)"></textarea></label>
+            <label>Como funciona a reserva / sinal <textarea name="b_reservation" rows="3"></textarea></label>
+            <label>Dados que a atendente pode pedir para formalizar <textarea name="b_contractData" rows="3"></textarea></label>
+          </div>
         </div>
         <button class="btn primary">💾 Salvar agente</button>
       </form>

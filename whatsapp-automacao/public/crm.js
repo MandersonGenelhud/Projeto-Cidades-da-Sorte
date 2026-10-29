@@ -582,6 +582,7 @@ loaders.team = async () => {
   f.routingEnabled.checked = c.routing?.enabled !== false;
   f.routingCriteria.value = c.routing?.criteria || '';
   f.panelUrl.value = c.panelUrl || '';
+  f.specialists.value = (c.specialists || []).map((s) => [s.topic, s.name, s.whatsapp ? `+${s.whatsapp}` : ''].join(' = ')).join('\n');
   f.autoCreate.checked = c.autoCreate !== false;
   f.aiExtract.checked = c.aiExtract !== false;
   f.notifyFollowUps.checked = c.notifyFollowUps !== false;
@@ -648,6 +649,9 @@ $('#formCrmSettings').addEventListener('submit', withBusy($('#formCrmSettings'),
     body: { crm: {
       autoAssign: f.autoAssign.value, autoCreate: f.autoCreate.checked, aiExtract: f.aiExtract.checked, notifyFollowUps: f.notifyFollowUps.checked, packages,
       routing: { enabled: f.routingEnabled.checked, criteria: f.routingCriteria.value },
+      specialists: f.specialists.value.split('\n').map((line) => line.split('=').map((x) => x.trim()))
+        .filter(([topic, name]) => topic && name)
+        .map(([topic, name, whatsapp = '']) => ({ topic, name, whatsapp: whatsapp.replace(/\D/g, '') })),
       panelUrl: f.panelUrl.value.trim(),
     } },
   });
@@ -799,4 +803,91 @@ function onCrmDue() {
 function onCrmAssigned(data) {
   if (data.ownerId === window.currentUser?.id) toast('🎯 Novo cliente encaminhado para você! Veja em Prospectos.');
   onCrmEvent();
+}
+
+// ---------- NÚMEROS DA EQUIPE ----------
+const LINE_STATUS = { connected: '🟢 Conectado', qr: '🟡 Aguardando QR Code', connecting: '⏳ Conectando…', disconnected: '⚪ Desconectado' };
+loaders.lines = async () => {
+  const [list, users] = await Promise.all([api('/api/lines'), isAdmin() ? api('/api/users') : Promise.resolve([])]);
+  const people = users.filter((u) => u.active);
+  $('#btnAddLine').hidden = !isAdmin() || list.length >= 6;
+  $('#linesGrid').innerHTML = list.map((l) => `
+    <article class="panel line-card" data-line="${esc(l.id)}">
+      <div class="conv-header">
+        <div><h2>${esc(l.label)}</h2><span class="hint">${LINE_STATUS[l.status] || l.status}${l.me?.phone ? ` · ${esc(fmtPhone(l.me.phone))}` : ''}</span></div>
+        <label class="check"><input type="checkbox" data-act="agent" ${l.agent !== false ? 'checked' : ''} /> IA responde</label>
+      </div>
+      ${isAdmin() ? `<div class="row">
+        <label>Nome do número <input data-field="label" value="${esc(l.label)}" /></label>
+        <label>Vendedor <select data-field="ownerId"><option value="">—</option>${people.map((u) => `<option value="${esc(u.id)}" ${u.id === l.ownerId ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select></label>
+      </div>` : ''}
+      ${l.status === 'qr' && l.qr ? `<div class="line-qr"><img src="${l.qr}" alt="QR Code" /><p class="hint">No celular do vendedor: WhatsApp → Configurações → Dispositivos conectados → Conectar dispositivo → escaneie.</p></div>
+        <div class="row"><label>Ou conecte com código (sem câmera) <input data-field="phone" placeholder="+595 981 123456" /></label><button type="button" class="btn small" data-act="pair">Gerar código</button></div>
+        <div class="pairing-code" data-code hidden></div>` : ''}
+      ${l.status === 'connected' ? '<p class="hint">✅ Pronto. As conversas deste número aparecem em <b>Conversas</b>.</p>' : ''}
+      <div class="row">
+        <button type="button" class="btn small" data-act="restart">🔄 Reconectar</button>
+        ${l.status === 'connected' ? '<button type="button" class="btn small danger" data-act="logout">Desconectar</button>' : ''}
+        ${isAdmin() ? '<button type="button" class="btn small danger" data-act="remove">Remover</button>' : ''}
+      </div>
+    </article>`).join('') || `<p class="muted">${isAdmin() ? 'Nenhum número da equipe ainda. Clique em "Adicionar número".' : 'O administrador ainda não criou um número para você.'}</p>`;
+};
+$('#btnAddLine').addEventListener('click', async () => {
+  try {
+    const n = $$('#linesGrid .line-card').length + 1;
+    await api('/api/lines', { method: 'POST', body: { label: `Número ${n}` } });
+    toast('Número criado. Aguarde o QR Code aparecer.');
+    loaders.lines();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+$('#linesGrid').addEventListener('change', async (e) => {
+  const card = e.target.closest('[data-line]');
+  if (!card) return;
+  const id = card.dataset.line;
+  try {
+    if (e.target.dataset.act === 'agent') await api(`/api/lines/${id}`, { method: 'PATCH', body: { agent: e.target.checked } });
+    else if (e.target.dataset.field === 'label' || e.target.dataset.field === 'ownerId') {
+      await api(`/api/lines/${id}`, { method: 'PATCH', body: { [e.target.dataset.field]: e.target.value } });
+      toast('Salvo');
+    }
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+$('#linesGrid').addEventListener('click', async (e) => {
+  const act = e.target.closest('button[data-act]')?.dataset.act;
+  const card = e.target.closest('[data-line]');
+  if (!act || !card) return;
+  const id = card.dataset.line;
+  try {
+    if (act === 'pair') {
+      const r = await api(`/api/lines/${id}/pairing-code`, { method: 'POST', body: { phone: $('[data-field="phone"]', card).value } });
+      const box = $('[data-code]', card);
+      box.hidden = false;
+      box.textContent = r.code;
+      return;
+    }
+    if (act === 'restart') await api(`/api/lines/${id}/restart`, { method: 'POST' });
+    if (act === 'logout') {
+      if (!confirm('Desconectar este número? Vai ser preciso escanear o QR Code de novo.')) return;
+      await api(`/api/lines/${id}/logout`, { method: 'POST' });
+    }
+    if (act === 'remove') {
+      if (!confirm('Remover este número da equipe? As conversas ficam guardadas.')) return;
+      await api(`/api/lines/${id}`, { method: 'DELETE' });
+    }
+    loaders.lines();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+let lineRefresh;
+function onLineStatus() {
+  clearTimeout(lineRefresh);
+  // Não redesenha enquanto alguém digita no cartão.
+  lineRefresh = setTimeout(() => {
+    if ($('#tab-lines').classList.contains('active') && !$('#linesGrid').contains(document.activeElement)) loaders.lines();
+  }, 400);
 }

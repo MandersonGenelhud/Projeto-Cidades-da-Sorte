@@ -320,6 +320,10 @@ export class Crm {
     if (lead.interest) lead.value = this.packagePrice(lead.interest) * lead.people || lead.value;
     if (q.telefone && !lead.phone) lead.phone = normalizePhone(q.telefone) || null;
     if (q.resumo) lead.aiSummary = String(q.resumo).trim();
+    if (q.dados_formalizacao) {
+      lead.contractData = String(q.dados_formalizacao).trim();
+      this.#log(lead, 'IA', 'nota', `Dados para formalizar a negociação: ${lead.contractData}`);
+    }
     if (lead.stage === 'novo') lead.stage = 'em_contato';
     const label = { quente: '🔥 quente', morno: '🌤️ morno', frio: '❄️ frio' }[temp] || 'sem classificação';
     this.#log(lead, 'IA', 'ia', `Peneira da IA: cliente ${label}${lead.qualification.start ? ` · quer iniciar: ${lead.qualification.start}` : ''}${lead.qualification.moneyEvidence ? ` · sobre o dinheiro, disse: "${lead.qualification.moneyEvidence}"` : ''}`);
@@ -366,15 +370,31 @@ export class Crm {
   // ---------- Integração com as conversas ----------
   findForConversation({ key, phone, username }) {
     return (
-      this.leads.find((l) => l.conversationKey === key) ||
+      this.leads.find((l) => l.conversationKey === key || l.whatsappKey === key) ||
       (phone && this.leads.find((l) => l.phone === phone && OPEN.has(l.stage))) ||
       (username && this.leads.find((l) => l.instagram && l.instagram.toLowerCase() === username.toLowerCase() && OPEN.has(l.stage))) ||
       null
     );
   }
 
+  /**
+   * O cliente chegou no WhatsApp do vendedor com o código do Instagram (ex.: MIG-4K7P):
+   * liga essa conversa ao prospecto que já existe, com todo o histórico.
+   */
+  linkByCode({ text, key, phone }) {
+    const codes = String(text || '').toUpperCase().match(/\b[A-Z]{2,6}-[A-Z0-9]{4}\b/g) || [];
+    const lead = codes.map((c) => this.leads.find((l) => l.code === c)).find(Boolean);
+    if (!lead || lead.whatsappKey === key) return lead || null;
+    lead.whatsappKey = key;
+    if (phone && !lead.phone) lead.phone = phone;
+    this.#log(lead, 'Sistema', 'mensagem', `O cliente chamou no WhatsApp com o código ${lead.code}`);
+    this.store.save();
+    this.notify('crm', { id: lead.id });
+    return lead;
+  }
+
   /** Cliente mandou mensagem: garante que existe um prospecto para ele. */
-  ensureFromConversation({ key, phone, name, username, channel, referral }) {
+  ensureFromConversation({ key, phone, name, username, channel, referral, ownerId = null }) {
     if (this.config.autoCreate === false || String(key).startsWith('sim:')) return null;
     const existing = this.findForConversation({ key, phone, username });
     if (existing) {
@@ -396,7 +416,7 @@ export class Crm {
       instagram: username || '',
       source: referral ? `${channel || 'whatsapp'}_ads` : channel || 'whatsapp',
       conversationKey: key,
-      ownerId: null,
+      ownerId: ownerId && this.auth.get(ownerId) ? ownerId : null,
     });
     const created = this.leads.find((l) => l.id === lead.id);
     if (referral) {
@@ -404,7 +424,7 @@ export class Crm {
       this.#log(created, 'Sistema', 'mensagem', `Veio do anúncio: ${created.adTitle}`);
     }
     // Rodízio já na primeira mensagem (o padrão é só depois da peneira da IA).
-    if (this.config.autoAssign === 'roundrobin') this.routeLead(created);
+    if (!created.ownerId && this.config.autoAssign === 'roundrobin') this.routeLead(created);
     this.store.save();
     return created;
   }

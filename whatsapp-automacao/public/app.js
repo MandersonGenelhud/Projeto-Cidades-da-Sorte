@@ -768,7 +768,8 @@ $('#formCloud').addEventListener('submit', withBusy($('#formCloud'), async (e) =
 }));
 
 // ---------- Agente IA ----------
-const BUSINESS_FIELDS = ['name', 'segment', 'description', 'services', 'prices', 'hours', 'address', 'faq', 'policies', 'schedulingRules', 'knowledge'];
+const BUSINESS_FIELDS = ['name', 'segment', 'description', 'services', 'prices', 'hours', 'address', 'faq', 'policies', 'schedulingRules', 'knowledge',
+  'story', 'socialProof', 'offer', 'offerUntil', 'priceIncrease', 'marketPrices', 'reservation', 'contractData'];
 
 async function renderAgentStatus() {
   const st = await api('/api/agent/status');
@@ -995,7 +996,7 @@ async function loadPending() {
   $('#pendingList').innerHTML = r.items.map((p) => `
     <label class="pending-item ${p.queued ? 'queued' : ''}">
       <input type="checkbox" class="pendingCheck" value="${esc(p.jid)}" ${checked.has(p.jid) ? 'checked' : ''} />
-      <div>${p.channel === 'instagram' ? '📸' : '💬'} <b>${esc(p.name || fmtPhone(p.phone) || 'Contato')}</b> <span class="muted">${esc(p.name ? fmtPhone(p.phone) || '' : '')}</span>
+      <div>${p.channel === 'instagram' ? '📸' : '💬'} <b>${esc(p.name || fmtPhone(p.phone) || 'Contato')}</b> <span class="muted">${esc(p.name ? fmtPhone(p.phone) || '' : '')}</span> <span class="chip small">${esc(p.channelLabel || '')}</span>
         <div class="txt">${esc(p.texts.join(' · '))}</div></div>
       <span class="when">${p.queued ? '⏳ na fila' : ago(p.at)}</span>
     </label>`).join('') || '<p class="muted">Ninguém esperando resposta. 🎉</p>';
@@ -1042,6 +1043,7 @@ loaders.conversations = async () => {
   $('#convList').innerHTML = list.map((c) => `
     <div class="conv-item ${c.key === currentConv ? 'active' : ''}" data-key="${esc(c.key)}">
       ${String(c.key).startsWith('ig:') ? '📸' : '💬'} <b>${esc(c.name || fmtPhone(c.phone) || c.key)}</b> ${c.handoff ? '<span class="badge paused">humano</span>' : ''}
+      <span class="chip small">${esc(c.channelLabel || '')}</span>
       <div class="last">${c.last ? `${c.last.role === 'user' ? '' : '🤖 '}${esc(c.last.content)}` : ''}</div>
     </div>`).join('') || '<p class="muted">Nenhuma conversa ainda. Quando clientes falarem com o agente, elas aparecem aqui.</p>';
   if (currentConv) openConversation(currentConv);
@@ -1241,6 +1243,7 @@ function connectEvents() {
   es.addEventListener('appointments', refreshIfActive('agenda'));
   es.addEventListener('tunnel', (e) => renderTunnel(JSON.parse(e.data)));
   es.addEventListener('crm', () => onCrmEvent());
+  es.addEventListener('lineStatus', () => onLineStatus());
   es.addEventListener('agentError', (e) => {
     toast(`⚠️ A IA falhou: ${JSON.parse(e.data).message}`, true);
     renderAgentStatus();

@@ -159,7 +159,7 @@ test('perfil padrão é a Migra Paraguai: sem agenda, sem notas internas, com tr
   assert.match(p, /Pacote Ouro: R\$ 12\.997,00/);
   assert.match(p, /R\$ 1\.000,00 de entrada/);
   assert.match(p, /90 a 120 dias úteis/);
-  assert.match(p, /Nunca peça CPF/);
+  assert.match(p, /Nunca peça dados bancários/);
   assert.doesNotMatch(p, /consultar_horarios_disponiveis/); // agenda desligada
   assert.doesNotMatch(p, /NOTAS PARA APROVAÇÃO|preços de referência para seis pacotes|Meta Business Agent/);
   assert.equal(store.settings.agenda.enabled, false);

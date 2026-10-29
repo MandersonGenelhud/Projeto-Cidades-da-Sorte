@@ -9,8 +9,10 @@ const MAX_TOOL_ROUNDS = 6;
 const randomPause = () => 600 + Math.floor(Math.random() * 1400); // entre uma mensagem e outra
 
 export class Agent {
-  constructor({ store, llm, calendar, notify, notifyTeam, onReplied, routeLead, now = () => new Date(), wait = sleep }) {
+  constructor({ store, llm, calendar, notify, notifyTeam, onReplied, routeLead, routeSpecialist, contextFor, now = () => new Date(), wait = sleep }) {
     this.store = store;
+    this.routeSpecialist = routeSpecialist || null; // (conversa, args, { dryRun }) => passa para o especialista do assunto
+    this.contextFor = contextFor || null; // (conversa) => texto com o que o CRM já sabe do cliente
     this.routeLead = routeLead || null; // (conversa, args, { dryRun }) => encaminha para o vendedor da vez
     this.onReplied = onReplied || (() => {}); // (conversa) => usado pelo CRM para ler a conversa
     this.wait = wait; // espera (trocada nos testes para não demorar)
@@ -97,12 +99,16 @@ export class Agent {
     const channel = String(conv.key).startsWith('ig:') ? 'Instagram' : 'WhatsApp';
     const routing = Boolean(this.routeLead) && settings.crm?.routing?.enabled !== false;
     let system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name, channel, routing });
+    const known = this.contextFor ? this.contextFor(conv) : '';
+    if (known) system += `\n\n# O que já sabemos deste cliente (CRM)\n${known}\nUse isso: cumprimente pelo nome, mostre que já sabe o interesse dele ("vi aqui que você...") e siga para o fechamento sem repetir perguntas já respondidas.`;
+    const specialists = Boolean(this.routeSpecialist) && (settings.crm?.specialists || []).some((s) => s.topic && s.name);
     if (delayed) {
       system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece pedindo desculpas pela demora, de forma breve e natural, e então responda.';
     }
     // Sem agenda, o agente só pode transferir para a equipe.
     const tools = TOOL_DEFINITIONS.filter((t) => {
       if (t.function.name === 'encaminhar_para_vendedor') return routing;
+      if (t.function.name === 'encaminhar_para_especialista') return specialists;
       return canSchedule(settings) || t.function.name === 'transferir_para_humano';
     });
     const history = conv.messages.slice(-Math.max(2, Number(cfg.memoryMessages || 20)));
@@ -113,6 +119,7 @@ export class Agent {
       phone: conv.phone,
       dryRun,
       onRoute: this.routeLead ? (args) => this.routeLead(conv, args, { dryRun }) : null,
+      onSpecialist: this.routeSpecialist ? (args) => this.routeSpecialist(conv, args, { dryRun }) : null,
       onHandoff: (reason) => {
         if (!dryRun) {
           conv.handoff = true;

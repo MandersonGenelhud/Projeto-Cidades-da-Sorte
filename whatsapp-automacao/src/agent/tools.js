@@ -70,8 +70,25 @@ export const TOOL_DEFINITIONS = [
           quando_quer_iniciar: { type: 'string', description: 'Quando pretende começar, nas palavras do cliente' },
           objecoes: { type: 'string', description: 'Dúvidas ou objeções que ainda restam' },
           telefone: { type: 'string', description: 'WhatsApp do cliente, se ele informou' },
+          dados_formalizacao: { type: 'string', description: 'Dados que o cliente passou para formalizar a negociação (nome completo, CPF, e-mail, data de nascimento, cidade), exatamente como ele escreveu' },
         },
         required: ['resumo', 'temperatura'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'encaminhar_para_especialista',
+      description: 'Passa o cliente para o especialista de um assunto (ex.: terrenos e imóveis). O especialista recebe o resumo e você recebe o link do WhatsApp dele para enviar ao cliente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assunto: { type: 'string', description: 'O assunto, como está na lista de especialistas' },
+          resumo: { type: 'string', description: 'O que o cliente procura, em até 3 frases' },
+          nome: { type: 'string', description: 'Nome do cliente, se ele disse' },
+        },
+        required: ['assunto', 'resumo'],
       },
     },
   },
@@ -130,6 +147,10 @@ export async function runTool(name, args, ctx) {
       case 'encaminhar_para_vendedor': {
         if (!ctx.onRoute) return { erro: 'Encaminhamento indisponível. Use transferir_para_humano.' };
         return await ctx.onRoute(args);
+      }
+      case 'encaminhar_para_especialista': {
+        if (!ctx.onSpecialist) return { erro: 'Encaminhamento indisponível. Use transferir_para_humano.' };
+        return await ctx.onSpecialist(args);
       }
       case 'transferir_para_humano': {
         ctx.onHandoff?.(args.motivo || '');

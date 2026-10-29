@@ -91,6 +91,8 @@ export class AutoReply {
       return { kind: 'optin', text: renderTemplate(s.optInMessage, contact) };
     }
     if (!s.autoReplyEnabled) return null;
+    // Número da equipe com a IA desligada: o vendedor responde sozinho.
+    if (msg.line && msg.agentOff) return null;
     if (msg.phone && this.store.isBlacklisted(msg.phone)) return null;
 
     // Agente de IA ligado: regras de palavra-chave (opcionais) e depois a IA.

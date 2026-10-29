@@ -44,11 +44,45 @@ export class LeadRouter {
       `🌡️ ${TEMP[q.temperature] || 'Sem classificação'}${q.start ? ` · quer iniciar: ${q.start}` : ''}`,
       q.money ? `💰 ${MONEY[q.money] || q.money}${q.moneyEvidence ? ` — disse: "${q.moneyEvidence}"` : ''}` : '',
       q.objections ? `⚠️ Dúvidas/objeções: ${q.objections}` : '',
+      lead.contractData ? `🧾 Dados para formalizar: ${lead.contractData}` : '',
       lead.aiSummary ? `📝 ${lead.aiSummary}` : '',
       lastClient ? `\nÚltimas mensagens do cliente:\n${lastClient}` : '',
       `\nO cliente vai te chamar no WhatsApp com o código *${lead.code}*.`,
       link ? `Ficha completa e conversa: ${link}` : 'Veja a ficha completa no painel (Prospectos → buscar pelo código).',
     ].filter(Boolean).join('\n');
+  }
+
+  /** Especialista do assunto (ex.: terrenos → Robson): avisa e devolve o link dele. */
+  async routeSpecialist(conv, args, { dryRun = false } = {}) {
+    const list = (this.store.settings.crm?.specialists || []).filter((s) => s.topic && s.name);
+    const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const wanted = norm(args.assunto);
+    const spec = list.find((s) => norm(s.topic) === wanted)
+      || list.find((s) => norm(s.topic).split(/[,;/]| e /).some((w) => w.trim() && (wanted.includes(w.trim()) || w.trim().includes(wanted))))
+      || (list.length === 1 ? list[0] : null);
+    if (!spec) return { erro: 'Não achei especialista para esse assunto. Use transferir_para_humano.' };
+    if (!spec.whatsapp) return { erro: `O WhatsApp de ${spec.name} não foi cadastrado. Use transferir_para_humano.` };
+    const name = args.nome || conv.name || '';
+    const text = `Olá, ${firstName(spec.name)}! Vim pelo atendimento da ${this.businessName}.${name ? ` Meu nome é ${name}.` : ''} Tenho interesse em: ${args.assunto}.`;
+    const link = `https://wa.me/${spec.whatsapp}?text=${encodeURIComponent(text)}`;
+    if (dryRun || String(conv.key).startsWith('sim:')) {
+      return { ok: true, simulacao: true, especialista: firstName(spec.name), link, instrucao: 'Simulação: nada foi enviado. Mande o link ao cliente.' };
+    }
+    const lead = this.crm.findForConversation({ key: conv.key, phone: conv.phone });
+    if (lead) this.crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Encaminhado para ${spec.name} (${spec.topic}): ${args.resumo}`);
+    const where = conv.phone ? `+${conv.phone}` : conv.username ? `@${conv.username} (Instagram)` : 'pelo link';
+    const notice = `🔔 *Cliente para você: ${spec.topic}*\n👤 ${name || 'Sem nome'} · ${where}\n📝 ${args.resumo}\n\nO cliente vai te chamar no WhatsApp.`;
+    let warned = false;
+    if (this.canSendWhatsApp()) {
+      try {
+        await this.sendWhatsApp(spec.whatsapp, notice);
+        warned = true;
+      } catch (err) {
+        this.store.addLog({ type: 'error', message: `Aviso ao especialista ${spec.name}: ${err.message}` });
+      }
+    }
+    this.store.addLog({ type: 'system', message: `🎯 ${name || where} encaminhado para ${spec.name} (${spec.topic})${warned ? ' (avisado no WhatsApp)' : ''}` });
+    return { ok: true, especialista: firstName(spec.name), link, instrucao: `Diga que ${firstName(spec.name)} é o especialista em ${spec.topic}, que já recebeu o resumo, e envie o link para o cliente falar com ele.` };
   }
 
   /**

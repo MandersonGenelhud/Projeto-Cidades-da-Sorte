@@ -22,6 +22,7 @@ import { LeadRouter } from './routing.js';
 import { buildRanking, currentMonth } from './ranking.js';
 import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
+import { LineManager, parseLineKey } from './lines.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
 import { Crm, STAGES } from './crm.js';
@@ -80,9 +81,16 @@ const instagram = new InstagramClient({
   },
 });
 
+// Números da equipe (até 6 WhatsApps, um por vendedor).
+const lines = new LineManager({
+  store,
+  dataDir: DATA_DIR,
+  createClient: ({ authDir }) => new WhatsAppClient({ authDir, logLevel: process.env.LOG_LEVEL || 'silent' }),
+});
 const wa = new ConnectionManager({
   store,
   instagram,
+  lines,
   clients: {
     qr: new WhatsAppClient({ authDir: path.join(DATA_DIR, 'auth'), logLevel: process.env.LOG_LEVEL || 'silent' }),
     cloud: new CloudApiClient({ getConfig: cloudConfig }),
@@ -125,6 +133,24 @@ const router = new LeadRouter({
   canSendWhatsApp: () => wa.status === 'connected',
 });
 agent.routeLead = (conv, args, opts) => router.route(conv, args, opts);
+agent.routeSpecialist = (conv, args, opts) => router.routeSpecialist(conv, args, opts);
+// O que o CRM já sabe do cliente que veio de outro canal (ex.: Instagram → WhatsApp do vendedor).
+agent.contextFor = (conv) => {
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
+  if (!lead || lead.conversationKey === conv.key) return '';
+  const q = lead.qualification || {};
+  const origin = lead.conversationKey ? agent.conversation(lead.conversationKey, { create: false }) : null;
+  const before = (origin?.messages || []).slice(-8).map((m) => `${m.role === 'user' ? 'Cliente' : 'Atendimento'}: ${m.content}`).join('\n');
+  return [
+    `Nome: ${lead.name || '-'} · código ${lead.code}${lead.instagram ? ` · Instagram @${lead.instagram}` : ''}`,
+    lead.interest ? `Interesse: ${lead.interest}${lead.people > 1 ? ` para ${lead.people} pessoas` : ''}` : '',
+    q.temperature ? `Peneira: cliente ${q.temperature}${q.start ? `, quer começar ${q.start}` : ''}${q.moneyEvidence ? `, sobre o dinheiro disse: "${q.moneyEvidence}"` : ''}` : '',
+    q.objections ? `Dúvidas que ficaram: ${q.objections}` : '',
+    lead.aiSummary ? `Resumo: ${lead.aiSummary}` : '',
+    lead.contractData ? 'Os dados para o contrato já foram passados.' : '',
+    before ? `Últimas mensagens da conversa anterior (${String(lead.conversationKey).startsWith('ig:') ? 'Instagram' : 'outro canal'}):\n${before}` : '',
+  ].filter(Boolean).join('\n');
+};
 
 /**
  * Busca as conversas recentes do Direct: quem chamou nas últimas 24h entra em
@@ -194,11 +220,14 @@ wa.on('sent', ({ to, jid }) => {
   pending.resolve(jid);
   pending.resolve(to);
 });
+wa.on('lineStatus', (state) => notify('lineStatus', state));
 wa.on('message', (msg) => {
   pending.onIncoming(msg);
   if (!msg.isGroup) {
     try {
-      crm.ensureFromConversation({ key: msg.jid, phone: msg.phone, name: msg.name, username: msg.username, channel: msg.channel || 'whatsapp', referral: msg.referral });
+      // Chegou no WhatsApp do vendedor com o código do Instagram: liga ao prospecto.
+      if (msg.line) crm.linkByCode({ text: msg.text, key: msg.jid, phone: msg.phone });
+      crm.ensureFromConversation({ key: msg.jid, phone: msg.phone, name: msg.name, username: msg.username, channel: msg.channel || 'whatsapp', referral: msg.referral, ownerId: msg.ownerId });
     } catch (err) {
       store.addLog({ type: 'error', message: `CRM: ${err.message}` });
     }
@@ -305,6 +334,7 @@ const SELLER_ROUTES = [
   ['GET', /^\/(status|events|me|users|pending|agent\/status|instagram\/status|crm\/agenda|crm\/stats|crm\/stages|crm\/ranking)$/],
   ['*', /^\/leads(\/|$)/],
   ['GET', /^\/conversations(\/|$)/],
+  ['*', /^\/lines(\/|$)/],
   ['POST', /^\/conversations\/[^/]+\/(reply|handoff)$/],
 ];
 app.use('/api', (req, res, next) => {
@@ -745,11 +775,26 @@ app.get('/api/agent/prompt', (_req, res) => {
 });
 
 // Conversas (memória do agente)
-app.get('/api/conversations', (_req, res) => res.json(agent.listConversations()));
+/** Vendedor vê só as conversas do número dele e as dos prospectos que são dele. */
+function canSeeConv(user, key) {
+  if (user.role === 'admin') return true;
+  const line = parseLineKey(key);
+  if (line) return lines.get(line.id)?.ownerId === user.id;
+  return crm.leads.some((l) => l.ownerId === user.id && (l.conversationKey === key || l.whatsappKey === key));
+}
+const convLabel = (key) => {
+  const line = parseLineKey(key);
+  return line ? lines.get(line.id)?.label || 'Número da equipe' : String(key).startsWith('ig:') ? 'Instagram' : 'Principal';
+};
+app.get('/api/conversations', (req, res) => res.json(agent.listConversations().filter((c) => canSeeConv(req.user, c.key)).map((c) => ({ ...c, channelLabel: convLabel(c.key) }))));
+app.use('/api/conversations/:key', (req, _res, next) => {
+  if (!canSeeConv(req.user, req.params.key)) throw httpError(403, 'Esta conversa é de outro vendedor');
+  next();
+});
 app.get('/api/conversations/:key', (req, res) => {
   const conv = agent.conversation(req.params.key, { create: false });
   if (!conv) throw httpError(404, 'Conversa não encontrada');
-  res.json(conv);
+  res.json({ ...conv, channelLabel: convLabel(conv.key) });
 });
 app.post('/api/conversations/:key/handoff', (req, res) => {
   res.json(agent.setHandoff(req.params.key, Boolean(req.body.value), 'Assumido pelo painel'));
@@ -772,7 +817,49 @@ app.delete('/api/conversations/:key', (req, res) => {
 });
 
 // Conversas sem resposta
-app.get('/api/pending', (_req, res) => res.json({ ...pending.status(), items: pending.list() }));
+app.get('/api/pending', (req, res) => {
+  const items = pending.list().filter((p) => canSeeConv(req.user, p.jid)).map((p) => ({ ...p, channelLabel: convLabel(p.jid) }));
+  res.json({ ...pending.status(), count: items.length, items });
+});
+
+// Números da equipe (até 6). Administrador gerencia todos; o vendedor conecta o dele.
+const myLine = (user, id) => {
+  const line = lines.get(id);
+  if (!line) throw httpError(404, 'Número não encontrado');
+  if (user.role !== 'admin' && line.ownerId !== user.id) throw httpError(403, 'Este número é de outro vendedor');
+  return line;
+};
+const publicLine = (l) => ({ ...l, ownerName: auth.get(l.ownerId)?.name || '' });
+app.get('/api/lines', (req, res) => {
+  res.json(lines.list().filter((l) => req.user.role === 'admin' || l.ownerId === req.user.id).map(publicLine));
+});
+app.post('/api/lines', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador adiciona números');
+  res.json(lines.add(req.body));
+});
+app.patch('/api/lines/:id', (req, res) => {
+  myLine(req.user, req.params.id);
+  const patch = req.user.role === 'admin' ? req.body : { agent: req.body.agent };
+  res.json(lines.update(req.params.id, patch));
+});
+app.delete('/api/lines/:id', async (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador remove números');
+  await lines.remove(req.params.id);
+  res.json({ ok: true });
+});
+app.post('/api/lines/:id/restart', async (req, res) => {
+  myLine(req.user, req.params.id);
+  res.json(await lines.start(req.params.id));
+});
+app.post('/api/lines/:id/logout', async (req, res) => {
+  myLine(req.user, req.params.id);
+  await lines.logout(req.params.id);
+  res.json({ ok: true });
+});
+app.post('/api/lines/:id/pairing-code', async (req, res) => {
+  myLine(req.user, req.params.id);
+  res.json({ code: await lines.requestPairingCode(req.params.id, req.body.phone) });
+});
 app.post('/api/pending/reply', (req, res) => {
   const jids = req.body.all ? pending.list().map((p) => p.jid) : req.body.jids || [];
   res.json(pending.enqueue(jids));
@@ -959,6 +1046,7 @@ if (process.env.NODE_ENV !== 'test') {
   });
   wa.start().catch((err) => console.error('Erro ao iniciar o WhatsApp:', err));
   instagram.start().catch((err) => console.error('Erro ao iniciar o Instagram:', err));
+  lines.startAll().catch((err) => console.error('Erro ao ligar os números da equipe:', err.message));
   if (store.settings.instagram?.tunnel) tunnel.start().catch((err) => console.error('Erro ao ligar o túnel:', err.message));
   scheduler.start();
   // Retornos agendados: confere a cada 10 minutos.

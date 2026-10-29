@@ -44,6 +44,8 @@ const DEFAULT_DATA = {
       routing: { enabled: true, criteria: PRESET.crm?.routing?.criteria || '' },
       panelUrl: '', // endereço do painel na internet, para o link da ficha no aviso ao vendedor
       codePrefix: 'MIG',
+      // Assuntos que vão direto para um especialista (ex.: terrenos → Robson).
+      specialists: (PRESET.crm?.specialists || []).map((x) => ({ ...x })),
       requireConfirmation: true, // venda do vendedor só entra no ranking depois que o administrador confirma
       goals: {
         metric: 'sales', // sales (nº de vendas) | revenue (R$ vendido)

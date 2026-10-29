@@ -2,13 +2,21 @@
 // e, em paralelo, o Instagram Direct. O resto do sistema conversa só com este objeto.
 import { EventEmitter } from 'node:events';
 import { IG_PREFIX } from './transports/instagram.js';
+import { LINE_PREFIX } from './lines.js';
 
 const FORWARDED = ['checkNumber', 'getGroups', 'getGroupParticipants', 'resolveJid'];
 
 export class ConnectionManager extends EventEmitter {
-  constructor({ store, clients, instagram = null }) {
+  constructor({ store, clients, instagram = null, lines = null }) {
     super();
     this.store = store;
+    this.lines = lines; // LineManager: números da equipe (chaves "l:…")
+    if (lines) {
+      lines.on('message', (msg) => this.emit('message', msg));
+      lines.on('ownerMessage', (msg) => this.emit('ownerMessage', msg));
+      lines.on('status', (state) => this.emit('lineStatus', state));
+      lines.on('log', (entry) => this.emit('log', entry));
+    }
     this.clients = clients; // { qr: WhatsAppClient, cloud: CloudApiClient }
     this.instagram = instagram; // InstagramClient (opcional), funciona junto com o WhatsApp
     if (instagram) {
@@ -46,11 +54,18 @@ export class ConnectionManager extends EventEmitter {
 
   /** O canal de uma conversa está conectado? */
   isConnected(to) {
+    if (String(to).startsWith(LINE_PREFIX)) return Boolean(this.lines?.isConnected(to));
     return String(to).startsWith(IG_PREFIX) ? this.instagram?.status === 'connected' : this.status === 'connected';
   }
 
   /** Envia pelo canal da conversa e avisa quem estiver ouvindo (ex.: lista de conversas sem resposta). */
   async send(to, payload) {
+    if (String(to).startsWith(LINE_PREFIX)) {
+      if (!this.lines) throw new Error('Números da equipe não configurados');
+      const result = await this.lines.send(to, payload);
+      this.emit('sent', { to, jid: result?.jid });
+      return result;
+    }
     const client = String(to).startsWith(IG_PREFIX) ? this.instagram : this.current;
     if (!client) throw new Error('Instagram não configurado');
     const result = await client.send(to, payload);
@@ -60,6 +75,7 @@ export class ConnectionManager extends EventEmitter {
 
   /** Marca mensagens como lidas no canal da conversa (erros são ignorados). */
   async markRead(to, ids) {
+    if (String(to).startsWith(LINE_PREFIX)) return this.lines?.markRead(to, ids).catch(() => {});
     const client = String(to).startsWith(IG_PREFIX) ? this.instagram : this.current;
     try {
       await client?.markRead?.(to, ids);
@@ -95,6 +111,6 @@ export class ConnectionManager extends EventEmitter {
   }
 
   async stop() {
-    await Promise.all([...Object.values(this.clients), this.instagram].filter(Boolean).map((c) => c.stop()));
+    await Promise.all([...Object.values(this.clients), this.instagram, this.lines].filter(Boolean).map((c) => c.stop()));
   }
 }
