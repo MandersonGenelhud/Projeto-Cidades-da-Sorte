@@ -35,7 +35,7 @@
       <button data-tab="affiliates" data-admin>🤝 Indicadores</button>
       <div class="nav-group" data-admin>Atendimento automático</div>
       <button data-tab="dashboard" data-admin>📊 Painel</button>
-      <button data-tab="connection" data-admin>📱 Conexão</button>
+      <button data-tab="connection" data-admin>📱 Conexões WhatsApp</button>
       <button data-tab="agent" data-admin>🧠 Agente IA</button>
       <button data-tab="test" data-admin>🧪 Testar agente</button>
       <button data-tab="agenda" data-admin>🗓️ Agenda</button>
@@ -94,9 +94,19 @@
 
     <!-- CONEXÃO -->
     <section id="tab-connection" class="tab">
-      <h1>Conexão</h1>
+      <h1>Conexões do WhatsApp</h1>
       <div class="panel">
-        <h2>Como conectar o WhatsApp</h2>
+        <div class="page-head">
+          <div><h2>WhatsApps dos vendedores · até 6 números</h2>
+          <p class="hint">Cada vendedor conecta o próprio WhatsApp lendo o QR Code da vaga dele. A atendente de IA responde em todos os números ao mesmo tempo, com o mesmo conhecimento da Migra, e cada um tem as suas conversas separadas. Dá para ligar ou desligar a IA em cada número.</p></div>
+        </div>
+        <div class="conn-summary" id="connSummary"></div>
+        <div class="lines-grid" data-lines-grid></div>
+      </div>
+      <div class="panel">
+        <h2>Número principal da Migra</h2>
+        <p class="hint">É o número da empresa: atende os clientes e avisa cada vendedor quando chega um cliente novo para ele.</p>
+        <h3>Como conectar</h3>
         <div class="mode-choice">
           <label class="mode-card"><input type="radio" name="connMode" value="qr" />
             <b>📷 QR Code (WhatsApp Web)</b>
@@ -305,11 +315,17 @@
         </div>
         <div class="lots-layout">
           <div class="panel">
-            <div class="map-toolbar" data-admin>
-              <div class="seg" role="group" aria-label="Ferramenta">
-                <button type="button" class="btn small" data-mode="select" aria-pressed="true">👆 Selecionar</button>
-                <button type="button" class="btn small" data-mode="draw" aria-pressed="false">✏️ Desenhar lote</button>
-                <button type="button" class="btn small" data-mode="block" aria-pressed="false">▦ Gerar quadra</button>
+            <div class="map-toolbar">
+              <div class="seg" role="group" aria-label="Ferramenta" data-admin>
+                <button type="button" data-mode="select" aria-pressed="true">Selecionar</button>
+                <button type="button" data-mode="strip" aria-pressed="false">Quadra pelos lados</button>
+                <button type="button" data-mode="block" aria-pressed="false">Quadra retangular</button>
+                <button type="button" data-mode="draw" aria-pressed="false">Desenhar lote</button>
+              </div>
+              <div class="seg zoom" role="group" aria-label="Zoom">
+                <button type="button" data-zoom="-0.5" aria-label="Diminuir">−</button>
+                <span id="zoomLevel">100%</span>
+                <button type="button" data-zoom="0.5" aria-label="Aumentar">+</button>
               </div>
               <span class="hint" id="modeHint">Clique em um lote para editar.</span>
             </div>
@@ -371,7 +387,7 @@
         <button type="button" class="btn primary" id="btnAddLine" data-admin>➕ Adicionar número</button>
       </div>
       <p class="hint">Até 6 WhatsApps, um para cada vendedor. Cada número tem o próprio QR Code e as próprias conversas, e a atendente responde nele com o mesmo conhecimento da Migra. Quando o cliente chega com o código do Instagram (ex.: MIG-4K7P), a atendente já sabe tudo o que ele conversou lá. O vendedor vê só o número dele; o administrador vê todos. O número principal (aba Conexão) é o que avisa cada vendedor.</p>
-      <div id="linesGrid" class="lines-grid"></div>
+      <div id="linesGrid" class="lines-grid" data-lines-grid></div>
     </section>
 
     <!-- RANKING -->
@@ -1163,6 +1179,7 @@
   <script src="ui.js"></script>
   <script src="app.js"></script>
   <script src="crm.js"></script>
+  <script src="/site/lotgeo.js"></script>
   <script src="realty-admin.js"></script>
 </body>
 </html>

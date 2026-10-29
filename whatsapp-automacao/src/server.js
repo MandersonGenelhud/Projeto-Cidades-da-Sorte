@@ -412,6 +412,7 @@ app.post('/api/public/interest', async (req, res) => {
     const d = realty.development(b.slug);
     const lot = d?.lots.find((l) => l.id === b.lotId);
     if (!lot) throw httpError(404, 'Lote não encontrado');
+    if (lot.status === 'vendido' || lot.status === 'loteadora') throw httpError(409, 'Este lote não está à venda. Escolha um lote em verde.');
     item = `${d.name} · ${lot.code}${lot.area ? ` · ${lot.area} m²` : ''}`;
     agent = d.agentWhatsapp || '';
     value = lot.price || 0;
@@ -1056,10 +1057,15 @@ app.post('/api/realty/developments/:id/plan', imageUpload, (req, res) => {
   res.json(realty.setPlan(req.params.id, req.file?.buffer, imageExt(req.file), { width: req.body.width, height: req.body.height }));
 });
 app.post('/api/realty/developments/:id/lots', (req, res) => res.json(realty.addLot(req.params.id, req.body)));
+app.post('/api/realty/developments/:id/lots/bulk', (req, res) => res.json(realty.addLots(req.params.id, req.body.lots)));
 app.post('/api/realty/developments/:id/block', (req, res) => res.json(realty.generateBlock(req.params.id, req.body)));
 app.patch('/api/realty/developments/:id/lots/:lotId', (req, res) => {
   // Vendedor só muda a situação (reservar/vender); o resto é do administrador.
   const body = req.user.role === 'admin' ? req.body : { status: req.body.status };
+  if (req.user.role !== 'admin') {
+    const lot = realty.development(req.params.id)?.lots.find((l) => l.id === req.params.lotId);
+    if (body.status === 'loteadora' || lot?.status === 'loteadora') throw httpError(403, 'Só o administrador mexe nos lotes reservados da loteadora');
+  }
   res.json(realty.updateLot(req.params.id, req.params.lotId, body));
 });
 app.delete('/api/realty/developments/:id/lots/:lotId', (req, res) => {

@@ -165,3 +165,25 @@ dialog::backdrop { background: rgba(10, 20, 14, .55); }
 .site-foot .wrap { padding-block: 28px; display: flex; gap: 16px; justify-content: space-between; flex-wrap: wrap; font-size: 14px; }
 .site-foot a { color: #fff; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+
+/* Acabamento no estilo Apple e mapa com cantos arredondados */
+:root { --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, 'Segoe UI', Roboto, sans-serif; --radius: 18px; --lot-ok: #34c759; --lot-warn: #ffb300; --lot-bad: #ff3b30; --lot-dev: #8e8e93; }
+.dot.disponivel { background: var(--lot-ok); } .dot.reservado { background: var(--lot-warn); } .dot.vendido { background: var(--lot-bad); } .dot.loteadora { background: var(--lot-dev); }
+.seg { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 10px; background: rgba(0, 0, 0, .06); }
+.seg button { border: 0; background: transparent; font: inherit; font-size: 15px; font-weight: 600; width: 34px; height: 30px; border-radius: 8px; cursor: pointer; color: var(--text); }
+.seg button:hover { background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.seg span { font-size: 12px; color: var(--muted); min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; }
+.map-scroll { border-radius: var(--radius); border-color: rgba(0, 0, 0, .06); box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 8px 24px rgba(0, 0, 0, .06); background: #eef0ee; }
+.map-scroll:fullscreen { max-height: none; border-radius: 0; }
+.map svg { overflow: visible; }
+.lot { stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; transition: fill-opacity .2s ease; }
+.lot.disponivel { fill: var(--lot-ok); fill-opacity: .62; }
+.lot.reservado { fill: var(--lot-warn); fill-opacity: .72; }
+.lot.vendido { fill: var(--lot-bad); fill-opacity: .6; }
+.lot.loteadora { fill: var(--lot-dev); fill-opacity: .72; cursor: default; }
+.lot:hover { fill-opacity: .88; stroke-width: 2; }
+.lot.sel { fill-opacity: .92; stroke: #0a84ff; stroke-width: 3; }
+.lot-label { font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
+.block-label { position: absolute; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap; font-size: 12px; font-weight: 700; color: #1d1d1f; background: rgba(255, 255, 255, .88); padding: 2px 9px; border-radius: 999px; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
+.box, .card { border-radius: var(--radius); }
+.btn { border-radius: 999px; }

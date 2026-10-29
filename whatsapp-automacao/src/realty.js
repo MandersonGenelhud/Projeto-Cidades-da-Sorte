@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const LOT_STATUS = ['disponivel', 'reservado', 'vendido'];
+// loteadora: lote guardado pela própria loteadora (cinza no mapa, fora da venda).
+export const LOT_STATUS = ['disponivel', 'reservado', 'vendido', 'loteadora'];
 export const PROPERTY_STATUS = ['disponivel', 'reservado', 'vendido', 'alugado'];
 export const PROPERTY_TYPES = { terreno: 'Terreno', lote: 'Lote', casa: 'Casa', departamento: 'Apartamento', galpao: 'Galpão', fazenda: 'Fazenda / chácara', local: 'Ponto comercial' };
 
@@ -120,7 +121,7 @@ export class Realty {
   }
 
   summary(d) {
-    const s = { total: d.lots.length, disponivel: 0, reservado: 0, vendido: 0, minPrice: null };
+    const s = { total: d.lots.length, disponivel: 0, reservado: 0, vendido: 0, loteadora: 0, minPrice: null };
     for (const l of d.lots) {
       s[l.status] = (s[l.status] || 0) + 1;
       if (l.status === 'disponivel' && l.price && (s.minPrice === null || l.price < s.minPrice)) s.minPrice = l.price;
@@ -199,6 +200,22 @@ export class Realty {
     return lot;
   }
 
+  /** Vários lotes de uma vez (quadra desenhada pelos lados, inclusive curvas). */
+  addLots(devId, list) {
+    const d = this.development(devId);
+    if (!d) throw err(404, 'Loteamento não encontrado');
+    if (!Array.isArray(list) || !list.length) throw err(400, 'Nenhum lote para criar');
+    if (list.length > 400) throw err(400, 'No máximo 400 lotes por vez');
+    const created = list.map((input) => {
+      const lot = this.#lot(d, input, { id: newId() });
+      if (!lot.shape) throw err(400, 'Lote sem desenho');
+      return lot;
+    });
+    d.lots.push(...created);
+    this.store.save();
+    return created;
+  }
+
   updateLot(devId, lotId, input) {
     const d = this.development(devId);
     const i = d?.lots.findIndex((l) => l.id === lotId) ?? -1;
@@ -249,7 +266,7 @@ export class Realty {
       id: d.id, slug: d.slug, name: d.name, city: d.city, address: d.address, description: d.description, currency: d.currency,
       plan: d.plan, planRatio: d.planRatio, mapsUrl: d.mapsUrl, agentName: d.agentName, agentWhatsapp: d.agentWhatsapp,
       summary: this.summary(d),
-      lots: d.lots.map(({ id, code, block, number, area, price, status, shape }) => ({ id, code, block, number, area, price: status === 'vendido' ? null : price, status, shape })),
+      lots: d.lots.map(({ id, code, block, number, area, price, status, shape }) => ({ id, code, block, number, area, price: status === 'vendido' || status === 'loteadora' ? null : price, status, shape })),
     };
   }
 }

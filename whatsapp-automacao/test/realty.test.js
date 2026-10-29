@@ -118,3 +118,37 @@ test('comissão de imóvel em dólar sai em dólar', async () => {
   assert.equal(c.amount, 540);
   assert.equal(affiliates.stats(ana).toReceive, 'US$ 540,00');
 });
+
+test('mapa: quadra em curva acompanha os lados e numera em U', async () => {
+  await import('../public/site/lotgeo.js');
+  const { stripLots, polyInfo, roundedPath } = globalThis.LotGeo;
+  // Lado A em arco (3 pontos) e lado B paralelo, mais abaixo.
+  const lots = stripLots({ sideA: [[10, 20], [50, 10], [90, 20]], sideB: [[10, 40], [50, 30], [90, 40]], perRow: 4, rows: 2, start: 1, numbering: 'u' });
+  assert.equal(lots.length, 8);
+  assert.deepEqual(lots.map((l) => l.number), ['1', '2', '3', '4', '5', '6', '7', '8']);
+  // 1ª fileira encosta no lado A; a 2ª volta (o lote 5 fica atrás do lote 4).
+  assert.deepEqual(lots[0].shape[0], [10, 20]);
+  assert.deepEqual(lots[3].shape[1], [90, 20]);
+  assert.deepEqual(lots[4].shape[2], [90, 40]);
+  // Lotes vizinhos dividem o mesmo canto (sem buracos entre eles).
+  assert.deepEqual(lots[0].shape[1], lots[1].shape[0]);
+  assert.ok(lots.every((l) => polyInfo(l.shape).area > 0));
+  assert.match(roundedPath(lots[0].shape), /^M[\d. ]+ Q/);
+});
+
+test('loteadora: lotes cinza fora da venda e criação de vários lotes de uma vez', () => {
+  const { realty } = setup();
+  const d = realty.saveDevelopment(null, { name: 'Jardim Oval' });
+  const lots = realty.addLots(d.id, [
+    { block: 'B', number: '1', price: '9.000', status: 'loteadora', shape: [[0, 0], [5, 0], [5, 5], [0, 5]] },
+    { block: 'B', number: '2', price: '9.000', shape: [[5, 0], [10, 0], [10, 5], [5, 5]] },
+  ]);
+  assert.equal(lots.length, 2);
+  assert.equal(lots[0].code, 'QB-L1');
+  const pub = realty.publicDevelopment(realty.development(d.id));
+  assert.equal(pub.summary.loteadora, 1);
+  assert.equal(pub.summary.disponivel, 1);
+  assert.equal(pub.lots[0].price, null, 'preço da reserva da loteadora não aparece no site');
+  assert.equal(pub.lots[1].price, 9000);
+  assert.throws(() => realty.addLots(d.id, [{ number: '3' }]), /desenho/);
+});

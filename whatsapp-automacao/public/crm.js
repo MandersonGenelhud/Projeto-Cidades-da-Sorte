@@ -811,17 +811,14 @@ function onCrmAssigned(data) {
   onCrmEvent();
 }
 
-// ---------- NÚMEROS DA EQUIPE ----------
-const LINE_STATUS = { connected: '🟢 Conectado', qr: '🟡 Aguardando QR Code', connecting: '⏳ Conectando…', disconnected: '⚪ Desconectado' };
-loaders.lines = async () => {
-  const [list, users] = await Promise.all([api('/api/lines'), isAdmin() ? api('/api/users') : Promise.resolve([])]);
-  const people = users.filter((u) => u.active);
-  $('#btnAddLine').hidden = !isAdmin() || list.length >= 6;
-  $('#linesGrid').innerHTML = list.map((l) => `
+// ---------- NÚMEROS DA EQUIPE (até 6 WhatsApps com a atendente de IA) ----------
+const LINE_STATUS = { connected: 'Conectado', qr: 'Aguardando QR Code', connecting: 'Conectando…', disconnected: 'Desconectado' };
+const MAX_LINES = 6;
+const lineCard = (l, people) => `
     <article class="panel line-card" data-line="${esc(l.id)}">
       <div class="conv-header">
-        <div><h2>${esc(l.label)}</h2><span class="hint">${LINE_STATUS[l.status] || l.status}${l.me?.phone ? ` · ${esc(fmtPhone(l.me.phone))}` : ''}</span></div>
-        <label class="check"><input type="checkbox" data-act="agent" ${l.agent !== false ? 'checked' : ''} /> IA responde</label>
+        <div><h2>${esc(l.label)}</h2><span class="line-status ${esc(l.status)}">${LINE_STATUS[l.status] || esc(l.status)}${l.me?.phone ? ` · ${esc(fmtPhone(l.me.phone))}` : ''}</span></div>
+        <label class="check"><input type="checkbox" data-act="agent" ${l.agent !== false ? 'checked' : ''} /> IA atende</label>
       </div>
       ${isAdmin() ? `<div class="row">
         <label>Nome do número <input data-field="label" value="${esc(l.label)}" /></label>
@@ -830,31 +827,56 @@ loaders.lines = async () => {
       ${l.status === 'qr' && l.qr ? `<div class="line-qr"><img src="${l.qr}" alt="QR Code" /><p class="hint">No celular do vendedor: WhatsApp → Configurações → Dispositivos conectados → Conectar dispositivo → escaneie.</p></div>
         <div class="row"><label>Ou conecte com código (sem câmera) <input data-field="phone" placeholder="+595 981 123456" /></label><button type="button" class="btn small" data-act="pair">Gerar código</button></div>
         <div class="pairing-code" data-code hidden></div>` : ''}
-      ${l.status === 'connected' ? '<p class="hint">✅ Pronto. As conversas deste número aparecem em <b>Conversas</b>.</p>' : ''}
+      ${l.status === 'connecting' || (l.status === 'qr' && !l.qr) ? '<p class="hint">Gerando o QR Code… aguarde alguns segundos.</p>' : ''}
+      ${l.status === 'connected' ? `<p class="hint">✅ ${l.agent !== false ? 'A atendente de IA está respondendo neste número.' : 'IA desligada: só o vendedor responde.'} As conversas aparecem em <b>Conversas</b>.</p>` : ''}
       <div class="row">
-        <button type="button" class="btn small" data-act="restart">🔄 Reconectar</button>
+        <button type="button" class="btn small" data-act="restart">Reconectar</button>
         ${l.status === 'connected' ? '<button type="button" class="btn small danger" data-act="logout">Desconectar</button>' : ''}
         ${isAdmin() ? '<button type="button" class="btn small danger" data-act="remove">Remover</button>' : ''}
       </div>
-    </article>`).join('') || `<p class="muted">${isAdmin() ? 'Nenhum número da equipe ainda. Clique em "Adicionar número".' : 'O administrador ainda não criou um número para você.'}</p>`;
+    </article>`;
+const emptySlot = (n) => `
+    <article class="panel line-card empty">
+      <span class="slot-n">${n}</span>
+      <b>Vaga ${n} livre</b>
+      <span class="hint">WhatsApp de mais um vendedor, com a atendente de IA.</span>
+      <button type="button" class="btn primary small" data-act="add">Conectar WhatsApp</button>
+    </article>`;
+loaders.lines = async () => {
+  const [list, users] = await Promise.all([api('/api/lines'), isAdmin() ? api('/api/users') : Promise.resolve([])]);
+  const people = users.filter((u) => u.active);
+  $('#btnAddLine').hidden = !isAdmin() || list.length >= MAX_LINES;
+  const slots = isAdmin() ? Array.from({ length: MAX_LINES - list.length }, (_, i) => emptySlot(list.length + i + 1)).join('') : '';
+  const html = list.map((l) => lineCard(l, people)).join('') + slots || '<p class="muted">O administrador ainda não criou um número para você.</p>';
+  const on = list.filter((l) => l.status === 'connected').length;
+  $$('[data-lines-grid]').forEach((grid) => {
+    const typing = grid.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+    if (!typing) grid.innerHTML = html;
+  });
+  if ($('#connSummary')) {
+    $('#connSummary').innerHTML = `<span><i class="ldot disponivel"></i>${on} de ${MAX_LINES} conectados</span><span>${list.filter((l) => l.agent !== false).length} com a IA atendendo</span><span>${MAX_LINES - list.length} vagas livres</span>`;
+  }
 };
-$('#btnAddLine').addEventListener('click', async () => {
+async function addLine() {
   try {
-    const n = $$('#linesGrid .line-card').length + 1;
-    await api('/api/lines', { method: 'POST', body: { label: `Número ${n}` } });
-    toast('Número criado. Aguarde o QR Code aparecer.');
+    const n = (await api('/api/lines')).length + 1;
+    await api('/api/lines', { method: 'POST', body: { label: `Vendedor ${n}` } });
+    toast('Número criado. O QR Code aparece em alguns segundos.');
     loaders.lines();
   } catch (err) {
     toast(err.message, true);
   }
-});
-$('#linesGrid').addEventListener('change', async (e) => {
-  const card = e.target.closest('[data-line]');
+}
+$('#btnAddLine').addEventListener('click', addLine);
+document.addEventListener('change', async (e) => {
+  const card = e.target.closest('[data-lines-grid] [data-line]');
   if (!card) return;
   const id = card.dataset.line;
   try {
-    if (e.target.dataset.act === 'agent') await api(`/api/lines/${id}`, { method: 'PATCH', body: { agent: e.target.checked } });
-    else if (e.target.dataset.field === 'label' || e.target.dataset.field === 'ownerId') {
+    if (e.target.dataset.act === 'agent') {
+      await api(`/api/lines/${id}`, { method: 'PATCH', body: { agent: e.target.checked } });
+      toast(e.target.checked ? 'A IA vai atender neste número' : 'IA desligada neste número');
+    } else if (e.target.dataset.field === 'label' || e.target.dataset.field === 'ownerId') {
       await api(`/api/lines/${id}`, { method: 'PATCH', body: { [e.target.dataset.field]: e.target.value } });
       toast('Salvo');
     }
@@ -862,10 +884,13 @@ $('#linesGrid').addEventListener('change', async (e) => {
     toast(err.message, true);
   }
 });
-$('#linesGrid').addEventListener('click', async (e) => {
-  const act = e.target.closest('button[data-act]')?.dataset.act;
-  const card = e.target.closest('[data-line]');
-  if (!act || !card) return;
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-lines-grid] button[data-act]');
+  if (!btn) return;
+  const act = btn.dataset.act;
+  if (act === 'add') return addLine();
+  const card = btn.closest('[data-line]');
+  if (!card) return;
   const id = card.dataset.line;
   try {
     if (act === 'pair') {
@@ -894,8 +919,15 @@ function onLineStatus() {
   clearTimeout(lineRefresh);
   // Não redesenha enquanto alguém digita no cartão.
   lineRefresh = setTimeout(() => {
-    if ($('#tab-lines').classList.contains('active') && !$('#linesGrid').contains(document.activeElement)) loaders.lines();
+    if ($('#tab-lines').classList.contains('active') || $('#tab-connection').classList.contains('active')) loaders.lines();
   }, 400);
+}
+{
+  const loadConnection = loaders.connection;
+  loaders.connection = async (...args) => {
+    await loadConnection?.(...args);
+    await loaders.lines();
+  };
 }
 
 // ---------- PAGAMENTOS (Pix) ----------

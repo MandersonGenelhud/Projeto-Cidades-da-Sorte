@@ -19,7 +19,7 @@ function price(value, currency = 'USD', perMonth = false) {
 }
 
 const TYPES = { terreno: 'Terreno', lote: 'Lote', casa: 'Casa', departamento: 'Apartamento', galpao: 'Galpão', fazenda: 'Fazenda / chácara', local: 'Ponto comercial' };
-const STATUS = { disponivel: 'Disponível', reservado: 'Reservado', vendido: 'Vendido', alugado: 'Alugado' };
+const STATUS = { disponivel: 'Disponível', reservado: 'Reservado', vendido: 'Vendido', alugado: 'Alugado', loteadora: 'Reservado pela loteadora' };
 
 function siteChrome(active) {
   document.body.insertAdjacentHTML('afterbegin', `
