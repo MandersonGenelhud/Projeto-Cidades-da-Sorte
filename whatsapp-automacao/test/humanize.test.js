@@ -5,8 +5,8 @@ import { readingTimeMs, splitIntoBubbles, typingTimeMs } from '../src/humanize.j
 import { tempStore } from './helpers.js';
 
 test('tempos de leitura e digitação crescem com o texto e têm limites', () => {
-  assert.equal(readingTimeMs('oi'), 1500);
-  assert.equal(readingTimeMs('x'.repeat(10_000)), 8000);
+  assert.equal(readingTimeMs('oi'), 2000);
+  assert.equal(readingTimeMs('x'.repeat(10_000)), 9000);
   const curto = typingTimeMs('Claro!', { typingCharsPerSecond: 7 });
   const longo = typingTimeMs('x'.repeat(140), { typingCharsPerSecond: 7 });
   assert.ok(curto >= 1500 && curto < 3000);
@@ -16,7 +16,13 @@ test('tempos de leitura e digitação crescem com o texto e têm limites', () =>
 
 test('resposta com parágrafos vira mensagens separadas (no máximo 3)', () => {
   assert.deepEqual(splitIntoBubbles('Oi! Tudo bem?\n\nSou a assistente da Migra.'), ['Oi! Tudo bem?', 'Sou a assistente da Migra.']);
-  assert.deepEqual(splitIntoBubbles('a\n\nb\n\nc\n\nd'), ['a', 'b', 'c\n\nd']);
+  assert.deepEqual(splitIntoBubbles('a\n\nb\n\nc\n\nd\n\ne'), ['a', 'b', 'c', 'd\n\ne']);
+  // Parágrafo comprido vira duas mensagens, quebrando no fim de uma frase.
+  const long = 'Entendo totalmente, é uma decisão importante e faz sentido pensar com calma. Quem tenta sozinho costuma perder viagens por causa de um documento errado, e cada ida ao Paraguai custa passagem, hotel e dias de trabalho. Com a gente você vai só duas vezes.';
+  const parts = splitIntoBubbles(long);
+  assert.equal(parts.length, 2);
+  assert.ok(parts.every((p) => /[.!?]$/.test(p)));
+  assert.equal(parts.join(' '), long);
   assert.deepEqual(splitIntoBubbles('uma linha só'), ['uma linha só']);
 });
 

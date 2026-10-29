@@ -631,12 +631,16 @@
       <div class="grid2">
         <div class="panel">
           <h2>💬 Simulador de conversa</h2>
-          <div class="chat" id="simChat"></div>
+          <div class="sim-phone">
+            <div class="sim-head"><span class="avatar">M</span><div><b>Atendimento Migra</b><small id="simPresence">online</small></div></div>
+            <div class="chat" id="simChat"></div>
+          </div>
           <form id="formSim" class="chat-input">
             <input name="text" placeholder="Escreva como se fosse um cliente…" autocomplete="off" />
             <button class="btn primary">Enviar</button>
           </form>
           <div class="row">
+            <label class="check"><input type="checkbox" id="simHuman" checked /> Ver no ritmo humano (lê com calma, aparece "digitando…" e responde picado)</label>
             <label class="check"><input type="checkbox" id="simDryRun" checked /> Modo teste (não grava agendamentos de verdade)</label>
             <button type="button" class="btn small" id="btnSimReset">🧹 Nova conversa</button>
           </div>

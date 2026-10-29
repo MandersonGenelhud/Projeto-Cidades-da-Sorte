@@ -4,7 +4,7 @@
 const MIGRA_PARAGUAI = {
   label: 'Migra Paraguai (assessoria migratória)',
   // Suba este número quando a base mudar: instalações com a versão antiga recebem a nova sozinhas.
-  version: 6,
+  version: 7,
   business: {
     name: 'Migra Paraguai',
     segment: 'assessoria de processos migratórios, regularização documental e abertura de empresas no Paraguai',
@@ -116,6 +116,14 @@ Português do Brasil, mensagens curtas como no WhatsApp: no máximo 2 ou 3 frase
 9. Objeções: acolha ("entendo, é uma decisão importante"), descubra a dúvida real ("o que pesa mais pra você: o valor, o prazo ou a segurança?") e responda essa dúvida com fatos da base. Use os exemplos de tom da base.
 10. Sempre termine com um próximo passo claro: escolher o pacote, tirar uma dúvida ou garantir a reserva.
 
+# Por que fazer com a Migra (deixe isso claro na conversa)
+- Dá para fazer sozinho? Dá, e nunca diga que não. Mas quem tenta sozinho arrisca: documento errado, tradução ou apostila faltando, viagem perdida, fila, retrabalho e meses a mais. Cada ida ao Paraguai custa passagem, hospedagem e dias sem trabalhar.
+- O que o cliente compra é tempo e segurança: alguém que já conhece o caminho, revisa tudo antes e acompanha cada etapa. Hoje ninguém quer perder tempo.
+- A conta é simples (aversão à perda): "se der errado uma vez só, a viagem perdida já sai mais cara que a assessoria. Faz sentido arriscar?". Pagar quem já sabe o caminho sai mais barato que errar. Use só números que estão na base.
+- Mostre o antes e o depois em frases curtas: sozinho = pesquisar, errar, voltar; com a Migra = lista certa, duas vindas, acompanhamento do começo ao fim.
+- Gatilhos que funcionam com verdade: aversão à perda (o que ele perde parado ou errando), autoridade (você domina as etapas e as certidões), reciprocidade (dê uma dica útil antes de pedir algo), compromisso (pequenos sins), facilidade (para começar é só a ficha e a reserva), prova social e escassez só se estiverem cadastradas.
+- Uma ideia por mensagem, sempre terminando com uma pergunta que faça o cliente pensar no próprio caso.
+
 # Técnicas de fechamento (perguntas vendem)
 - SPIN: pergunte sobre a Situação (como é hoje), o Problema (o que incomoda), a Implicação (o que acontece se continuar assim) e a Necessidade (o que muda quando resolver). Deixe o cliente dizer, com as palavras dele, por que precisa.
 - Perguntar o preço é sinal de interesse: responda com o valor do pacote (o que ele ganha) e o preço, e devolva uma pergunta que avance ("para quando você estaria pensando em começar?").
@@ -157,6 +165,12 @@ Faça a peneira com calma. Quando o cliente estiver pronto para fechar, siga o f
     ],
   },
   agenda: { enabled: false },
+  // Pix da empresa (recebedor do pagamento da reserva e nome no recibo).
+  payments: {
+    pixKey: '58521546000178',
+    receiverName: 'MIGRA PARAGUAI ASSESSORIA',
+    company: { name: 'Migra Paraguai Assessoria LTDA', document: '58.521.546/0001-78' },
+  },
   // Pacotes e valores (por pessoa) usados no CRM para estimar o valor de cada prospecto.
   crm: {
     // Terrenos e imóveis têm especialista próprio.
@@ -243,6 +257,8 @@ export function presetUpgrade(settings) {
           ...(settings.crm?.autoAssign ? {} : { autoAssign: 'qualified' }),
           ...(p.crm.specialists && !settings.crm?.specialists?.length ? { specialists: p.crm.specialists.map((x) => ({ ...x })) } : {}),
         } } : {}),
+        // Pix da empresa só entra se ainda não houver chave cadastrada.
+        ...(p.payments && !settings.payments?.pixKey ? { payments: { ...p.payments, company: { ...settings.payments?.company, ...p.payments.company } } } : {}),
         knowledgeVersion: { ...(settings.knowledgeVersion || {}), [id]: p.version },
       },
     };
@@ -258,6 +274,7 @@ export function presetSettings(id) {
     business: { ...p.business },
     agent: { ...p.agent },
     agenda: { ...p.agenda },
+    ...(p.payments ? { payments: { ...p.payments, company: { ...p.payments.company } } } : {}),
     ...(p.crm ? { crm: { packages: p.crm.packages.map((x) => ({ ...x })), ...(p.crm.routing ? { routing: { ...p.crm.routing } } : {}), ...(p.crm.specialists ? { specialists: p.crm.specialists.map((x) => ({ ...x })) } : {}) } } : {}),
     ...(p.version ? { knowledgeVersion: { [id]: p.version } } : {}),
   };

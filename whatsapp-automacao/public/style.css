@@ -729,3 +729,21 @@ textarea.mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-siz
 .num-check.ok { background: color-mix(in srgb, var(--lot-ok) 12%, transparent); }
 .num-check.warn { background: color-mix(in srgb, var(--lot-warn) 18%, transparent); }
 .num-check .btn { margin-top: 6px; }
+
+/* Simulador com cara de WhatsApp */
+.sim-phone { border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: #efeae2; }
+.sim-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.sim-head b { display: block; font-size: 14px; }
+.sim-head small { display: block; font-size: 12px; color: var(--muted); }
+.sim-head small.on { color: var(--green); font-weight: 500; }
+.sim-phone .chat { border: 0; border-radius: 0; background: transparent; padding: 12px; }
+.sim-phone .chat .msg.user { background: #d9fdd3; color: #111b21; }
+.sim-phone .chat .msg.assistant { background: #fff; color: #111b21; border: 0; box-shadow: 0 1px .5px rgba(11, 20, 26, .13); }
+.ticks { color: #8696a0; margin-left: 4px; letter-spacing: -3px; }
+.ticks.read { color: #53bdeb; }
+.typing.dots { display: inline-flex; gap: 4px; align-self: flex-start; background: #fff; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px .5px rgba(11, 20, 26, .13); font-style: normal; }
+.typing.dots i { width: 7px; height: 7px; border-radius: 50%; background: #8696a0; animation: dot 1.2s infinite ease-in-out; }
+.typing.dots i:nth-child(2) { animation-delay: .15s; }
+.typing.dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes dot { 0%, 60%, 100% { opacity: .35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-color-scheme: dark) { .sim-phone { background: #0b141a; } .sim-phone .chat .msg.assistant, .typing.dots { background: #202c33; color: #e9edef; } .sim-phone .chat .msg.user { background: #005c4b; color: #e9edef; } }

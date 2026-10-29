@@ -20,10 +20,10 @@ export function noticeDelayMs(cfg) {
   return randomBetween(c.noticeMin * 1000, c.noticeMax * 1000);
 }
 
-/** Tempo de leitura: ~ 15 caracteres por segundo, entre 1,5 e 8 segundos. */
+/** Tempo de leitura, com calma: ~ 12 caracteres por segundo, entre 2 e 9 segundos. */
 export function readingTimeMs(text) {
   const chars = String(text || '').length;
-  return Math.min(8000, Math.max(1500, Math.round((chars / 15) * 1000)));
+  return Math.min(9000, Math.max(2000, Math.round((chars / 12) * 1000)));
 }
 
 /** Tempo digitando uma mensagem, com variação para não parecer cronometrado. */
@@ -35,15 +35,30 @@ export function typingTimeMs(text, cfg) {
   return Math.min(c.maxTypingSeconds * 1000, Math.max(1500, Math.round(base + jitter)));
 }
 
+/** Parágrafo comprido vira duas mensagens, quebrando no fim de uma frase. */
+function splitLong(p, limit = 200) {
+  if (p.length <= limit || p.includes('http')) return [p];
+  const sentences = p.match(/[^.!?…]+[.!?…]+["”)]*\s*|[^.!?…]+$/g) || [p];
+  if (sentences.length < 2) return [p];
+  let first = '';
+  let i = 0;
+  while (i < sentences.length - 1 && (first + sentences[i]).length <= p.length / 2 + 40) first += sentences[i++];
+  if (!first) first = sentences[i++];
+  const rest = sentences.slice(i).join('').trim();
+  return rest ? [first.trim(), rest] : [first.trim()];
+}
+
 /**
- * Divide a resposta em mensagens curtas, como uma pessoa faria:
- * cada parágrafo (separado por linha em branco) vira uma mensagem, no máximo 3.
+ * Divide a resposta em mensagens curtas, picadas, como uma pessoa faria:
+ * cada parágrafo (separado por linha em branco) vira uma mensagem, e parágrafo
+ * comprido é quebrado no fim de uma frase. No máximo `max` mensagens.
  */
-export function splitIntoBubbles(text, max = 3) {
+export function splitIntoBubbles(text, max = 4) {
   const parts = String(text || '')
     .split(/\n\s*\n/)
     .map((p) => p.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .flatMap((p) => splitLong(p));
   if (parts.length <= max) return parts.length ? parts : [String(text || '').trim()];
   return [...parts.slice(0, max - 1), parts.slice(max - 1).join('\n\n')];
 }

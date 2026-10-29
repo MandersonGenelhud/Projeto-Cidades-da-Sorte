@@ -28,6 +28,7 @@ import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Affiliates } from './affiliates.js';
 import { LineManager, matchSeller, parseLineKey } from './lines.js';
 import { Closing, DEFAULT_TERM } from './closing.js';
+import { humanizeConfig, splitIntoBubbles } from './humanize.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
 import { Crm, STAGES } from './crm.js';
@@ -1048,7 +1049,9 @@ app.post('/api/agent/simulate', async (req, res) => {
   const text = String(req.body.text || '').trim();
   if (!text) throw httpError(400, 'Digite uma mensagem');
   const r = await agent.simulate({ session: req.body.session || 'simulador', text, dryRun: req.body.dryRun !== false });
-  res.json(r);
+  // O painel mostra a resposta no mesmo ritmo do WhatsApp: mensagens picadas e tempos de leitura e digitação.
+  const h = humanizeConfig(store.settings.agent?.humanize);
+  res.json({ ...r, bubbles: h.splitMessages ? splitIntoBubbles(r.text) : [r.text], humanize: h });
 });
 app.delete('/api/agent/simulate/:session', (req, res) => {
   agent.clearConversation(`sim:${req.params.session}`);

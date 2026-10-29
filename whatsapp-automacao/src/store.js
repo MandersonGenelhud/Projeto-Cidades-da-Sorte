@@ -108,10 +108,10 @@ const DEFAULT_DATA = {
     payments: {
       enabled: true,
       provider: 'pix', // pix (chave própria, confirmação manual) | mercadopago (confirmação automática)
-      pixKey: '',
-      receiverName: '', // nome do recebedor como está no banco (até 25 letras)
+      pixKey: PRESET.payments?.pixKey || '',
+      receiverName: PRESET.payments?.receiverName || '', // nome do recebedor como está no banco (até 25 letras)
       receiverCity: '',
-      company: { name: '', document: '', address: '', phone: '', email: '' },
+      company: { name: '', document: '', address: '', phone: '', email: '', ...PRESET.payments?.company },
       reservation: { base: 1000, perAdult: 800, description: 'reserva e início do processo (entrada + certidões)' },
       mercadopago: { accessToken: '', payerEmail: '' },
       bankInfo: '', // dados da conta (opcional), enviados junto com o Pix

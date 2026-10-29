@@ -901,6 +901,11 @@ const TOOL_LABEL = {
   listar_meus_agendamentos: '📋 listou agendamentos',
   cancelar_agendamento: '❌ cancelou agendamento',
   transferir_para_humano: '🙋 transferiu para humano',
+  enviar_ficha_de_dados: '📝 enviou a ficha de dados',
+  gerar_pix: '💳 gerou o Pix',
+  cliente_informou_pagamento: '🧾 avisou a equipe do pagamento',
+  encaminhar_para_vendedor: '🤝 passou para o consultor',
+  encaminhar_para_especialista: '🏠 passou para o especialista',
 };
 function chatBubble(role, text, at) {
   return `<div class="msg ${role}">${esc(text)}<time>${at ? fmtDate(at) : nowTime()}</time></div>`;
@@ -924,22 +929,58 @@ loaders.test = async () => {
 };
 const stressItem = (t) => `<div class="stress-item" data-text="${esc(t)}"><div class="q">“${esc(t)}”</div><div class="a"></div></div>`;
 
+// Mesmo ritmo do WhatsApp de verdade (src/humanize.js), só que mais rápido para "ver" a mensagem.
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+const rand = (a, b) => a + Math.random() * (b - a);
+const readMs = (t) => Math.min(9000, Math.max(2000, (t.length / 12) * 1000));
+const typeMs = (t, h) => Math.min((h.maxTypingSeconds || 25) * 1000, Math.max(1500, (t.length / (h.typingCharsPerSecond || 7)) * 1000 * rand(0.85, 1.2)));
+const setPresence = (t) => { $('#simPresence').textContent = t; $('#simPresence').classList.toggle('on', t !== 'online'); };
+const typingDots = '<div class="typing dots" aria-label="digitando"><i></i><i></i><i></i></div>';
+
 $('#formSim').addEventListener('submit', withBusy($('#formSim'), async (e) => {
   const input = e.target.text;
   const text = input.value.trim();
   if (!text) return;
   const chat = $('#simChat');
+  const human = $('#simHuman').checked;
   chat.querySelector('.typing')?.remove();
-  chat.insertAdjacentHTML('beforeend', chatBubble('user', text));
-  chat.insertAdjacentHTML('beforeend', '<div class="typing">digitando…</div>');
+  chat.insertAdjacentHTML('beforeend', chatBubble('user', text).replace('</time>', ' <span class="ticks">✓</span></time>'));
+  const ticks = chat.lastElementChild.querySelector('.ticks');
   input.value = '';
   scrollDown(chat);
+  const started = Date.now();
+  const reply = api('/api/agent/simulate', { method: 'POST', body: { text, session: simSession, dryRun: $('#simDryRun').checked } });
   try {
-    const r = await api('/api/agent/simulate', { method: 'POST', body: { text, session: simSession, dryRun: $('#simDryRun').checked } });
+    if (human) {
+      await sleepMs(rand(1200, 3000)); // "vê" a mensagem
+      ticks.textContent = '✓✓';
+      ticks.classList.add('read');
+      setPresence('online');
+      await sleepMs(readMs(text)); // lê com calma
+    } else {
+      chat.insertAdjacentHTML('beforeend', typingDots);
+    }
+    const r = await reply;
     chat.querySelector('.typing')?.remove();
-    chat.insertAdjacentHTML('beforeend', r.actions.map(actionChip).join('') + chatBubble('assistant', r.text));
+    if (r.actions.length) chat.insertAdjacentHTML('beforeend', r.actions.map(actionChip).join(''));
+    const bubbles = human ? r.bubbles || [r.text] : [r.text];
+    const thinking = Date.now() - started;
+    for (const [i, b] of bubbles.entries()) {
+      if (human) {
+        setPresence('digitando…');
+        chat.insertAdjacentHTML('beforeend', typingDots);
+        scrollDown(chat);
+        await sleepMs(Math.max(1200, typeMs(b, r.humanize || {}) - (i === 0 ? Math.max(0, thinking - readMs(text) - 3000) : 0)));
+        chat.querySelector('.typing')?.remove();
+        setPresence('online');
+      }
+      chat.insertAdjacentHTML('beforeend', chatBubble('assistant', b));
+      scrollDown(chat);
+      if (human && i < bubbles.length - 1) await sleepMs(rand(700, 1800));
+    }
   } catch (err) {
     chat.querySelector('.typing')?.remove();
+    setPresence('online');
     throw err;
   } finally {
     scrollDown(chat);
