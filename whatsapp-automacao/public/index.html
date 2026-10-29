@@ -29,6 +29,10 @@
       <button data-tab="conversations">💬 Conversas</button>
       <button data-tab="lines">📱 Números da equipe</button>
       <button data-tab="team" data-admin>👤 Equipe</button>
+      <div class="nav-group">Imóveis e parceiros</div>
+      <button data-tab="realty" data-admin>🏠 Imóveis</button>
+      <button data-tab="lots">🗺️ Loteamentos</button>
+      <button data-tab="affiliates" data-admin>🤝 Indicadores</button>
       <div class="nav-group" data-admin>Atendimento automático</div>
       <button data-tab="dashboard" data-admin>📊 Painel</button>
       <button data-tab="connection" data-admin>📱 Conexão</button>
@@ -254,6 +258,99 @@
       <div id="followupsBox" class="followups"></div>
     </section>
 
+    <!-- IMÓVEIS -->
+    <section id="tab-realty" class="tab">
+      <div class="page-head">
+        <h1>🏠 Imóveis</h1>
+        <div class="row">
+          <a class="btn" href="/imoveis" target="_blank" rel="noopener">Ver o site</a>
+          <button type="button" class="btn primary" id="btnNewProp">➕ Novo imóvel</button>
+        </div>
+      </div>
+      <p class="hint">Estes imóveis aparecem no site público <b>/imoveis</b>. Quem demonstra interesse vira prospecto em <b>Prospectos</b> (com o indicador, se veio por um link de parceiro) e é levado ao WhatsApp do corretor.</p>
+      <div class="panel"><div class="table-wrap"><table id="propTable"></table></div></div>
+    </section>
+
+    <!-- LOTEAMENTOS -->
+    <section id="tab-lots" class="tab">
+      <div class="page-head">
+        <h1>🗺️ Loteamentos</h1>
+        <button type="button" class="btn primary" id="btnNewDev" data-admin>➕ Novo loteamento</button>
+      </div>
+      <div id="devList" class="dev-list"></div>
+      <div id="devEditor" hidden>
+        <div class="panel">
+          <div class="conv-header">
+            <h2 id="devTitle">Loteamento</h2>
+            <div class="row">
+              <a class="btn small" id="devSiteLink" target="_blank" rel="noopener">Ver no site</a>
+              <button type="button" class="btn small danger" id="btnDelDev" data-admin>Excluir loteamento</button>
+            </div>
+          </div>
+          <form id="formDev" class="form" data-admin>
+            <div class="grid2 tight">
+              <label>Nome <input name="name" required /></label>
+              <label>Cidade <input name="city" /></label>
+              <label>Endereço / referência <input name="address" /></label>
+              <label>Moeda dos preços <select name="currency"><option value="USD">US$ (dólar)</option><option value="PYG">Gs. (guarani)</option><option value="BRL">R$ (real)</option></select></label>
+              <label>Corretor responsável <input name="agentName" /></label>
+              <label>WhatsApp do corretor <input name="agentWhatsapp" placeholder="+595 987 101567" /></label>
+            </div>
+            <label>Descrição <textarea name="description" rows="3"></textarea></label>
+            <div class="row">
+              <button class="btn primary">Salvar dados</button>
+              <label class="btn">🖼️ Enviar planta do loteamento <input type="file" id="planFile" accept="image/png,image/jpeg,image/webp" hidden /></label>
+            </div>
+          </form>
+        </div>
+        <div class="lots-layout">
+          <div class="panel">
+            <div class="map-toolbar" data-admin>
+              <div class="seg" role="group" aria-label="Ferramenta">
+                <button type="button" class="btn small" data-mode="select" aria-pressed="true">👆 Selecionar</button>
+                <button type="button" class="btn small" data-mode="draw" aria-pressed="false">✏️ Desenhar lote</button>
+                <button type="button" class="btn small" data-mode="block" aria-pressed="false">▦ Gerar quadra</button>
+              </div>
+              <span class="hint" id="modeHint">Clique em um lote para editar.</span>
+            </div>
+            <div id="lotCounts" class="counts-row"></div>
+            <div class="lot-editor-wrap"><div class="lot-editor" id="lotEditor"></div></div>
+          </div>
+          <div class="panel form" id="lotSide"><p class="muted">Selecione um lote no mapa.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INDICADORES -->
+    <section id="tab-affiliates" class="tab">
+      <div class="page-head">
+        <h1>🤝 Indicadores</h1>
+        <a class="btn" href="/parceiros" target="_blank" rel="noopener">Ver a página do programa</a>
+      </div>
+      <div class="cards" id="affKpis"></div>
+      <div class="panel">
+        <h2>Comissões</h2>
+        <div class="table-wrap"><table id="commTable"></table></div>
+      </div>
+      <div class="panel">
+        <h2>Indicadores cadastrados</h2>
+        <div class="table-wrap"><table id="affTable"></table></div>
+      </div>
+      <form class="panel form" id="formAff">
+        <h2>Regras do programa</h2>
+        <label class="check"><input type="checkbox" name="enabled" /> Programa de indicação aberto para novos cadastros</label>
+        <div class="grid2 tight">
+          <label>Imóveis: comissão (% da venda) <input type="number" min="0" step="0.1" name="imoveisPercent" /></label>
+          <label>Imóveis: valor fixo por venda (R$) <input type="number" min="0" step="1" name="imoveisFixed" /></label>
+          <label>Migração (residência, cédula, empresa): % da venda <input type="number" min="0" step="0.1" name="migracaoPercent" /></label>
+          <label>Migração: valor fixo por venda (R$) <input type="number" min="0" step="1" name="migracaoFixed" /></label>
+          <label>A indicação pelo link vale por (dias) <input type="number" min="1" name="cookieDays" /></label>
+        </div>
+        <label>Mensagem sugerida para os indicadores compartilharem (use {nome} e {link})<textarea name="shareMessage" rows="3"></textarea></label>
+        <button class="btn primary">Salvar regras</button>
+      </form>
+    </section>
+
     <!-- PAGAMENTOS -->
     <section id="tab-payments" class="tab">
       <div class="page-head">
@@ -367,6 +464,10 @@
         <label>Especialistas por assunto (um por linha: Assunto = Nome = WhatsApp)
           <textarea name="specialists" rows="3" placeholder="Terrenos, lotes, casas e imóveis = Robson = +595 981 000000"></textarea>
         </label>
+        <div class="row">
+          <label>Cotação do dólar para os painéis (R$ por US$ 1) <input type="number" step="0.01" min="0" name="fxUSD" /></label>
+          <label>Cotação do guarani (R$ por Gs. 1) <input type="number" step="0.00001" min="0" name="fxPYG" /></label>
+        </div>
         <label>Endereço do painel na internet (vai no aviso ao vendedor) <input name="panelUrl" placeholder="https://painel.suaempresa.com" /></label>
         <label class="check"><input type="checkbox" name="autoCreate" /> Criar prospecto automaticamente para quem manda mensagem</label>
         <label class="check"><input type="checkbox" name="aiExtract" /> IA lê as conversas e preenche o prospecto (nome, pacote, pessoas, data de retorno)</label>
@@ -961,6 +1062,43 @@
   </dialog>
 
   <div id="toast"></div>
+  <dialog id="propDialog" class="lead-dialog">
+    <form id="formProp" class="form" method="dialog">
+      <div class="conv-header"><h2 id="propTitle">Imóvel</h2><button type="button" class="btn small" id="propClose">✕</button></div>
+      <div class="grid2 tight">
+        <label>Título <input name="title" required /></label>
+        <label>Tipo <select name="type"><option value="terreno">Terreno</option><option value="lote">Lote</option><option value="casa">Casa</option><option value="departamento">Apartamento</option><option value="galpao">Galpão</option><option value="fazenda">Fazenda / chácara</option><option value="local">Ponto comercial</option></select></label>
+        <label>Negócio <select name="deal"><option value="venda">Venda</option><option value="aluguel">Aluguel</option></select></label>
+        <label>Situação <select name="status"><option value="disponivel">Disponível</option><option value="reservado">Reservado</option><option value="vendido">Vendido</option><option value="alugado">Alugado</option></select></label>
+        <label>Cidade <input name="city" /></label>
+        <label>Bairro <input name="neighborhood" /></label>
+        <label>Endereço / referência <input name="address" /></label>
+        <label>Área (ex.: 1.080 m² ou 3 ha) <input name="areaText" /></label>
+        <label>Quartos <input type="number" min="0" name="bedrooms" /></label>
+        <label>Banheiros <input type="number" min="0" name="bathrooms" /></label>
+        <label>Preço <input name="price" inputmode="decimal" placeholder="65.000" /></label>
+        <label>Moeda <select name="currency"><option value="USD">US$</option><option value="PYG">Gs.</option><option value="BRL">R$</option></select></label>
+        <label>Corretor <input name="agentName" /></label>
+        <label>WhatsApp do corretor <input name="agentWhatsapp" /></label>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" name="perMonth" /> Preço por mês (aluguel)</label>
+        <label class="check"><input type="checkbox" name="featured" /> Destaque (aparece primeiro)</label>
+        <label class="check"><input type="checkbox" name="hidden" /> Esconder do site</label>
+      </div>
+      <label>Descrição <textarea name="description" rows="4"></textarea></label>
+      <label>Fotos (um endereço por linha; a primeira é a capa) <textarea name="images" rows="4"></textarea></label>
+      <div class="row">
+        <label class="btn">📷 Enviar fotos <input type="file" id="propFiles" accept="image/png,image/jpeg,image/webp" multiple hidden /></label>
+        <span class="hint" id="propUpHint"></span>
+      </div>
+      <div class="row">
+        <button type="submit" class="btn primary">Salvar imóvel</button>
+        <a class="btn" id="propView" target="_blank" rel="noopener" hidden>Ver no site</a>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="leadDialog" class="lead-dialog">
     <form id="formLead" class="form" method="dialog">
       <div class="conv-header">
@@ -1025,5 +1163,6 @@
   <script src="ui.js"></script>
   <script src="app.js"></script>
   <script src="crm.js"></script>
+  <script src="realty-admin.js"></script>
 </body>
 </html>

@@ -9,6 +9,7 @@ import { exec } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import multer from 'multer';
+import QRCode from 'qrcode';
 import { Store } from './store.js';
 import { WhatsAppClient } from './transports/whatsapp-web.js';
 import { CloudApiClient } from './transports/cloudapi.js';
@@ -23,6 +24,8 @@ import { buildRanking, currentMonth } from './ranking.js';
 import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
 import { Payments } from './payments.js';
+import { Realty, PROPERTY_TYPES } from './realty.js';
+import { Affiliates } from './affiliates.js';
 import { LineManager, parseLineKey } from './lines.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
@@ -135,6 +138,18 @@ const router = new LeadRouter({
 });
 agent.routeLead = (conv, args, opts) => router.route(conv, args, opts);
 agent.routeSpecialist = (conv, args, opts) => router.routeSpecialist(conv, args, opts);
+// Migra Imóveis (catálogo e loteamentos) e programa de indicação.
+const realty = new Realty({ store, dataDir: DATA_DIR });
+const affiliates = new Affiliates({
+  store,
+  crm,
+  secret: auth.secret,
+  notifyAffiliate: async (phone, text) => {
+    if (wa.status === 'connected') await wa.send(phone, { text, typing: false });
+  },
+});
+crm.onWon = (lead) => affiliates.onLeadWon(lead);
+
 // Pix no fechamento: cobra, confirma, fecha a venda, manda recibo e avisa o dono.
 const payments = new Payments({
   store,
@@ -266,7 +281,10 @@ wa.on('message', (msg) => {
     try {
       // Chegou no WhatsApp do vendedor com o código do Instagram: liga ao prospecto.
       if (msg.line) crm.linkByCode({ text: msg.text, key: msg.jid, phone: msg.phone });
-      crm.ensureFromConversation({ key: msg.jid, phone: msg.phone, name: msg.name, username: msg.username, channel: msg.channel || 'whatsapp', referral: msg.referral, ownerId: msg.ownerId });
+      const lead = crm.ensureFromConversation({ key: msg.jid, phone: msg.phone, name: msg.name, username: msg.username, channel: msg.channel || 'whatsapp', referral: msg.referral, ownerId: msg.ownerId });
+      // Veio pelo link de um indicador ("código de indicação: ana482")?
+      const aff = affiliates.codeInText(msg.text);
+      if (aff && lead) affiliates.attach(lead, aff, 'WhatsApp');
     } catch (err) {
       store.addLog({ type: 'error', message: `CRM: ${err.message}` });
     }
@@ -326,7 +344,10 @@ app.post('/webhook', (req, res) => {
 
 if (PANEL_PASSWORD) {
   const expected = Buffer.from(`${PANEL_USER}:${PANEL_PASSWORD}`);
+  // Páginas públicas (site de imóveis, portal do indicador, recibos) ficam fora da senha extra.
+  const PUBLIC = /^\/(imoveis|parceiros|r\/|recibo\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
   app.use((req, res, next) => {
+    if (PUBLIC.test(req.path)) return next();
     const [scheme, encoded] = (req.headers.authorization || '').split(' ');
     const given = scheme === 'Basic' && encoded ? Buffer.from(encoded, 'base64') : Buffer.alloc(0);
     if (given.length === expected.length && crypto.timingSafeEqual(given, expected)) return next();
@@ -335,6 +356,139 @@ if (PANEL_PASSWORD) {
 }
 
 app.use(express.static(path.join(ROOT, 'public')));
+
+// ---------- Site público: imóveis, loteamentos e programa de indicação ----------
+const sitePage = (name) => (_req, res) => res.sendFile(path.join(ROOT, 'public', 'site', `${name}.html`));
+app.get('/imoveis', sitePage('imoveis'));
+app.get('/imoveis/p/:slug', sitePage('imovel'));
+app.get('/imoveis/l/:slug', sitePage('loteamento'));
+app.get('/parceiros', sitePage('parceiros'));
+app.get('/parceiros/painel', sitePage('painel-parceiro'));
+app.get('/imoveis/fotos/:name', (req, res) => {
+  const file = realty.imagePath(req.params.name);
+  if (!file) return res.sendStatus(404);
+  res.set('Cache-Control', 'public, max-age=86400').sendFile(file);
+});
+// Link de indicação: grava quem indicou (o primeiro vale) e leva para o site.
+app.get('/r/:code', (req, res) => {
+  const { cookies } = affiliates.recordClick(req, req.params.code);
+  if (cookies.length) res.set('Set-Cookie', cookies);
+  const to = String(req.query.to || '/imoveis');
+  res.redirect(to.startsWith('/') && !to.startsWith('//') ? to : '/imoveis');
+});
+const mainWhatsapp = () => wa.getState().me?.phone || '';
+app.get('/api/public/catalog', (_req, res) => {
+  res.json({
+    brand: store.settings.brand || {},
+    types: PROPERTY_TYPES,
+    properties: realty.listProperties({ publicOnly: true }),
+    developments: realty.listDevelopments().filter((d) => !d.hidden).map((d) => ({ slug: d.slug, name: d.name, city: d.city, description: d.description, plan: d.plan, currency: d.currency, summary: d.summary })),
+    whatsapp: mainWhatsapp(),
+    affiliates: { enabled: store.settings.affiliates?.enabled !== false, rates: store.settings.affiliates?.rates || {}, cookieDays: store.settings.affiliates?.cookieDays || 180 },
+  });
+});
+app.get('/api/public/property/:slug', (req, res) => {
+  const p = realty.property(req.params.slug);
+  if (!p || p.hidden) throw httpError(404, 'Imóvel não encontrado');
+  res.json(p);
+});
+app.get('/api/public/development/:slug', (req, res) => {
+  const d = realty.development(req.params.slug);
+  if (!d || d.hidden) throw httpError(404, 'Loteamento não encontrado');
+  res.json(realty.publicDevelopment(d));
+});
+// Interessado pelo site: vira prospecto no CRM (com o indicador, se houver) e vai para o WhatsApp do corretor.
+app.post('/api/public/interest', async (req, res) => {
+  const b = req.body || {};
+  const phone = normalizePhone(b.whatsapp);
+  if (String(b.name || '').trim().length < 2) throw httpError(400, 'Informe seu nome');
+  if (!phone) throw httpError(400, 'Informe um WhatsApp válido, com DDD');
+  let item = '';
+  let agent = '';
+  let value = 0;
+  let currency = 'USD';
+  let ref = {};
+  if (b.kind === 'lot') {
+    const d = realty.development(b.slug);
+    const lot = d?.lots.find((l) => l.id === b.lotId);
+    if (!lot) throw httpError(404, 'Lote não encontrado');
+    item = `${d.name} · ${lot.code}${lot.area ? ` · ${lot.area} m²` : ''}`;
+    agent = d.agentWhatsapp || '';
+    value = lot.price || 0;
+    currency = d.currency || 'USD';
+    ref = { devId: d.id, lotId: lot.id };
+  } else {
+    const p = realty.property(b.slug);
+    if (!p) throw httpError(404, 'Imóvel não encontrado');
+    item = p.title;
+    agent = p.agentWhatsapp || '';
+    value = p.price || 0;
+    currency = p.currency || 'USD';
+    ref = { propertyId: p.id };
+  }
+  const existing = crm.leads.find((l) => l.phone === phone && l.category === 'imoveis' && !['ganho', 'perdido'].includes(l.stage));
+  const lead = existing || crm.byId(crm.create({ name: 'Site', role: 'admin' }, { name: b.name, phone, email: b.email, source: 'site', category: 'imoveis', interest: item }).id);
+  if (!lead.value && value) {
+    lead.value = value;
+    lead.currency = currency; // imóveis costumam ser em US$; a comissão sai na mesma moeda
+  }
+  lead.realtyRef = ref;
+  const aff = affiliates.refFromRequest(req);
+  if (aff) affiliates.attach(lead, aff, 'link do site');
+  crm.addNote({ name: 'Site', role: 'admin' }, lead.id, `Interesse pelo site: ${item}${b.message ? ` · mensagem: ${String(b.message).slice(0, 300)}` : ''}`);
+  const target = agent || mainWhatsapp();
+  if (agent && wa.status === 'connected') {
+    wa.send(agent, { text: `🏠 *Novo interessado pelo site* — ${lead.code}\n👤 ${b.name} · +${phone}\n📍 ${item}${aff ? `\n🤝 Indicado por ${aff.name}` : ''}${b.message ? `\n📝 ${String(b.message).slice(0, 300)}` : ''}`, typing: false }).catch(() => {});
+  }
+  const text = `Olá! Tenho interesse em: ${item}. Meu nome é ${b.name}. Código: ${lead.code}.`;
+  res.json({ ok: true, code: lead.code, whatsappUrl: target ? `https://wa.me/${target}?text=${encodeURIComponent(text)}` : '' });
+});
+
+// Portal do indicador (login próprio, separado do painel da equipe).
+app.post('/api/affiliate/signup', (req, res) => {
+  const a = affiliates.signup(req.body || {});
+  res.set('Set-Cookie', affiliates.sessionCookie(a)).json(affiliates.publicAffiliate(a));
+});
+app.post('/api/affiliate/login', (req, res) => {
+  const a = affiliates.login(req.body?.whatsapp, req.body?.password);
+  res.set('Set-Cookie', affiliates.sessionCookie(a)).json(affiliates.publicAffiliate(a));
+});
+app.post('/api/affiliate/logout', (_req, res) => res.set('Set-Cookie', affiliates.clearCookie()).json({ ok: true }));
+const affiliateOnly = (req) => {
+  const a = affiliates.fromRequest(req);
+  if (!a) throw httpError(401, 'Entre com seu WhatsApp e senha');
+  return a;
+};
+app.get('/api/affiliate/me', (req, res) => {
+  const a = affiliateOnly(req);
+  const base = String(store.settings.crm?.panelUrl || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const link = `${base}/r/${a.code}`;
+  const wa = mainWhatsapp();
+  res.json({
+    me: affiliates.publicAffiliate(a),
+    stats: affiliates.stats(a),
+    leads: affiliates.myLeads(a),
+    commissions: affiliates.myCommissions(a),
+    rates: store.settings.affiliates?.rates || {},
+    links: {
+      site: link,
+      imoveis: `${link}?to=/imoveis`,
+      whatsapp: wa ? `https://wa.me/${wa}?text=${encodeURIComponent(`Olá! Vim pela indicação de ${a.name} (código de indicação: ${a.code}). Quero saber mais sobre a Migra Paraguai.`)}` : '',
+    },
+    shareMessage: store.settings.affiliates?.shareMessage || '',
+    business: store.settings.business?.name || 'Migra Paraguai',
+  });
+});
+app.get('/api/affiliate/qr', async (req, res) => {
+  const a = affiliateOnly(req);
+  const base = String(store.settings.crm?.panelUrl || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  res.type('image/png').send(await QRCode.toBuffer(`${base}/r/${a.code}`, { width: 360, margin: 1 }));
+});
+app.patch('/api/affiliate/me', (req, res) => {
+  const a = affiliateOnly(req);
+  const { pixKey, email, password } = req.body || {};
+  res.json(affiliates.publicAffiliate(affiliates.update(a.id, { pixKey, email, password })));
+});
 
 // Recibo para o cliente (link assinado, sem login).
 app.get('/recibo/:id', (req, res) => {
@@ -382,10 +536,12 @@ const SELLER_ROUTES = [
   ['GET', /^\/conversations(\/|$)/],
   ['*', /^\/lines(\/|$)/],
   ['*', /^\/payments(\/|$)/],
+  ['GET', /^\/realty\//],
+  ['PATCH', /^\/realty\/developments\/[^/]+\/lots\/[^/]+$/],
   ['POST', /^\/conversations\/[^/]+\/(reply|handoff)$/],
 ];
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/')) return next();
+  if (req.path.startsWith('/auth/') || req.path.startsWith('/public/') || req.path.startsWith('/affiliate/')) return next();
   const user = auth.fromRequest(req);
   if (!user) return res.status(401).json({ error: auth.needsSetup ? 'Crie o administrador para começar' : 'Entre com seu login', login: true });
   req.user = user;
@@ -870,6 +1026,54 @@ app.get('/api/pending', (req, res) => {
   res.json({ ...pending.status(), count: items.length, items });
 });
 
+// Migra Imóveis (administração)
+const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12_000_000 } }).single('file');
+const imageExt = (file) => {
+  if (!file || !/^image\/(png|jpeg|webp)$/.test(file.mimetype)) throw httpError(400, 'Envie uma imagem PNG, JPG ou WEBP');
+  return { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' }[file.mimetype];
+};
+app.get('/api/realty/properties', (_req, res) => res.json(realty.listProperties()));
+app.post('/api/realty/properties', (req, res) => res.json(realty.saveProperty(null, req.body)));
+app.patch('/api/realty/properties/:id', (req, res) => res.json(realty.saveProperty(req.params.id, req.body)));
+app.delete('/api/realty/properties/:id', (req, res) => {
+  realty.removeProperty(req.params.id);
+  res.json({ ok: true });
+});
+app.post('/api/realty/upload', imageUpload, (req, res) => res.json({ url: realty.saveImage(req.file.buffer, imageExt(req.file)) }));
+app.get('/api/realty/developments', (_req, res) => res.json(realty.listDevelopments()));
+app.get('/api/realty/developments/:id', (req, res) => {
+  const d = realty.development(req.params.id);
+  if (!d) throw httpError(404, 'Loteamento não encontrado');
+  res.json({ ...d, summary: realty.summary(d) });
+});
+app.post('/api/realty/developments', (req, res) => res.json(realty.saveDevelopment(null, req.body)));
+app.patch('/api/realty/developments/:id', (req, res) => res.json(realty.saveDevelopment(req.params.id, req.body)));
+app.delete('/api/realty/developments/:id', (req, res) => {
+  realty.removeDevelopment(req.params.id);
+  res.json({ ok: true });
+});
+app.post('/api/realty/developments/:id/plan', imageUpload, (req, res) => {
+  res.json(realty.setPlan(req.params.id, req.file?.buffer, imageExt(req.file), { width: req.body.width, height: req.body.height }));
+});
+app.post('/api/realty/developments/:id/lots', (req, res) => res.json(realty.addLot(req.params.id, req.body)));
+app.post('/api/realty/developments/:id/block', (req, res) => res.json(realty.generateBlock(req.params.id, req.body)));
+app.patch('/api/realty/developments/:id/lots/:lotId', (req, res) => {
+  // Vendedor só muda a situação (reservar/vender); o resto é do administrador.
+  const body = req.user.role === 'admin' ? req.body : { status: req.body.status };
+  res.json(realty.updateLot(req.params.id, req.params.lotId, body));
+});
+app.delete('/api/realty/developments/:id/lots/:lotId', (req, res) => {
+  realty.removeLot(req.params.id, req.params.lotId);
+  res.json({ ok: true });
+});
+
+// Programa de indicação (administração)
+app.get('/api/affiliates', (_req, res) => res.json(affiliates.adminList()));
+app.patch('/api/affiliates/:id', (req, res) => res.json(affiliates.publicAffiliate(affiliates.update(req.params.id, req.body))));
+app.get('/api/affiliates-commissions', (_req, res) => res.json(affiliates.adminCommissions()));
+app.post('/api/affiliates-commissions/:id/paid', (req, res) => res.json(affiliates.markPaid(req.params.id, { by: req.user.name, note: req.body?.note })));
+app.post('/api/affiliates-commissions/:id/cancel', (req, res) => res.json(affiliates.cancelCommission(req.params.id)));
+
 // Pagamentos (Pix)
 const canSeePayment = (user, p) => user.role === 'admin' || (p.leadId && crm.leads.some((l) => l.id === p.leadId && l.ownerId === user.id));
 const publicPayment = (p) => {
@@ -996,7 +1200,7 @@ app.post('/api/leads/from-conversation', (req, res) => {
   const conv = agent.conversation(String(req.body.key || ''), { create: false });
   if (!conv) throw httpError(404, 'Conversa não encontrada');
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone }) ||
-    crm.leads.find((l) => l.id === crm.create(req.user, {
+    crm.byId(crm.create(req.user, {
       name: conv.name,
       phone: conv.phone,
       source: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp',
@@ -1117,10 +1321,7 @@ app.use((err, _req, res, _next) => {
 export { app, store, wa, agent, crm, auth };
 
 const isLoopback = ['127.0.0.1', 'localhost', '::1'].includes(HOST);
-if (process.env.NODE_ENV === 'production' && !isLoopback && !PANEL_PASSWORD) {
-  console.error('❌ Defina PANEL_PASSWORD no .env: o painel controla seu WhatsApp e não pode ficar aberto na internet.');
-  process.exit(1);
-}
+// O painel tem login próprio (administrador e vendedores); PANEL_PASSWORD é uma senha extra opcional.
 
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, HOST, () => {
@@ -1130,9 +1331,6 @@ if (process.env.NODE_ENV !== 'test') {
       // Usado pelos atalhos de dois cliques: abre o painel no navegador.
       const cmd = process.platform === 'win32' ? `start "" "${url}"` : process.platform === 'darwin' ? `open "${url}"` : `xdg-open "${url}"`;
       exec(cmd, () => {});
-    }
-    if (!PANEL_PASSWORD && !isLoopback) {
-      console.warn('⚠️  Defina PANEL_PASSWORD: o painel está exposto na rede sem senha.');
     }
   });
   wa.start().catch((err) => console.error('Erro ao iniciar o WhatsApp:', err));

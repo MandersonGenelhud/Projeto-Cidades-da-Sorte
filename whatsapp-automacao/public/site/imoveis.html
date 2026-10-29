@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Imóveis no Paraguai · Migra</title>
+  <meta name="description" content="Terrenos, lotes, casas, apartamentos e galpões no Paraguai, com o atendimento da Migra." />
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/site/site.css" />
+</head>
+<body>
+  <section class="hero" id="hero">
+    <div class="wrap">
+      <span class="eyebrow">Migra Imóveis · Paraguai</span>
+      <h1>Seu terreno, sua casa ou seu negócio no Paraguai</h1>
+      <p>Terrenos, loteamentos, casas e galpões em Ciudad del Este, Santa Rita e região, com o acompanhamento de quem já fez a mudança.</p>
+      <form class="search" id="search">
+        <input name="q" placeholder="Buscar por cidade, bairro ou tipo" aria-label="Buscar" />
+        <select name="type" aria-label="Tipo"><option value="">Todos os tipos</option></select>
+        <select name="deal" aria-label="Negócio"><option value="">Comprar ou alugar</option><option value="venda">Comprar</option><option value="aluguel">Alugar</option></select>
+        <select name="city" aria-label="Cidade"><option value="">Todas as cidades</option></select>
+        <button class="btn primary" type="submit">Buscar</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="section wrap" id="loteamentos">
+    <div class="section-head">
+      <div><span class="eyebrow" style="color:var(--leaf)">Loteamentos</span><h2>Escolha seu lote no mapa</h2></div>
+      <div class="counts"><span><i class="dot disponivel"></i> Disponível</span><span><i class="dot reservado"></i> Reservado</span><span><i class="dot vendido"></i> Vendido</span></div>
+    </div>
+    <div class="grid" id="devs"></div>
+  </section>
+
+  <section class="section wrap" id="lista">
+    <div class="section-head">
+      <div><span class="eyebrow" style="color:var(--leaf)">Imóveis</span><h2 id="listTitle">Imóveis à venda e para alugar</h2></div>
+      <label class="check"><input type="checkbox" id="onlyAvail" checked /> Mostrar só os disponíveis</label>
+    </div>
+    <div class="grid" id="props"></div>
+  </section>
+
+  <script src="/site/site.js"></script>
+  <script>
+    siteChrome('imoveis');
+    let all = [];
+    const facts = (p) => [p.areaText && `📐 ${esc(p.areaText)}`, p.bedrooms ? `🛏️ ${p.bedrooms}` : '', p.bathrooms ? `🚿 ${p.bathrooms}` : ''].filter(Boolean).join('<span aria-hidden="true">·</span>');
+    function card(p) {
+      return `<a class="card" href="/imoveis/p/${encodeURIComponent(p.slug)}">
+        <div class="ph">${p.images?.[0] ? `<img src="${esc(p.images[0])}" alt="${esc(p.title)}" loading="lazy" />` : ''}
+          <div class="tag"><span>${p.deal === 'aluguel' ? 'Aluguel' : 'Venda'}</span><span>${esc(TYPES[p.type] || p.type)}</span>${p.status !== 'disponivel' ? `<span class="st-${esc(p.status)}">${esc(STATUS[p.status])}</span>` : ''}</div></div>
+        <div class="body">
+          <h3>${esc(p.title)}</h3>
+          <div class="loc">${esc([p.neighborhood, p.city].filter(Boolean).join(' · '))}</div>
+          <div class="facts">${facts(p)}</div>
+          <div class="price">${price(p.price, p.currency, p.perMonth)}</div>
+        </div></a>`;
+    }
+    function render() {
+      const f = Object.fromEntries(new FormData($('#search')));
+      const q = (f.q || '').toLowerCase();
+      const list = all.filter((p) => (!$('#onlyAvail').checked || p.status === 'disponivel')
+        && (!f.type || p.type === f.type) && (!f.deal || p.deal === f.deal) && (!f.city || p.city === f.city)
+        && (!q || [p.title, p.city, p.neighborhood, p.address, TYPES[p.type]].join(' ').toLowerCase().includes(q)));
+      $('#props').innerHTML = list.map(card).join('') || '<div class="empty">Nenhum imóvel com esses filtros. Fale com a gente no WhatsApp que buscamos para você.</div>';
+    }
+    (async () => {
+      const c = await api('/api/public/catalog');
+      all = c.properties;
+      setHeaderWhatsapp(c.whatsapp);
+      const firstImg = all.find((p) => p.images?.length)?.images[0];
+      if (firstImg) $('#hero').style.setProperty('--hero', `url("${firstImg}")`);
+      $('#search').type.insertAdjacentHTML('beforeend', [...new Set(all.map((p) => p.type))].map((t) => `<option value="${esc(t)}">${esc(TYPES[t] || t)}</option>`).join(''));
+      $('#search').city.insertAdjacentHTML('beforeend', [...new Set(all.map((p) => p.city).filter(Boolean))].sort().map((t) => `<option>${esc(t)}</option>`).join(''));
+      $('#devs').innerHTML = c.developments.map((d) => `<a class="card" href="/imoveis/l/${encodeURIComponent(d.slug)}">
+          <div class="ph">${d.plan ? `<img src="${esc(d.plan)}" alt="Planta de ${esc(d.name)}" loading="lazy" style="object-fit:contain;background:#fff" />` : ''}<div class="tag"><span>Loteamento</span></div></div>
+          <div class="body"><h3>${esc(d.name)}</h3><div class="loc">${esc(d.city || '')}</div>
+            <div class="counts"><span><i class="dot disponivel"></i> ${d.summary.disponivel} disponíveis</span><span><i class="dot reservado"></i> ${d.summary.reservado}</span><span><i class="dot vendido"></i> ${d.summary.vendido}</span></div>
+            <div class="price">${d.summary.minPrice ? `a partir de ${price(d.summary.minPrice, d.currency)}` : 'Consulte'}</div></div></a>`).join('')
+        || '<div class="empty">Novos loteamentos em breve. Quer ser avisado? Fale com a gente no WhatsApp.</div>';
+      render();
+    })().catch((e) => { $('#props').innerHTML = `<div class="empty">Não foi possível carregar: ${esc(e.message)}</div>`; });
+    $('#search').addEventListener('submit', (e) => { e.preventDefault(); render(); document.getElementById('lista').scrollIntoView(); });
+    $('#onlyAvail').addEventListener('change', render);
+  </script>
+</body>
+</html>

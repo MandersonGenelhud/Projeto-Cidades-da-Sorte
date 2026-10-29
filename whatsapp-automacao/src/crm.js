@@ -25,6 +25,7 @@ export class Crm {
     this.auth = auth;
     this.notify = notify || (() => {});
     this.now = now;
+    this.onWon = null; // (prospecto) => venda confirmada (ex.: gera a comissão do indicador)
     store.data.leads ||= [];
     // Prospectos antigos ganham um código de atendimento.
     let changed = false;
@@ -88,7 +89,8 @@ export class Crm {
     if (lead.followUpAt && OPEN.has(lead.stage)) {
       due = lead.followUpAt < today ? 'atrasado' : lead.followUpAt === today ? 'hoje' : 'agendado';
     }
-    return { ...lead, ownerName: this.ownerName(lead.ownerId), stageLabel: stageLabel(lead.stage), due };
+    const affiliateName = lead.affiliateId ? this.store.data.affiliates?.list?.find((a) => a.id === lead.affiliateId)?.name || '' : '';
+    return { ...lead, ownerName: this.ownerName(lead.ownerId), stageLabel: stageLabel(lead.stage), due, affiliateName };
   }
 
   // ---------- Linha do tempo ----------
@@ -116,6 +118,11 @@ export class Crm {
       .filter((l) => !query || [l.name, l.phone, l.instagram, l.interest, l.city, l.code].some((v) => String(v || '').toLowerCase().includes(query)))
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
       .map((l) => this.view(l));
+  }
+
+  /** O registro do prospecto (sem checar permissão), para uso interno do sistema. */
+  byId(id) {
+    return this.leads.find((l) => l.id === id) || null;
   }
 
   get(user, id) {
@@ -154,6 +161,7 @@ export class Crm {
       email: String(input.email || '').trim(),
       city: String(input.city || '').trim(),
       source: input.source || 'manual',
+      category: input.category === 'imoveis' ? 'imoveis' : 'migracao',
       interest: String(input.interest || ''),
       people: Math.max(1, Number(input.people || 1)),
       value: Number(input.value || 0),
@@ -215,6 +223,7 @@ export class Crm {
       lead.closedBy = user.id || null;
       // Venda lançada pelo administrador já vale; a do vendedor espera a confirmação.
       lead.closedConfirmed = user.role === 'admin';
+      if (lead.closedConfirmed) queueMicrotask(() => this.#won(lead));
     } else {
       lead.closedConfirmed = false;
     }
@@ -268,9 +277,14 @@ export class Crm {
     if (lead.stage !== 'ganho') throw err(400, 'Este prospecto não está como "Fechado"');
     lead.closedConfirmed = true;
     this.#log(lead, user, 'etapa', `Venda confirmada pelo administrador (R$ ${fmtMoney(lead.closedValue)})`);
+    queueMicrotask(() => this.#won(lead));
     this.store.save();
     this.notify('crm', { id: lead.id });
     return this.view(lead);
+  }
+
+  #won(lead) {
+    Promise.resolve(this.onWon?.(lead)).catch((e) => this.store.addLog({ type: 'error', message: `Venda confirmada: ${e.message}` }));
   }
 
   // ---------- Rodízio de vendedores ----------
@@ -481,7 +495,10 @@ export class Crm {
     const lostInRange = all.filter((l) => l.stage === 'perdido' && inRange(l.updatedAt));
     const open = all.filter((l) => OPEN.has(l.stage));
     const today = this.today();
-    const sum = (list, f) => list.reduce((s, l) => s + (Number(l[f]) || 0), 0);
+    // Painéis em R$: imóveis em US$ ou Gs. são convertidos pela cotação cadastrada.
+    const fx = this.config.fx || {};
+    const toBrl = (l, f) => (Number(l[f]) || 0) * (l.currency && l.currency !== 'BRL' ? Number(fx[l.currency]) || 1 : 1);
+    const sum = (list, f) => list.reduce((s, l) => s + toBrl(l, f), 0);
 
     const byStage = STAGES.map((s) => ({ id: s.id, label: s.label, count: all.filter((l) => l.stage === s.id).length, value: sum(all.filter((l) => l.stage === s.id), 'value') }));
     const users = this.auth.list();

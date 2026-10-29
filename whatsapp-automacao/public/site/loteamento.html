@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Loteamento · Migra</title>
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/site/site.css" />
+</head>
+<body>
+  <div class="wrap" style="padding-top:24px">
+    <p class="small"><a href="/imoveis#loteamentos">← Todos os loteamentos</a></p>
+    <h1 id="name" style="font-size:clamp(24px,3.5vw,34px);letter-spacing:-.02em;margin:6px 0 2px"></h1>
+    <p class="muted" id="loc" style="margin:0"></p>
+  </div>
+  <main class="wrap map-layout" id="page">
+    <div>
+      <div class="map-tools">
+        <div class="counts" id="counts"></div>
+        <span style="flex:1"></span>
+        <label class="check"><input type="checkbox" id="onlyAvail" /> Destacar só os disponíveis</label>
+        <button class="btn small" id="zoomOut" aria-label="Diminuir">−</button>
+        <button class="btn small" id="zoomIn" aria-label="Aumentar">+</button>
+      </div>
+      <div class="map-scroll"><div class="map" id="map"></div></div>
+      <p class="muted small">Toque em um lote para ver a área, o valor e reservar. Verde: disponível · Amarelo: reservado · Vermelho: vendido.</p>
+      <div id="desc" style="white-space:pre-wrap;margin-top:12px"></div>
+    </div>
+    <aside class="side">
+      <div class="box lot-info" id="lotBox">
+        <h3>Escolha um lote no mapa</h3>
+        <p class="muted">Os lotes em verde estão disponíveis. Toque em um para ver os detalhes.</p>
+      </div>
+    </aside>
+  </main>
+  <script src="/site/site.js"></script>
+  <script>
+    siteChrome('lotes');
+    const slug = decodeURIComponent(location.pathname.split('/').pop());
+    let dev;
+    let zoom = 1;
+    const centroid = (shape) => shape.reduce(([sx, sy], [x, y]) => [sx + x / shape.length, sy + y / shape.length], [0, 0]);
+    function renderMap() {
+      const only = $('#onlyAvail').checked;
+      const base = dev.plan ? `<img src="${esc(dev.plan)}" alt="Planta do loteamento ${esc(dev.name)}" />` : '<div class="noplan"></div>';
+      $('#map').innerHTML = `${base}
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Mapa dos lotes">
+          ${dev.lots.map((l) => `<polygon class="lot ${l.status}${only && l.status !== 'disponivel' ? ' dim' : ''}" data-id="${l.id}" points="${l.shape.map((p) => p.join(',')).join(' ')}"><title>${esc(l.code)} · ${STATUS[l.status]}</title></polygon>`).join('')}
+        </svg>
+        ${dev.lots.map((l) => { const [x, y] = centroid(l.shape); return `<span class="lot-label" style="left:${x}%;top:${y}%">${esc(l.number || l.code)}</span>`; }).join('')}`;
+      $('#map').style.width = `${zoom * 100}%`;
+    }
+    function selectLot(id) {
+      const l = dev.lots.find((x) => x.id === id);
+      if (!l) return;
+      $$('.lot').forEach((p) => p.classList.toggle('sel', p.dataset.id === id));
+      const free = l.status === 'disponivel';
+      $('#lotBox').innerHTML = `
+        <span class="st"><i class="dot ${l.status}"></i> ${STATUS[l.status]}</span>
+        <h2 style="margin:6px 0 2px">${esc(l.code)}</h2>
+        <p class="muted" style="margin:0">${esc([l.block && `Quadra ${l.block}`, l.number && `Lote ${l.number}`].filter(Boolean).join(' · '))}</p>
+        <div class="facts-list">${l.area ? `<div><b>${Number(l.area).toLocaleString('pt-BR')} m²</b><span>Área</span></div>` : ''}<div><b>${free || l.status === 'reservado' ? price(l.price, dev.currency) : '—'}</b><span>Valor</span></div></div>
+        ${free ? '<button class="btn primary block" id="btnLot">Quero este lote</button><p class="muted small">Um corretor confirma a disponibilidade e faz a reserva para você.</p>'
+          : l.status === 'reservado' ? '<button class="btn block" id="btnLot">Avise-me se for liberado</button>' : '<p class="muted">Este lote já foi vendido. Veja os lotes em verde.</p>'}`;
+      const btn = $('#btnLot');
+      if (btn) btn.onclick = () => openInterest({ title: `${dev.name} · ${l.code}`, kind: 'lot', slug: dev.slug, lotId: l.id });
+      if (matchMedia('(max-width: 960px)').matches) $('#lotBox').scrollIntoView({ behavior: 'smooth' });
+    }
+    (async () => {
+      const [d, c] = await Promise.all([api(`/api/public/development/${encodeURIComponent(slug)}`), api('/api/public/catalog')]);
+      dev = d;
+      setHeaderWhatsapp(d.agentWhatsapp || c.whatsapp);
+      document.title = `${d.name} · Migra Imóveis`;
+      $('#name').textContent = d.name;
+      $('#loc').textContent = [d.address, d.city, 'Paraguai'].filter(Boolean).join(' · ');
+      $('#desc').textContent = d.description || '';
+      $('#counts').innerHTML = `<span><i class="dot disponivel"></i> ${d.summary.disponivel} disponíveis</span><span><i class="dot reservado"></i> ${d.summary.reservado} reservados</span><span><i class="dot vendido"></i> ${d.summary.vendido} vendidos</span>`;
+      renderMap();
+    })().catch((e) => { $('#page').innerHTML = `<div class="empty" style="grid-column:1/-1">${esc(e.message)} · <a href="/imoveis">ver imóveis</a></div>`; });
+    $('#map').addEventListener('click', (e) => { const id = e.target.closest('.lot')?.dataset.id; if (id) selectLot(id); });
+    $('#onlyAvail').addEventListener('change', renderMap);
+    $('#zoomIn').onclick = () => { zoom = Math.min(4, zoom + 0.5); renderMap(); };
+    $('#zoomOut').onclick = () => { zoom = Math.max(1, zoom - 0.5); renderMap(); };
+  </script>
+</body>
+</html>

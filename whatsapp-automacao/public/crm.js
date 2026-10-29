@@ -355,6 +355,8 @@ function fillLead(l) {
     l.code && `<span class="chip">🔖 ${esc(l.code)}</span>`,
     t && `<span class="chip temp-${esc(l.qualification.temperature)}">${t.icon} ${t.label}</span>`,
     l.adTitle && `<span class="chip">📣 Anúncio: ${esc(l.adTitle)}</span>`,
+    l.affiliateName && `<span class="chip">🤝 Indicado por ${esc(l.affiliateName)}</span>`,
+    l.category === 'imoveis' && '<span class="chip">🏠 Imóveis</span>',
     l.stage === 'ganho' && (l.closedConfirmed ? '<span class="chip ok">✅ Venda confirmada</span>' : '<span class="chip warn">⏳ Venda aguardando confirmação do administrador</span>'),
   ].filter(Boolean).join('') : '';
   const q = l.qualification;
@@ -583,6 +585,8 @@ loaders.team = async () => {
   f.routingEnabled.checked = c.routing?.enabled !== false;
   f.routingCriteria.value = c.routing?.criteria || '';
   f.panelUrl.value = c.panelUrl || '';
+  f.fxUSD.value = c.fx?.USD ?? 5.5;
+  f.fxPYG.value = c.fx?.PYG ?? 0.0007;
   f.specialists.value = (c.specialists || []).map((s) => [s.topic, s.name, s.whatsapp ? `+${s.whatsapp}` : ''].join(' = ')).join('\n');
   f.autoCreate.checked = c.autoCreate !== false;
   f.aiExtract.checked = c.aiExtract !== false;
@@ -654,6 +658,7 @@ $('#formCrmSettings').addEventListener('submit', withBusy($('#formCrmSettings'),
         .filter(([topic, name]) => topic && name)
         .map(([topic, name, whatsapp = '']) => ({ topic, name, whatsapp: whatsapp.replace(/\D/g, '') })),
       panelUrl: f.panelUrl.value.trim(),
+      fx: { USD: Number(f.fxUSD.value) || 1, PYG: Number(f.fxPYG.value) || 0 },
     } },
   });
   crmState.stages = [];

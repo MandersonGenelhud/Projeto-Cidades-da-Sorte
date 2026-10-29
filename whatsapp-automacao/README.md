@@ -141,7 +141,7 @@ cd Projeto-Cidades-da-Sorte/whatsapp-automacao
 
 # 3. Configure
 cp .env.example .env
-nano .env            # defina PANEL_PASSWORD (obrigatório) e as chaves
+nano .env            # opcional: chaves e senha extra (PANEL_PASSWORD)
 nano Caddyfile       # troque SEU_DOMINIO pelo seu domínio (DNS apontando para a VPS)
 
 # 4. Suba
@@ -231,7 +231,7 @@ Mensagens enviadas em sequência (enquanto a IA pensa) são respondidas juntas, 
 | Variável | Para que serve |
 |---|---|
 | `PORT`, `HOST` | Porta e interface do painel (`0.0.0.0` na VPS) |
-| `PANEL_USER`, `PANEL_PASSWORD` | Login do painel (**obrigatório** em produção fora do localhost) |
+| `PANEL_USER`, `PANEL_PASSWORD` | Senha extra opcional na frente do painel (o painel já tem login próprio; o site de imóveis e o portal do indicador ficam públicos) |
 | `TZ` | Fuso do negócio (padrão `America/Sao_Paulo`) |
 | `GEMINI_API_KEY` | Chave do Google Gemini (gratuito) |
 | `OPENROUTER_API_KEY` | Chave do OpenRouter (pago) |

@@ -588,3 +588,35 @@ dialog { border-radius: 16px; box-shadow: var(--shadow-lg); }
   .sidebar, .lead-card, nav button { transition: none; }
 }
 .pix-code { display: block; word-break: break-all; white-space: pre-wrap; font-size: 11px; padding: 8px; }
+
+/* ---- Migra Imóveis (administração) ---- */
+.thumb { width: 64px; height: 46px; border-radius: 6px; object-fit: cover; background: var(--bg); display: block; }
+.dev-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.dev-card { text-align: left; display: grid; gap: 4px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); cursor: pointer; font: inherit; color: var(--text); box-shadow: var(--shadow-sm); }
+.dev-card.active { border-color: var(--green); box-shadow: 0 0 0 3px var(--ring); }
+.counts-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 13px; margin: 6px 0; }
+.counts-row span { display: inline-flex; align-items: center; gap: 5px; }
+.ldot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.ldot.disponivel { background: #1f9d4c; }
+.ldot.reservado { background: #e2a300; }
+.ldot.vendido { background: #d64545; }
+.lots-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.lots-layout > .panel { margin: 0; }
+@media (max-width: 1100px) { .lots-layout { grid-template-columns: 1fr; } }
+.map-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.lot-editor-wrap { overflow: auto; max-height: 72vh; border: 1px solid var(--border); border-radius: 10px; background: #eef2ee; }
+.lot-editor { position: relative; width: 100%; user-select: none; touch-action: none; }
+.lot-editor.drawing { cursor: crosshair; }
+.lot-editor img { width: 100%; height: auto; display: block; pointer-events: none; }
+.lot-editor .noplan { aspect-ratio: 4 / 3; display: grid; place-items: center; text-align: center; color: var(--muted); padding: 20px; background-image: linear-gradient(#dfe7e1 1px, transparent 1px), linear-gradient(90deg, #dfe7e1 1px, transparent 1px); background-size: 5% 5%; }
+.lot-editor svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.elot { stroke: #fff; stroke-width: 1; vector-effect: non-scaling-stroke; cursor: pointer; }
+.elot.disponivel { fill: #1f9d4c; fill-opacity: .5; }
+.elot.reservado { fill: #e2a300; fill-opacity: .65; }
+.elot.vendido { fill: #d64545; fill-opacity: .55; }
+.elot:hover, .elot.sel { fill-opacity: .85; stroke: #0c2418; stroke-width: 2.5; }
+.lot-editor.drawing .elot { pointer-events: none; }
+.draft { fill: rgba(59, 130, 246, .25); stroke: #3b82f6; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-dasharray: 4 3; }
+.draft-pt { fill: #3b82f6; }
+.elabel { position: absolute; transform: translate(-50%, -50%); font-size: 10px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); pointer-events: none; white-space: nowrap; }
+#lotSide .grid2 { grid-template-columns: 1fr 1fr; } #lotSide .grid2 > * { min-width: 0; }

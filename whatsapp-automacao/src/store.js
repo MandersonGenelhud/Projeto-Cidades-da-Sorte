@@ -44,6 +44,7 @@ const DEFAULT_DATA = {
       routing: { enabled: true, criteria: PRESET.crm?.routing?.criteria || '' },
       panelUrl: '', // endereço do painel na internet, para o link da ficha no aviso ao vendedor
       codePrefix: 'MIG',
+      fx: { USD: 5.5, PYG: 0.0007 }, // cotação usada só para somar vendas em R$ nos painéis
       // Assuntos que vão direto para um especialista (ex.: terrenos → Robson).
       specialists: (PRESET.crm?.specialists || []).map((x) => ({ ...x })),
       requireConfirmation: true, // venda do vendedor só entra no ranking depois que o administrador confirma
@@ -108,6 +109,13 @@ const DEFAULT_DATA = {
       reservation: { base: 1000, perAdult: 800, description: 'reserva e início do processo (entrada + certidões)' },
       mercadopago: { accessToken: '', payerEmail: '' },
       notifyPhone: '', // WhatsApp extra para o aviso de Pix (além dos administradores)
+    },
+    // Programa de indicação (afiliados). Comissão por linha de negócio, em % da venda + valor fixo.
+    affiliates: {
+      enabled: true,
+      cookieDays: 180,
+      rates: { imoveis: { percent: 0, fixed: 0 }, migracao: { percent: 0, fixed: 0 } },
+      shareMessage: 'Oi, {nome}! Tudo bem? Agora sou parceiro(a) da Migra Paraguai 🇵🇾 Eles ajudam brasileiros a morar, investir e empreender no Paraguai: residência, cédula, empresa e também terrenos e imóveis. Se você ou alguém da sua família tem esse sonho, dá uma olhada: {link}',
     },
     // Nome e marca do painel (a logo fica em public/img ou é enviada em Configurações).
     brand: { name: 'Migra Hub', tagline: 'Atendimento e vendas · Migra Paraguai' },

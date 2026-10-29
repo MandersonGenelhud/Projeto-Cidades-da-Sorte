@@ -1,0 +1,167 @@
+/* Site público da Migra (imóveis, loteamentos e programa de indicação). */
+:root {
+  --ink: #0c2418;
+  --ink-2: #133a28;
+  --leaf: #1f9d4c;
+  --leaf-dark: #157a39;
+  --lime: #7cc242;
+  --gold: #e2b300;
+  --bg: #f6f7f5;
+  --panel: #ffffff;
+  --text: #102018;
+  --muted: #5d6f64;
+  --line: #e3e8e4;
+  --ok: #1f9d4c;
+  --warn: #e2a300;
+  --bad: #d64545;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(16, 32, 24, .05), 0 6px 18px rgba(16, 32, 24, .06);
+  --font: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-behavior: smooth; }
+body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+img { max-width: 100%; display: block; }
+.wrap { max-width: 1200px; margin: 0 auto; padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); }
+
+/* Topo */
+.site-head { background: var(--ink); color: #eaf4ec; position: sticky; top: 0; z-index: 20; }
+.site-head .wrap { display: flex; align-items: center; gap: 20px; height: 68px; }
+.site-head .logo img { height: 40px; width: auto; }
+.site-nav { display: flex; gap: 4px; margin-left: auto; align-items: center; }
+.site-nav a { text-decoration: none; color: #cfe2d5; padding: 8px 12px; border-radius: 8px; font-weight: 500; font-size: 14px; }
+.site-nav a:hover, .site-nav a.on { color: #fff; background: rgba(255, 255, 255, .08); }
+.site-nav .cta { background: var(--lime); color: var(--ink); font-weight: 600; }
+.site-nav .cta:hover { background: #8fd14f; color: var(--ink); }
+@media (max-width: 720px) {
+  .site-head .wrap { height: auto; padding-block: 10px; flex-wrap: wrap; gap: 8px; }
+  .site-nav { margin-left: 0; width: 100%; overflow-x: auto; }
+  .site-nav a { white-space: nowrap; }
+}
+
+/* Botões e campos */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 600 15px var(--font); border-radius: 10px; padding: 12px 18px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; text-decoration: none; transition: filter .15s, background .15s; }
+.btn:hover { filter: brightness(.97); }
+.btn.primary { background: var(--leaf); border-color: var(--leaf); color: #fff; }
+.btn.wa { background: #25d366; border-color: #25d366; color: #073b1c; }
+.btn.dark { background: var(--ink); border-color: var(--ink); color: #fff; }
+.btn.small { padding: 7px 12px; font-size: 13.5px; border-radius: 8px; }
+.btn.block { width: 100%; }
+.btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--leaf) 30%, transparent); }
+label { display: grid; gap: 5px; font-size: 13px; font-weight: 500; color: var(--muted); }
+input, select, textarea { font: 15px var(--font); color: var(--text); background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; width: 100%; }
+textarea { resize: vertical; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; color: var(--text); }
+.check input { width: auto; margin-top: 3px; accent-color: var(--leaf); }
+.form { display: grid; gap: 12px; }
+.err { color: var(--bad); font-size: 13.5px; min-height: 1em; margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+
+/* Hero */
+.hero { background: linear-gradient(180deg, rgba(12, 36, 24, .55), rgba(12, 36, 24, .85)), var(--hero, var(--ink)) center/cover; color: #fff; }
+.hero .wrap { padding-block: 64px 48px; display: grid; gap: 18px; }
+.hero h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.08; margin: 0; letter-spacing: -.02em; max-width: 18ch; text-wrap: balance; }
+.hero p { margin: 0; color: #d7e8dc; font-size: 17px; max-width: 56ch; }
+.eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: 12px; font-weight: 600; color: var(--lime); }
+
+/* Busca */
+.search { background: var(--panel); border-radius: var(--radius); padding: 14px; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 10px; box-shadow: var(--shadow); color: var(--text); }
+@media (max-width: 860px) { .search { grid-template-columns: 1fr 1fr; } .search input { grid-column: 1 / -1; } }
+
+/* Seções e cartões */
+.section { padding-block: 40px 8px; }
+.section-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.section h2 { font-size: 26px; margin: 0; letter-spacing: -.01em; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; text-decoration: none; transition: transform .15s, box-shadow .15s; min-width: 0; }
+a.card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(16, 32, 24, .12); }
+.card .ph { position: relative; aspect-ratio: 4 / 3; background: #dde5df; }
+.card .ph img { width: 100%; height: 100%; object-fit: cover; }
+.card .body { padding: 14px 16px 16px; display: grid; gap: 6px; }
+.card h3 { margin: 0; font-size: 16.5px; line-height: 1.3; }
+.card .loc { color: var(--muted); font-size: 13.5px; }
+.card .price { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.card .facts { display: flex; gap: 12px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
+.tag { position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; }
+.tag span { background: rgba(255, 255, 255, .95); color: var(--ink); font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+.tag .st-vendido, .tag .st-alugado { background: var(--bad); color: #fff; }
+.tag .st-reservado { background: var(--warn); color: #241a00; }
+.empty { text-align: center; color: var(--muted); padding: 30px; background: var(--panel); border-radius: var(--radius); border: 1px dashed var(--line); }
+
+/* Status de lotes */
+.dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; vertical-align: middle; }
+.dot.disponivel { background: var(--ok); }
+.dot.reservado { background: var(--warn); }
+.dot.vendido { background: var(--bad); }
+.counts { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13.5px; }
+.counts span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Página de imóvel */
+.detail { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); gap: 28px; padding-block: 28px 48px; align-items: start; }
+@media (max-width: 900px) { .detail { grid-template-columns: 1fr; } }
+.gallery { display: grid; gap: 10px; }
+.gallery .main { aspect-ratio: 16 / 10; border-radius: var(--radius); overflow: hidden; background: #dde5df; }
+.gallery .main img { width: 100%; height: 100%; object-fit: cover; }
+.thumbs { display: flex; gap: 8px; overflow-x: auto; }
+.thumbs button { border: 2px solid transparent; padding: 0; border-radius: 8px; overflow: hidden; cursor: pointer; flex: none; width: 92px; height: 66px; background: none; }
+.thumbs button.on { border-color: var(--leaf); }
+.thumbs img { width: 100%; height: 100%; object-fit: cover; }
+.side { position: sticky; top: 88px; display: grid; gap: 16px; }
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+.box h2, .box h3 { margin: 0 0 8px; }
+.facts-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin: 16px 0; }
+.facts-list div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.facts-list b { display: block; font-size: 15px; }
+.facts-list span { color: var(--muted); font-size: 12.5px; }
+
+/* Mapa do loteamento */
+.map-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; padding-block: 20px 48px; align-items: start; }
+@media (max-width: 960px) { .map-layout { grid-template-columns: 1fr; } }
+.map-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.map-scroll { overflow: auto; border-radius: var(--radius); border: 1px solid var(--line); background: #eef2ee; max-height: 76vh; }
+.map { position: relative; width: 100%; transform-origin: 0 0; }
+.map img { width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
+.map .noplan { aspect-ratio: 4 / 3; background-image: linear-gradient(#dfe7e1 1px, transparent 1px), linear-gradient(90deg, #dfe7e1 1px, transparent 1px); background-size: 5% 5%; }
+.map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.lot { stroke: #fff; stroke-width: 1; cursor: pointer; transition: fill-opacity .15s; vector-effect: non-scaling-stroke; }
+.lot.disponivel { fill: var(--ok); fill-opacity: .55; }
+.lot.reservado { fill: var(--warn); fill-opacity: .7; }
+.lot.vendido { fill: var(--bad); fill-opacity: .6; }
+.lot:hover, .lot.sel { fill-opacity: .9; stroke: var(--ink); stroke-width: 2.5; }
+.lot.dim { fill-opacity: .12; }
+.lot-label { position: absolute; transform: translate(-50%, -50%); font-size: 10px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); pointer-events: none; white-space: nowrap; }
+.lot-info .st { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+
+/* Programa de indicação */
+.steps3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.steps3 .box b { display: block; font-size: 32px; color: var(--leaf); line-height: 1; margin-bottom: 8px; }
+.rules { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.tabs button { flex: 1; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px; font: 600 14px var(--font); cursor: pointer; color: var(--muted); }
+.tabs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.kpi span { color: var(--muted); font-size: 13px; }
+.kpi b { display: block; font-size: 24px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.copy { display: flex; gap: 8px; }
+.copy input { font-size: 13.5px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.table-wrap { overflow-x: auto; }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--bg); }
+.pill.ok { background: #dcf3e3; color: #145c30; }
+.pill.warn { background: #fdf1cc; color: #6b4e00; }
+
+/* Janela de interesse */
+dialog { border: 0; border-radius: 16px; padding: 22px; width: min(440px, 94vw); box-shadow: 0 20px 60px rgba(0, 0, 0, .25); }
+dialog::backdrop { background: rgba(10, 20, 14, .55); }
+
+/* Rodapé */
+.site-foot { background: var(--ink); color: #b9d3c1; margin-top: 48px; }
+.site-foot .wrap { padding-block: 28px; display: flex; gap: 16px; justify-content: space-between; flex-wrap: wrap; font-size: 14px; }
+.site-foot a { color: #fff; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }

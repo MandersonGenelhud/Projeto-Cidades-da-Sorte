@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Meu escritório · Migra</title>
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/site/site.css" />
+</head>
+<body>
+  <main class="wrap" style="padding-block:28px 40px;display:grid;gap:20px" id="page">
+    <div class="section-head" style="margin:0">
+      <div><span class="eyebrow" style="color:var(--leaf)">Escritório virtual</span><h1 id="hello" style="margin:2px 0 0;font-size:clamp(24px,3.5vw,32px);letter-spacing:-.02em">Olá!</h1></div>
+      <button class="btn small" id="btnLogout">Sair</button>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px">
+      <div class="box form">
+        <h2>Seus links</h2>
+        <label>Link do site (imóveis e serviços)
+          <span class="copy"><input id="linkSite" readonly /><button class="btn small" data-copy="#linkSite">Copiar</button></span></label>
+        <label>Link direto para o WhatsApp da Migra
+          <span class="copy"><input id="linkWa" readonly /><button class="btn small" data-copy="#linkWa">Copiar</button></span></label>
+        <p class="muted small">Seu código de indicação é <b id="code"></b>. Se a pessoa chamar a Migra direto, peça para ela dizer: "código de indicação <span id="code2"></span>".</p>
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+          <img id="qr" alt="QR Code do seu link" width="140" height="140" style="border-radius:10px;border:1px solid var(--line)" />
+          <div class="form" style="flex:1;min-width:180px">
+            <a class="btn wa" id="shareStatus" target="_blank" rel="noopener">Compartilhar no WhatsApp</a>
+            <span class="muted small">Mostre o QR Code no celular para quem estiver perto escanear.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="box form">
+        <h2>Convidar meus contatos</h2>
+        <p class="muted small">Cole os contatos (um por linha: <b>Nome, telefone</b>). Cada um vira um botão que abre o seu WhatsApp com a mensagem pronta e personalizada. Você confere e envia: é o seu WhatsApp, com a sua cara, sem risco de bloqueio por disparo em massa.</p>
+        <label>Mensagem (use {nome} e {link})<textarea id="msg" rows="4"></textarea></label>
+        <label>Contatos<textarea id="contacts" rows="4" placeholder="Maria, 11 98765-4321&#10;João Silva, +55 21 99876-5432"></textarea></label>
+        <button class="btn primary" id="btnBuild">Montar lista de envio</button>
+        <div id="sendList" class="form"></div>
+      </div>
+    </div>
+
+    <div class="box">
+      <h2>Suas indicações</h2>
+      <p class="muted small">Pessoas que entraram pelo seu link ou com o seu código. Por privacidade, mostramos só o nome e a situação.</p>
+      <div class="table-wrap"><table id="leads"></table></div>
+    </div>
+
+    <div class="box">
+      <h2>Comissões</h2>
+      <div class="table-wrap"><table id="comms"></table></div>
+    </div>
+
+    <form class="box form" id="profile">
+      <h2>Meus dados</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+        <label>Chave Pix <input name="pixKey" /></label>
+        <label>E-mail <input name="email" type="email" /></label>
+        <label>Nova senha (opcional) <input name="password" type="password" minlength="6" autocomplete="new-password" /></label>
+      </div>
+      <p class="err" id="profileMsg"></p>
+      <button class="btn">Salvar</button>
+    </form>
+  </main>
+  <script src="/site/site.js"></script>
+  <script>
+    siteChrome('parceiros');
+    const brl = (v, cur = 'BRL') => (typeof v === 'string' ? v : `${{ USD: 'US$', PYG: 'Gs.', BRL: 'R$' }[cur] || cur} ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    const fmt = (iso) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—');
+    let me;
+    const personal = (name, link) => $('#msg').value.replaceAll('{nome}', name.split(' ')[0] || '').replaceAll('{link}', link);
+    async function load() {
+      try {
+        me = await api('/api/affiliate/me');
+      } catch {
+        location.href = '/parceiros';
+        return;
+      }
+      const s = me.stats;
+      $('#hello').textContent = `Olá, ${me.me.name.split(' ')[0]}!`;
+      $('#kpis').innerHTML = [
+        ['Cliques no link', s.clicks], ['Pessoas diferentes', s.visitors], ['Indicações cadastradas', s.leads], ['Negócios fechados', s.won], ['Comissão a receber', brl(s.toReceive)], ['Comissão recebida', brl(s.paid)],
+      ].map(([l, v]) => `<div class="kpi"><span>${l}</span><b>${v}</b></div>`).join('');
+      $('#linkSite').value = me.links.site;
+      $('#linkWa').value = me.links.whatsapp || 'O WhatsApp da Migra ainda não está conectado';
+      $('#code').textContent = me.me.code;
+      $('#code2').textContent = me.me.code;
+      $('#qr').src = '/api/affiliate/qr';
+      if (!$('#msg').value) $('#msg').value = me.shareMessage;
+      $('#shareStatus').href = `https://wa.me/?text=${encodeURIComponent(personal('', me.links.site).replace(/^Oi, ! /, 'Oi! '))}`;
+      $('#leads').innerHTML = `<thead><tr><th>Nome</th><th>Desde</th><th>Serviço</th><th>Situação</th></tr></thead><tbody>${me.leads.map((l) => `<tr><td><b>${esc(l.name)}</b></td><td>${fmt(l.since)}</td><td>${esc(l.category)}</td><td><span class="pill ${l.stage === 'ganho' ? 'ok' : ''}">${esc(l.status)}</span></td></tr>`).join('') || '<tr><td colspan="4" class="muted">Ainda não há indicações. Compartilhe o seu link!</td></tr>'}</tbody>`;
+      $('#comms').innerHTML = `<thead><tr><th>Cliente</th><th>Valor da venda</th><th>Comissão</th><th>Situação</th></tr></thead><tbody>${me.commissions.map((c) => `<tr><td>${esc(c.clientName)}</td><td>${brl(c.saleValue, c.currency)}</td><td><b>${brl(c.amount, c.currency)}</b></td><td>${c.status === 'paga' ? `<span class="pill ok">Paga em ${fmt(c.paidAt)}</span>` : '<span class="pill warn">A receber</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">As comissões aparecem aqui quando uma indicação fecha negócio.</td></tr>'}</tbody>`;
+      const f = $('#profile');
+      f.pixKey.value = me.me.pixKey || '';
+      f.email.value = me.me.email || '';
+    }
+    $$('[data-copy]').forEach((b) => b.addEventListener('click', async () => {
+      const input = $(b.dataset.copy);
+      try { await navigator.clipboard.writeText(input.value); b.textContent = 'Copiado ✓'; } catch { input.select(); }
+      setTimeout(() => (b.textContent = 'Copiar'), 1500);
+    }));
+    $('#btnBuild').addEventListener('click', () => {
+      let sent = new Set();
+      try { sent = new Set(JSON.parse(localStorage.getItem('migraSent') || '[]')); } catch {}
+      const rows = $('#contacts').value.split('\n').map((l) => l.split(/[,;\t]/)).map(([n, ...p]) => [n?.trim() || '', p.join('').replace(/\D/g, '')]).filter(([, p]) => p.length >= 10);
+      $('#sendList').innerHTML = rows.map(([n, p]) => {
+        const phone = p.length <= 11 ? `55${p}` : p;
+        return `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:8px 10px">
+          <span><b>${esc(n || 'Contato')}</b> <span class="muted small">+${phone}</span></span>
+          <a class="btn small ${sent.has(phone) ? '' : 'wa'}" data-phone="${phone}" target="_blank" rel="noopener" href="https://wa.me/${phone}?text=${encodeURIComponent(personal(n, me.links.site))}">${sent.has(phone) ? 'Enviado ✓' : 'Enviar'}</a></div>`;
+      }).join('') || '<p class="muted small">Nenhum telefone válido. Use: Nome, telefone com DDD.</p>';
+    });
+    $('#sendList').addEventListener('click', (e) => {
+      const a = e.target.closest('[data-phone]');
+      if (!a) return;
+      try {
+        const sent = new Set(JSON.parse(localStorage.getItem('migraSent') || '[]'));
+        sent.add(a.dataset.phone);
+        localStorage.setItem('migraSent', JSON.stringify([...sent]));
+      } catch {}
+      setTimeout(() => { a.textContent = 'Enviado ✓'; a.classList.remove('wa'); }, 300);
+    });
+    $('#profile').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await api('/api/affiliate/me', { method: 'PATCH', body: Object.fromEntries(new FormData(e.target)) });
+        $('#profileMsg').style.color = 'var(--ok)';
+        $('#profileMsg').textContent = 'Dados salvos';
+        e.target.password.value = '';
+      } catch (err) { $('#profileMsg').style.color = ''; $('#profileMsg').textContent = err.message; }
+    });
+    $('#btnLogout').addEventListener('click', async () => { await api('/api/affiliate/logout', { method: 'POST' }); location.href = '/parceiros'; });
+    load();
+  </script>
+</body>
+</html>

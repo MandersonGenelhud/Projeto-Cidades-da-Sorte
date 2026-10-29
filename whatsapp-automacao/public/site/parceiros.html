@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Indique e ganhe · Migra</title>
+  <meta name="description" content="Indique a Migra Paraguai para amigos e família e ganhe comissão quando eles fecharem negócio." />
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/site/site.css" />
+</head>
+<body>
+  <section class="hero">
+    <div class="wrap" style="grid-template-columns:minmax(0,1.2fr) minmax(300px,420px);align-items:start;gap:32px" id="heroGrid">
+      <div style="display:grid;gap:16px">
+        <span class="eyebrow">Programa de indicação Migra</span>
+        <h1>Indique quem sonha com o Paraguai e ganhe comissão</h1>
+        <p>Você conhece alguém que quer morar, investir, abrir empresa ou comprar um terreno no Paraguai? Envie o seu link. Quando a pessoa fechar com a Migra, você recebe a sua comissão no Pix.</p>
+        <div id="ratesBox" class="counts" style="color:#fff"></div>
+      </div>
+      <div class="box" style="color:var(--text)">
+        <div class="tabs"><button type="button" class="on" data-tab="signup">Quero participar</button><button type="button" data-tab="login">Já sou parceiro</button></div>
+        <form class="form" id="signup">
+          <label>Nome completo <input name="name" required autocomplete="name" /></label>
+          <label>WhatsApp (com DDD) <input name="whatsapp" required inputmode="tel" autocomplete="tel" placeholder="+55 11 98765-4321" /></label>
+          <label>E-mail <input name="email" type="email" autocomplete="email" /></label>
+          <label>Chave Pix para receber as comissões <input name="pixKey" placeholder="CPF, e-mail, celular ou chave aleatória" /></label>
+          <label>CPF <input name="cpf" inputmode="numeric" /></label>
+          <label>Crie uma senha <input name="password" type="password" minlength="6" required autocomplete="new-password" /></label>
+          <label class="check"><input type="checkbox" name="acceptTerms" required /> <span>Li e aceito as <a href="#regras">regras do programa</a>.</span></label>
+          <p class="err" id="signupErr"></p>
+          <button class="btn primary">Criar meu link de indicação</button>
+        </form>
+        <form class="form" id="login" hidden>
+          <label>WhatsApp <input name="whatsapp" required inputmode="tel" autocomplete="tel" /></label>
+          <label>Senha <input name="password" type="password" required autocomplete="current-password" /></label>
+          <p class="err" id="loginErr"></p>
+          <button class="btn primary">Entrar no meu escritório</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap">
+    <h2 style="margin-bottom:16px">Como funciona</h2>
+    <div class="steps3">
+      <div class="box"><b>1</b><h3>Pegue o seu link</h3><p class="muted">Cadastro grátis em 1 minuto. Você recebe um link e um código só seus.</p></div>
+      <div class="box"><b>2</b><h3>Compartilhe</h3><p class="muted">Mande para amigos, família e grupos. Quem entra pelo seu link fica registrado como sua indicação.</p></div>
+      <div class="box"><b>3</b><h3>Receba no Pix</h3><p class="muted">A equipe da Migra atende e fecha a venda. Quando o negócio é confirmado, a comissão é sua.</p></div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="regras">
+    <div class="box">
+      <h2 style="margin-bottom:12px">Regras do programa</h2>
+      <ol class="rules">
+        <li><b>Vale o primeiro indicador.</b> O cliente fica ligado a quem indicou primeiro, mesmo que compre semanas depois ou que outra pessoa indique de novo.</li>
+        <li>A indicação é registrada quando a pessoa entra pelo seu link (vale por <span id="cookieDays">180</span> dias naquele aparelho), chama no WhatsApp pelo seu link ou informa o seu código.</li>
+        <li>A comissão é paga só quando o negócio é fechado e confirmado pela Migra. Cadastro ou visita não geram comissão.</li>
+        <li>Quem atende e fecha a venda é sempre a equipe da Migra. Você indica; a Migra cuida do resto.</li>
+        <li>O pagamento é feito na chave Pix cadastrada, depois da confirmação do pagamento do cliente.</li>
+        <li>Divulgue com honestidade: não prometa preços, prazos ou condições que não estejam nos materiais da Migra, e só envie mensagens para quem conhece você.</li>
+        <li>Indicações de você mesmo, cadastros falsos ou spam cancelam a participação.</li>
+      </ol>
+    </div>
+  </section>
+
+  <script src="/site/site.js"></script>
+  <script>
+    siteChrome('parceiros');
+    if (matchMedia('(max-width: 860px)').matches) $('#heroGrid').style.gridTemplateColumns = '1fr';
+    const LABEL = { imoveis: 'Imóveis e terrenos', migracao: 'Residência, cédula e empresa' };
+    api('/api/public/catalog').then((c) => {
+      setHeaderWhatsapp(c.whatsapp);
+      $('#cookieDays').textContent = c.affiliates.cookieDays;
+      const rates = Object.entries(c.affiliates.rates || {}).filter(([, r]) => Number(r.percent) || Number(r.fixed));
+      $('#ratesBox').innerHTML = rates.map(([k, r]) => `<span>💰 ${LABEL[k] || k}: <b>${[Number(r.percent) ? `${r.percent}%` : '', Number(r.fixed) ? `R$ ${Number(r.fixed).toLocaleString('pt-BR')}` : ''].filter(Boolean).join(' + ')}</b> por venda fechada</span>`).join('');
+      if (!c.affiliates.enabled) $('#signup').innerHTML = '<p>O programa de indicação está pausado no momento.</p>';
+    }).catch(() => {});
+    $$('.tabs button').forEach((b) => b.addEventListener('click', () => {
+      $$('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
+      $('#signup').hidden = b.dataset.tab !== 'signup';
+      $('#login').hidden = b.dataset.tab !== 'login';
+    }));
+    $('#signup').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('#signupErr').textContent = '';
+      try {
+        const body = Object.fromEntries(new FormData(e.target));
+        body.acceptTerms = e.target.acceptTerms.checked;
+        await api('/api/affiliate/signup', { method: 'POST', body });
+        location.href = '/parceiros/painel';
+      } catch (err) { $('#signupErr').textContent = err.message; }
+    });
+    $('#login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('#loginErr').textContent = '';
+      try {
+        await api('/api/affiliate/login', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) });
+        location.href = '/parceiros/painel';
+      } catch (err) { $('#loginErr').textContent = err.message; }
+    });
+  </script>
+</body>
+</html>

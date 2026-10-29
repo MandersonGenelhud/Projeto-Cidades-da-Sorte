@@ -28,7 +28,8 @@ export function buildRanking({ leads, users, settings, month = currentMonth(), t
     const received = leads.filter((l) => (l.timeline || []).some((t) => t.type === 'dono' && t.toId === u.id && monthOf(t.at) === month)).length;
     // Retornos atrasados só pesam no mês atual (é a carteira de hoje).
     const overdue = month === String(today).slice(0, 7) ? mine.filter((l) => open.has(l.stage) && l.followUpAt && l.followUpAt < today).length : 0;
-    const revenue = confirmed.reduce((s, l) => s + (Number(l.closedValue) || 0), 0);
+    const fx = crm.fx || {};
+    const revenue = confirmed.reduce((s, l) => s + (Number(l.closedValue) || 0) * (l.currency && l.currency !== 'BRL' ? Number(fx[l.currency]) || 1 : 1), 0);
     const sales = confirmed.length;
     const points = Math.max(0, sales * POINTS.sale + Math.floor(revenue / 1000) * POINTS.perThousand + proposals * POINTS.proposal + overdue * POINTS.overdue);
     const target = Number(goals.perUser?.[u.id] ?? goals.target ?? 0) || 0;

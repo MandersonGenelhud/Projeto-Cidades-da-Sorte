@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Imóvel · Migra</title>
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/site/site.css" />
+</head>
+<body>
+  <main class="wrap detail" id="page">
+    <div>
+      <p class="small"><a href="/imoveis">← Todos os imóveis</a></p>
+      <div class="gallery"><div class="main" id="mainPh"></div><div class="thumbs" id="thumbs"></div></div>
+      <h1 id="title" style="font-size:clamp(24px,3.5vw,34px);letter-spacing:-.02em;margin:18px 0 4px"></h1>
+      <p class="muted" id="loc" style="margin:0"></p>
+      <div class="facts-list" id="facts"></div>
+      <div id="desc" style="white-space:pre-wrap"></div>
+    </div>
+    <aside class="side">
+      <div class="box">
+        <span class="eyebrow" style="color:var(--leaf)" id="deal"></span>
+        <div class="price" id="price" style="font-size:30px;font-weight:700;letter-spacing:-.02em;margin:4px 0 12px"></div>
+        <div id="statusNote"></div>
+        <button class="btn primary block" id="btnInterest">Tenho interesse</button>
+        <a class="btn wa block" id="btnWa" target="_blank" rel="noopener" style="margin-top:8px" hidden>Conversar no WhatsApp</a>
+        <a class="btn block" id="btnMap" target="_blank" rel="noopener" style="margin-top:8px">Ver no Google Maps</a>
+      </div>
+      <div class="box" id="agentBox" hidden><span class="muted small">Corretor responsável</span><h3 id="agentName" style="margin:2px 0 0"></h3></div>
+    </aside>
+  </main>
+  <script src="/site/site.js"></script>
+  <script>
+    siteChrome('imoveis');
+    const slug = decodeURIComponent(location.pathname.split('/').pop());
+    (async () => {
+      const [p, c] = await Promise.all([api(`/api/public/property/${encodeURIComponent(slug)}`), api('/api/public/catalog')]);
+      setHeaderWhatsapp(c.whatsapp);
+      document.title = `${p.title} · Migra Imóveis`;
+      const imgs = p.images || [];
+      const show = (i) => {
+        $('#mainPh').innerHTML = imgs[i] ? `<img src="${esc(imgs[i])}" alt="${esc(p.title)}" />` : '';
+        $$('#thumbs button').forEach((b, j) => b.classList.toggle('on', j === i));
+      };
+      $('#thumbs').innerHTML = imgs.length > 1 ? imgs.map((u, i) => `<button type="button" aria-label="Foto ${i + 1}"><img src="${esc(u)}" alt="" loading="lazy" /></button>`).join('') : '';
+      $$('#thumbs button').forEach((b, i) => b.addEventListener('click', () => show(i)));
+      show(0);
+      $('#title').textContent = p.title;
+      $('#loc').textContent = [p.address, p.neighborhood, p.city, 'Paraguai'].filter(Boolean).join(' · ');
+      $('#facts').innerHTML = [
+        [TYPES[p.type] || p.type, 'Tipo'], [p.areaText, 'Área'], [p.bedrooms || '', 'Quartos'], [p.bathrooms || '', 'Banheiros'], [STATUS[p.status], 'Situação'],
+      ].filter(([v]) => v).map(([v, l]) => `<div><b>${esc(v)}</b><span>${l}</span></div>`).join('');
+      $('#desc').textContent = p.description || '';
+      $('#deal').textContent = p.deal === 'aluguel' ? 'Para alugar' : 'À venda';
+      $('#price').textContent = price(p.price, p.currency, p.perMonth);
+      const sold = p.status === 'vendido' || p.status === 'alugado';
+      $('#statusNote').innerHTML = sold ? `<p class="pill warn">Este imóvel já foi ${p.status === 'vendido' ? 'vendido' : 'alugado'}. Fale com a gente que indicamos opções parecidas.</p>` : p.status === 'reservado' ? '<p class="pill warn">Reservado no momento. Deixe seu interesse para ser avisado.</p>' : '';
+      $('#btnInterest').onclick = () => openInterest({ title: p.title, kind: 'property', slug: p.slug });
+      const wa = p.agentWhatsapp || c.whatsapp;
+      if (wa) {
+        $('#btnWa').href = `https://wa.me/${wa}?text=${encodeURIComponent(`Olá! Tenho interesse no imóvel: ${p.title}`)}`;
+        $('#btnWa').hidden = false;
+      }
+      $('#btnMap').href = p.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([p.address, p.neighborhood, p.city, 'Paraguay'].filter(Boolean).join(', '))}`;
+      if (p.agentName) { $('#agentBox').hidden = false; $('#agentName').textContent = p.agentName; }
+    })().catch((e) => { $('#page').innerHTML = `<div class="empty" style="grid-column:1/-1">${esc(e.message)} · <a href="/imoveis">ver todos os imóveis</a></div>`; });
+  </script>
+</body>
+</html>
