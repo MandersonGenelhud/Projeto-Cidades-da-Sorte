@@ -81,6 +81,7 @@ function showTab(name) {
   $$('nav button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   $$('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
   location.hash = name;
+  window.onTabShown?.(name);
   loaders[name]?.();
 }
 $$('nav button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -1298,7 +1299,15 @@ $('#btnSignOut').addEventListener('click', async () => {
   window.currentUser = state.user;
   const admin = state.user.role === 'admin';
   document.body.classList.toggle('seller', !admin);
-  $('#userName').textContent = `${admin ? '👑' : '👤'} ${state.user.name}`;
+  $('#userName').textContent = state.user.name;
+  $('#userAvatar').textContent = state.user.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  $('#userAvatar').title = admin ? 'Administrador' : 'Vendedor';
+  $('#topSearch').addEventListener('submit', (e) => {
+    e.preventDefault();
+    showTab('leads');
+    $('#leadSearch').value = $('#topSearchInput').value.trim();
+    loaders.leads();
+  });
   try {
     renderStatus(await api('/api/status'));
     if (admin) {

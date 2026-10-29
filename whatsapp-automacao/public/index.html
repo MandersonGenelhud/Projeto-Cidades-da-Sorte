@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Migra Hub · Atendimento e Vendas</title>
   <link rel="icon" href="img/migra-emblema.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -41,11 +44,24 @@
       <button data-tab="logs" data-admin>📜 Histórico</button>
       <button data-tab="settings" data-admin>⚙️ Configurações</button>
     </nav>
-    <div class="user-pill"><span id="userName">…</span><button type="button" class="link" id="btnSignOut">Sair</button></div>
     <div class="conn-pill" id="connPill" data-admin><span class="dot"></span><span id="connText">Desconectado</span></div>
   </aside>
 
+  <div class="nav-shade" id="navShade"></div>
   <main>
+    <header class="topbar">
+      <button type="button" class="icon-btn" id="btnMenu" aria-label="Abrir menu" data-icon="menu"></button>
+      <div class="crumbs"><span id="crumbGroup">Vendas</span><b id="crumbPage">Prospectos</b></div>
+      <form class="topsearch" id="topSearch" role="search">
+        <span data-icon="search"></span>
+        <input id="topSearchInput" placeholder="Buscar cliente, telefone ou código MIG…" autocomplete="off" />
+      </form>
+      <div class="user-menu">
+        <span class="avatar" id="userAvatar">·</span>
+        <span id="userName" class="user-name">…</span>
+        <button type="button" class="icon-btn" id="btnSignOut" title="Sair" aria-label="Sair" data-icon="logout"></button>
+      </div>
+    </header>
     <!-- PAINEL -->
     <section id="tab-dashboard" class="tab active">
       <h1>Painel</h1>
@@ -950,6 +966,7 @@
     </form>
   </dialog>
 
+  <script src="ui.js"></script>
   <script src="app.js"></script>
   <script src="crm.js"></script>
 </body>

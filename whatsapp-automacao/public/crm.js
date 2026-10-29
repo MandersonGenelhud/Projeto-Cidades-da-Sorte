@@ -116,15 +116,15 @@ loaders.sales = async () => {
   await loadCrmMeta();
   const q = new URLSearchParams({ ...periodRange(), ...($('#salesOwner').value ? { owner: $('#salesOwner').value } : {}) });
   const [s, insights] = await Promise.all([api(`/api/crm/stats?${q}`), api('/api/crm/insights')]);
-  const kpi = (label, value, sub = '', tone = '') => `<div class="card kpi ${tone}"><div class="label">${label}</div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
+  const kpi = (label, value, sub = '', tone = '', ico = '') => `<div class="card kpi ${tone}"><div class="kpi-head"><span class="label">${label}</span>${ico ? `<span class="kpi-ico">${icon(ico, 16)}</span>` : ''}</div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
   $('#salesKpis').innerHTML = [
-    kpi('Vendas fechadas', money(s.wonValue), `${s.won} venda(s) · ticket médio ${money(s.avgTicket)}`),
-    kpi('Conversão', s.conversion === null ? '—' : `${s.conversion}%`, `${s.won} fechadas de ${s.won + s.lost} decididas`),
-    kpi('Prospectos novos', s.newLeads, 'no período'),
-    kpi('Em negociação', money(s.openValue), `${s.openLeads} prospecto(s) em aberto`),
+    kpi('Vendas fechadas', money(s.wonValue), `${s.won} venda(s) · ticket médio ${money(s.avgTicket)}`, '', 'money'),
+    kpi('Conversão', s.conversion === null ? '—' : `${s.conversion}%`, `${s.won} fechadas de ${s.won + s.lost} decididas`, '', 'target'),
+    kpi('Prospectos novos', s.newLeads, 'no período', '', 'userPlus'),
+    kpi('Em negociação', money(s.openValue), `${s.openLeads} prospecto(s) em aberto`, '', 'briefcase'),
     kpi('Retornos', `${s.followUps.today} hoje`,
       s.followUps.overdue ? `<span class="status-warn">⚠️ ${s.followUps.overdue} atrasado(s)</span> · ${s.followUps.next30} nos próximos 30 dias` : `${s.followUps.next30} nos próximos 30 dias · ${s.followUps.later} depois`,
-      s.followUps.overdue ? 'warn' : ''),
+      s.followUps.overdue ? 'warn' : '', 'followups'),
   ].join('');
 
   hbars($('#chartFunnel'), s.byStage.map((st) => ({
