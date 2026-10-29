@@ -373,7 +373,7 @@ function fillLead(l) {
   $('#btnConfirmSale').hidden = !(isAdmin() && l.stage === 'ganho' && !l.closedConfirmed);
   $('#btnLeadPix').hidden = !l.id || l.stage === 'perdido';
   renderLeadClosing(l);
-  $('#btnLeadPlan').hidden = !l.id || !l.interest;
+  $('#btnLeadPlan').hidden = !l.id;
 
   const ai = [l.aiSummary && `🧠 <b>Resumo da IA:</b> ${esc(l.aiSummary)}`, l.objective && `🎯 <b>Objetivo:</b> ${esc(l.objective)}`].filter(Boolean);
   $('#leadAi').hidden = !ai.length;
@@ -813,19 +813,61 @@ function onCrmAssigned(data) {
   onCrmEvent();
 }
 
-// ---------- ETAPAS DE PAGAMENTO (fluxograma para o cliente) ----------
-$('#btnLeadPlan').addEventListener('click', async () => {
-  const id = crmState.current?.id;
-  if (!id) return;
+// ---------- CALCULADORA DE ORÇAMENTO E ETAPAS DE PAGAMENTO ----------
+const calc = { lead: null, text: '' };
+const brl2 = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const WD_SHORT = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const diaSemana = (iso) => `${WD_SHORT[new Date(`${iso}T12:00:00Z`).getUTCDay()]}, ${iso.split('-').reverse().join('/')}`;
+async function openCalc(lead = null) {
+  calc.lead = lead;
+  const f = $('#calcForm');
+  if (!f.packageName.options.length) {
+    const meta = await api('/api/crm/stages');
+    f.packageName.innerHTML = (meta.packages || []).map((p) => `<option value="${esc(p.name)}">${esc(p.name)} · ${brl2(p.price)} por pessoa</option>`).join('');
+  }
+  if (lead?.interest) f.packageName.value = lead.interest;
+  f.people.value = lead?.people || 1;
+  f.adults.value = lead?.people || 1;
+  f.start.value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  $('#calcFor').textContent = lead ? `Cliente: ${lead.name || lead.code}` : 'Monte o orçamento para explicar ao cliente quanto fica a entrada, as parcelas e as datas.';
+  $('#calcSend').hidden = !lead?.id;
+  if (!$('#calcDialog').open) $('#calcDialog').showModal();
+  runCalc();
+}
+async function runCalc() {
+  const f = $('#calcForm');
+  if (Number(f.adults.value) > Number(f.people.value)) f.adults.value = f.people.value;
   try {
-    const preview = await api(`/api/leads/${id}/payplan`, { method: 'POST', body: {} });
-    if (!confirm(`Enviar este passo a passo para o cliente no WhatsApp?\n\n${preview.text}`)) return;
-    await api(`/api/leads/${id}/payplan`, { method: 'POST', body: { send: true } });
-    toast('Etapas de pagamento enviadas');
+    const r = await api('/api/payments/calc', { method: 'POST', body: { packageName: f.packageName.value, people: Number(f.people.value), adults: Number(f.adults.value), start: f.start.value } });
+    const p = r.plan;
+    calc.text = r.text;
+    $('#calcResult').innerHTML = `
+      <div class="calc-total"><div><span>Valor total</span><b>${brl2(p.total)}</b><small>${brl2(r.price)} × ${p.people} pessoa(s)</small></div><div><span>Entrada na assinatura</span><b>${brl2(p.entry)}</b><small>R$ 1.000 + R$ 800 × ${p.adults} adulto(s) · ${diaSemana(p.start)}</small></div></div>
+      <ol class="calc-steps">${p.parcels.map((x, i) => `<li><span class="calc-dot">${i === p.parcels.length - 1 ? '🪪' : '✈️'}</span><div><b>${brl2(x.value)}</b> · ${esc(x.label)} (${x.pct}% do saldo)<div class="hint">${esc(diaSemana(x.date))} · ${esc(x.when.toLowerCase())} · ${esc(x.note)}${x.moved ? ' · <b>caiu no fim de semana, passou para segunda</b>' : ''}</div></div></li>`).join('')}</ol>
+      <p class="hint">Saldo depois da entrada: ${brl2(p.balance)}. As datas das viagens e da retirada são confirmadas pela equipe.</p>`;
+  } catch (err) {
+    $('#calcResult').innerHTML = `<p class="err">${esc(err.message)}</p>`;
+  }
+}
+$('#btnCalc').addEventListener('click', () => openCalc());
+$('#calcClose').addEventListener('click', () => $('#calcDialog').close());
+$('#calcForm').addEventListener('input', runCalc);
+$('#calcForm').addEventListener('submit', (e) => e.preventDefault());
+$('#calcCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(calc.text); toast('Mensagem copiada: cole no WhatsApp'); } catch { prompt('Copie a mensagem:', calc.text); }
+});
+$('#calcSend').addEventListener('click', async () => {
+  const f = $('#calcForm');
+  if (!calc.lead?.id || !confirm('Enviar este passo a passo para o cliente no WhatsApp?')) return;
+  try {
+    await api('/api/payments/calc', { method: 'POST', body: { send: true, leadId: calc.lead.id, packageName: f.packageName.value, people: Number(f.people.value), adults: Number(f.adults.value), start: f.start.value } });
+    toast('Etapas de pagamento enviadas ao cliente');
+    $('#calcDialog').close();
   } catch (err) {
     toast(err.message, true);
   }
 });
+$('#btnLeadPlan').addEventListener('click', () => crmState.current?.id && openCalc(crmState.current));
 
 // ---------- VISITAS AO ESCRITÓRIO ----------
 const VISIT_STATUS = { pendente: '<span class="badge paused">⏳ Aguardando você</span>', confirmada: '<span class="badge done">✅ Confirmada</span>', remarcar: '<span class="badge pending">🔁 Remarcando</span>', cancelada: '<span class="badge canceled">Cancelada</span>', realizada: '<span class="badge running">Realizada</span>' };

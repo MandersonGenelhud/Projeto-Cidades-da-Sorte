@@ -372,7 +372,10 @@
     <section id="tab-payments" class="tab">
       <div class="page-head">
         <h1>💳 Pagamentos (Pix)</h1>
-        <button type="button" class="btn" id="btnNotifyPerm">🔔 Avisar neste aparelho quando cair um Pix</button>
+        <div class="row">
+          <button type="button" class="btn primary" id="btnCalc">🧮 Calculadora de orçamento</button>
+          <button type="button" class="btn" id="btnNotifyPerm">🔔 Avisar neste aparelho quando cair um Pix</button>
+        </div>
       </div>
       <div class="cards" id="payKpis"></div>
       <div class="panel">
@@ -1219,6 +1222,21 @@
         </div>
       </div>
     </form>
+  </dialog>
+  <dialog id="calcDialog" class="calc-dialog">
+    <div class="conv-header"><h2>🧮 Calculadora de orçamento</h2><button type="button" class="icon-btn" id="calcClose" aria-label="Fechar">✕</button></div>
+    <p class="hint" id="calcFor"></p>
+    <form id="calcForm" class="calc-form">
+      <label>Pacote <select name="packageName"></select></label>
+      <label>Pessoas <input name="people" type="number" min="1" max="30" value="1" /></label>
+      <label>Adultos <input name="adults" type="number" min="1" max="30" value="1" /></label>
+      <label>Assinatura (início) <input name="start" type="date" /></label>
+    </form>
+    <div id="calcResult"></div>
+    <div class="row">
+      <button type="button" class="btn" id="calcCopy">Copiar mensagem</button>
+      <button type="button" class="btn primary" id="calcSend" hidden>Enviar ao cliente no WhatsApp</button>
+    </div>
   </dialog>
 
   <script src="ui.js"></script>

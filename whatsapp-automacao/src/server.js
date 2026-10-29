@@ -211,10 +211,10 @@ agent.sendForm = async (conv, args, { dryRun } = {}) => {
 };
 // Passo a passo do pagamento (fluxograma): pela atendente, pelo painel e depois do termo assinado.
 const payplans = new PayPlans({ store, secret: auth.secret });
-async function sendPaymentPlan({ convKey, lead, packageName, people, adults }) {
+async function sendPaymentPlan({ convKey, lead, packageName, people, adults, start }) {
   const pkg = crm.matchPackage(packageName || lead?.interest || '');
   if (!pkg) return { erro: `Pacote não encontrado. Pacotes: ${(store.settings.crm?.packages || []).map((p) => p.name).join(', ')}` };
-  const rec = payplans.create({ leadId: lead?.id || null, convKey, packageName: pkg.name, price: pkg.price, people: people || lead?.people || 1, adults });
+  const rec = payplans.create({ leadId: lead?.id || null, convKey, packageName: pkg.name, price: pkg.price, people: people || lead?.people || 1, adults, start });
   const base = publicBase();
   const text = planMessage(rec.plan, { packageName: pkg.name, link: base ? `${base}/etapas/${rec.id}?t=${payplans.token(rec.id)}` : '' });
   if (convKey) {
@@ -1434,6 +1434,23 @@ app.post('/api/leads/:id/closing', async (req, res) => {
     await wa.send(key, { text: `${text}\n${closing.formUrl(f)}`, typing: false });
   }
   res.json(closing.view(f));
+});
+// Calculadora de orçamento: entrada, parcelas e datas (sábado/domingo passam para segunda).
+app.post('/api/payments/calc', async (req, res) => {
+  const b = req.body || {};
+  const pkg = crm.matchPackage(b.packageName);
+  if (!pkg) throw httpError(400, 'Escolha o pacote');
+  if (b.send) {
+    const lead = crm.byId(b.leadId);
+    if (!lead) throw httpError(404, 'Escolha o cliente');
+    const key = lead.whatsappKey || lead.conversationKey || lead.phone || null;
+    if (!key) throw httpError(400, 'Este cliente não tem WhatsApp');
+    const r = await sendPaymentPlan({ convKey: key, lead, packageName: pkg.name, people: b.people, adults: b.adults, start: b.start });
+    if (r.erro) throw httpError(400, r.erro);
+    return res.json({ sent: true, plan: r.rec.plan, text: r.text });
+  }
+  const plan = payplans.preview({ price: pkg.price, people: b.people, adults: b.adults, start: b.start });
+  res.json({ plan, packageName: pkg.name, price: pkg.price, text: planMessage(plan, { packageName: pkg.name }) });
 });
 // Etapas de pagamento pelo painel.
 app.post('/api/leads/:id/payplan', async (req, res) => {

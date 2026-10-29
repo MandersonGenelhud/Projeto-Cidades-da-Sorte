@@ -32,6 +32,8 @@
   <script>
     const id = location.pathname.split('/').pop();
     const t = new URLSearchParams(location.search).get('t') || '';
+    const WD = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+    const dia = (iso) => { if (!iso) return ''; const d = new Date(`${iso}T12:00:00Z`); return `${WD[d.getUTCDay()]}, ${iso.split('-').reverse().join('/')}`; };
     const brl = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     api(`/api/public/etapas/${id}?t=${encodeURIComponent(t)}`).then((d) => {
       const p = d.plan;
@@ -42,12 +44,12 @@
           <h1>Seu pagamento, passo a passo</h1>
           <div class="chips"><span>${esc(d.packageName)}</span><span>${p.people} pessoa${p.people > 1 ? 's' : ''}</span>${p.adults !== p.people ? `<span>${p.adults} adulto${p.adults > 1 ? 's' : ''}</span>` : ''}</div>
           <div class="plan">
-            <div class="step first"><div class="dot">✍️</div><div><div class="when">Na assinatura do termo</div><div class="val">${brl(p.entry)}</div><div class="note">Entrada: garante a sua reserva e as certidões. Já é descontada do total.</div></div></div>
-            ${p.parcels.map((x, i) => `<div class="step"><div class="dot">${icon(i)}</div><div><div class="when">${esc(x.when)}</div><div class="val">${brl(x.value)}</div><div class="note">${esc(x.label)} (${x.pct}% do saldo) · ${esc(x.note)}</div></div></div>`).join('')}
+            <div class="step first"><div class="dot">✍️</div><div><div class="when">Na assinatura do termo${p.start ? ` · ${dia(p.start)}` : ''}</div><div class="val">${brl(p.entry)}</div><div class="note">Entrada: garante a sua reserva e as certidões. Já é descontada do total.</div></div></div>
+            ${p.parcels.map((x, i) => `<div class="step"><div class="dot">${icon(i)}</div><div><div class="when">${x.date ? `${dia(x.date)} · ` : ''}${esc(x.when)}</div><div class="val">${brl(x.value)}</div><div class="note">${esc(x.label)} (${x.pct}% do saldo) · ${esc(x.note)}</div></div></div>`).join('')}
           </div>
           <div class="total"><span>Valor total</span><b>${brl(p.total)}</b></div>
         </div>
-        <p class="fine">As datas das viagens e da retirada dos documentos são confirmadas pela equipe da Migra.</p>`;
+        <p class="fine">${p.parcels.some((x) => x.moved) ? 'Quando o prazo cai no sábado ou domingo, a data passa para a segunda-feira. ' : ''}As datas das viagens e da retirada dos documentos são confirmadas pela equipe da Migra.</p>`;
     }).catch((e) => { $('#page').innerHTML = `<div class="flow-card center"><h1>Link inválido</h1><p class="muted">${esc(e.message)}</p></div>`; });
   </script>
 </body>

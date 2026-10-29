@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Auth } from '../src/auth.js';
 import { Crm } from '../src/crm.js';
 import { Visits } from '../src/visits.js';
-import { paymentPlan, planMessage } from '../src/payplan.js';
+import { paymentPlan, planMessage, dueDate } from '../src/payplan.js';
 import { tempStore } from './helpers.js';
 
 test('etapas de pagamento batem com o material da Migra (2 pessoas no Prata)', () => {
@@ -45,4 +45,20 @@ test('visita ao escritório: avisa o Marcos e só o painel confirma, mandando ao
   assert.match(sent[0].text, /Av\. Central 100/);
   assert.match(sent[0].text, /RG, foto e o valor da entrada/);
   assert.ok(crm.byId(lead.id).timeline.some((h) => /Visita confirmada/.test(h.text)));
+});
+
+test('calculadora: datas das parcelas, e sábado ou domingo passam para segunda', () => {
+  assert.deepEqual(dueDate('2026-10-30', 15), { date: '2026-11-16', weekday: 'segunda-feira', moved: true }); // caiu no sábado 14/11
+  assert.deepEqual(dueDate('2026-10-31', 15), { date: '2026-11-16', weekday: 'segunda-feira', moved: true }); // caiu no domingo 15/11
+  assert.equal(dueDate('2026-10-29', 15).date, '2026-11-13'); // sexta, fica
+  // Ouro, 4 pessoas, assinando na sexta 30/10/2026.
+  const p = paymentPlan({ price: 12997, people: 4, adults: 4, start: '2026-10-30' });
+  assert.equal(p.total, 51988);
+  assert.equal(p.entry, 4200);
+  assert.deepEqual(p.parcels.map((x) => [x.date, x.weekday, x.value]), [
+    ['2026-11-16', 'segunda-feira', 23894],
+    ['2026-01-28'.replace('2026', '2027'), 'quinta-feira', 14336.4],
+    ['2027-03-01', 'segunda-feira', 9557.6],
+  ]);
+  assert.match(planMessage(p, { packageName: 'Pacote Ouro' }), /segunda, 16\/11\/2026 · com 15 dias/);
 });
