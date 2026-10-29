@@ -244,6 +244,54 @@ closing.onSigned = async (f) => {
   await sendPaymentPlan({ convKey: f.convKey, lead, packageName: lead?.interest || f.data.objetivo, people: Math.max(Number(lead?.people) || 1, Number(f.data.adultos) || 1), adults: f.data.adultos });
 };
 
+// Fechamento com humano: a IA tira as dúvidas, descobre a última objeção e passa tudo mastigado.
+agent.closeHandoff = async (conv, args, { dryRun } = {}) => {
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, quem: args.prefere === 'vendedor' ? 'o consultor' : 'o Marcos', instrucao: 'Simulação: no atendimento real o resumo vai para o WhatsApp de quem vai fechar. Diga que ele vai finalizar com o cliente por aqui em instantes.' };
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
+    || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+  // Quem fecha: o dono do WhatsApp da conversa (vendedor) > o responsável pelo cliente > o Marcos.
+  const parsed = parseLineKey(conv.key);
+  const lineOwner = parsed ? auth.get(lines.get(parsed.id)?.ownerId) : null;
+  const leadOwner = lead?.ownerId ? auth.get(lead.ownerId) : null;
+  const closer = lineOwner || (args.prefere === 'Marcos' ? null : leadOwner);
+  const brief = {
+    resumo: String(args.resumo || '').trim(), pacote: args.pacote || lead?.interest || '', pessoas: args.pessoas || lead?.people || 1,
+    duvidas: args.duvidas_esclarecidas || '', objecao: args.objecao || '', tentativas: args.o_que_ja_foi_dito || '', sugestao: args.sugestao || '',
+    moradia: args.moradia || '', prefere: args.prefere || '', temperatura: args.temperatura || '', at: new Date().toISOString(),
+  };
+  const who = lead?.name || conv.name || (conv.phone ? `+${conv.phone}` : 'Cliente');
+  const text = [
+    '🤝 *Cliente pronto para fechar com você*',
+    `👤 ${who}${conv.phone ? ` · +${conv.phone}` : ''}${lead?.code ? ` · ${lead.code}` : ''}`,
+    brief.pacote ? `📦 ${brief.pacote} · ${brief.pessoas} pessoa(s)` : '',
+    brief.temperatura ? `🌡️ ${brief.temperatura}` : '',
+    `\n📝 ${brief.resumo}`,
+    brief.duvidas ? `\n✅ *Dúvidas já esclarecidas:* ${brief.duvidas}` : '',
+    brief.objecao ? `\n🚧 *O que ainda impede:* ${brief.objecao}` : '\n🙋 Ele prefere fechar com uma pessoa.',
+    brief.tentativas ? `💬 *O que a IA já disse:* ${brief.tentativas}` : '',
+    brief.sugestao ? `💡 *Sugestão para fechar:* ${brief.sugestao}` : '',
+    brief.moradia ? `🏠 Moradia: ${brief.moradia} (oportunidade para a Migra Imobiliária)` : '',
+    `\nA IA parou de responder este cliente. Continue a conversa${parsed ? ' no seu WhatsApp' : ''}${conv.phone ? `: https://wa.me/${conv.phone}` : ' pelo painel (Conversas)'}`,
+  ].filter(Boolean).join('\n');
+  if (lead) {
+    lead.closingBrief = brief;
+    if (['novo', 'em_contato'].includes(lead.stage)) crm.update({ name: 'IA', role: 'admin' }, lead.id, { stage: 'proposta' });
+    crm.addNote({ name: 'IA', role: 'admin' }, lead.id, text.replace(/\*/g, ''));
+  }
+  let quem = 'o Marcos';
+  if (closer?.whatsapp && wa.status === 'connected') {
+    await wa.send(closer.whatsapp, { text, typing: false }).catch(() => {});
+    quem = closer.name.split(' ')[0];
+  } else {
+    await notifyAdmins(text);
+    const extra = normalizePhone(store.settings.agent?.handoffNotifyPhone);
+    if (extra && wa.status === 'connected') await wa.send(extra, { text, typing: false }).catch(() => {});
+    if (closer) quem = closer.name.split(' ')[0];
+  }
+  notify('crm', { id: lead?.id });
+  return { ok: true, quem, instrucao: `Diga ao cliente, em uma frase calorosa, que ${quem} vai finalizar com ele por aqui em instantes. Não prometa desconto nem condição especial.` };
+};
+
 // Visitas ao escritório: a atendente registra, o Marcos confirma pelo painel.
 const visits = new Visits({
   store,

@@ -93,6 +93,29 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'passar_fechamento_para_humano',
+      description: 'Passa o cliente para o Marcos ou um vendedor FINALIZAR a negociação, com tudo mastigado. Use quando: (1) o cliente prefere fechar com uma pessoa; ou (2) você descobriu a última objeção que impede o fechamento, tentou contornar e não resolveu. O humano recebe o resumo completo no WhatsApp e a IA para de responder este cliente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          resumo: { type: 'string', description: 'Quem é o cliente e o que ele quer, em até 3 frases' },
+          pacote: { type: 'string', description: 'Pacote ou serviço escolhido' },
+          pessoas: { type: 'number', description: 'Quantas pessoas no processo' },
+          duvidas_esclarecidas: { type: 'string', description: 'As dúvidas que ele tinha e que você já respondeu' },
+          objecao: { type: 'string', description: 'A última coisa que ainda impede o fechamento, nas palavras do cliente (vazio se ele só prefere fechar com uma pessoa)' },
+          o_que_ja_foi_dito: { type: 'string', description: 'Como você tentou contornar a objeção e como ele reagiu' },
+          sugestao: { type: 'string', description: 'Sua sugestão de solução para o humano apresentar e fechar' },
+          moradia: { type: 'string', description: 'Plano de moradia no Paraguai, se ele disse (alugar, comprar terreno e construir, comprar imóvel)' },
+          prefere: { type: 'string', enum: ['Marcos', 'vendedor', 'tanto faz'], description: 'Com quem ele prefere fechar' },
+          temperatura: { type: 'string', enum: ['quente', 'morno', 'frio'] },
+        },
+        required: ['resumo'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'agendar_visita_escritorio',
       description: 'Registra o pedido de visita ao escritório da Migra aqui no Paraguai (ou de um encontro com o Marcos) e avisa o Marcos, que confirma o dia e o horário com o cliente. Use só depois de fazer a ressalva de vir preparado (documentos e valor para iniciar) e de saber a preferência de dia.',
       parameters: {
@@ -227,6 +250,15 @@ export async function runTool(name, args, ctx) {
       case 'enviar_ficha_de_dados': {
         if (!ctx.onForm) return { erro: 'Ficha indisponível. Use transferir_para_humano.' };
         return await ctx.onForm(args);
+      }
+      case 'passar_fechamento_para_humano': {
+        if (!ctx.onCloseHandoff) {
+          ctx.onHandoff?.(`Fechamento com humano: ${args.objecao || args.resumo || ''}`);
+          return { ok: true, mensagem: 'Equipe avisada. Diga que um consultor vai finalizar com ele em instantes.' };
+        }
+        const r = await ctx.onCloseHandoff(args);
+        if (r?.ok) ctx.pause?.(`Fechamento com ${r.quem || 'a equipe'}${args.objecao ? `: ${args.objecao}` : ''}`);
+        return r;
       }
       case 'agendar_visita_escritorio': {
         if (!ctx.onVisit) return { erro: 'Agendamento de visita indisponível. Use transferir_para_humano.' };

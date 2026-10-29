@@ -18,6 +18,7 @@ export class Agent {
     this.requestVisit = null; // (conversa, args, { dryRun }) => pedido de visita ao escritório (avisa o Marcos)
     this.visitInfo = null; // (conversa) => regras da visita e pedidos já feitos por este cliente
     this.sendPlan = null; // (conversa, args, { dryRun }) => envia o passo a passo do pagamento
+    this.closeHandoff = null; // (conversa, args, { dryRun }) => passa o fechamento ao Marcos/vendedor com o resumo
     this.claimPaid = claimPaid || null; // (conversa, args) => cliente disse que pagou
     this.routeSpecialist = routeSpecialist || null; // (conversa, args, { dryRun }) => passa para o especialista do assunto
     this.contextFor = contextFor || null; // (conversa) => texto com o que o CRM já sabe do cliente
@@ -133,6 +134,14 @@ Tem cliente que prefere conhecer o escritório e fechar pessoalmente, ou quer ma
 2. Pergunte o dia e o período que prefere e quantas pessoas vêm.
 3. Use agendar_visita_escritorio. Diga que passou o pedido ao Marcos e que ele confirma o dia e o horário por aqui. Nunca confirme data ou horário por conta própria.${info ? `\n${info}` : ''}`;
     }
+    if (this.closeHandoff) {
+      system += `\n\n# Antes de fechar: dúvidas e a última objeção
+Muita gente prefere fechar com o Marcos ou com um vendedor. Deixe tudo pronto para eles só finalizarem:
+1. Tire TODAS as dúvidas. Quando parecer que acabou, pergunte: "Ficou alguma dúvida sobre o processo, os valores ou os documentos?"
+2. Com tudo claro, pergunte com leveza: "Tem mais alguma coisa que ainda impede você de começar com a gente?"
+3. Se aparecer algo, descubra exatamente o que é (dinheiro agora, prazo, confiança, família, documentos…) e tente contornar com as técnicas e os fatos da base, uma ou duas vezes, sem pressionar.
+4. Resolveu? Siga o fechamento normal (ficha de dados). Não resolveu, ou ele prefere fechar com uma pessoa? Use passar_fechamento_para_humano com o resumo, as dúvidas já esclarecidas, a objeção e o que você já disse, e uma sugestão de solução. Diga ao cliente que o Marcos (ou o consultor) vai finalizar com ele por aqui em instantes. Não prometa desconto nem condição especial: quem decide é a pessoa que vai fechar.`;
+    }
     if (this.sendPlan) system += '\n\n# Passo a passo do pagamento\nQuando o cliente perguntar como funciona o pagamento, quanto paga em cada etapa, ou logo depois de fechar, use enviar_etapas_pagamento com o pacote e o número de pessoas. O sistema manda o fluxograma com os valores e as datas de cada parcela (contando da data de hoje; sábado e domingo passam para segunda); você só comenta em uma frase e pergunta se ficou alguma dúvida. Não refaça as contas por conta própria.';
     if (pix && !closing) system += `\n\n# Pagamento da reserva por Pix\nQuando o cliente decidir fechar, peça o nome completo e o CPF de quem vai pagar e use gerar_pix com o número de adultos. O sistema envia o QR Code e o código copia e cola em mensagens separadas, logo antes da sua resposta: diga o valor, que o código está na mensagem anterior para copiar e colar no app do banco, e que o recibo em nome da empresa chega aqui assim que o pagamento for confirmado. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que o pagamento foi confirmado por conta própria.`;
     if (delayed) {
@@ -145,6 +154,7 @@ Tem cliente que prefere conhecer o escritório e fechar pessoalmente, ou quer ma
       if (t.function.name === 'enviar_ficha_de_dados') return closing;
       if (t.function.name === 'agendar_visita_escritorio') return visits;
       if (t.function.name === 'enviar_etapas_pagamento') return Boolean(this.sendPlan);
+      if (t.function.name === 'passar_fechamento_para_humano') return Boolean(this.closeHandoff);
       // Com a ficha, o Pix sai sozinho depois que o cliente envia os dados.
       if (t.function.name === 'gerar_pix') return pix && !closing;
       if (t.function.name === 'cliente_informou_pagamento') return pix || closing;
@@ -163,6 +173,15 @@ Tem cliente que prefere conhecer o escritório e fechar pessoalmente, ou quer ma
       onForm: this.sendForm ? (args) => this.sendForm(conv, args, { dryRun }) : null,
       onVisit: this.requestVisit ? (args) => this.requestVisit(conv, args, { dryRun }) : null,
       onPlan: this.sendPlan ? (args) => this.sendPlan(conv, args, { dryRun }) : null,
+      onCloseHandoff: this.closeHandoff ? (args) => this.closeHandoff(conv, args, { dryRun }) : null,
+      // Pausa a IA nesta conversa (um humano assume), sem o aviso genérico de transferência.
+      pause: (reason) => {
+        if (dryRun) return;
+        conv.handoff = true;
+        conv.handoffReason = reason;
+        this.store.addLog({ type: 'system', phone: conv.phone, message: `🤝 ${reason}` });
+        this.notify('conversation', { key: conv.key, handoff: true });
+      },
       onPaidClaim: this.claimPaid ? (args) => this.claimPaid(conv, args, { dryRun }) : null,
       onHandoff: (reason) => {
         if (!dryRun) {

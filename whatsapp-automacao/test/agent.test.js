@@ -346,3 +346,29 @@ test('visita ao escritório e etapas de pagamento: ferramentas e ressalva de vir
   assert.match(seen[0].system, /Migra Motors/);
   assert.match(seen[0].system, /Carro OU Moto/);
 });
+
+test('fechamento com humano: dúvidas, última objeção e resumo mastigado; a IA para de responder', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const seen = [];
+  const replies = [
+    { content: '', tool_calls: [call('h1', 'passar_fechamento_para_humano', { resumo: 'Casal quer o Ouro', objecao: 'só recebe o salário dia 10', o_que_ja_foi_dito: 'expliquei que a entrada garante a vaga', sugestao: 'reservar com a entrada no dia 10', prefere: 'Marcos', moradia: 'alugar no começo' })] },
+    { content: 'Perfeito! O Marcos vai finalizar com você por aqui em instantes.', tool_calls: [] },
+  ];
+  const llm = { configured: true, chat: async ({ messages, tools }) => { seen.push({ system: messages[0].content, tools: tools.map((t) => t.function.name) }); return replies.shift(); } };
+  const agent = new Agent({ store, llm, now: () => NOW });
+  const briefs = [];
+  agent.closeHandoff = async (conv, args) => { briefs.push(args); return { ok: true, quem: 'Marcos' }; };
+  const conv = agent.conversation('5511999990000@s.whatsapp.net');
+  conv.phone = '5511999990000';
+  agent.remember(conv, 'user', 'Gostei, mas prefiro fechar com o Marcos. Só recebo dia 10.');
+  const r = await agent.think(conv);
+  assert.match(r.text, /Marcos vai finalizar/);
+  assert.equal(briefs[0].objecao, 'só recebe o salário dia 10');
+  assert.equal(conv.handoff, true, 'a IA para de responder: o humano assume');
+  assert.ok(seen[0].tools.includes('passar_fechamento_para_humano'));
+  assert.match(seen[0].system, /Tem mais alguma coisa que ainda impede você de começar/);
+  assert.match(seen[0].system, /Migra School/);
+  assert.match(seen[0].system, /alugar no começo ou já comprar um terreno e construir/);
+});
