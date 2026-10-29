@@ -369,6 +369,7 @@ function fillLead(l) {
       </dl><p class="hint">Avaliado em ${fmtDate(q.at)}. Frases entre aspas são do próprio cliente.</p>`;
   }
   $('#btnConfirmSale').hidden = !(isAdmin() && l.stage === 'ganho' && !l.closedConfirmed);
+  $('#btnLeadPix').hidden = !l.id || l.stage === 'perdido';
 
   const ai = [l.aiSummary && `🧠 <b>Resumo da IA:</b> ${esc(l.aiSummary)}`, l.objective && `🎯 <b>Objetivo:</b> ${esc(l.objective)}`].filter(Boolean);
   $('#leadAi').hidden = !ai.length;
@@ -890,4 +891,95 @@ function onLineStatus() {
   lineRefresh = setTimeout(() => {
     if ($('#tab-lines').classList.contains('active') && !$('#linesGrid').contains(document.activeElement)) loaders.lines();
   }, 400);
+}
+
+// ---------- PAGAMENTOS (Pix) ----------
+const PAY_STATUS = {
+  pending: '<span class="badge paused">⏳ Aguardando</span>',
+  paid: '<span class="badge done">✅ Pago</span>',
+  canceled: '<span class="badge canceled">✖ Cancelado</span>',
+};
+const brl = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+loaders.payments = async () => {
+  const list = await api('/api/payments');
+  const month = new Date().toISOString().slice(0, 7);
+  const paidMonth = list.filter((p) => p.status === 'paid' && String(p.paidAt).startsWith(month));
+  const pending = list.filter((p) => p.status === 'pending');
+  $('#payKpis').innerHTML = [
+    ['Recebido no mês', brl(paidMonth.reduce((s, p) => s + p.amount, 0)), `${paidMonth.length} Pix confirmado(s)`, 'money'],
+    ['Aguardando pagamento', brl(pending.reduce((s, p) => s + p.amount, 0)), `${pending.length} cobrança(s)${pending.some((p) => p.claimedAt) ? ' · 🔔 tem cliente dizendo que pagou' : ''}`, 'schedules'],
+  ].map(([l, v, sub, ico]) => `<div class="card kpi"><div class="kpi-head"><span class="label">${l}</span><span class="kpi-ico">${icon(ico, 16)}</span></div><div class="value">${v}</div><div class="sub">${sub}</div></div>`).join('');
+  $('#payTable').innerHTML = `<thead><tr><th>Data</th><th>Cliente</th><th>Valor</th><th>Referente a</th><th>Situação</th><th>Vendedor</th><th></th></tr></thead><tbody>${list.map((p) => `
+    <tr data-pay="${esc(p.id)}">
+      <td>${fmtDate(p.createdAt)}</td>
+      <td><b>${esc(p.payerName || p.leadName || '—')}</b>${p.leadCode ? ` <span class="lead-code">${esc(p.leadCode)}</span>` : ''}</td>
+      <td><b>${brl(p.amount)}</b></td>
+      <td class="small">${esc(p.description)}</td>
+      <td>${PAY_STATUS[p.status] || p.status}${p.status === 'pending' && p.claimedAt ? '<br><span class="status-warn small">🔔 cliente disse que pagou</span>' : ''}${p.status === 'paid' ? `<br><span class="hint">${fmtDate(p.paidAt)} · ${esc(p.confirmedBy || '')}</span>` : ''}</td>
+      <td>${esc(p.ownerName || '—')}</td>
+      <td class="row">
+        ${p.status === 'pending' ? `<a class="btn small" href="/api/payments/${esc(p.id)}/qr" target="_blank" rel="noopener">QR</a>
+          ${p.convKey ? '<button class="btn small" data-act="resend">Reenviar</button>' : ''}
+          ${isAdmin() ? '<button class="btn small primary" data-act="confirm">Confirmar</button>' : ''}
+          <button class="btn small danger" data-act="cancel">Cancelar</button>` : ''}
+        ${p.status === 'paid' ? `<a class="btn small" href="/api/payments/${esc(p.id)}/receipt" target="_blank" rel="noopener">🧾 Recibo nº ${String(p.receiptNo).padStart(4, '0')}</a>` : ''}
+      </td>
+    </tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum Pix gerado ainda.</td></tr>'}</tbody>`;
+  $('#btnNotifyPerm').hidden = !('Notification' in window) || Notification.permission === 'granted';
+};
+$('#payTable').addEventListener('click', async (e) => {
+  const act = e.target.closest('button[data-act]')?.dataset.act;
+  const id = e.target.closest('[data-pay]')?.dataset.pay;
+  if (!act || !id) return;
+  try {
+    if (act === 'confirm') {
+      if (!confirm('Confirmar que o Pix caiu na conta? A venda fecha, o recibo vai para o cliente e o aviso para o WhatsApp.')) return;
+      await api(`/api/payments/${id}/confirm`, { method: 'POST' });
+      toast('✅ Pagamento confirmado e recibo enviado');
+    }
+    if (act === 'cancel') {
+      if (!confirm('Cancelar esta cobrança?')) return;
+      await api(`/api/payments/${id}/cancel`, { method: 'POST' });
+    }
+    if (act === 'resend') {
+      await api(`/api/payments/${id}/resend`, { method: 'POST' });
+      toast('Pix reenviado ao cliente');
+    }
+    loaders.payments();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+$('#btnNotifyPerm').addEventListener('click', async () => {
+  const r = await Notification.requestPermission();
+  toast(r === 'granted' ? '🔔 Pronto: este aparelho avisa quando cair um Pix (com o painel aberto)' : 'O navegador não liberou as notificações', r !== 'granted');
+  loaders.payments();
+});
+
+// Botão "Gerar Pix" na ficha do cliente.
+$('#btnLeadPix').addEventListener('click', async () => {
+  const l = crmState.current;
+  if (!l?.id) return;
+  const value = prompt('Valor do Pix (R$). Deixe em branco para usar a regra da reserva:', '');
+  if (value === null) return;
+  try {
+    const p = await api('/api/payments', { method: 'POST', body: { leadId: l.id, amount: value ? Number(value.replace(/\./g, '').replace(',', '.')) : undefined, adults: l.people } });
+    toast(p.convKey ? `Pix de ${brl(p.amount)} enviado ao cliente` : `Pix de ${brl(p.amount)} gerado (o cliente não tem conversa ligada: copie em Pagamentos)`);
+    openLead(l.id);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+function onPaymentPaid(d) {
+  const text = `💰 Pix confirmado: ${brl(d.amount)}${d.name ? ` de ${d.name}` : ''}`;
+  toast(text);
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') new Notification('Venda fechada! Pix confirmado', { body: `${text}\n${d.description || ''}`, icon: '/img/migra-emblema.png' });
+  } catch {}
+  if ($('#tab-payments').classList.contains('active')) loaders.payments();
+  onCrmEvent();
+}
+function onPaymentEvent() {
+  if ($('#tab-payments').classList.contains('active')) loaders.payments();
 }

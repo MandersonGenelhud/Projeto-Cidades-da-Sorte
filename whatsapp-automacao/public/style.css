@@ -587,3 +587,4 @@ dialog { border-radius: 16px; box-shadow: var(--shadow-lg); }
 @media (prefers-reduced-motion: reduce) {
   .sidebar, .lead-card, nav button { transition: none; }
 }
+.pix-code { display: block; word-break: break-all; white-space: pre-wrap; font-size: 11px; padding: 8px; }

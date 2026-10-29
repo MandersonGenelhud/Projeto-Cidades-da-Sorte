@@ -24,6 +24,7 @@
       <button data-tab="sales" data-admin>📈 Vendas</button>
       <button data-tab="leads">🗂️ Prospectos</button>
       <button data-tab="followups">📅 Retornos <span class="nav-badge" id="dueBadge" hidden>0</span></button>
+      <button data-tab="payments">💳 Pagamentos</button>
       <button data-tab="ranking">🏆 Ranking</button>
       <button data-tab="conversations">💬 Conversas</button>
       <button data-tab="lines">📱 Números da equipe</button>
@@ -251,6 +252,19 @@
       <h1>Retornos agendados</h1>
       <p class="hint">Clientes que pediram para conversar depois. No dia, o responsável recebe um aviso no WhatsApp e o cliente aparece em "Hoje".</p>
       <div id="followupsBox" class="followups"></div>
+    </section>
+
+    <!-- PAGAMENTOS -->
+    <section id="tab-payments" class="tab">
+      <div class="page-head">
+        <h1>💳 Pagamentos (Pix)</h1>
+        <button type="button" class="btn" id="btnNotifyPerm">🔔 Avisar neste aparelho quando cair um Pix</button>
+      </div>
+      <div class="cards" id="payKpis"></div>
+      <div class="panel">
+        <p class="hint">Quando o cliente decide fechar, a atendente pede o nome e o CPF e manda o Pix da reserva (QR Code + copia e cola). Com a chave Pix própria, confira no banco e clique em <b>Confirmar</b>: a venda fecha, o recibo em nome da empresa vai para o cliente e o Marcos recebe o aviso no WhatsApp. Com o Mercado Pago, a confirmação é automática.</p>
+        <div class="table-wrap"><table id="payTable"></table></div>
+      </div>
     </section>
 
     <!-- NÚMEROS DA EQUIPE -->
@@ -842,6 +856,47 @@
           <button type="button" class="btn small" id="btnLogoReset">Voltar para a logo da Migra</button>
         </div>
       </form>
+      <form id="formPay" class="panel form">
+        <h2>💳 Pagamentos por Pix (fechamento e recibo)</h2>
+        <label class="check"><input type="checkbox" name="enabled" /> Atendente pode gerar o Pix da reserva no fechamento</label>
+        <label>Como confirmar os pagamentos
+          <select name="provider">
+            <option value="pix">Minha chave Pix (sem taxa) — eu confiro no banco e clico em Confirmar</option>
+            <option value="mercadopago">Mercado Pago — confirma sozinho quando o Pix cai (tem taxa do Mercado Pago)</option>
+          </select>
+        </label>
+        <div class="grid2 tight">
+          <label>Chave Pix (CNPJ, CPF, e-mail, celular ou aleatória) <input name="pixKey" placeholder="12.345.678/0001-90" /></label>
+          <label>Nome do recebedor (como aparece no banco) <input name="receiverName" placeholder="MIGRA PARAGUAI" /></label>
+          <label>Cidade do recebedor <input name="receiverCity" placeholder="Ciudad del Este" /></label>
+          <label>WhatsApp extra para o aviso de Pix (opcional) <input name="notifyPhone" placeholder="+595 981 000000" /></label>
+        </div>
+        <h3>Reserva (valor do Pix que a atendente gera)</h3>
+        <div class="row">
+          <label>Valor fixo (R$) <input type="number" min="0" step="0.01" name="resBase" /></label>
+          <label>+ por adulto (R$) <input type="number" min="0" step="0.01" name="resPerAdult" /></label>
+          <label class="grow">Descrição no recibo <input name="resDescription" /></label>
+        </div>
+        <h3>Empresa no recibo</h3>
+        <div class="grid2 tight">
+          <label>Razão social <input name="coName" /></label>
+          <label>CNPJ <input name="coDocument" /></label>
+          <label>Endereço <input name="coAddress" /></label>
+          <label>Telefone / e-mail <input name="coContact" placeholder="+595 981 000000 · contato@migraparaguai.com" /></label>
+        </div>
+        <div id="mpBox">
+          <h3>Mercado Pago</h3>
+          <div class="grid2 tight">
+            <label>Access Token de produção (Suas integrações → Credenciais) <input name="mpToken" autocomplete="off" placeholder="APP_USR-…" /></label>
+            <label>E-mail padrão do pagador <input name="mpEmail" placeholder="financeiro@migraparaguai.com" /></label>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn primary">Salvar pagamentos</button>
+          <button type="button" class="btn" id="btnPixTest">Gerar Pix de teste (R$ 1,00)</button>
+        </div>
+        <div id="pixTestBox" class="hint"></div>
+      </form>
       <form id="formSettings" class="form">
         <div class="grid2">
           <div class="panel">
@@ -947,6 +1002,7 @@
             <button type="submit" class="btn primary" id="btnSaveLead">Salvar</button>
             <button type="button" class="btn" id="btnTakeLead" hidden>🙋 Assumir este prospecto</button>
             <button type="button" class="btn" id="btnConfirmSale" hidden data-admin>✅ Confirmar venda (vale no ranking)</button>
+            <button type="button" class="btn" id="btnLeadPix" hidden>💳 Gerar Pix</button>
             <button type="button" class="btn small danger" id="btnDeleteLead" data-admin>Excluir</button>
           </div>
         </div>

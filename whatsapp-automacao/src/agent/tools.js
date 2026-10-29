@@ -79,6 +79,33 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'gerar_pix',
+      description: 'Gera o Pix da reserva para o cliente pagar agora (o sistema envia o QR Code e o código copia e cola direto para ele). Use quando o cliente decidir fechar e já tiver passado o nome completo e o CPF. O valor é calculado pela regra da reserva; não invente valores.',
+      parameters: {
+        type: 'object',
+        properties: {
+          adultos: { type: 'number', description: 'Quantos adultos vão entrar no processo' },
+          nome_pagador: { type: 'string', description: 'Nome completo de quem vai pagar (para o recibo)' },
+          cpf_pagador: { type: 'string', description: 'CPF de quem vai pagar (para o recibo)' },
+        },
+        required: ['adultos', 'nome_pagador'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cliente_informou_pagamento',
+      description: 'Use quando o cliente disser que já pagou o Pix ou mandar o comprovante. Avisa a equipe para conferir. Nunca diga que o pagamento foi confirmado: a confirmação chega pelo sistema, junto com o recibo.',
+      parameters: {
+        type: 'object',
+        properties: { observacao: { type: 'string', description: 'O que o cliente disse' } },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'encaminhar_para_especialista',
       description: 'Passa o cliente para o especialista de um assunto (ex.: terrenos e imóveis). O especialista recebe o resumo e você recebe o link do WhatsApp dele para enviar ao cliente.',
       parameters: {
@@ -147,6 +174,14 @@ export async function runTool(name, args, ctx) {
       case 'encaminhar_para_vendedor': {
         if (!ctx.onRoute) return { erro: 'Encaminhamento indisponível. Use transferir_para_humano.' };
         return await ctx.onRoute(args);
+      }
+      case 'gerar_pix': {
+        if (!ctx.onPix) return { erro: 'Pagamento por Pix indisponível. Use encaminhar_para_vendedor.' };
+        return await ctx.onPix(args);
+      }
+      case 'cliente_informou_pagamento': {
+        if (!ctx.onPaidClaim) return { erro: 'Indisponível. Diga que a equipe vai conferir.' };
+        return await ctx.onPaidClaim(args);
       }
       case 'encaminhar_para_especialista': {
         if (!ctx.onSpecialist) return { erro: 'Encaminhamento indisponível. Use transferir_para_humano.' };

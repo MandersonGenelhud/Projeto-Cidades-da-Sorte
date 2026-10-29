@@ -22,6 +22,7 @@ import { LeadRouter } from './routing.js';
 import { buildRanking, currentMonth } from './ranking.js';
 import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
+import { Payments } from './payments.js';
 import { LineManager, parseLineKey } from './lines.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
@@ -134,6 +135,44 @@ const router = new LeadRouter({
 });
 agent.routeLead = (conv, args, opts) => router.route(conv, args, opts);
 agent.routeSpecialist = (conv, args, opts) => router.routeSpecialist(conv, args, opts);
+// Pix no fechamento: cobra, confirma, fecha a venda, manda recibo e avisa o dono.
+const payments = new Payments({
+  store,
+  crm,
+  dataDir: DATA_DIR,
+  secret: auth.secret,
+  notify,
+  sendTo: (key, payload) => wa.send(key, { ...payload, typing: false }),
+  notifyAdmins: async (text) => {
+    if (wa.status !== 'connected') return;
+    const phones = new Set(auth.users.filter((u) => u.role === 'admin' && u.active !== false && u.whatsapp).map((u) => u.whatsapp));
+    const extra = normalizePhone(store.settings.payments?.notifyPhone);
+    if (extra) phones.add(extra);
+    for (const phone of phones) await wa.send(phone, { text, typing: false }).catch(() => {});
+  },
+});
+agent.createPix = async (conv, args, { dryRun } = {}) => {
+  const adults = Math.max(1, Number(args.adultos) || 1);
+  const amount = payments.reservationAmount(adults);
+  const money = (v) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  if (dryRun || String(conv.key).startsWith('sim:')) {
+    return { ok: true, simulacao: true, valor: money(amount), instrucao: 'Simulação: nenhum Pix foi gerado. No atendimento real o QR Code e o código copia e cola são enviados ao cliente antes desta resposta.' };
+  }
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
+    || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+  const desc = `${store.settings.payments?.reservation?.description || 'reserva'} - ${adults} adulto(s)`;
+  const p = await payments.create({ convKey: conv.key, leadId: lead?.id, amount, description: desc, payerName: args.nome_pagador, payerDoc: args.cpf_pagador, by: 'IA' });
+  await payments.sendCharge(p);
+  return { ok: true, valor: money(amount), instrucao: 'O QR Code e o código Pix copia e cola já foram enviados ao cliente em mensagens separadas, logo acima. Diga o valor, explique que é só copiar o código e colar no app do banco (Pix copia e cola) e que o recibo chega aqui assim que o pagamento for confirmado.' };
+};
+agent.claimPaid = async (conv, args, { dryRun } = {}) => {
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true };
+  const r = await payments.clientClaimsPaid(conv.key, args.observacao || '');
+  return r.ok
+    ? { ...r, instrucao: r.automatico ? 'A confirmação é automática e chega em alguns minutos, junto com o recibo.' : 'A equipe foi avisada para conferir. Diga que, assim que confirmar, o recibo chega aqui.' }
+    : r;
+};
+
 // O que o CRM já sabe do cliente que veio de outro canal (ex.: Instagram → WhatsApp do vendedor).
 agent.contextFor = (conv) => {
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
@@ -297,6 +336,13 @@ if (PANEL_PASSWORD) {
 
 app.use(express.static(path.join(ROOT, 'public')));
 
+// Recibo para o cliente (link assinado, sem login).
+app.get('/recibo/:id', (req, res) => {
+  const p = payments.get(req.params.id);
+  if (!p || p.status !== 'paid' || req.query.t !== payments.receiptToken(p.id)) return res.status(404).send('Recibo não encontrado');
+  res.type('application/pdf').set('Content-Disposition', `inline; filename="Recibo-${String(p.receiptNo).padStart(4, '0')}.pdf"`).sendFile(payments.receiptPath(p));
+});
+
 // Marca (nome e logo) — pública, usada também na tela de login.
 const BRAND_LOGO = path.join(DATA_DIR, 'brand-logo');
 app.get('/api/brand', (_req, res) => res.json({ ...(store.settings.brand || {}), customLogo: fs.existsSync(BRAND_LOGO) }));
@@ -335,6 +381,7 @@ const SELLER_ROUTES = [
   ['*', /^\/leads(\/|$)/],
   ['GET', /^\/conversations(\/|$)/],
   ['*', /^\/lines(\/|$)/],
+  ['*', /^\/payments(\/|$)/],
   ['POST', /^\/conversations\/[^/]+\/(reply|handoff)$/],
 ];
 app.use('/api', (req, res, next) => {
@@ -684,6 +731,7 @@ const SECRET_PATHS = [
   ['agenda', 'calcom', 'apiKey'],
   ['instagram', 'accessToken'],
   ['instagram', 'appSecret'],
+  ['payments', 'mercadopago', 'accessToken'],
 ];
 const MASK = '••••••';
 const mask = (v) => (v ? `${MASK}${String(v).slice(-4)}` : '');
@@ -820,6 +868,49 @@ app.delete('/api/conversations/:key', (req, res) => {
 app.get('/api/pending', (req, res) => {
   const items = pending.list().filter((p) => canSeeConv(req.user, p.jid)).map((p) => ({ ...p, channelLabel: convLabel(p.jid) }));
   res.json({ ...pending.status(), count: items.length, items });
+});
+
+// Pagamentos (Pix)
+const canSeePayment = (user, p) => user.role === 'admin' || (p.leadId && crm.leads.some((l) => l.id === p.leadId && l.ownerId === user.id));
+const publicPayment = (p) => {
+  const lead = p.leadId ? crm.leads.find((l) => l.id === p.leadId) : null;
+  return { ...p, leadName: lead?.name || '', leadCode: lead?.code || '', ownerName: crm.ownerName(lead?.ownerId), receiptUrl: p.status === 'paid' ? payments.receiptUrl(p) : '' };
+};
+app.get('/api/payments', (req, res) => {
+  res.json(payments.list.filter((p) => canSeePayment(req.user, p)).map(publicPayment).reverse());
+});
+app.post('/api/payments', async (req, res) => {
+  const lead = req.body.leadId ? crm.get(req.user, req.body.leadId) : null;
+  const amount = req.body.amount ? Number(req.body.amount) : payments.reservationAmount(req.body.adults || lead?.people || 1);
+  const convKey = lead ? lead.whatsappKey || lead.conversationKey || null : null;
+  const p = await payments.create({ convKey, leadId: lead?.id || null, amount, description: req.body.description, payerName: req.body.payerName || lead?.name, payerDoc: req.body.payerDoc, by: req.user.name });
+  if (req.body.send !== false && convKey) await payments.sendCharge(p).catch((e) => store.addLog({ type: 'error', message: `Envio do Pix: ${e.message}` }));
+  res.json(publicPayment(p));
+});
+app.post('/api/payments/:id/confirm', async (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador confirma pagamentos');
+  res.json(publicPayment(await payments.confirm(req.params.id, { by: req.user.name, userId: req.user.id })));
+});
+app.post('/api/payments/:id/cancel', (req, res) => {
+  const p = payments.get(req.params.id);
+  if (!p || !canSeePayment(req.user, p)) throw httpError(404, 'Cobrança não encontrada');
+  res.json(publicPayment(payments.cancel(req.params.id)));
+});
+app.post('/api/payments/:id/resend', async (req, res) => {
+  const p = payments.get(req.params.id);
+  if (!p || !canSeePayment(req.user, p)) throw httpError(404, 'Cobrança não encontrada');
+  await payments.sendCharge(p);
+  res.json({ ok: true });
+});
+app.get('/api/payments/:id/qr', (req, res) => {
+  const p = payments.get(req.params.id);
+  if (!p || !canSeePayment(req.user, p)) throw httpError(404, 'Cobrança não encontrada');
+  res.sendFile(payments.qrPath(p));
+});
+app.get('/api/payments/:id/receipt', (req, res) => {
+  const p = payments.get(req.params.id);
+  if (!p || p.status !== 'paid' || !canSeePayment(req.user, p)) throw httpError(404, 'Recibo não encontrado');
+  res.type('application/pdf').sendFile(payments.receiptPath(p));
 });
 
 // Números da equipe (até 6). Administrador gerencia todos; o vendedor conecta o dele.
@@ -1052,6 +1143,8 @@ if (process.env.NODE_ENV !== 'test') {
   // Retornos agendados: confere a cada 10 minutos.
   setInterval(() => notifyFollowUps().catch((err) => store.addLog({ type: 'error', message: `Retornos: ${err.message}` })), 10 * 60_000).unref();
   setTimeout(() => notifyFollowUps().catch(() => {}), 60_000).unref();
+  // Pix pelo Mercado Pago: confere a cada minuto se foi pago.
+  setInterval(() => payments.checkPending().catch(() => {}), 60_000).unref();
 
   const shutdown = async () => {
     scheduler.stop();

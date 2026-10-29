@@ -588,6 +588,7 @@ function applyDefaultDelays() {
 loaders.settings = async () => {
   const [s, blacklist] = await Promise.all([api('/api/settings'), api('/api/blacklist')]);
   settingsCache = s;
+  fillPayForm(s.payments || {});
   $('#formBrand').name.value = s.brand?.name || '';
   $('#formBrand').tagline.value = s.brand?.tagline || '';
   const f = $('#formSettings');
@@ -1244,6 +1245,8 @@ function connectEvents() {
   es.addEventListener('appointments', refreshIfActive('agenda'));
   es.addEventListener('tunnel', (e) => renderTunnel(JSON.parse(e.data)));
   es.addEventListener('crm', () => onCrmEvent());
+  es.addEventListener('paymentPaid', (e) => onPaymentPaid(JSON.parse(e.data)));
+  es.addEventListener('payment', () => onPaymentEvent());
   es.addEventListener('lineStatus', () => onLineStatus());
   es.addEventListener('agentError', (e) => {
     toast(`⚠️ A IA falhou: ${JSON.parse(e.data).message}`, true);
@@ -1254,6 +1257,55 @@ function connectEvents() {
   es.addEventListener('message', refreshIfActive('conversations'));
   es.onerror = () => renderStatus({ ...connState, status: 'disconnected' });
 }
+
+// ---------- Pagamentos (configuração) ----------
+function fillPayForm(p) {
+  const f = $('#formPay');
+  f.enabled.checked = p.enabled !== false;
+  f.provider.value = p.provider === 'mercadopago' ? 'mercadopago' : 'pix';
+  for (const k of ['pixKey', 'receiverName', 'receiverCity', 'notifyPhone']) f[k].value = p[k] || '';
+  f.resBase.value = p.reservation?.base ?? '';
+  f.resPerAdult.value = p.reservation?.perAdult ?? '';
+  f.resDescription.value = p.reservation?.description || '';
+  f.coName.value = p.company?.name || '';
+  f.coDocument.value = p.company?.document || '';
+  f.coAddress.value = p.company?.address || '';
+  f.coContact.value = [p.company?.phone, p.company?.email].filter(Boolean).join(' · ');
+  f.mpToken.value = p.mercadopago?.accessToken || '';
+  f.mpEmail.value = p.mercadopago?.payerEmail || '';
+  $('#mpBox').hidden = f.provider.value !== 'mercadopago';
+}
+$('#formPay').provider.addEventListener('change', (e) => { $('#mpBox').hidden = e.target.value !== 'mercadopago'; });
+$('#formPay').addEventListener('submit', withBusy($('#formPay'), async (e) => {
+  const f = e.target;
+  const [phone = '', email = ''] = f.coContact.value.split(/\s*·\s*|\s*\|\s*/);
+  const s = await api('/api/settings', {
+    method: 'PUT',
+    body: { payments: {
+      enabled: f.enabled.checked,
+      provider: f.provider.value,
+      pixKey: f.pixKey.value.trim(),
+      receiverName: f.receiverName.value.trim(),
+      receiverCity: f.receiverCity.value.trim(),
+      notifyPhone: f.notifyPhone.value.trim(),
+      reservation: { base: Number(f.resBase.value || 0), perAdult: Number(f.resPerAdult.value || 0), description: f.resDescription.value.trim() },
+      company: { name: f.coName.value.trim(), document: f.coDocument.value.trim(), address: f.coAddress.value.trim(), phone: phone.trim(), email: email.trim() },
+      mercadopago: { accessToken: f.mpToken.value.trim(), payerEmail: f.mpEmail.value.trim() },
+    } },
+  });
+  fillPayForm(s.payments);
+  toast('Pagamentos salvos');
+}));
+$('#btnPixTest').addEventListener('click', async () => {
+  try {
+    const p = await api('/api/payments', { method: 'POST', body: { amount: 1, description: 'teste do Pix', send: false } });
+    $('#pixTestBox').innerHTML = `<p>✅ Pix de teste gerado. Pague R$ 1,00 com o app do banco para conferir se o nome e a chave estão certos:</p>
+      <img src="/api/payments/${esc(p.id)}/qr" alt="QR Code Pix" width="200" height="200" />
+      <p><code class="pix-code">${esc(p.brcode)}</code></p>`;
+  } catch (err) {
+    $('#pixTestBox').textContent = `❌ ${err.message}`;
+  }
+});
 
 // ---------- Marca ----------
 function applyBrand(b) {

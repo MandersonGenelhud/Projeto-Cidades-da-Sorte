@@ -97,6 +97,18 @@ const DEFAULT_DATA = {
       pendingMaxDays: 7,
       ...PRESET.agent,
     },
+    // Pix no fechamento (reserva) e recibo em nome da empresa.
+    payments: {
+      enabled: true,
+      provider: 'pix', // pix (chave própria, confirmação manual) | mercadopago (confirmação automática)
+      pixKey: '',
+      receiverName: '', // nome do recebedor como está no banco (até 25 letras)
+      receiverCity: '',
+      company: { name: '', document: '', address: '', phone: '', email: '' },
+      reservation: { base: 1000, perAdult: 800, description: 'reserva e início do processo (entrada + certidões)' },
+      mercadopago: { accessToken: '', payerEmail: '' },
+      notifyPhone: '', // WhatsApp extra para o aviso de Pix (além dos administradores)
+    },
     // Nome e marca do painel (a logo fica em public/img ou é enviada em Configurações).
     brand: { name: 'Migra Hub', tagline: 'Atendimento e vendas · Migra Paraguai' },
     business: { ...PRESET.business },

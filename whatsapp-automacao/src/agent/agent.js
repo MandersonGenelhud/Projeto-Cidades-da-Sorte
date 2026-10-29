@@ -9,8 +9,10 @@ const MAX_TOOL_ROUNDS = 6;
 const randomPause = () => 600 + Math.floor(Math.random() * 1400); // entre uma mensagem e outra
 
 export class Agent {
-  constructor({ store, llm, calendar, notify, notifyTeam, onReplied, routeLead, routeSpecialist, contextFor, now = () => new Date(), wait = sleep }) {
+  constructor({ store, llm, calendar, notify, notifyTeam, onReplied, routeLead, routeSpecialist, contextFor, createPix, claimPaid, now = () => new Date(), wait = sleep }) {
     this.store = store;
+    this.createPix = createPix || null; // (conversa, args, { dryRun }) => gera e envia o Pix da reserva
+    this.claimPaid = claimPaid || null; // (conversa, args) => cliente disse que pagou
     this.routeSpecialist = routeSpecialist || null; // (conversa, args, { dryRun }) => passa para o especialista do assunto
     this.contextFor = contextFor || null; // (conversa) => texto com o que o CRM já sabe do cliente
     this.routeLead = routeLead || null; // (conversa, args, { dryRun }) => encaminha para o vendedor da vez
@@ -102,6 +104,9 @@ export class Agent {
     const known = this.contextFor ? this.contextFor(conv) : '';
     if (known) system += `\n\n# O que já sabemos deste cliente (CRM)\n${known}\nUse isso: cumprimente pelo nome, mostre que já sabe o interesse dele ("vi aqui que você...") e siga para o fechamento sem repetir perguntas já respondidas.`;
     const specialists = Boolean(this.routeSpecialist) && (settings.crm?.specialists || []).some((s) => s.topic && s.name);
+    const pay = settings.payments || {};
+    const pix = Boolean(this.createPix) && pay.enabled !== false && Boolean(pay.pixKey || pay.mercadopago?.accessToken) && Number(pay.reservation?.base || pay.reservation?.perAdult) > 0;
+    if (pix) system += `\n\n# Pagamento da reserva por Pix\nQuando o cliente decidir fechar, peça o nome completo e o CPF de quem vai pagar e use gerar_pix com o número de adultos. O sistema envia o QR Code e o código copia e cola em mensagens separadas, logo antes da sua resposta: diga o valor, que o código está na mensagem anterior para copiar e colar no app do banco, e que o recibo em nome da empresa chega aqui assim que o pagamento for confirmado. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que o pagamento foi confirmado por conta própria.`;
     if (delayed) {
       system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece pedindo desculpas pela demora, de forma breve e natural, e então responda.';
     }
@@ -109,6 +114,7 @@ export class Agent {
     const tools = TOOL_DEFINITIONS.filter((t) => {
       if (t.function.name === 'encaminhar_para_vendedor') return routing;
       if (t.function.name === 'encaminhar_para_especialista') return specialists;
+      if (t.function.name === 'gerar_pix' || t.function.name === 'cliente_informou_pagamento') return pix;
       return canSchedule(settings) || t.function.name === 'transferir_para_humano';
     });
     const history = conv.messages.slice(-Math.max(2, Number(cfg.memoryMessages || 20)));
@@ -120,6 +126,8 @@ export class Agent {
       dryRun,
       onRoute: this.routeLead ? (args) => this.routeLead(conv, args, { dryRun }) : null,
       onSpecialist: this.routeSpecialist ? (args) => this.routeSpecialist(conv, args, { dryRun }) : null,
+      onPix: this.createPix ? (args) => this.createPix(conv, args, { dryRun }) : null,
+      onPaidClaim: this.claimPaid ? (args) => this.claimPaid(conv, args, { dryRun }) : null,
       onHandoff: (reason) => {
         if (!dryRun) {
           conv.handoff = true;
