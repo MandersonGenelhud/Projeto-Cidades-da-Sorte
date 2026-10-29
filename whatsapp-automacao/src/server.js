@@ -67,7 +67,9 @@ const cloudConfig = () => {
 };
 const agentConfig = () => {
   const a = store.settings.agent;
-  const provider = a.provider === 'openrouter' ? 'openrouter' : 'gemini';
+  const provider = ['openrouter', 'openai', 'anthropic'].includes(a.provider) ? a.provider : 'gemini';
+  if (provider === 'openai') return { ...a, provider, apiKey: process.env.OPENAI_API_KEY || a.openaiKey, model: a.openaiModel || 'gpt-5-mini' };
+  if (provider === 'anthropic') return { ...a, provider, apiKey: process.env.ANTHROPIC_API_KEY || a.claudeKey, model: a.claudeModel || 'claude-opus-5-5' };
   return provider === 'gemini'
     ? { ...a, provider, apiKey: process.env.GEMINI_API_KEY || a.geminiKey, model: a.geminiModel || 'gemini-3.8-flash' }
     : { ...a, provider, apiKey: process.env.OPENROUTER_API_KEY || a.apiKey, model: a.model };
@@ -793,6 +795,8 @@ app.get('/api/connection/info', (req, res) => {
       appSecret: Boolean(process.env.WA_APP_SECRET),
       openrouter: Boolean(process.env.OPENROUTER_API_KEY),
       gemini: Boolean(process.env.GEMINI_API_KEY),
+      openai: Boolean(process.env.OPENAI_API_KEY),
+      anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
       igToken: Boolean(process.env.IG_ACCESS_TOKEN),
       igVerifyToken: Boolean(process.env.IG_VERIFY_TOKEN),
       igAppSecret: Boolean(process.env.IG_APP_SECRET),
@@ -1051,6 +1055,8 @@ app.delete('/api/schedules/:id', (req, res) => {
 const SECRET_PATHS = [
   ['agent', 'apiKey'],
   ['agent', 'geminiKey'],
+  ['agent', 'openaiKey'],
+  ['agent', 'claudeKey'],
   ['connection', 'cloud', 'accessToken'],
   ['connection', 'cloud', 'appSecret'],
   ['agenda', 'calcom', 'apiKey'],
@@ -1087,9 +1093,9 @@ app.put('/api/settings', async (req, res) => {
 });
 
 // Agente de IA
-app.get('/api/agent/status', (_req, res) => {
+const agentStatus = () => {
   const a = store.settings.agent;
-  res.json({
+  return {
     enabled: a.enabled,
     configured: llm.configured,
     active: agent.active,
@@ -1099,7 +1105,15 @@ app.get('/api/agent/status', (_req, res) => {
     testNumbers: (a.testNumbers || []).length,
     business: store.settings.business.name,
     lastError: agent.lastError || null,
-  });
+  };
+};
+app.get('/api/agent/status', (_req, res) => res.json(agentStatus()));
+// Liga a IA (e, se pedido, coloca no ar para todos) direto do aviso do painel.
+app.post('/api/agent/enable', (req, res) => {
+  const patch = { enabled: req.body.enabled !== false };
+  if (req.body.audience === 'all') patch.audience = 'all';
+  store.updateSettings({ agent: patch });
+  res.json(agentStatus());
 });
 // Testa a chave e o modelo da IA na hora, mostrando o erro exato.
 app.post('/api/agent/check', async (_req, res) => {

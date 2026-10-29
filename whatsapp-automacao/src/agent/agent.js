@@ -190,7 +190,7 @@ Tem cliente que prefere conhecer o escritório e fechar pessoalmente, ou quer ma
         if (!reply.content.trim()) throw new Error('A IA devolveu uma resposta vazia');
         return { text: reply.content.trim(), actions };
       }
-      messages.push({ role: 'assistant', content: reply.content || null, tool_calls: reply.tool_calls });
+      messages.push({ role: 'assistant', content: reply.content || null, tool_calls: reply.tool_calls, ...(reply._anthropic ? { _anthropic: reply._anthropic } : {}) });
       for (const call of reply.tool_calls) {
         let args = {};
         try {

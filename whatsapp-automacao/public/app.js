@@ -83,6 +83,8 @@ function showTab(name) {
   location.hash = name;
   window.onTabShown?.(name);
   loaders[name]?.();
+  // Aviso da IA desligada nas telas onde ele aparece.
+  if (window.currentUser?.role === 'admin' && $(`#tab-${name} [data-ai-banner]`)) renderAgentStatus().catch(() => {});
 }
 $$('nav button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 
@@ -774,8 +776,35 @@ $('#formCloud').addEventListener('submit', withBusy($('#formCloud'), async (e) =
 const BUSINESS_FIELDS = ['name', 'segment', 'description', 'services', 'prices', 'hours', 'address', 'faq', 'policies', 'schedulingRules', 'knowledge',
   'story', 'socialProof', 'offer', 'offerUntil', 'priceIncrease', 'marketPrices', 'reservation', 'contractData'];
 
+/** Aviso no topo quando a IA não está pronta para responder, com o que falta e o botão para resolver. */
+function renderAiBanner(st) {
+  const prov = { openrouter: 'OpenRouter', openai: 'ChatGPT (OpenAI)', anthropic: 'Claude' }[st.provider] || 'Google Gemini';
+  let html = '';
+  if (!st.configured) html = `<b>🧠 A IA ainda não tem chave.</b> Cole a chave do ${esc(prov)} na aba Agente IA e clique em Salvar. <button type="button" class="btn small" data-go="agent">Abrir Agente IA</button>`;
+  else if (!st.enabled) html = '<b>🧠 A chave da IA está salva, mas o agente está desligado.</b> Por isso ele não responde ninguém. <button type="button" class="btn small primary" data-ai-on>Ligar a IA agora</button>';
+  else if (st.audience === 'test' && !st.testNumbers) html = '<b>🧪 A IA está ligada em modo de teste, sem números de teste.</b> Ela não responde ninguém. <button type="button" class="btn small primary" data-ai-all>Colocar no ar para todos</button> <button type="button" class="btn small" data-go="agent">Cadastrar números de teste</button>';
+  else if (st.audience === 'test') html = `🧪 A IA está em <b>modo de teste</b>: só responde ${st.testNumbers} número(s) de teste. <button type="button" class="btn small" data-ai-all>Colocar no ar para todos</button>`;
+  const blocked = !st.active || (st.audience === 'test' && !st.testNumbers);
+  $$('[data-ai-banner]').forEach((b) => { b.hidden = !html; b.innerHTML = html; b.classList.toggle('warn', blocked); });
+}
+document.addEventListener('click', async (e) => {
+  const t = e.target.closest('[data-ai-on],[data-ai-all],[data-go]');
+  if (!t || !t.closest('[data-ai-banner]')) return;
+  if (t.dataset.go) return showTab(t.dataset.go);
+  if (t.hasAttribute('data-ai-all') && !confirm('Colocar a IA no ar? Ela vai responder TODOS os clientes que mandarem mensagem.')) return;
+  try {
+    const st = await api('/api/agent/enable', { method: 'POST', body: t.hasAttribute('data-ai-all') ? { enabled: true, audience: 'all' } : { enabled: true } });
+    renderAiBanner(st);
+    toast(st.active ? '🧠 IA ligada' : 'Salvo');
+    renderAgentStatus();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
 async function renderAgentStatus() {
   const st = await api('/api/agent/status');
+  renderAiBanner(st);
   const box = $('#agentStatusBox');
   if (!box) return;
   const who = st.audience === 'test'
@@ -813,8 +842,9 @@ loaders.agent = async () => {
   f.humanizeEnabled.checked = a.humanize?.enabled !== false;
   f.noticeMin.value = a.humanize?.noticeMin ?? 5;
   f.noticeMax.value = a.humanize?.noticeMax ?? 20;
-  for (const k of ['apiKey', 'model', 'geminiKey', 'geminiModel', 'temperature', 'memoryMessages', 'agentName', 'roleLabel', 'instructions', 'handoffNotifyPhone']) f[k].value = a[k] ?? '';
-  f.provider.value = a.provider === 'openrouter' ? 'openrouter' : 'gemini';
+  for (const k of ['apiKey', 'model', 'geminiKey', 'geminiModel', 'openaiKey', 'openaiModel', 'claudeKey', 'temperature', 'memoryMessages', 'agentName', 'roleLabel', 'instructions', 'handoffNotifyPhone']) f[k].value = a[k] ?? '';
+  f.claudeModel.value = a.claudeModel || 'claude-opus-5-5';
+  f.provider.value = ['openrouter', 'openai', 'anthropic'].includes(a.provider) ? a.provider : 'gemini';
   f.provider.dispatchEvent(new Event('change'));
   $$('[name="audience"]', f).forEach((r) => (r.checked = r.value === (a.audience || 'test')));
   f.testNumbers.value = (a.testNumbers || []).join('\n');
@@ -826,6 +856,8 @@ loaders.agent = async () => {
   const info = await api('/api/connection/info');
   if (info.fromEnv.openrouter) f.apiKey.placeholder = 'definida no arquivo .env';
   if (info.fromEnv.gemini) f.geminiKey.placeholder = 'definida no arquivo .env';
+  if (info.fromEnv.openai) f.openaiKey.placeholder = 'definida no arquivo .env';
+  if (info.fromEnv.anthropic) f.claudeKey.placeholder = 'definida no arquivo .env';
 };
 
 $('#formAgent').addEventListener('submit', withBusy($('#formAgent'), async (e) => {
@@ -842,6 +874,10 @@ $('#formAgent').addEventListener('submit', withBusy($('#formAgent'), async (e) =
         geminiModel: f.geminiModel.value.trim() || 'gemini-3.8-flash',
         apiKey: f.apiKey.value.trim(),
         model: f.model.value.trim() || '~anthropic/claude-sonnet-latest',
+        openaiKey: f.openaiKey.value.trim(),
+        openaiModel: f.openaiModel.value.trim() || 'gpt-5-mini',
+        claudeKey: f.claudeKey.value.trim(),
+        claudeModel: f.claudeModel.value,
         temperature: Number(f.temperature.value || 0.4),
         memoryMessages: Number(f.memoryMessages.value || 20),
         agentName: f.agentName.value,
@@ -862,7 +898,9 @@ $('#formAgent').addEventListener('submit', withBusy($('#formAgent'), async (e) =
   });
   const st = await api('/api/agent/status');
   let msg = 'Agente salvo 🧠';
-  if (st.enabled && !st.configured) msg = `⚠️ Salvo, mas falta a chave do ${st.provider === 'openrouter' ? 'OpenRouter' : 'Google Gemini'}`;
+  const provName = { openrouter: 'OpenRouter', openai: 'ChatGPT (OpenAI)', anthropic: 'Claude' }[st.provider] || 'Google Gemini';
+  if (st.enabled && !st.configured) msg = `⚠️ Salvo, mas falta a chave do ${provName}`;
+  else if (!st.enabled && st.configured) msg = '⚠️ Salvo, mas o agente está DESLIGADO: marque "Agente ligado" e salve de novo';
   else if (st.enabled && st.audience === 'test' && !st.testNumbers) msg = '⚠️ Modo de teste sem números: o agente não vai responder ninguém';
   toast(msg, msg.startsWith('⚠️'));
   loaders.agent();
@@ -885,6 +923,8 @@ $('#btnApplyPreset').addEventListener('click', async () => {
 $('#aiProvider').addEventListener('change', (e) => {
   $('#aiGemini').hidden = e.target.value !== 'gemini';
   $('#aiOpenrouter').hidden = e.target.value !== 'openrouter';
+  $('#aiOpenai').hidden = e.target.value !== 'openai';
+  $('#aiAnthropic').hidden = e.target.value !== 'anthropic';
 });
 
 $('#btnShowPrompt').addEventListener('click', async () => {

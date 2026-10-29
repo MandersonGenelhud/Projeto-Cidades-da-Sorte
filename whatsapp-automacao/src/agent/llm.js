@@ -1,5 +1,7 @@
 // Cliente de IA no formato da API da OpenAI (chat completions + ferramentas).
-// Funciona com o Google Gemini (tem cota gratuita) e com o OpenRouter (pago, qualquer modelo).
+// Funciona com o Google Gemini (tem cota gratuita), a OpenAI (ChatGPT) e o OpenRouter.
+// O Claude (Anthropic) usa o SDK oficial, em ./claude.js.
+import { ClaudeChat } from './claude.js';
 
 export const PROVIDERS = {
   gemini: {
@@ -12,6 +14,19 @@ export const PROVIDERS = {
     extraBody: { reasoning_effort: 'low' },
     // Se o modelo escolhido falhar (fora do ar, sem cota grátis, nome errado), tenta estes.
     fallbackModels: ['gemini-3.5-flash-lite', 'gemini-2.5-flash'],
+  },
+  openai: {
+    label: 'OpenAI (ChatGPT)',
+    url: () => `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`,
+    keyHint: 'Crie em platform.openai.com/api-keys (cobrança separada do plano do ChatGPT)',
+    headers: {},
+    // Os modelos novos da OpenAI não aceitam temperatura e usam max_completion_tokens.
+    noTemperature: true,
+    maxTokensKey: 'max_completion_tokens',
+  },
+  anthropic: {
+    label: 'Claude (Anthropic)',
+    keyHint: 'Crie em console.anthropic.com → API Keys',
   },
   openrouter: {
     label: 'OpenRouter',
@@ -61,6 +76,10 @@ export class LLMClient {
       err.status = 400;
       throw err;
     }
+    if (provider === 'anthropic') {
+      const claude = new ClaudeChat({ apiKey, model, client: this.claudeClient || null });
+      return claude.chat({ messages, tools });
+    }
     // Modelo escolhido e, se ele falhar por motivo que não seja a chave, os reservas.
     const models = [model, ...(p.fallbackModels || []).filter((m) => m !== model)];
     let lastErr;
@@ -81,9 +100,10 @@ export class LLMClient {
     const { temperature } = this.getConfig();
     const body = {
       model,
-      messages,
-      temperature: Number(temperature ?? 0.4),
-      max_tokens: 2048,
+      // O campo _anthropic só existe na conversa com o Claude.
+      messages: messages.map(({ _anthropic, ...m }) => m),
+      ...(p.noTemperature ? {} : { temperature: Number(temperature ?? 0.4) }),
+      [p.maxTokensKey || 'max_tokens']: p.maxTokensKey ? 4096 : 2048,
       ...(p.extraBody || {}),
     };
     if (tools?.length) {

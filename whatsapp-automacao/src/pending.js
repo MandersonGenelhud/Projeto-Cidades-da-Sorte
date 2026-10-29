@@ -125,7 +125,8 @@ export class PendingInbox {
 
   /** Coloca conversas na fila para o agente responder, uma de cada vez. */
   enqueue(jids) {
-    if (!this.agent.active) throw new Error('Ligue o agente e configure a chave da IA antes');
+    if (!this.agent.config.enabled) throw new Error('O agente está desligado. Clique em "Ligar a IA agora" no aviso acima (ou marque "Agente ligado" na aba Agente IA e clique em Salvar).');
+    if (!this.agent.active) throw new Error('Falta a chave da IA: cole a chave na aba Agente IA e clique em Salvar.');
     const allowed = [];
     const blocked = [];
     const isConnected = (jid) => (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected');

@@ -71,6 +71,7 @@
     <!-- PAINEL -->
     <section id="tab-dashboard" class="tab active">
       <h1>Painel</h1>
+      <div class="ai-banner" data-ai-banner hidden></div>
       <div class="cards" id="statsCards"></div>
       <div class="grid2">
         <div class="panel">
@@ -96,6 +97,7 @@
     <!-- CONEXÃO -->
     <section id="tab-connection" class="tab">
       <h1>Conexões do WhatsApp</h1>
+      <div class="ai-banner" data-ai-banner hidden></div>
       <div class="panel">
         <div class="page-head">
           <div><h2>WhatsApp de cada vendedor</h2>
@@ -559,6 +561,8 @@
             <label>Qual IA usar
               <select name="provider" id="aiProvider">
                 <option value="gemini">Google Gemini (tem plano gratuito)</option>
+                <option value="openai">ChatGPT (OpenAI)</option>
+                <option value="anthropic">Claude (Anthropic)</option>
                 <option value="openrouter">OpenRouter (pago, vários modelos)</option>
               </select>
             </label>
@@ -571,6 +575,22 @@
                   <option value="gemini-3.8-flash">Gemini Flash (recomendado)</option>
                   <option value="gemini-3.5-flash-lite">Gemini Flash-Lite (mais limites gratuitos)</option>
                 </datalist>
+              </label>
+            </div>
+            <div id="aiOpenai" hidden>
+              <label>Chave da OpenAI <input name="openaiKey" placeholder="sk-…" autocomplete="off" /></label>
+              <p class="hint">Crie em <b>platform.openai.com/api-keys</b>. Atenção: a API é cobrada à parte, por uso. O plano do ChatGPT (Plus/Pro) não inclui a API.</p>
+              <label>Modelo <input name="openaiModel" placeholder="gpt-5-mini" /></label>
+            </div>
+            <div id="aiAnthropic" hidden>
+              <label>Chave do Claude (Anthropic) <input name="claudeKey" placeholder="sk-ant-…" autocomplete="off" /></label>
+              <p class="hint">Crie em <b>console.anthropic.com</b> → API Keys e adicione créditos em Billing. Cobrança por uso, separada do plano do Claude.</p>
+              <label>Modelo
+                <select name="claudeModel">
+                  <option value="claude-opus-5-5">Claude Opus 5.5 · o mais inteligente (US$ 4 / 20 por milhão de tokens)</option>
+                  <option value="claude-sonnet-5-5">Claude Sonnet 5.5 · equilibrado (US$ 2 / 10)</option>
+                  <option value="claude-haiku-5-5">Claude Haiku 5.5 · rápido e barato (US$ 0,10 / 0,50)</option>
+                </select>
               </label>
             </div>
             <div id="aiOpenrouter" hidden>
@@ -642,7 +662,7 @@
             <label>Dados que a atendente pode pedir para formalizar <textarea name="b_contractData" rows="3"></textarea></label>
           </div>
         </div>
-        <button class="btn primary">💾 Salvar agente</button>
+        <div class="sticky-save"><button class="btn primary">💾 Salvar agente</button><span class="hint">Depois de mudar a chave ou ligar o agente, clique em Salvar.</span></div>
       </form>
       <dialog id="promptDialog"><pre id="promptText"></pre><form method="dialog"><button class="btn">Fechar</button></form></dialog>
     </section>
@@ -683,6 +703,7 @@
     <!-- CONVERSAS -->
     <section id="tab-conversations" class="tab">
       <h1>Conversas</h1>
+      <div class="ai-banner" data-ai-banner hidden></div>
       <div class="panel" id="pendingPanel">
         <div class="conv-header">
           <div>
