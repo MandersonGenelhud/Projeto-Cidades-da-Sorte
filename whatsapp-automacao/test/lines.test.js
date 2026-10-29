@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { LineManager, lineKey, parseLineKey, MAX_LINES } from '../src/lines.js';
+import { LineManager, lineKey, parseLineKey, MAX_LINES, matchSeller } from '../src/lines.js';
+import { samePhone } from '../src/utils.js';
 import { ConnectionManager } from '../src/connection.js';
 import { Auth } from '../src/auth.js';
 import { Crm } from '../src/crm.js';
@@ -35,12 +36,13 @@ test('chave de conversa de número da equipe', () => {
   assert.equal(parseLineKey('ig:123'), null);
 });
 
-test('até 6 números, mensagens separadas por número e resposta pelo número certo', async () => {
+test('vários números, mensagens separadas por número e resposta pelo número certo', async () => {
   const { lines, wa, created, main } = setup();
   const a = lines.add({ label: 'WhatsApp da Ana', ownerId: 'u-ana' });
   const b = lines.add({ label: 'WhatsApp do João' });
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(created.length, 2);
+  assert.equal(lines.add({ label: 'de novo', ownerId: 'u-ana' }).id, a.id, 'cada vendedor tem uma conexão só');
   for (let i = 2; i < MAX_LINES; i++) lines.add({ label: `N${i}` });
   assert.throws(() => lines.add({ label: 'sétimo' }), /limite/);
 
@@ -76,4 +78,31 @@ test('cliente chega no WhatsApp do vendedor com o código e herda o prospecto do
   const again = crm.ensureFromConversation({ key, phone: '5511977776666', channel: 'whatsapp' });
   assert.equal(again.id, ig.id); // não duplica
   assert.equal(crm.leads.length, 1);
+});
+
+test('ao conectar, confere se o WhatsApp é o do vendedor cadastrado', () => {
+  const users = [
+    { id: 'ana', name: 'Ana Lima', whatsapp: '5511987654321', active: true },
+    { id: 'joao', name: 'João Reis', whatsapp: '', active: true },
+    { id: 'bia', name: 'Bia Souza', whatsapp: '595981222333', active: true },
+  ];
+  const opts = { samePhone };
+  // Número certo (com ou sem o 9 na frente).
+  let r = matchSeller({ ownerId: 'ana' }, '551187654321', users, opts);
+  assert.deepEqual(r.patch, { phone: '551187654321', verified: true, label: 'Ana Lima' });
+  // Número diferente do cadastro: avisa.
+  r = matchSeller({ ownerId: 'ana' }, '5521911112222', users, opts);
+  assert.equal(r.patch.verified, false);
+  assert.ok(r.mismatch);
+  // Vendedor sem WhatsApp no cadastro: o número conectado vira o dele.
+  r = matchSeller({ ownerId: 'joao' }, '5547999998888', users, opts);
+  assert.equal(r.userWhatsapp, '5547999998888');
+  assert.equal(r.patch.label, 'João Reis');
+  // Conexão sem dono: descobre o vendedor pelo número.
+  r = matchSeller({ ownerId: null }, '595981222333', users, opts);
+  assert.equal(r.patch.ownerId, 'bia');
+  assert.equal(r.patch.label, 'Bia Souza');
+  // Número de ninguém.
+  r = matchSeller({ ownerId: null }, '5500000000000', users, opts);
+  assert.equal(r.patch.verified, null);
 });

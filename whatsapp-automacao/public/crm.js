@@ -637,7 +637,7 @@ $('#teamList').addEventListener('click', async (e) => {
 $('#formUser').addEventListener('submit', withBusy($('#formUser'), async (e) => {
   const f = e.target;
   await api('/api/users', { method: 'POST', body: { ...Object.fromEntries(new FormData(f)), receivesLeads: f.receivesLeads.checked } });
-  toast(`Cadastrado! Passe o login "${f.login.value}" e a senha para a pessoa.`);
+  toast(`Cadastrado! Passe o login "${f.login.value}" e a senha. A pessoa já aparece em Conexões WhatsApp para conectar o WhatsApp dela.`);
   f.reset();
   crmState.stages = [];
   loaders.team();
@@ -843,88 +843,110 @@ async function renderLeadClosing(l) {
   });
 }
 
-// ---------- NÚMEROS DA EQUIPE (até 6 WhatsApps com a atendente de IA) ----------
+// ---------- WHATSAPP DE CADA VENDEDOR (a atendente de IA trabalha no número dele) ----------
 const LINE_STATUS = { connected: 'Conectado', qr: 'Aguardando QR Code', connecting: 'Conectando…', disconnected: 'Desconectado' };
-const MAX_LINES = 6;
+const initials = (name) => String(name || '?').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+function numberCheck(l) {
+  if (!l.phone) return '';
+  const phone = esc(fmtPhone(l.phone));
+  if (l.verified === true) return `<p class="num-check ok">✅ WhatsApp ${phone} confere com o cadastro de ${esc(l.ownerName || l.label)}</p>`;
+  if (l.verified === false) {
+    return `<p class="num-check warn">⚠️ Conectado com ${phone}, mas o cadastro de ${esc(l.ownerName)} tem ${esc(fmtPhone(l.ownerWhatsapp))}.
+      ${isAdmin() ? '<button type="button" class="btn small" data-act="usephone">Usar o número conectado no cadastro</button>' : 'Avise o administrador.'}</p>`;
+  }
+  return `<p class="num-check">📱 WhatsApp ${phone} conectado. Ninguém da equipe tem esse número no cadastro.</p>`;
+}
 const lineCard = (l, people) => `
     <article class="panel line-card" data-line="${esc(l.id)}">
-      <div class="conv-header">
-        <div><h2>${esc(l.label)}</h2><span class="line-status ${esc(l.status)}">${LINE_STATUS[l.status] || esc(l.status)}${l.me?.phone ? ` · ${esc(fmtPhone(l.me.phone))}` : ''}</span></div>
-        <label class="check"><input type="checkbox" data-act="agent" ${l.agent !== false ? 'checked' : ''} /> IA atende</label>
+      <div class="line-head">
+        <span class="avatar lg">${esc(initials(l.label))}</span>
+        <div class="grow"><h2>${esc(l.label)}</h2><span class="line-status ${esc(l.status)}">${LINE_STATUS[l.status] || esc(l.status)}</span></div>
       </div>
-      ${isAdmin() ? `<div class="row">
-        <label>Nome do número <input data-field="label" value="${esc(l.label)}" /></label>
-        <label>Vendedor <select data-field="ownerId"><option value="">—</option>${people.map((u) => `<option value="${esc(u.id)}" ${u.id === l.ownerId ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select></label>
+      <button type="button" class="ai-toggle ${l.agent !== false ? 'on' : ''}" data-act="ai" aria-pressed="${l.agent !== false}">
+        <span class="switch" aria-hidden="true"><i></i></span>
+        <span><b>${l.agent !== false ? 'IA ligada' : 'IA desligada'}</b><small>${l.agent !== false ? 'A atendente responde os clientes deste WhatsApp' : 'Só o vendedor responde neste WhatsApp'}</small></span>
+      </button>
+      ${numberCheck(l)}
+      ${isAdmin() && !l.ownerId ? `<div class="row">
+        <label>Nome da conexão <input data-field="label" value="${esc(l.label)}" /></label>
+        <label>Vendedor <select data-field="ownerId"><option value="">—</option>${people.map((u) => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}</select></label>
       </div>` : ''}
-      ${l.status === 'qr' && l.qr ? `<div class="line-qr"><img src="${l.qr}" alt="QR Code" /><p class="hint">No celular do vendedor: WhatsApp → Configurações → Dispositivos conectados → Conectar dispositivo → escaneie.</p></div>
-        <div class="row"><label>Ou conecte com código (sem câmera) <input data-field="phone" placeholder="+595 981 123456" /></label><button type="button" class="btn small" data-act="pair">Gerar código</button></div>
+      ${l.status === 'qr' && l.qr ? `<div class="line-qr"><img src="${l.qr}" alt="QR Code" /><p class="hint">No celular de ${esc(l.label.split(' ')[0])}: WhatsApp → Configurações → Dispositivos conectados → Conectar dispositivo → escaneie.</p></div>
+        <div class="row"><label>Ou conecte com código (sem câmera) <input data-field="phone" placeholder="+55 11 98765-4321" value="${esc(l.ownerWhatsapp ? `+${l.ownerWhatsapp}` : '')}" /></label><button type="button" class="btn small" data-act="pair">Gerar código</button></div>
         <div class="pairing-code" data-code hidden></div>` : ''}
       ${l.status === 'connecting' || (l.status === 'qr' && !l.qr) ? '<p class="hint">Gerando o QR Code… aguarde alguns segundos.</p>' : ''}
-      ${l.status === 'connected' ? `<p class="hint">✅ ${l.agent !== false ? 'A atendente de IA está respondendo neste número.' : 'IA desligada: só o vendedor responde.'} As conversas aparecem em <b>Conversas</b>.</p>` : ''}
       <div class="row">
         <button type="button" class="btn small" data-act="restart">Reconectar</button>
         ${l.status === 'connected' ? '<button type="button" class="btn small danger" data-act="logout">Desconectar</button>' : ''}
         ${isAdmin() ? '<button type="button" class="btn small danger" data-act="remove">Remover</button>' : ''}
       </div>
     </article>`;
-const emptySlot = (n) => `
-    <article class="panel line-card empty">
-      <span class="slot-n">${n}</span>
-      <b>Vaga ${n} livre</b>
-      <span class="hint">WhatsApp de mais um vendedor, com a atendente de IA.</span>
-      <button type="button" class="btn primary small" data-act="add">Conectar WhatsApp</button>
+const sellerSlot = (u) => `
+    <article class="panel line-card empty" data-owner="${esc(u.id)}">
+      <span class="avatar lg">${esc(initials(u.name))}</span>
+      <b>${esc(u.name)}</b>
+      <span class="hint">${u.whatsapp ? `WhatsApp cadastrado: ${esc(fmtPhone(u.whatsapp))}` : 'Sem WhatsApp no cadastro: o número que conectar vira o dele.'}</span>
+      <button type="button" class="btn primary small" data-act="add">${u.id === window.currentUser?.id ? 'Conectar meu WhatsApp' : 'Conectar WhatsApp'}</button>
     </article>`;
 loaders.lines = async () => {
   const [list, users] = await Promise.all([api('/api/lines'), isAdmin() ? api('/api/users') : Promise.resolve([])]);
-  const people = users.filter((u) => u.active);
-  $('#btnAddLine').hidden = !isAdmin() || list.length >= MAX_LINES;
-  const slots = isAdmin() ? Array.from({ length: MAX_LINES - list.length }, (_, i) => emptySlot(list.length + i + 1)).join('') : '';
-  const html = list.map((l) => lineCard(l, people)).join('') + slots || '<p class="muted">O administrador ainda não criou um número para você.</p>';
-  const on = list.filter((l) => l.status === 'connected').length;
+  const people = users.filter((u) => u.active && !list.some((l) => l.ownerId === u.id));
+  // Todo vendedor ativo aparece: conectado (cartão da conexão) ou com o botão para conectar.
+  const me = window.currentUser;
+  const waiting = isAdmin() ? people.filter((u) => u.role === 'seller') : list.length ? [] : [me];
+  const html = list.map((l) => lineCard(l, people)).join('') + waiting.map(sellerSlot).join('')
+    || `<p class="muted">${isAdmin() ? 'Cadastre os vendedores na aba Equipe: cada um aparece aqui para conectar o WhatsApp dele.' : ''}</p>`;
   $$('[data-lines-grid]').forEach((grid) => {
     const typing = grid.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
     if (!typing) grid.innerHTML = html;
   });
+  $('#btnAddLine').hidden = !isAdmin();
   if ($('#connSummary')) {
-    $('#connSummary').innerHTML = `<span><i class="ldot disponivel"></i>${on} de ${MAX_LINES} conectados</span><span>${list.filter((l) => l.agent !== false).length} com a IA atendendo</span><span>${MAX_LINES - list.length} vagas livres</span>`;
+    const on = list.filter((l) => l.status === 'connected').length;
+    $('#connSummary').innerHTML = `<span><i class="ldot disponivel"></i>${on} de ${list.length + waiting.length} vendedores conectados</span><span>🤖 IA ligada em ${list.filter((l) => l.agent !== false).length}</span>${list.some((l) => l.verified === false) ? '<span>⚠️ número diferente do cadastro</span>' : ''}`;
   }
 };
-async function addLine() {
+async function addLine(ownerId = null) {
   try {
-    const n = (await api('/api/lines')).length + 1;
-    await api('/api/lines', { method: 'POST', body: { label: `Vendedor ${n}` } });
-    toast('Número criado. O QR Code aparece em alguns segundos.');
+    await api('/api/lines', { method: 'POST', body: ownerId ? { ownerId } : { label: 'WhatsApp da equipe' } });
+    toast('O QR Code aparece em alguns segundos.');
     loaders.lines();
   } catch (err) {
     toast(err.message, true);
   }
 }
-$('#btnAddLine').addEventListener('click', addLine);
+$('#btnAddLine').addEventListener('click', () => addLine());
 document.addEventListener('change', async (e) => {
   const card = e.target.closest('[data-lines-grid] [data-line]');
-  if (!card) return;
-  const id = card.dataset.line;
+  if (!card || !['label', 'ownerId'].includes(e.target.dataset.field)) return;
   try {
-    if (e.target.dataset.act === 'agent') {
-      await api(`/api/lines/${id}`, { method: 'PATCH', body: { agent: e.target.checked } });
-      toast(e.target.checked ? 'A IA vai atender neste número' : 'IA desligada neste número');
-    } else if (e.target.dataset.field === 'label' || e.target.dataset.field === 'ownerId') {
-      await api(`/api/lines/${id}`, { method: 'PATCH', body: { [e.target.dataset.field]: e.target.value } });
-      toast('Salvo');
-    }
+    await api(`/api/lines/${card.dataset.line}`, { method: 'PATCH', body: { [e.target.dataset.field]: e.target.value } });
+    toast('Salvo');
+    loaders.lines();
   } catch (err) {
     toast(err.message, true);
   }
 });
 document.addEventListener('click', async (e) => {
-  const btn = e.target.closest('[data-lines-grid] button[data-act]');
+  const btn = e.target.closest('[data-lines-grid] [data-act]');
   if (!btn) return;
   const act = btn.dataset.act;
-  if (act === 'add') return addLine();
+  if (act === 'add') return addLine(btn.closest('[data-owner]')?.dataset.owner);
   const card = btn.closest('[data-line]');
   if (!card) return;
   const id = card.dataset.line;
   try {
+    if (act === 'ai') {
+      const on = btn.getAttribute('aria-pressed') !== 'true';
+      await api(`/api/lines/${id}`, { method: 'PATCH', body: { agent: on } });
+      toast(on ? '🤖 IA ligada: ela responde os clientes deste WhatsApp' : 'IA desligada neste WhatsApp');
+    }
+    if (act === 'usephone') {
+      const line = (await api('/api/lines')).find((l) => l.id === id);
+      if (!confirm(`Trocar o WhatsApp do cadastro de ${line.ownerName} para ${fmtPhone(line.phone)}?`)) return;
+      await api(`/api/users/${line.ownerId}`, { method: 'PATCH', body: { whatsapp: line.phone } });
+      toast('Cadastro atualizado');
+    }
     if (act === 'pair') {
       const r = await api(`/api/lines/${id}/pairing-code`, { method: 'POST', body: { phone: $('[data-field="phone"]', card).value } });
       const box = $('[data-code]', card);
@@ -934,11 +956,11 @@ document.addEventListener('click', async (e) => {
     }
     if (act === 'restart') await api(`/api/lines/${id}/restart`, { method: 'POST' });
     if (act === 'logout') {
-      if (!confirm('Desconectar este número? Vai ser preciso escanear o QR Code de novo.')) return;
+      if (!confirm('Desconectar este WhatsApp? Vai ser preciso escanear o QR Code de novo.')) return;
       await api(`/api/lines/${id}/logout`, { method: 'POST' });
     }
     if (act === 'remove') {
-      if (!confirm('Remover este número da equipe? As conversas ficam guardadas.')) return;
+      if (!confirm('Remover esta conexão? As conversas ficam guardadas.')) return;
       await api(`/api/lines/${id}`, { method: 'DELETE' });
     }
     loaders.lines();
@@ -949,7 +971,6 @@ document.addEventListener('click', async (e) => {
 let lineRefresh;
 function onLineStatus() {
   clearTimeout(lineRefresh);
-  // Não redesenha enquanto alguém digita no cartão.
   lineRefresh = setTimeout(() => {
     if ($('#tab-lines').classList.contains('active') || $('#tab-connection').classList.contains('active')) loaders.lines();
   }, 400);

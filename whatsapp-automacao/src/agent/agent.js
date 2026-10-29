@@ -14,6 +14,7 @@ export class Agent {
     this.createPix = createPix || null; // (conversa, args, { dryRun }) => gera e envia o Pix da reserva
     this.sendForm = null; // (conversa, args, { dryRun }) => link da ficha de dados (fechamento)
     this.closingStatus = null; // (conversa) => em que passo do fechamento o cliente está
+    this.channelNote = null; // (conversa) => de quem é o WhatsApp desta conversa (número do vendedor)
     this.claimPaid = claimPaid || null; // (conversa, args) => cliente disse que pagou
     this.routeSpecialist = routeSpecialist || null; // (conversa, args, { dryRun }) => passa para o especialista do assunto
     this.contextFor = contextFor || null; // (conversa) => texto com o que o CRM já sabe do cliente
@@ -101,9 +102,12 @@ export class Agent {
     const cfg = this.config;
     const settings = this.store.settings;
     const channel = String(conv.key).startsWith('ig:') ? 'Instagram' : 'WhatsApp';
-    const routing = Boolean(this.routeLead) && settings.crm?.routing?.enabled !== false;
+    const note = this.channelNote ? this.channelNote(conv) : '';
+    // No WhatsApp de um vendedor o cliente já é dele: nada de rodízio.
+    const routing = Boolean(this.routeLead) && settings.crm?.routing?.enabled !== false && !note;
     const closing = Boolean(this.sendForm) && settings.closing?.enabled !== false;
     let system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name, channel, routing, closing });
+    if (note) system += `\n\n# Este WhatsApp\n${note}`;
     const known = this.contextFor ? this.contextFor(conv) : '';
     if (known) system += `\n\n# O que já sabemos deste cliente (CRM)\n${known}\nUse isso: cumprimente pelo nome, mostre que já sabe o interesse dele ("vi aqui que você...") e siga para o fechamento sem repetir perguntas já respondidas.`;
     const specialists = Boolean(this.routeSpecialist) && (settings.crm?.specialists || []).some((s) => s.topic && s.name);

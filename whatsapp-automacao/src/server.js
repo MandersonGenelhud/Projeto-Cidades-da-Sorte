@@ -26,7 +26,7 @@ import { Tunnel } from './tunnel.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Affiliates } from './affiliates.js';
-import { LineManager, parseLineKey } from './lines.js';
+import { LineManager, matchSeller, parseLineKey } from './lines.js';
 import { Closing, DEFAULT_TERM } from './closing.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
@@ -37,7 +37,7 @@ import { createCalendar, toDateStr } from './agent/calendar.js';
 import { Agent, STRESS_TESTS } from './agent/agent.js';
 import { buildSystemPrompt } from './agent/prompt.js';
 import { PRESETS, presetSettings } from './agent/presets.js';
-import { csvToContacts, normalizePhone, renderTemplate, uid } from './utils.js';
+import { csvToContacts, normalizePhone, renderTemplate, samePhone, uid } from './utils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(ROOT, 'data'));
@@ -86,7 +86,7 @@ const instagram = new InstagramClient({
   },
 });
 
-// Números da equipe (até 6 WhatsApps, um por vendedor).
+// Números da equipe (um WhatsApp por vendedor, com o nome dele).
 const lines = new LineManager({
   store,
   dataDir: DATA_DIR,
@@ -240,6 +240,15 @@ agent.claimPaid = async (conv, args, { dryRun } = {}) => {
 };
 
 // O que o CRM já sabe do cliente que veio de outro canal (ex.: Instagram → WhatsApp do vendedor).
+// No WhatsApp de um vendedor, a atendente trabalha em nome dele.
+agent.channelNote = (conv) => {
+  const parsed = parseLineKey(conv.key);
+  const line = parsed ? lines.get(parsed.id) : null;
+  const owner = line?.ownerId ? auth.get(line.ownerId) : null;
+  if (!owner) return '';
+  const first = owner.name.split(' ')[0];
+  return `Você atende pelo WhatsApp de ${owner.name}, consultor(a) da equipe. Os clientes daqui são de ${first}. Apresente-se como a assistente de ${first} na Migra (ex.: "Oi! Aqui é a assistente de ${first}, da Migra"). ${first} acompanha as conversas e assume quando o cliente precisar. Não encaminhe para outro vendedor: este cliente já é de ${first}.`;
+};
 agent.contextFor = (conv) => {
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
   if (!lead || lead.conversationKey === conv.key) return '';
@@ -326,6 +335,24 @@ wa.on('sent', ({ to, jid }) => {
   pending.resolve(to);
 });
 wa.on('lineStatus', (state) => notify('lineStatus', state));
+// WhatsApp do vendedor conectou: confere se o número é o do cadastro.
+lines.on('status', (state) => {
+  if (state.status !== 'connected' || !state.me?.phone) return;
+  const line = lines.get(state.id);
+  if (!line || line.phone === state.me.phone) return;
+  const r = matchSeller(line, state.me.phone, auth.users, { samePhone, taken: (uid) => Boolean(lines.byOwner(uid)) });
+  lines.update(line.id, r.patch);
+  if (r.userWhatsapp) auth.update(r.owner.id, { whatsapp: r.userWhatsapp });
+  const who = r.owner?.name || 'sem vendedor';
+  if (r.mismatch) {
+    const msg = `⚠️ A conexão de ${who} foi feita com o WhatsApp +${state.me.phone}, mas o cadastro dele(a) tem +${r.owner.whatsapp}. Confira na aba Conexões WhatsApp.`;
+    store.addLog({ type: 'error', message: msg });
+    notifyAdmins(msg).catch(() => {});
+  } else {
+    store.addLog({ type: 'system', message: `✅ WhatsApp +${state.me.phone} conectado e identificado: ${who}` });
+  }
+  notify('lineStatus', { id: line.id });
+});
 wa.on('message', (msg) => {
   pending.onIncoming(msg);
   if (!msg.isGroup) {
@@ -1188,20 +1215,26 @@ app.get('/api/payments/:id/receipt', (req, res) => {
   res.type('application/pdf').sendFile(payments.receiptPath(p));
 });
 
-// Números da equipe (até 6). Administrador gerencia todos; o vendedor conecta o dele.
+// Números da equipe. O administrador gerencia todos; o vendedor conecta o dele.
 const myLine = (user, id) => {
   const line = lines.get(id);
   if (!line) throw httpError(404, 'Número não encontrado');
   if (user.role !== 'admin' && line.ownerId !== user.id) throw httpError(403, 'Este número é de outro vendedor');
   return line;
 };
-const publicLine = (l) => ({ ...l, ownerName: auth.get(l.ownerId)?.name || '' });
+const publicLine = (l) => {
+  const owner = auth.get(l.ownerId);
+  return { ...l, label: owner?.name || l.label, ownerName: owner?.name || '', ownerWhatsapp: owner?.whatsapp || '' };
+};
 app.get('/api/lines', (req, res) => {
   res.json(lines.list().filter((l) => req.user.role === 'admin' || l.ownerId === req.user.id).map(publicLine));
 });
 app.post('/api/lines', (req, res) => {
-  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador adiciona números');
-  res.json(lines.add(req.body));
+  // O vendedor conecta o próprio WhatsApp; o administrador conecta o de qualquer pessoa da equipe.
+  const ownerId = req.user.role === 'admin' ? req.body.ownerId || null : req.user.id;
+  const owner = ownerId ? auth.get(ownerId) : null;
+  if (ownerId && !owner) throw httpError(404, 'Vendedor não encontrado');
+  res.json(publicLine(lines.add({ label: owner?.name || req.body.label, ownerId })));
 });
 app.patch('/api/lines/:id', (req, res) => {
   myLine(req.user, req.params.id);
@@ -1260,7 +1293,15 @@ app.get('/api/users', (req, res) => {
   res.json(req.user.role === 'admin' ? list : list.filter((u) => u.active).map(({ id, name }) => ({ id, name })));
 });
 app.post('/api/users', (req, res) => res.json(auth.create(req.body)));
-app.patch('/api/users/:id', (req, res) => res.json(auth.update(req.params.id, req.body)));
+app.patch('/api/users/:id', (req, res) => {
+  const user = auth.update(req.params.id, req.body);
+  // A conexão do vendedor leva o nome dele.
+  const line = lines.byOwner(user.id);
+  if (line && line.label !== user.name) lines.update(line.id, { label: user.name });
+  // Trocou o WhatsApp do cadastro: confere de novo com o número conectado.
+  if (line?.phone && req.body.whatsapp !== undefined) lines.update(line.id, { verified: user.whatsapp ? samePhone(user.whatsapp, line.phone) : null });
+  res.json(user);
+});
 app.post('/api/users/:id/transfer', (req, res) => res.json(crm.transfer(req.user, req.params.id, req.body.toId || null)));
 
 // CRM: prospectos

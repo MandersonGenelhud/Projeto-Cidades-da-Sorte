@@ -711,3 +711,21 @@ polyline.draft, .side-a, .side-b { fill: none; stroke-width: 3; vector-effect: n
 #leadClosing details { margin: 6px 0; font-size: 13px; }
 #leadClosing summary { cursor: pointer; font-weight: 500; }
 textarea.mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; line-height: 1.5; }
+
+/* Cartão do WhatsApp do vendedor */
+.line-head { display: flex; gap: 12px; align-items: center; }
+.line-head h2 { margin: 0 0 2px; }
+.avatar.lg { width: 44px; height: 44px; font-size: 15px; }
+.line-card.empty .avatar.lg { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
+.ai-toggle { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: inherit; color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; cursor: pointer; transition: background .2s var(--ease), border-color .2s var(--ease); }
+.ai-toggle.on { background: color-mix(in srgb, var(--lot-ok) 12%, transparent); border-color: color-mix(in srgb, var(--lot-ok) 40%, transparent); }
+.ai-toggle b { display: block; font-size: 14.5px; }
+.ai-toggle small { display: block; color: var(--muted); font-size: 12.5px; }
+.switch { position: relative; flex: none; width: 51px; height: 31px; border-radius: 999px; background: #e9e9ea; transition: background .25s var(--ease); }
+.switch i { position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 1px 1px rgba(0, 0, 0, .16); transition: transform .25s var(--ease); }
+.ai-toggle.on .switch { background: var(--lot-ok); }
+.ai-toggle.on .switch i { transform: translateX(20px); }
+.num-check { margin: 0; font-size: 13px; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--text) 5%, transparent); }
+.num-check.ok { background: color-mix(in srgb, var(--lot-ok) 12%, transparent); }
+.num-check.warn { background: color-mix(in srgb, var(--lot-warn) 18%, transparent); }
+.num-check .btn { margin-top: 6px; }
