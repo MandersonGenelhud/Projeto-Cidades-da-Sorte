@@ -747,3 +747,8 @@ textarea.mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-siz
 .typing.dots i:nth-child(3) { animation-delay: .3s; }
 @keyframes dot { 0%, 60%, 100% { opacity: .35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
 @media (prefers-color-scheme: dark) { .sim-phone { background: #0b141a; } .sim-phone .chat .msg.assistant, .typing.dots { background: #202c33; color: #e9edef; } .sim-phone .chat .msg.user { background: #005c4b; color: #e9edef; } }
+
+/* Visitas */
+.visit-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-width: 260px; }
+.visit-actions input { padding: 6px 8px; font-size: 13px; width: auto; }
+#formVisits { margin-top: 16px; }

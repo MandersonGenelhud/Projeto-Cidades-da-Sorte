@@ -29,6 +29,8 @@ import { Affiliates } from './affiliates.js';
 import { LineManager, matchSeller, parseLineKey } from './lines.js';
 import { Closing, DEFAULT_TERM } from './closing.js';
 import { humanizeConfig, splitIntoBubbles } from './humanize.js';
+import { Visits } from './visits.js';
+import { PayPlans, planMessage } from './payplan.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
 import { Crm, STAGES } from './crm.js';
@@ -207,6 +209,73 @@ agent.sendForm = async (conv, args, { dryRun } = {}) => {
     instrucao: 'Mande o link exatamente como veio, numa mensagem curta: peça para preencher os dados pessoais para dar continuidade na reserva e diga que esses dados já serão usados para dar entrada no processo e ficam guardados com segurança. Depois que ele enviar a ficha, o sistema manda sozinho a confirmação, o Pix e o termo da reserva.',
   };
 };
+// Passo a passo do pagamento (fluxograma): pela atendente, pelo painel e depois do termo assinado.
+const payplans = new PayPlans({ store, secret: auth.secret });
+async function sendPaymentPlan({ convKey, lead, packageName, people, adults }) {
+  const pkg = crm.matchPackage(packageName || lead?.interest || '');
+  if (!pkg) return { erro: `Pacote não encontrado. Pacotes: ${(store.settings.crm?.packages || []).map((p) => p.name).join(', ')}` };
+  const rec = payplans.create({ leadId: lead?.id || null, convKey, packageName: pkg.name, price: pkg.price, people: people || lead?.people || 1, adults });
+  const base = publicBase();
+  const text = planMessage(rec.plan, { packageName: pkg.name, link: base ? `${base}/etapas/${rec.id}?t=${payplans.token(rec.id)}` : '' });
+  if (convKey) {
+    await wa.send(convKey, { text, typing: false });
+    const conv = agent.conversation(convKey, { create: false });
+    if (conv) agent.remember(conv, 'assistant', text);
+  }
+  if (lead) crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `📋 Etapas de pagamento enviadas: ${pkg.name} · ${rec.plan.people} pessoa(s) · total R$ ${rec.plan.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+  return { ok: true, rec, text };
+}
+agent.sendPlan = async (conv, args, { dryRun } = {}) => {
+  const pkg = crm.matchPackage(args.pacote);
+  if (!pkg) return { erro: `Pacote não encontrado. Pacotes: ${(store.settings.crm?.packages || []).map((p) => p.name).join(', ')}` };
+  if (dryRun || String(conv.key).startsWith('sim:')) {
+    const rec = payplans.create({ packageName: pkg.name, price: pkg.price, people: args.pessoas, adults: args.adultos });
+    return { ok: true, simulacao: true, enviado: planMessage(rec.plan, { packageName: pkg.name }), instrucao: 'O passo a passo já foi enviado ao cliente logo acima. Comente em uma frase e pergunte se ficou alguma dúvida.' };
+  }
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
+  const r = await sendPaymentPlan({ convKey: conv.key, lead, packageName: pkg.name, people: args.pessoas, adults: args.adultos });
+  return r.erro ? r : { ok: true, total: r.rec.plan.total, instrucao: 'O passo a passo já foi enviado ao cliente logo acima. Comente em uma frase e pergunte se ficou alguma dúvida.' };
+};
+closing.onSigned = async (f) => {
+  const lead = f.leadId ? crm.byId(f.leadId) : null;
+  if (!crm.matchPackage(lead?.interest || f.data.objetivo || '')) return;
+  await sendPaymentPlan({ convKey: f.convKey, lead, packageName: lead?.interest || f.data.objetivo, people: Math.max(Number(lead?.people) || 1, Number(f.data.adultos) || 1), adults: f.data.adultos });
+};
+
+// Visitas ao escritório: a atendente registra, o Marcos confirma pelo painel.
+const visits = new Visits({
+  store,
+  crm,
+  notify,
+  sendTo: (key, payload) => wa.send(key, { ...payload, typing: false }),
+  remember: (key, text) => {
+    const conv = agent.conversation(key, { create: false });
+    if (conv) agent.remember(conv, 'assistant', text);
+  },
+  notifyOwner: async (text) => {
+    const phone = normalizePhone(store.settings.visits?.notifyPhone);
+    if (phone && wa.status === 'connected') return wa.send(phone, { text, typing: false });
+    return notifyAdmins(text);
+  },
+});
+agent.requestVisit = async (conv, args, { dryRun } = {}) => {
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: 'Simulação: no atendimento real o Marcos recebe o pedido no WhatsApp. Diga que passou ao Marcos e que ele confirma o dia e o horário por aqui.' };
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
+    || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+  await visits.request({ convKey: conv.key, lead, phone: conv.phone, ...args });
+  return { ok: true, instrucao: 'Pedido registrado e o Marcos foi avisado. Diga que ele confirma o dia e o horário por aqui e reforce, em uma frase, para vir com os documentos e o valor da entrada.' };
+};
+agent.visitInfo = (conv) => {
+  const c = store.settings.visits || {};
+  const mine = visits.forConversation(conv.key);
+  return [
+    c.hours ? `Dias e horários em que o Marcos costuma receber: ${c.hours}.` : '',
+    c.address ? `Endereço do escritório: ${c.address}.` : 'O escritório fica em Santa Rita, Alto Paraná; o endereço exato vai junto com a confirmação.',
+    `O que trazer: ${c.bring || 'documentos para iniciar (RG frente e verso ou passaporte e uma foto de meio corpo) e o valor da entrada'}.`,
+    ...mine.map((v) => v.status === 'confirmada' ? `Este cliente JÁ TEM visita confirmada: ${v.date.split('-').reverse().join('/')} às ${v.time}.` : `Este cliente já pediu visita (${v.preferred || 'sem data'}); aguardando o Marcos confirmar. Não registre outro pedido.`),
+  ].filter(Boolean).join('\n');
+};
+
 // Em que passo do fechamento o cliente está (vai para o prompt da atendente).
 agent.closingStatus = (conv) => {
   const f = closing.forConversation(conv.key);
@@ -424,7 +493,7 @@ app.post('/webhook', (req, res) => {
 if (PANEL_PASSWORD) {
   const expected = Buffer.from(`${PANEL_USER}:${PANEL_PASSWORD}`);
   // Páginas públicas (site de imóveis, portal do indicador, recibos) ficam fora da senha extra.
-  const PUBLIC = /^\/(imoveis|parceiros|r\/|recibo\/|ficha\/|termo\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
+  const PUBLIC = /^\/(imoveis|parceiros|r\/|recibo\/|ficha\/|termo\/|etapas\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
   app.use((req, res, next) => {
     if (PUBLIC.test(req.path)) return next();
     const [scheme, encoded] = (req.headers.authorization || '').split(' ');
@@ -580,6 +649,12 @@ app.get('/recibo/:id', (req, res) => {
 // Ficha de dados e termo da reserva (links enviados ao cliente no WhatsApp).
 const clientMeta = (req) => ({ ip: req.ip, ua: req.get('user-agent') || '' });
 app.get('/ficha/:id', sitePage('ficha'));
+app.get('/etapas/:id', sitePage('etapas'));
+app.get('/api/public/etapas/:id', (req, res) => {
+  const rec = payplans.get(req.params.id, req.query.t);
+  if (!rec) throw httpError(404, 'Link inválido');
+  res.json({ packageName: rec.packageName, plan: rec.plan, company: store.settings.payments?.company?.name || 'Migra Paraguai' });
+});
 app.get('/termo/:id', sitePage('termo'));
 app.get('/termo/:id/pdf', (req, res) => {
   const f = closing.get(req.params.id);
@@ -1360,6 +1435,21 @@ app.post('/api/leads/:id/closing', async (req, res) => {
   }
   res.json(closing.view(f));
 });
+// Etapas de pagamento pelo painel.
+app.post('/api/leads/:id/payplan', async (req, res) => {
+  const lead = crm.byId(req.params.id);
+  if (!lead) throw httpError(404, 'Prospecto não encontrado');
+  const key = lead.whatsappKey || lead.conversationKey || lead.phone || null;
+  const r = await sendPaymentPlan({ convKey: req.body.send ? key : null, lead, packageName: req.body.packageName || lead.interest, people: req.body.people || lead.people, adults: req.body.adults });
+  if (r.erro) throw httpError(400, r.erro);
+  res.json({ text: r.text });
+});
+// Visitas ao escritório.
+app.get('/api/visits', (_req, res) => res.json([...visits.list].reverse().map((v) => ({ ...v, leadCode: v.leadId ? crm.byId(v.leadId)?.code || '' : '' }))));
+app.post('/api/visits/:id/confirm', async (req, res) => res.json(await visits.confirm(req.params.id, { ...req.body, by: req.user.name })));
+app.post('/api/visits/:id/reschedule', async (req, res) => res.json(await visits.reschedule(req.params.id, req.body)));
+app.post('/api/visits/:id/cancel', async (req, res) => res.json(await visits.cancel(req.params.id, req.body)));
+app.post('/api/visits/:id/done', (req, res) => res.json(visits.done(req.params.id)));
 app.post('/api/leads/:id/confirm', (req, res) => res.json(crm.confirmSale(req.user, req.params.id)));
 app.delete('/api/leads/:id', (req, res) => {
   crm.remove(req.user, req.params.id);

@@ -373,6 +373,7 @@ function fillLead(l) {
   $('#btnConfirmSale').hidden = !(isAdmin() && l.stage === 'ganho' && !l.closedConfirmed);
   $('#btnLeadPix').hidden = !l.id || l.stage === 'perdido';
   renderLeadClosing(l);
+  $('#btnLeadPlan').hidden = !l.id || !l.interest;
 
   const ai = [l.aiSummary && `🧠 <b>Resumo da IA:</b> ${esc(l.aiSummary)}`, l.objective && `🎯 <b>Objetivo:</b> ${esc(l.objective)}`].filter(Boolean);
   $('#leadAi').hidden = !ai.length;
@@ -811,6 +812,78 @@ function onCrmAssigned(data) {
   if (data.ownerId === window.currentUser?.id) toast('🎯 Novo cliente encaminhado para você! Veja em Prospectos.');
   onCrmEvent();
 }
+
+// ---------- ETAPAS DE PAGAMENTO (fluxograma para o cliente) ----------
+$('#btnLeadPlan').addEventListener('click', async () => {
+  const id = crmState.current?.id;
+  if (!id) return;
+  try {
+    const preview = await api(`/api/leads/${id}/payplan`, { method: 'POST', body: {} });
+    if (!confirm(`Enviar este passo a passo para o cliente no WhatsApp?\n\n${preview.text}`)) return;
+    await api(`/api/leads/${id}/payplan`, { method: 'POST', body: { send: true } });
+    toast('Etapas de pagamento enviadas');
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+// ---------- VISITAS AO ESCRITÓRIO ----------
+const VISIT_STATUS = { pendente: '<span class="badge paused">⏳ Aguardando você</span>', confirmada: '<span class="badge done">✅ Confirmada</span>', remarcar: '<span class="badge pending">🔁 Remarcando</span>', cancelada: '<span class="badge canceled">Cancelada</span>', realizada: '<span class="badge running">Realizada</span>' };
+loaders.visits = async () => {
+  const [list, settings] = await Promise.all([api('/api/visits'), api('/api/settings')]);
+  const today = new Date().toISOString().slice(0, 10);
+  $('#visitTable').innerHTML = `<thead><tr><th>Pedido</th><th>Cliente</th><th>Preferência</th><th>Assunto</th><th>Vem preparado?</th><th>Situação</th><th></th></tr></thead><tbody>${list.map((v) => `
+    <tr data-visit="${esc(v.id)}"><td>${fmtDate(v.createdAt)}</td>
+      <td><b>${esc(v.name || 'Cliente')}</b><div class="hint">${v.phone ? esc(fmtPhone(v.phone)) : ''}${v.leadCode ? ` · ${esc(v.leadCode)}` : ''} · ${v.people} pessoa(s)</div></td>
+      <td>${esc(v.preferred || '—')}${v.period ? `<div class="hint">${esc(v.period)}</div>` : ''}</td>
+      <td>${esc(v.subject || '—')}</td><td class="small">${esc(v.prepared || '—')}</td>
+      <td>${VISIT_STATUS[v.status] || esc(v.status)}${v.status === 'confirmada' ? `<div class="hint">${esc(v.date.split('-').reverse().join('/'))} às ${esc(v.time)}</div>` : ''}</td>
+      <td>${['pendente', 'remarcar'].includes(v.status) ? `<div class="visit-actions"><input type="date" data-f="date" min="${today}" /><input type="time" data-f="time" step="900" /><button class="btn small primary" data-act="confirm">Confirmar</button><button class="btn small" data-act="reschedule">Propor outro dia</button><button class="btn small danger" data-act="cancel">Recusar</button></div>`
+        : v.status === 'confirmada' ? '<button class="btn small" data-act="done">Marcar como realizada</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum pedido de visita ainda.</td></tr>'}</tbody>`;
+  const pend = list.filter((v) => v.status === 'pendente').length;
+  $('#visitBadge').hidden = !pend;
+  $('#visitBadge').textContent = pend;
+  const c = settings.visits || {};
+  const f = $('#formVisits');
+  f.enabled.checked = c.enabled !== false;
+  for (const k of ['address', 'notifyPhone', 'hours', 'bring']) f[k].value = c[k] || '';
+};
+$('#visitTable').addEventListener('click', async (e) => {
+  const act = e.target.closest('button[data-act]')?.dataset.act;
+  const row = e.target.closest('[data-visit]');
+  if (!act || !row) return;
+  const id = row.dataset.visit;
+  try {
+    if (act === 'confirm') {
+      const date = $('[data-f="date"]', row).value;
+      const time = $('[data-f="time"]', row).value;
+      if (!date || !time) return toast('Escolha o dia e o horário', true);
+      const note = prompt('Recado para o cliente junto com a confirmação (opcional):', '') ?? '';
+      await api(`/api/visits/${id}/confirm`, { method: 'POST', body: { date, time, note } });
+      toast('Visita confirmada: o cliente recebeu no WhatsApp');
+    } else if (act === 'reschedule') {
+      const message = prompt('Mensagem para o cliente propondo outro dia:', 'Oi! Nesse dia não consigo te receber. Pode ser em outro dia? Me diz qual fica melhor para você.');
+      if (!message) return;
+      await api(`/api/visits/${id}/reschedule`, { method: 'POST', body: { message } });
+      toast('Mensagem enviada');
+    } else if (act === 'cancel') {
+      const message = prompt('Mensagem para o cliente (opcional):', '');
+      if (message === null) return;
+      await api(`/api/visits/${id}/cancel`, { method: 'POST', body: { message } });
+    } else if (act === 'done') {
+      await api(`/api/visits/${id}/done`, { method: 'POST' });
+    }
+    loaders.visits();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+$('#formVisits').addEventListener('submit', withBusy($('#formVisits'), async (e) => {
+  const f = e.target;
+  await api('/api/settings', { method: 'PUT', body: { visits: { enabled: f.enabled.checked, address: f.address.value.trim(), notifyPhone: f.notifyPhone.value.trim(), hours: f.hours.value.trim(), bring: f.bring.value.trim() } } });
+  toast('Salvo');
+  loaders.visits();
+}));
 
 // ---------- FECHAMENTO NA FICHA DO PROSPECTO (ficha de dados → Pix → termo) ----------
 async function renderLeadClosing(l) {

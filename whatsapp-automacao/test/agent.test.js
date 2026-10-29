@@ -320,3 +320,29 @@ test('fechamento: a atendente manda a ficha de dados (e não gera Pix direto) e 
   assert.match(seen[0].system, /NADA de textão/);
   assert.match(seen[0].system, /Evite "contrato"/);
 });
+
+test('visita ao escritório e etapas de pagamento: ferramentas e ressalva de vir preparado', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const seen = [];
+  const replies = [
+    { content: '', tool_calls: [call('v1', 'agendar_visita_escritorio', { data_preferida: 'segunda', assunto: 'iniciar o Ouro', pessoas: 2 })] },
+    { content: 'Pronto! Passei seu pedido ao Marcos, ele confirma o horário por aqui.', tool_calls: [] },
+  ];
+  const llm = { configured: true, chat: async ({ messages, tools }) => { seen.push({ system: messages[0].content, tools: tools.map((t) => t.function.name) }); return replies.shift(); } };
+  const agent = new Agent({ store, llm, now: () => NOW });
+  const asked = [];
+  agent.requestVisit = async (conv, args) => { asked.push(args); return { ok: true }; };
+  agent.visitInfo = () => 'Endereço do escritório: Santa Rita.';
+  agent.sendPlan = async () => ({ ok: true });
+  const r = await agent.simulate({ text: 'Quero ir aí no escritório conversar com o Marcos pessoalmente' });
+  assert.equal(asked[0].assunto, 'iniciar o Ouro');
+  assert.match(r.text, /Marcos/);
+  assert.ok(seen[0].tools.includes('agendar_visita_escritorio'));
+  assert.ok(seen[0].tools.includes('enviar_etapas_pagamento'));
+  assert.match(seen[0].system, /já venha preparado para iniciar o processo/);
+  assert.match(seen[0].system, /Nunca confirme data ou horário/);
+  assert.match(seen[0].system, /Migra Motors/);
+  assert.match(seen[0].system, /Carro OU Moto/);
+});

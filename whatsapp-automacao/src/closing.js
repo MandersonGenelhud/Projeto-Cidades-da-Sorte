@@ -328,6 +328,8 @@ export class Closing {
     if (lead) this.crm.addNote({ name: 'Cliente', role: 'admin' }, lead.id, `✍️ Termo da reserva assinado pelo cliente (código ${hash.slice(0, 10).toUpperCase()})`);
     this.notify('closing', { id: f.id, status: 'assinado' });
     await this.#say(f, `Termo assinado, ${f.data.nome.split(' ')[0]}! ✍️ Segue a sua via. Agora é com a gente: seu processo já está em andamento.`, { media: { path: this.termPath(f), mimetype: 'application/pdf', fileName: 'Termo-de-reserva.pdf' } });
+    // Próximo passo: o passo a passo do pagamento (entrada e parcelas).
+    await Promise.resolve(this.onSigned?.(f)).catch((e) => this.store.addLog({ type: 'error', message: `Etapas de pagamento: ${e.message}` }));
     await this.notifyAdmins(`✍️ *Termo da reserva assinado*\n👤 ${f.data.nome} · CPF ${f.data.cpf}\n🕒 ${new Date(signedAt).toLocaleString('pt-BR')}\nO PDF assinado está na ficha do cliente no painel.`).catch(() => {});
     return { ok: true };
   }

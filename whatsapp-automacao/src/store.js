@@ -98,6 +98,14 @@ const DEFAULT_DATA = {
       pendingMaxDays: 7,
       ...PRESET.agent,
     },
+    // Visitas ao escritório (o Marcos confirma pelo painel).
+    visits: {
+      enabled: true,
+      address: '', // endereço do escritório, vai na confirmação
+      hours: '', // dias e horários em que o Marcos costuma receber
+      notifyPhone: '', // WhatsApp que recebe os pedidos (vazio = administradores)
+      bring: '', // o que o cliente deve trazer (vazio = texto padrão)
+    },
     // Fechamento: ficha de dados → Pix → termo da reserva assinado no celular.
     closing: {
       enabled: true,

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>Seu pagamento, passo a passo · Migra</title>
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="stylesheet" href="/site/site.css" />
+  <link rel="stylesheet" href="/site/fechamento.css" />
+  <style>
+    .plan { display: grid; gap: 0; }
+    .step { display: grid; grid-template-columns: 44px 1fr; gap: 14px; position: relative; padding-bottom: 18px; }
+    .step:last-child { padding-bottom: 0; }
+    .step::before { content: ''; position: absolute; left: 21px; top: 44px; bottom: 0; width: 2px; background: linear-gradient(#34c759, #c7e9cf); }
+    .step:last-child::before { display: none; }
+    .dot { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 20px; background: #f2f8f4; box-shadow: inset 0 0 0 2px #34c759; }
+    .step.first .dot { background: #1f9d4c; color: #fff; box-shadow: none; }
+    .step .when { font-size: 13px; font-weight: 600; color: #1f9d4c; text-transform: uppercase; letter-spacing: .04em; }
+    .step .val { font-size: 22px; font-weight: 700; letter-spacing: -.02em; margin: 2px 0; font-variant-numeric: tabular-nums; }
+    .step .note { color: #6e6e73; font-size: 14.5px; }
+    .total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; border-top: 1px solid #e5e5ea; margin-top: 18px; padding-top: 16px; }
+    .total b { font-size: 24px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 14px; }
+    .chips span { background: #f2f2f7; border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 500; }
+  </style>
+</head>
+<body class="flow">
+  <header class="flow-head"><img src="/brand/logo" alt="Migra Paraguai" /></header>
+  <main class="flow-wrap" id="page"><p class="muted center">Carregando…</p></main>
+  <script src="/site/site.js"></script>
+  <script>
+    const id = location.pathname.split('/').pop();
+    const t = new URLSearchParams(location.search).get('t') || '';
+    const brl = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    api(`/api/public/etapas/${id}?t=${encodeURIComponent(t)}`).then((d) => {
+      const p = d.plan;
+      const icon = (i) => (i === p.parcels.length - 1 ? '🪪' : '✈️');
+      $('#page').innerHTML = `
+        <div class="flow-card">
+          <p class="eyebrow-s">${esc(d.company)}</p>
+          <h1>Seu pagamento, passo a passo</h1>
+          <div class="chips"><span>${esc(d.packageName)}</span><span>${p.people} pessoa${p.people > 1 ? 's' : ''}</span>${p.adults !== p.people ? `<span>${p.adults} adulto${p.adults > 1 ? 's' : ''}</span>` : ''}</div>
+          <div class="plan">
+            <div class="step first"><div class="dot">✍️</div><div><div class="when">Na assinatura do termo</div><div class="val">${brl(p.entry)}</div><div class="note">Entrada: garante a sua reserva e as certidões. Já é descontada do total.</div></div></div>
+            ${p.parcels.map((x, i) => `<div class="step"><div class="dot">${icon(i)}</div><div><div class="when">${esc(x.when)}</div><div class="val">${brl(x.value)}</div><div class="note">${esc(x.label)} (${x.pct}% do saldo) · ${esc(x.note)}</div></div></div>`).join('')}
+          </div>
+          <div class="total"><span>Valor total</span><b>${brl(p.total)}</b></div>
+        </div>
+        <p class="fine">As datas das viagens e da retirada dos documentos são confirmadas pela equipe da Migra.</p>`;
+    }).catch((e) => { $('#page').innerHTML = `<div class="flow-card center"><h1>Link inválido</h1><p class="muted">${esc(e.message)}</p></div>`; });
+  </script>
+</body>
+</html>

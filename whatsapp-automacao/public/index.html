@@ -25,6 +25,7 @@
       <button data-tab="leads">🗂️ Prospectos</button>
       <button data-tab="followups">📅 Retornos <span class="nav-badge" id="dueBadge" hidden>0</span></button>
       <button data-tab="payments">💳 Pagamentos</button>
+      <button data-tab="visits" data-admin>🏢 Visitas <span class="nav-badge" id="visitBadge" hidden>0</span></button>
       <button data-tab="ranking">🏆 Ranking</button>
       <button data-tab="conversations">💬 Conversas</button>
       <button data-tab="lines">📱 Meu WhatsApp</button>
@@ -378,6 +379,24 @@
         <p class="hint">Quando o cliente decide fechar, a atendente pede o nome e o CPF e manda o Pix da reserva (QR Code + copia e cola). Com a chave Pix própria, confira no banco e clique em <b>Confirmar</b>: a venda fecha, o recibo em nome da empresa vai para o cliente e o Marcos recebe o aviso no WhatsApp. Com o Mercado Pago, a confirmação é automática.</p>
         <div class="table-wrap"><table id="payTable"></table></div>
       </div>
+    </section>
+
+    <!-- VISITAS AO ESCRITÓRIO -->
+    <section id="tab-visits" class="tab">
+      <div class="page-head"><h1>🏢 Visitas ao escritório</h1></div>
+      <p class="hint">Quando um cliente quer conhecer o escritório ou marcar algo com o Marcos, a atendente faz a ressalva de vir preparado (documentos e valor da entrada), registra o pedido e avisa o Marcos no WhatsApp. Aqui você confirma o dia e o horário: o cliente recebe a confirmação na hora.</p>
+      <div class="table-wrap"><table id="visitTable"></table></div>
+      <form id="formVisits" class="panel form">
+        <h2>Como o Marcos recebe</h2>
+        <label class="check"><input type="checkbox" name="enabled" /> A atendente pode registrar pedidos de visita</label>
+        <div class="grid2 tight">
+          <label>Endereço do escritório (vai na confirmação) <input name="address" placeholder="Rua…, Santa Rita, Alto Paraná" /></label>
+          <label>WhatsApp que recebe os pedidos <input name="notifyPhone" placeholder="+595 9xx xxx xxx (vazio = administradores)" /></label>
+        </div>
+        <label>Dias e horários em que costuma receber <input name="hours" placeholder="ex.: segunda a sexta, das 9h às 17h" /></label>
+        <label>O que o cliente deve trazer <textarea name="bring" rows="2" placeholder="documentos para iniciar (RG ou passaporte e foto) e o valor da entrada"></textarea></label>
+        <button class="btn primary">Salvar</button>
+      </form>
     </section>
 
     <!-- NÚMEROS DA EQUIPE -->
@@ -1181,6 +1200,7 @@
             <button type="button" class="btn" id="btnTakeLead" hidden>🙋 Assumir este prospecto</button>
             <button type="button" class="btn" id="btnConfirmSale" hidden data-admin>✅ Confirmar venda (vale no ranking)</button>
             <button type="button" class="btn" id="btnLeadPix" hidden>💳 Gerar Pix</button>
+            <button type="button" class="btn" id="btnLeadPlan" hidden>📋 Etapas de pagamento</button>
             <button type="button" class="btn small danger" id="btnDeleteLead" data-admin>Excluir</button>
           </div>
         </div>

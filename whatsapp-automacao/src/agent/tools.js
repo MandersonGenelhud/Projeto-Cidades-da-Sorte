@@ -93,6 +93,41 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'agendar_visita_escritorio',
+      description: 'Registra o pedido de visita ao escritório da Migra aqui no Paraguai (ou de um encontro com o Marcos) e avisa o Marcos, que confirma o dia e o horário com o cliente. Use só depois de fazer a ressalva de vir preparado (documentos e valor para iniciar) e de saber a preferência de dia.',
+      parameters: {
+        type: 'object',
+        properties: {
+          nome: { type: 'string', description: 'Nome do cliente' },
+          data_preferida: { type: 'string', description: 'Dia que o cliente prefere, nas palavras dele (ex.: "segunda, 10/11" ou "próxima semana")' },
+          periodo: { type: 'string', description: 'manhã, tarde ou horário que ele disse' },
+          pessoas: { type: 'number', description: 'Quantas pessoas vêm' },
+          assunto: { type: 'string', description: 'O que ele quer resolver na visita (ex.: iniciar residência, pacote Ouro)' },
+          preparado: { type: 'string', description: 'O que ele disse sobre vir com os documentos e o valor para iniciar' },
+        },
+        required: ['data_preferida', 'assunto'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'enviar_etapas_pagamento',
+      description: 'Envia ao cliente o passo a passo do pagamento (fluxograma com a entrada e as 3 parcelas, valores e quando paga cada uma), calculado pela tabela. Use quando ele perguntar como funciona o pagamento, quanto paga em cada etapa, ou logo depois de fechar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          pacote: { type: 'string', description: 'Nome do pacote (Inicial, Prata, Ouro, Empresa Unipersonal, Empresa EAS, Empresa S.A., Estudantil)' },
+          pessoas: { type: 'number', description: 'Quantas pessoas no processo' },
+          adultos: { type: 'number', description: 'Quantos adultos (a taxa das certidões é por adulto)' },
+        },
+        required: ['pacote', 'pessoas'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'gerar_pix',
       description: 'Gera o Pix da reserva para o cliente pagar agora (o sistema envia o QR Code e o código copia e cola direto para ele). Use quando o cliente decidir fechar e já tiver passado o nome completo e o CPF. O valor é calculado pela regra da reserva; não invente valores.',
       parameters: {
@@ -192,6 +227,14 @@ export async function runTool(name, args, ctx) {
       case 'enviar_ficha_de_dados': {
         if (!ctx.onForm) return { erro: 'Ficha indisponível. Use transferir_para_humano.' };
         return await ctx.onForm(args);
+      }
+      case 'agendar_visita_escritorio': {
+        if (!ctx.onVisit) return { erro: 'Agendamento de visita indisponível. Use transferir_para_humano.' };
+        return await ctx.onVisit(args);
+      }
+      case 'enviar_etapas_pagamento': {
+        if (!ctx.onPlan) return { erro: 'Indisponível. Explique o pagamento pela base.' };
+        return await ctx.onPlan(args);
       }
       case 'gerar_pix': {
         if (!ctx.onPix) return { erro: 'Pagamento por Pix indisponível. Use encaminhar_para_vendedor.' };

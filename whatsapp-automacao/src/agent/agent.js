@@ -15,6 +15,9 @@ export class Agent {
     this.sendForm = null; // (conversa, args, { dryRun }) => link da ficha de dados (fechamento)
     this.closingStatus = null; // (conversa) => em que passo do fechamento o cliente está
     this.channelNote = null; // (conversa) => de quem é o WhatsApp desta conversa (número do vendedor)
+    this.requestVisit = null; // (conversa, args, { dryRun }) => pedido de visita ao escritório (avisa o Marcos)
+    this.visitInfo = null; // (conversa) => regras da visita e pedidos já feitos por este cliente
+    this.sendPlan = null; // (conversa, args, { dryRun }) => envia o passo a passo do pagamento
     this.claimPaid = claimPaid || null; // (conversa, args) => cliente disse que pagou
     this.routeSpecialist = routeSpecialist || null; // (conversa, args, { dryRun }) => passa para o especialista do assunto
     this.contextFor = contextFor || null; // (conversa) => texto com o que o CRM já sabe do cliente
@@ -121,6 +124,16 @@ export class Agent {
 3. Fale em "dar entrada no processo", "garantir a sua reserva" e "termo da reserva". Evite a palavra "contrato": ela assusta e não é preciso.
 4. Se ele disser que já preencheu e a ficha não aparecer como preenchida abaixo, peça com gentileza para conferir se clicou em "Enviar meus dados" no final.${status ? `\n\n## Situação deste cliente agora\n${status}` : ''}`;
     }
+    const visits = Boolean(this.requestVisit) && settings.visits?.enabled !== false;
+    if (visits) {
+      const info = this.visitInfo ? this.visitInfo(conv) : '';
+      system += `\n\n# Visita ao escritório da Migra (aqui no Paraguai)
+Tem cliente que prefere conhecer o escritório e fechar pessoalmente, ou quer marcar algo com o Marcos. Quando isso aparecer:
+1. Acolha a ideia e faça a ressalva, com carinho e em mensagem curta: se vier até a gente, já venha preparado para iniciar o processo, com os documentos e o valor da entrada. Assim não perde tempo nem precisa voltar depois. O Marcos se preocupa muito com isso: são milhares de pessoas chegando, e ele quer aproveitar bem o tempo do cliente e o dele.
+2. Pergunte o dia e o período que prefere e quantas pessoas vêm.
+3. Use agendar_visita_escritorio. Diga que passou o pedido ao Marcos e que ele confirma o dia e o horário por aqui. Nunca confirme data ou horário por conta própria.${info ? `\n${info}` : ''}`;
+    }
+    if (this.sendPlan) system += '\n\n# Passo a passo do pagamento\nQuando o cliente perguntar como funciona o pagamento, quanto paga em cada etapa, ou logo depois de fechar, use enviar_etapas_pagamento com o pacote e o número de pessoas. O sistema manda o fluxograma com os valores; você só comenta em uma frase e pergunta se ficou alguma dúvida. Não refaça as contas por conta própria.';
     if (pix && !closing) system += `\n\n# Pagamento da reserva por Pix\nQuando o cliente decidir fechar, peça o nome completo e o CPF de quem vai pagar e use gerar_pix com o número de adultos. O sistema envia o QR Code e o código copia e cola em mensagens separadas, logo antes da sua resposta: diga o valor, que o código está na mensagem anterior para copiar e colar no app do banco, e que o recibo em nome da empresa chega aqui assim que o pagamento for confirmado. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que o pagamento foi confirmado por conta própria.`;
     if (delayed) {
       system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece pedindo desculpas pela demora, de forma breve e natural, e então responda.';
@@ -130,6 +143,8 @@ export class Agent {
       if (t.function.name === 'encaminhar_para_vendedor') return routing;
       if (t.function.name === 'encaminhar_para_especialista') return specialists;
       if (t.function.name === 'enviar_ficha_de_dados') return closing;
+      if (t.function.name === 'agendar_visita_escritorio') return visits;
+      if (t.function.name === 'enviar_etapas_pagamento') return Boolean(this.sendPlan);
       // Com a ficha, o Pix sai sozinho depois que o cliente envia os dados.
       if (t.function.name === 'gerar_pix') return pix && !closing;
       if (t.function.name === 'cliente_informou_pagamento') return pix || closing;
@@ -146,6 +161,8 @@ export class Agent {
       onSpecialist: this.routeSpecialist ? (args) => this.routeSpecialist(conv, args, { dryRun }) : null,
       onPix: this.createPix ? (args) => this.createPix(conv, args, { dryRun }) : null,
       onForm: this.sendForm ? (args) => this.sendForm(conv, args, { dryRun }) : null,
+      onVisit: this.requestVisit ? (args) => this.requestVisit(conv, args, { dryRun }) : null,
+      onPlan: this.sendPlan ? (args) => this.sendPlan(conv, args, { dryRun }) : null,
       onPaidClaim: this.claimPaid ? (args) => this.claimPaid(conv, args, { dryRun }) : null,
       onHandoff: (reason) => {
         if (!dryRun) {

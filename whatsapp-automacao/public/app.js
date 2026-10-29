@@ -906,6 +906,8 @@ const TOOL_LABEL = {
   cliente_informou_pagamento: '🧾 avisou a equipe do pagamento',
   encaminhar_para_vendedor: '🤝 passou para o consultor',
   encaminhar_para_especialista: '🏠 passou para o especialista',
+  agendar_visita_escritorio: '🏢 pediu a visita ao Marcos',
+  enviar_etapas_pagamento: '📋 enviou as etapas de pagamento',
 };
 function chatBubble(role, text, at) {
   return `<div class="msg ${role}">${esc(text)}<time>${at ? fmtDate(at) : nowTime()}</time></div>`;
@@ -962,7 +964,7 @@ $('#formSim').addEventListener('submit', withBusy($('#formSim'), async (e) => {
     }
     const r = await reply;
     chat.querySelector('.typing')?.remove();
-    if (r.actions.length) chat.insertAdjacentHTML('beforeend', r.actions.map(actionChip).join(''));
+    if (r.actions.length) chat.insertAdjacentHTML('beforeend', r.actions.map((a) => actionChip(a) + (a.result?.enviado ? chatBubble('assistant', a.result.enviado) : '')).join(''));
     const bubbles = human ? r.bubbles || [r.text] : [r.text];
     const thinking = Date.now() - started;
     for (const [i, b] of bubbles.entries()) {
@@ -1285,6 +1287,11 @@ function connectEvents() {
     if ($('#tab-conversations').classList.contains('active')) loadPending();
   });
   es.addEventListener('appointments', refreshIfActive('agenda'));
+  es.addEventListener('visits', (e) => {
+    if (!isAdmin()) return;
+    loaders.visits?.().catch(() => {});
+    if (JSON.parse(e.data || '{}').new) toast('🏢 Novo pedido de visita ao escritório');
+  });
   es.addEventListener('tunnel', (e) => renderTunnel(JSON.parse(e.data)));
   es.addEventListener('crm', () => onCrmEvent());
   es.addEventListener('paymentPaid', (e) => onPaymentPaid(JSON.parse(e.data)));
