@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>Seus dados · Reserva Migra</title>
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="stylesheet" href="/site/site.css" />
+  <link rel="stylesheet" href="/site/fechamento.css" />
+</head>
+<body class="flow">
+  <header class="flow-head"><img src="/brand/logo" alt="Migra Paraguai" /></header>
+  <main class="flow-wrap" id="page">
+    <p class="muted center">Carregando…</p>
+  </main>
+  <script src="/site/site.js"></script>
+  <script>
+    const id = location.pathname.split('/').pop();
+    const t = new URLSearchParams(location.search).get('t') || '';
+    const draftKey = `migraFicha:${id}`;
+    const STEPS = [
+      {
+        title: 'Sobre você',
+        hint: 'Esses dados já serão usados para dar entrada no seu processo. Assim você não precisa enviar tudo de novo depois.',
+        fields: [
+          ['nome', 'Nome completo', { autocomplete: 'name', placeholder: 'Como está no documento' }],
+          ['nascimento', 'Data de nascimento', { inputmode: 'numeric', placeholder: 'dd/mm/aaaa', mask: 'date' }],
+          ['nacionalidade', 'Nacionalidade', { placeholder: 'Brasileira' }],
+          ['estadoCivil', 'Estado civil', { select: true }],
+          ['profissao', 'Profissão', { placeholder: 'Opcional' }],
+          ['email', 'E-mail', { type: 'email', autocomplete: 'email', inputmode: 'email', placeholder: 'Opcional' }],
+          ['whatsapp', 'WhatsApp', { type: 'tel', autocomplete: 'tel', inputmode: 'tel' }],
+        ],
+      },
+      {
+        title: 'Documentos',
+        hint: 'O CPF e o RG são pedidos na abertura do processo no Paraguai e entram no termo da sua reserva. Ficam guardados só na Migra, com sigilo.',
+        fields: [
+          ['cpf', 'CPF', { inputmode: 'numeric', placeholder: '000.000.000-00', mask: 'cpf' }],
+          ['rg', 'RG', { placeholder: 'Número do RG' }],
+          ['rgOrgao', 'Órgão emissor', { placeholder: 'Ex.: SSP/SP (opcional)' }],
+        ],
+      },
+      {
+        title: 'Endereço e processo',
+        hint: 'O endereço vai nos documentos do processo e no termo da reserva. Digite o CEP que a gente completa o resto.',
+        fields: [
+          ['cep', 'CEP', { inputmode: 'numeric', placeholder: '00000-000', mask: 'cep', autocomplete: 'postal-code' }],
+          ['rua', 'Rua / avenida', { autocomplete: 'address-line1' }],
+          ['numero', 'Número', { inputmode: 'numeric', half: true }],
+          ['complemento', 'Complemento', { placeholder: 'Opcional', half: true }],
+          ['bairro', 'Bairro', {}],
+          ['cidade', 'Cidade', { half: true }],
+          ['uf', 'Estado (UF)', { maxlength: 2, half: true, placeholder: 'SP' }],
+          ['adultos', 'Quantos adultos vão no processo?', { inputmode: 'numeric', type: 'number', min: 1, max: 20 }],
+          ['acompanhantes', 'Quem mais vai com você? (nome e parentesco)', { textarea: true, placeholder: 'Ex.: Maria Silva (esposa), João (filho, 8 anos). Opcional' }],
+        ],
+      },
+    ];
+    let info;
+    let step = 0;
+    let values = {};
+    const masks = {
+      cpf: (v) => v.replace(/\D/g, '').slice(0, 11).replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'),
+      cep: (v) => v.replace(/\D/g, '').slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2'),
+      date: (v) => v.replace(/\D/g, '').slice(0, 8).replace(/(\d{2})(\d)/, '$1/$2').replace(/(\d{2})(\d)/, '$1/$2'),
+    };
+    const saveDraft = () => { try { localStorage.setItem(draftKey, JSON.stringify(values)); } catch {} };
+    function field([k, label, o]) {
+      const req = info.required.includes(k);
+      const attrs = ['type', 'inputmode', 'autocomplete', 'placeholder', 'maxlength', 'min', 'max'].filter((a) => o[a] !== undefined).map((a) => `${a}="${esc(o[a])}"`).join(' ');
+      const v = esc(values[k] || '');
+      const input = o.select
+        ? `<select name="${k}" ${req ? 'required' : ''}><option value="">Selecione</option>${info.estadoCivil.map((e) => `<option ${values[k] === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select>`
+        : o.textarea ? `<textarea name="${k}" rows="3" ${attrs}>${v}</textarea>`
+          : `<input name="${k}" value="${v}" ${attrs} ${o.mask ? `data-mask="${o.mask}"` : ''} ${req ? 'required' : ''} />`;
+      return `<label class="fl ${o.half ? 'half' : ''}"><span>${esc(label)}${req ? '' : ' <i>opcional</i>'}</span>${input}</label>`;
+    }
+    function render() {
+      const s = STEPS[step];
+      $('#page').innerHTML = `
+        <div class="flow-card">
+          <div class="steps-bar">${STEPS.map((x, i) => `<span class="${i <= step ? 'on' : ''}"></span>`).join('')}</div>
+          <p class="eyebrow-s">Passo ${step + 1} de ${STEPS.length}</p>
+          <h1>${esc(s.title)}</h1>
+          <p class="reassure"><span aria-hidden="true">🔒</span> ${esc(s.hint)}</p>
+          <form id="f" class="fields" novalidate>${s.fields.map(field).join('')}
+            <p class="err" id="err" role="alert"></p>
+            <div class="flow-actions">
+              ${step ? '<button type="button" class="btn" id="back">Voltar</button>' : ''}
+              <button class="btn primary grow">${step < STEPS.length - 1 ? 'Continuar' : 'Enviar meus dados'}</button>
+            </div>
+          </form>
+        </div>
+        <p class="fine">Seus dados ficam guardados só na ${esc(info.company)} e servem para o seu processo e a sua reserva. Nada é compartilhado com terceiros.</p>`;
+      const f = $('#f');
+      f.addEventListener('input', (e) => {
+        const el = e.target;
+        if (el.dataset.mask) el.value = masks[el.dataset.mask](el.value);
+        values[el.name] = el.value;
+        saveDraft();
+        if (el.name === 'cep' && el.value.replace(/\D/g, '').length === 8) lookupCep(el.value);
+      });
+      f.addEventListener('change', (e) => { values[e.target.name] = e.target.value; saveDraft(); });
+      f.addEventListener('submit', next);
+      $('#back')?.addEventListener('click', () => { step--; render(); scrollTo({ top: 0, behavior: 'smooth' }); });
+      const firstEmpty = $$('input,select', f).find((el) => !el.value);
+      if (firstEmpty && step) firstEmpty.focus({ preventScroll: true });
+    }
+    async function lookupCep(cep) {
+      try {
+        const r = await fetch(`https://viacep.com.br/ws/${cep.replace(/\D/g, '')}/json/`).then((x) => x.json());
+        if (r.erro) return;
+        const map = { rua: r.logradouro, bairro: r.bairro, cidade: r.localidade, uf: r.uf };
+        for (const [k, v] of Object.entries(map)) {
+          if (!v) continue;
+          values[k] = v;
+          const el = $(`[name="${k}"]`);
+          if (el && !el.value) el.value = v;
+        }
+        saveDraft();
+        $('[name="numero"]')?.focus();
+      } catch {}
+    }
+    function validCpf(v) {
+      const c = v.replace(/\D/g, '');
+      if (c.length !== 11 || /^(\d)\1{10}$/.test(c)) return false;
+      const dv = (n) => { let s = 0; for (let i = 0; i < n; i++) s += +c[i] * (n + 1 - i); const r = (s * 10) % 11; return r === 10 ? 0 : r; };
+      return dv(9) === +c[9] && dv(10) === +c[10];
+    }
+    async function next(e) {
+      e.preventDefault();
+      const f = e.target;
+      for (const el of $$('input,select,textarea', f)) values[el.name] = el.value.trim();
+      const missing = STEPS[step].fields.filter(([k]) => info.required.includes(k) && !values[k]).map(([, l]) => l);
+      const err = $('#err');
+      if (missing.length) { err.textContent = `Falta preencher: ${missing.join(', ')}`; return; }
+      if (step === 1 && !validCpf(values.cpf)) { err.textContent = 'O CPF não parece correto. Confira os números, por favor.'; return; }
+      if (step < STEPS.length - 1) { step++; render(); scrollTo({ top: 0, behavior: 'smooth' }); return; }
+      const btn = $('button.primary', f);
+      btn.disabled = true;
+      btn.textContent = 'Enviando…';
+      try {
+        const r = await api(`/api/public/ficha/${id}?t=${encodeURIComponent(t)}`, { method: 'POST', body: values });
+        try { localStorage.removeItem(draftKey); } catch {}
+        done(r.nome);
+      } catch (ex) {
+        err.textContent = ex.message;
+        btn.disabled = false;
+        btn.textContent = 'Enviar meus dados';
+      }
+    }
+    function done(nome) {
+      $('#page').innerHTML = `
+        <div class="flow-card center">
+          <div class="big-check" aria-hidden="true">✓</div>
+          <h1>Pronto${nome ? `, ${esc(nome)}` : ''}!</h1>
+          <p>Recebemos seus dados. Pode voltar para o WhatsApp: o próximo passo da sua reserva já chegou lá.</p>
+          <a class="btn primary block" href="whatsapp://">Voltar para o WhatsApp</a>
+        </div>`;
+    }
+    (async () => {
+      try {
+        info = await api(`/api/public/ficha/${id}?t=${encodeURIComponent(t)}`);
+      } catch (e) {
+        $('#page').innerHTML = `<div class="flow-card center"><h1>Link inválido</h1><p class="muted">${esc(e.message)}</p></div>`;
+        return;
+      }
+      if (info.status === 'preenchida') return done('');
+      let draft = {};
+      try { draft = JSON.parse(localStorage.getItem(draftKey) || '{}'); } catch {}
+      values = { ...info.data, ...draft };
+      render();
+    })();
+  </script>
+</body>
+</html>

@@ -372,6 +372,7 @@ function fillLead(l) {
   }
   $('#btnConfirmSale').hidden = !(isAdmin() && l.stage === 'ganho' && !l.closedConfirmed);
   $('#btnLeadPix').hidden = !l.id || l.stage === 'perdido';
+  renderLeadClosing(l);
 
   const ai = [l.aiSummary && `🧠 <b>Resumo da IA:</b> ${esc(l.aiSummary)}`, l.objective && `🎯 <b>Objetivo:</b> ${esc(l.objective)}`].filter(Boolean);
   $('#leadAi').hidden = !ai.length;
@@ -809,6 +810,37 @@ function onCrmDue() {
 function onCrmAssigned(data) {
   if (data.ownerId === window.currentUser?.id) toast('🎯 Novo cliente encaminhado para você! Veja em Prospectos.');
   onCrmEvent();
+}
+
+// ---------- FECHAMENTO NA FICHA DO PROSPECTO (ficha de dados → Pix → termo) ----------
+async function renderLeadClosing(l) {
+  const box = $('#leadClosing');
+  box.hidden = !l.id;
+  if (!l.id) return;
+  const f = await api(`/api/leads/${l.id}/closing`).catch(() => null);
+  const step = (ok, label, extra = '') => `<li class="${ok ? 'done' : ''}">${ok ? '✅' : '⚪'} ${label}${extra}</li>`;
+  box.innerHTML = `<b>📝 Fechamento da reserva</b>
+    <ol class="closing-steps">
+      ${step(Boolean(f), 'Ficha de dados enviada', f ? ` <a href="${esc(f.formUrl)}" target="_blank" rel="noopener">abrir</a>` : '')}
+      ${step(f?.status === 'preenchida', 'Ficha preenchida pelo cliente', f?.filledAt ? ` · ${fmtDate(f.filledAt)}` : '')}
+      ${step(Boolean(f?.term), 'Termo da reserva enviado')}
+      ${step(f?.term?.status === 'assinado', 'Termo assinado', f?.termPdf ? ` · <a href="${esc(f.termPdf)}" target="_blank" rel="noopener">ver PDF</a>` : '')}
+    </ol>
+    ${f?.status === 'preenchida' ? `<details><summary>Dados da ficha</summary><dl>${Object.entries({ Nome: f.data.nome, CPF: f.data.cpf, RG: `${f.data.rg} ${f.data.rgOrgao || ''}`, Nascimento: f.data.nascimento, 'Estado civil': f.data.estadoCivil, Endereço: [f.data.rua, f.data.numero, f.data.bairro, `${f.data.cidade}/${f.data.uf}`].filter(Boolean).join(', '), Adultos: f.data.adultos, Acompanhantes: f.data.acompanhantes }).filter(([, v]) => v && String(v).trim()).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>` : ''}
+    <div class="row">${f?.status !== 'preenchida' ? `<button type="button" class="btn small primary" id="btnSendFicha">${f ? 'Reenviar a ficha no WhatsApp' : 'Enviar a ficha no WhatsApp'}</button>` : ''}
+    ${f ? `<button type="button" class="btn small" id="btnCopyFicha">Copiar link da ficha</button>` : ''}</div>`;
+  $('#btnSendFicha')?.addEventListener('click', async () => {
+    try {
+      await api(`/api/leads/${l.id}/closing`, { method: 'POST', body: { send: true } });
+      toast('Ficha enviada ao cliente no WhatsApp');
+      renderLeadClosing(l);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+  $('#btnCopyFicha')?.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(f.formUrl); toast('Link copiado'); } catch { prompt('Copie o link:', f.formUrl); }
+  });
 }
 
 // ---------- NÚMEROS DA EQUIPE (até 6 WhatsApps com a atendente de IA) ----------

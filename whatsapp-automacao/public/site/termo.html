@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>Termo da reserva · Migra</title>
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="stylesheet" href="/site/site.css" />
+  <link rel="stylesheet" href="/site/fechamento.css" />
+</head>
+<body class="flow">
+  <header class="flow-head"><img src="/brand/logo" alt="Migra Paraguai" /></header>
+  <main class="flow-wrap" id="page"><p class="muted center">Carregando…</p></main>
+  <script src="/site/site.js"></script>
+  <script>
+    const id = location.pathname.split('/').pop();
+    const t = new URLSearchParams(location.search).get('t') || '';
+    let info;
+    let inked = 0;
+    function signed(pdf) {
+      $('#page').innerHTML = `
+        <div class="flow-card center">
+          <div class="big-check" aria-hidden="true">✓</div>
+          <h1>Termo assinado!</h1>
+          <p>Sua via também foi enviada no WhatsApp. Agora é com a gente: seu processo já está em andamento.</p>
+          ${pdf ? `<a class="btn block" href="${esc(pdf)}" target="_blank" rel="noopener">Ver o termo assinado (PDF)</a>` : ''}
+          <a class="btn primary block" href="whatsapp://">Voltar para o WhatsApp</a>
+        </div>`;
+    }
+    function render() {
+      $('#page').innerHTML = `
+        <div class="flow-card">
+          <p class="eyebrow-s">Último passo</p>
+          <h1>Termo da sua reserva</h1>
+          <p class="reassure"><span aria-hidden="true">📄</span> Montamos o termo com os dados que você enviou. Leia com calma e assine aqui mesmo, com o dedo.</p>
+          <div class="term-text" tabindex="0">${esc(info.text).replace(/\n/g, '<br>')}</div>
+        </div>
+        <form class="flow-card fields" id="f" novalidate>
+          <h2>Assinatura</h2>
+          <label class="fl"><span>Seu nome completo</span><input name="nome" autocomplete="name" value="${esc(info.nome)}" /></label>
+          <label class="fl"><span>Seu CPF</span><input name="cpf" inputmode="numeric" placeholder="000.000.000-00" /></label>
+          <div class="fl"><span>Assine no quadro</span>
+            <div class="sig-box"><canvas id="sig" aria-label="Quadro de assinatura"></canvas><span class="sig-line">Assine acima da linha</span></div>
+            <button type="button" class="btn small" id="clear">Limpar assinatura</button>
+          </div>
+          <label class="check-row"><input type="checkbox" name="aceite" /> <span>Li o termo e concordo com as condições da minha reserva.</span></label>
+          <p class="err" id="err" role="alert"></p>
+          <button class="btn primary block" id="go">Assinar o termo</button>
+          <p class="fine">Ao assinar, registramos a data, a hora, o IP e o aparelho, que vão no PDF como comprovante da assinatura eletrônica.</p>
+        </form>`;
+      setupPad();
+      $('[name="cpf"]').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11).replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'); });
+      $('#f').addEventListener('submit', submit);
+    }
+    function setupPad() {
+      const c = $('#sig');
+      const ctx = c.getContext('2d');
+      const size = () => {
+        const r = c.getBoundingClientRect();
+        const dpr = Math.min(2, devicePixelRatio || 1);
+        c.width = r.width * dpr;
+        c.height = r.height * dpr;
+        ctx.scale(dpr, dpr);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, r.width, r.height);
+        ctx.lineWidth = 2.4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#0b1f4d';
+        inked = 0;
+      };
+      size();
+      let last = null;
+      const pos = (e) => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      c.addEventListener('pointerdown', (e) => { c.setPointerCapture(e.pointerId); last = pos(e); e.preventDefault(); });
+      c.addEventListener('pointermove', (e) => {
+        if (!last) return;
+        const p = pos(e);
+        ctx.beginPath();
+        ctx.moveTo(...last);
+        ctx.lineTo(...p);
+        ctx.stroke();
+        inked += Math.hypot(p[0] - last[0], p[1] - last[1]);
+        last = p;
+      });
+      const up = () => (last = null);
+      c.addEventListener('pointerup', up);
+      c.addEventListener('pointercancel', up);
+      $('#clear').onclick = size;
+    }
+    async function submit(e) {
+      e.preventDefault();
+      const f = e.target;
+      const err = $('#err');
+      err.textContent = '';
+      if (inked < 60) { err.textContent = 'Faça a sua assinatura no quadro, por favor.'; return; }
+      if (!f.aceite.checked) { err.textContent = 'Marque que leu e concorda com o termo.'; return; }
+      const btn = $('#go');
+      btn.disabled = true;
+      btn.textContent = 'Assinando…';
+      try {
+        await api(`/api/public/termo/${id}/assinar?t=${encodeURIComponent(t)}`, {
+          method: 'POST',
+          body: { nome: f.nome.value, cpf: f.cpf.value, aceite: true, assinatura: $('#sig').toDataURL('image/jpeg', 0.85) },
+        });
+        const fresh = await api(`/api/public/termo/${id}?t=${encodeURIComponent(t)}`);
+        signed(fresh.pdf);
+        scrollTo({ top: 0 });
+      } catch (ex) {
+        err.textContent = ex.message;
+        btn.disabled = false;
+        btn.textContent = 'Assinar o termo';
+      }
+    }
+    (async () => {
+      try {
+        info = await api(`/api/public/termo/${id}?t=${encodeURIComponent(t)}`);
+      } catch (e) {
+        $('#page').innerHTML = `<div class="flow-card center"><h1>Termo indisponível</h1><p class="muted">${esc(e.message)}</p></div>`;
+        return;
+      }
+      if (info.status === 'assinado') signed(info.pdf);
+      else render();
+    })();
+  </script>
+</body>
+</html>

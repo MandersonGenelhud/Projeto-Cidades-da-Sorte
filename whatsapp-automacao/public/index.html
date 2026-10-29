@@ -988,6 +988,7 @@
           <label>Cidade do recebedor <input name="receiverCity" placeholder="Ciudad del Este" /></label>
           <label>WhatsApp extra para o aviso de Pix (opcional) <input name="notifyPhone" placeholder="+595 981 000000" /></label>
         </div>
+        <label>Dados da conta bancária (opcional, vão junto com o Pix) <textarea name="bankInfo" rows="3" placeholder="Banco · Agência · Conta · Titular · CNPJ"></textarea></label>
         <h3>Reserva (valor do Pix que a atendente gera)</h3>
         <div class="row">
           <label>Valor fixo (R$) <input type="number" min="0" step="0.01" name="resBase" /></label>
@@ -1013,6 +1014,25 @@
           <button type="button" class="btn" id="btnPixTest">Gerar Pix de teste (R$ 1,00)</button>
         </div>
         <div id="pixTestBox" class="hint"></div>
+      </form>
+      <form id="formClosing" class="panel form">
+        <h2>📝 Fechamento: ficha de dados e termo da reserva</h2>
+        <p class="hint">Quando o cliente decide fechar, a atendente manda o link da ficha (nome, CPF, RG, estado civil e endereço, já preenchida com o que ela sabe). Quando ele envia, o sistema agradece, manda o Pix da reserva e o termo da reserva para assinar no celular. Tudo fica na ficha do cliente no CRM.</p>
+        <label class="check"><input type="checkbox" name="enabled" /> Usar a ficha de dados no fechamento</label>
+        <label>Quando enviar o termo da reserva
+          <select name="termAfter">
+            <option value="pix">Logo depois do Pix (recomendado)</option>
+            <option value="payment">Só depois que o pagamento for confirmado</option>
+          </select>
+        </label>
+        <label>Texto do termo da reserva
+          <textarea name="termTemplate" rows="14" class="mono"></textarea>
+        </label>
+        <p class="hint">Campos que o sistema preenche: {nome} {cpf} {rg} {nascimento} {nacionalidade} {estado_civil} {profissao} {endereco} {email} {whatsapp} {servico} {adultos} {acompanhantes_txt} {valor_reserva} {empresa} {empresa_documento} {empresa_endereco} {data} {cidade_data}. Os dados da empresa vêm de "Empresa no recibo" acima. Peça para um advogado revisar o texto antes de usar.</p>
+        <div class="row">
+          <button class="btn primary">Salvar fechamento</button>
+          <button type="button" class="btn" id="btnTermDefault">Voltar ao modelo padrão</button>
+        </div>
       </form>
       <form id="formSettings" class="form">
         <div class="grid2">
@@ -1162,6 +1182,7 @@
         </div>
         <div class="form">
           <div id="leadQual" class="qual-box" hidden></div>
+          <div id="leadClosing" class="qual-box" hidden></div>
           <div id="leadAi" class="ai-box" hidden></div>
           <div class="row">
             <input id="leadNote" placeholder="Anotação: o que conversou, objeções, próximo passo…" />

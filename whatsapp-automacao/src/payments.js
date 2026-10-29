@@ -164,6 +164,8 @@ export class Payments {
     await this.notifyAdmins(notice).catch((e) => this.store.addLog({ type: 'error', message: `Aviso de pagamento: ${e.message}` }));
     this.store.addLog({ type: 'system', message: `💰 Pix confirmado: ${money(p.amount)} de ${p.payerName || lead?.name || 'cliente'} (por ${by})` });
     this.notify('paymentPaid', { id: p.id, amount: p.amount, name: p.payerName || lead?.name || '', description: p.description });
+    // Próximo passo do fechamento (ex.: termo da reserva depois do pagamento).
+    await Promise.resolve(this.onPaid?.(p)).catch((e) => this.store.addLog({ type: 'error', message: `Depois do pagamento: ${e.message}` }));
     return p;
   }
 

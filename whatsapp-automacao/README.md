@@ -275,3 +275,14 @@ Cobrem: agenda (horários, antecedência, datas inválidas), ciclo de ferramenta
 ## Aviso
 
 Esta ferramenta não tem vínculo com o WhatsApp nem com a Meta. Respeite os [Termos](https://www.whatsapp.com/legal/business-policy) e a LGPD: envie mensagens apenas para quem autorizou e ofereça sempre uma forma de sair da lista.
+
+## Fechamento da reserva: ficha de dados → Pix → termo
+
+Quando o cliente decide fechar, a atendente responde curto ("Perfeito! Preencha para mim seus dados pessoais para darmos continuidade na sua reserva") e manda o link da **ficha de dados** (`/ficha/...`). A ficha já vem preenchida com o que o CRM sabe e pede nome, CPF (com conferência dos dígitos), RG, nascimento, estado civil, endereço (com busca pelo CEP) e quantos adultos vão no processo. Cada passo explica que os dados já serão usados para dar entrada no processo e ficam guardados com segurança.
+
+Quando o cliente envia a ficha, o sistema sozinho:
+1. agradece no WhatsApp;
+2. manda o **Pix da reserva** (valor pela regra de Configurações → Pagamentos, com os adultos da ficha) e, se cadastrados, os dados da conta;
+3. manda o **termo da reserva** (`/termo/...`) montado com os dados do cliente, para ler e assinar com o dedo no celular. O PDF assinado (com data, hora, IP, aparelho e código de verificação) vai para o cliente e fica na ficha do prospecto.
+
+O texto do termo e o momento de enviá-lo (logo depois do Pix ou só depois do pagamento confirmado) ficam em **Configurações → Fechamento**. Peça para um advogado revisar o texto do termo antes de usar. Os links precisam do endereço público do painel (túnel ou VPS).

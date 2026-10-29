@@ -27,6 +27,7 @@ import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Affiliates } from './affiliates.js';
 import { LineManager, parseLineKey } from './lines.js';
+import { Closing, DEFAULT_TERM } from './closing.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
 import { Crm, STAGES } from './crm.js';
@@ -150,6 +151,16 @@ const affiliates = new Affiliates({
 });
 crm.onWon = (lead) => affiliates.onLeadWon(lead);
 
+// Avisos para o dono (administradores com WhatsApp + número extra dos pagamentos).
+async function notifyAdmins(text) {
+  if (wa.status !== 'connected') return;
+  const phones = new Set(auth.users.filter((u) => u.role === 'admin' && u.active !== false && u.whatsapp).map((u) => u.whatsapp));
+  const extra = normalizePhone(store.settings.payments?.notifyPhone);
+  if (extra) phones.add(extra);
+  for (const phone of phones) await wa.send(phone, { text, typing: false }).catch(() => {});
+}
+const publicBase = () => String(store.settings.crm?.panelUrl || process.env.PUBLIC_URL || '').replace(/\/+$/, '');
+
 // Pix no fechamento: cobra, confirma, fecha a venda, manda recibo e avisa o dono.
 const payments = new Payments({
   store,
@@ -158,14 +169,54 @@ const payments = new Payments({
   secret: auth.secret,
   notify,
   sendTo: (key, payload) => wa.send(key, { ...payload, typing: false }),
-  notifyAdmins: async (text) => {
-    if (wa.status !== 'connected') return;
-    const phones = new Set(auth.users.filter((u) => u.role === 'admin' && u.active !== false && u.whatsapp).map((u) => u.whatsapp));
-    const extra = normalizePhone(store.settings.payments?.notifyPhone);
-    if (extra) phones.add(extra);
-    for (const phone of phones) await wa.send(phone, { text, typing: false }).catch(() => {});
+  notifyAdmins,
+});
+
+// Fechamento: ficha de dados → Pix da reserva → termo da reserva assinado no celular.
+const closing = new Closing({
+  store,
+  crm,
+  payments,
+  secret: auth.secret,
+  dataDir: DATA_DIR,
+  notify,
+  notifyAdmins,
+  baseUrl: publicBase,
+  sendTo: (key, payload) => wa.send(key, { ...payload, typing: false }),
+  // O que o sistema manda entra na memória da atendente, para ela saber em que passo o cliente está.
+  remember: (key, text) => {
+    const conv = agent.conversation(key, { create: false });
+    if (conv) agent.remember(conv, 'assistant', text);
   },
 });
+payments.onPaid = (p) => closing.onPaid(p);
+agent.sendForm = async (conv, args, { dryRun } = {}) => {
+  if (dryRun || String(conv.key).startsWith('sim:')) {
+    return { ok: true, simulacao: true, link: 'https://exemplo.com/ficha/teste', instrucao: 'Simulação: mande o link ao cliente pedindo para preencher os dados pessoais para dar continuidade na reserva.' };
+  }
+  if (!publicBase()) {
+    return { erro: 'O painel ainda não tem endereço público (ligue o acesso pela internet na aba Conexões ou use a VPS). Use transferir_para_humano para a equipe enviar a ficha.' };
+  }
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
+    || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+  const f = closing.createForm({ convKey: conv.key, lead, servico: args.servico, adultos: args.adultos });
+  return {
+    ok: true,
+    link: closing.formUrl(f),
+    instrucao: 'Mande o link exatamente como veio, numa mensagem curta: peça para preencher os dados pessoais para dar continuidade na reserva e diga que esses dados já serão usados para dar entrada no processo e ficam guardados com segurança. Depois que ele enviar a ficha, o sistema manda sozinho a confirmação, o Pix e o termo da reserva.',
+  };
+};
+// Em que passo do fechamento o cliente está (vai para o prompt da atendente).
+agent.closingStatus = (conv) => {
+  const f = closing.forConversation(conv.key);
+  if (!f) return '';
+  const p = f.paymentId ? payments.get(f.paymentId) : null;
+  return [
+    f.status === 'preenchida' ? `Ficha de dados: PREENCHIDA (${f.data.nome}, CPF ${f.data.cpf}).` : 'Ficha de dados: enviada, AINDA NÃO preenchida. Se o cliente disser que preencheu, peça para conferir se clicou em "Enviar meus dados" no final; se precisar, reenvie o mesmo link: ' + closing.formUrl(f),
+    p ? `Pix da reserva: ${p.status === 'paid' ? 'PAGO e confirmado (recibo enviado)' : `enviado (R$ ${p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}), aguardando pagamento`}.` : f.status === 'preenchida' ? 'Pix da reserva: ainda não enviado pelo sistema (a equipe envia os dados de pagamento).' : '',
+    f.term ? `Termo da reserva: ${f.term.status === 'assinado' ? 'ASSINADO' : `enviado para assinar (link: ${closing.termUrl(f)})`}.` : '',
+  ].filter(Boolean).join('\n');
+};
 agent.createPix = async (conv, args, { dryRun } = {}) => {
   const adults = Math.max(1, Number(args.adultos) || 1);
   const amount = payments.reservationAmount(adults);
@@ -345,7 +396,7 @@ app.post('/webhook', (req, res) => {
 if (PANEL_PASSWORD) {
   const expected = Buffer.from(`${PANEL_USER}:${PANEL_PASSWORD}`);
   // Páginas públicas (site de imóveis, portal do indicador, recibos) ficam fora da senha extra.
-  const PUBLIC = /^\/(imoveis|parceiros|r\/|recibo\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
+  const PUBLIC = /^\/(imoveis|parceiros|r\/|recibo\/|ficha\/|termo\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
   app.use((req, res, next) => {
     if (PUBLIC.test(req.path)) return next();
     const [scheme, encoded] = (req.headers.authorization || '').split(' ');
@@ -497,6 +548,20 @@ app.get('/recibo/:id', (req, res) => {
   if (!p || p.status !== 'paid' || req.query.t !== payments.receiptToken(p.id)) return res.status(404).send('Recibo não encontrado');
   res.type('application/pdf').set('Content-Disposition', `inline; filename="Recibo-${String(p.receiptNo).padStart(4, '0')}.pdf"`).sendFile(payments.receiptPath(p));
 });
+
+// Ficha de dados e termo da reserva (links enviados ao cliente no WhatsApp).
+const clientMeta = (req) => ({ ip: req.ip, ua: req.get('user-agent') || '' });
+app.get('/ficha/:id', sitePage('ficha'));
+app.get('/termo/:id', sitePage('termo'));
+app.get('/termo/:id/pdf', (req, res) => {
+  const f = closing.get(req.params.id);
+  if (!f || f.term?.status !== 'assinado' || req.query.t !== closing.token(f.id, 'termo')) return res.status(404).send('Termo não encontrado');
+  res.type('application/pdf').set('Content-Disposition', 'inline; filename="Termo-de-reserva.pdf"').sendFile(closing.termPath(f));
+});
+app.get('/api/public/ficha/:id', (req, res) => res.json(closing.publicForm(req.params.id, req.query.t)));
+app.post('/api/public/ficha/:id', async (req, res) => res.json(await closing.submitForm(req.params.id, req.query.t, req.body || {}, clientMeta(req))));
+app.get('/api/public/termo/:id', (req, res) => res.json(closing.publicTerm(req.params.id, req.query.t)));
+app.post('/api/public/termo/:id/assinar', async (req, res) => res.json(await closing.signTerm(req.params.id, req.query.t, req.body || {}, clientMeta(req))));
 
 // Marca (nome e logo) — pública, usada também na tela de login.
 const BRAND_LOGO = path.join(DATA_DIR, 'brand-logo');
@@ -1232,6 +1297,24 @@ app.post('/api/leads/:id/ai', async (req, res) => {
   if (!conv) throw httpError(400, 'Este prospecto não tem conversa ligada');
   const info = await crmAi.afterReply(conv, { force: true });
   res.json({ info, lead: crm.get(req.user, lead.id) });
+});
+app.get('/api/closing/template', (_req, res) => res.json({ text: DEFAULT_TERM }));
+// Fechamento do prospecto: ver a ficha/termo e enviar a ficha pelo painel.
+app.get('/api/leads/:id/closing', (req, res) => {
+  const f = closing.forLead(req.params.id);
+  res.json(f ? closing.view(f) : null);
+});
+app.post('/api/leads/:id/closing', async (req, res) => {
+  const lead = crm.byId(req.params.id);
+  if (!lead) throw httpError(404, 'Prospecto não encontrado');
+  if (!publicBase()) throw httpError(400, 'O painel ainda não tem endereço público: ligue o acesso pela internet (aba Conexões) ou use a VPS.');
+  const key = lead.whatsappKey || lead.conversationKey || (lead.phone ? lead.phone : null);
+  const f = closing.createForm({ convKey: key, lead });
+  if (req.body?.send && key) {
+    const text = 'Perfeito! Preencha para mim seus dados pessoais para darmos continuidade na sua reserva. Eles já serão usados para dar entrada no seu processo e ficam guardados com segurança:';
+    await wa.send(key, { text: `${text}\n${closing.formUrl(f)}`, typing: false });
+  }
+  res.json(closing.view(f));
 });
 app.post('/api/leads/:id/confirm', (req, res) => res.json(crm.confirmSale(req.user, req.params.id)));
 app.delete('/api/leads/:id', (req, res) => {

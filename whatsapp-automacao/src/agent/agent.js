@@ -12,6 +12,8 @@ export class Agent {
   constructor({ store, llm, calendar, notify, notifyTeam, onReplied, routeLead, routeSpecialist, contextFor, createPix, claimPaid, now = () => new Date(), wait = sleep }) {
     this.store = store;
     this.createPix = createPix || null; // (conversa, args, { dryRun }) => gera e envia o Pix da reserva
+    this.sendForm = null; // (conversa, args, { dryRun }) => link da ficha de dados (fechamento)
+    this.closingStatus = null; // (conversa) => em que passo do fechamento o cliente está
     this.claimPaid = claimPaid || null; // (conversa, args) => cliente disse que pagou
     this.routeSpecialist = routeSpecialist || null; // (conversa, args, { dryRun }) => passa para o especialista do assunto
     this.contextFor = contextFor || null; // (conversa) => texto com o que o CRM já sabe do cliente
@@ -100,13 +102,22 @@ export class Agent {
     const settings = this.store.settings;
     const channel = String(conv.key).startsWith('ig:') ? 'Instagram' : 'WhatsApp';
     const routing = Boolean(this.routeLead) && settings.crm?.routing?.enabled !== false;
-    let system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name, channel, routing });
+    const closing = Boolean(this.sendForm) && settings.closing?.enabled !== false;
+    let system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name, channel, routing, closing });
     const known = this.contextFor ? this.contextFor(conv) : '';
     if (known) system += `\n\n# O que já sabemos deste cliente (CRM)\n${known}\nUse isso: cumprimente pelo nome, mostre que já sabe o interesse dele ("vi aqui que você...") e siga para o fechamento sem repetir perguntas já respondidas.`;
     const specialists = Boolean(this.routeSpecialist) && (settings.crm?.specialists || []).some((s) => s.topic && s.name);
     const pay = settings.payments || {};
     const pix = Boolean(this.createPix) && pay.enabled !== false && Boolean(pay.pixKey || pay.mercadopago?.accessToken) && Number(pay.reservation?.base || pay.reservation?.perAdult) > 0;
-    if (pix) system += `\n\n# Pagamento da reserva por Pix\nQuando o cliente decidir fechar, peça o nome completo e o CPF de quem vai pagar e use gerar_pix com o número de adultos. O sistema envia o QR Code e o código copia e cola em mensagens separadas, logo antes da sua resposta: diga o valor, que o código está na mensagem anterior para copiar e colar no app do banco, e que o recibo em nome da empresa chega aqui assim que o pagamento for confirmado. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que o pagamento foi confirmado por conta própria.`;
+    if (closing) {
+      const status = this.closingStatus ? this.closingStatus(conv) : '';
+      system += `\n\n# Fechamento da reserva (siga esta ordem)
+1. Quando perceber que o cliente quer mesmo fechar, diga algo como "Perfeito! Preencha para mim seus dados pessoais para darmos continuidade na sua reserva" e use enviar_ficha_de_dados. Mande o link e explique, em uma frase, que esses dados já serão usados para dar entrada no processo dele e ficam guardados com segurança, só para isso. Não peça CPF, RG ou endereço pelo chat: a ficha faz isso.
+2. Quando ele enviar a ficha, o sistema manda sozinho a confirmação, o Pix da reserva e o termo da reserva para assinar. Você só acompanha: tira dúvidas, pede o comprovante do Pix e lembra de assinar o termo.
+3. Fale em "dar entrada no processo", "garantir a sua reserva" e "termo da reserva". Evite a palavra "contrato": ela assusta e não é preciso.
+4. Se ele disser que já preencheu e a ficha não aparecer como preenchida abaixo, peça com gentileza para conferir se clicou em "Enviar meus dados" no final.${status ? `\n\n## Situação deste cliente agora\n${status}` : ''}`;
+    }
+    if (pix && !closing) system += `\n\n# Pagamento da reserva por Pix\nQuando o cliente decidir fechar, peça o nome completo e o CPF de quem vai pagar e use gerar_pix com o número de adultos. O sistema envia o QR Code e o código copia e cola em mensagens separadas, logo antes da sua resposta: diga o valor, que o código está na mensagem anterior para copiar e colar no app do banco, e que o recibo em nome da empresa chega aqui assim que o pagamento for confirmado. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que o pagamento foi confirmado por conta própria.`;
     if (delayed) {
       system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece pedindo desculpas pela demora, de forma breve e natural, e então responda.';
     }
@@ -114,7 +125,10 @@ export class Agent {
     const tools = TOOL_DEFINITIONS.filter((t) => {
       if (t.function.name === 'encaminhar_para_vendedor') return routing;
       if (t.function.name === 'encaminhar_para_especialista') return specialists;
-      if (t.function.name === 'gerar_pix' || t.function.name === 'cliente_informou_pagamento') return pix;
+      if (t.function.name === 'enviar_ficha_de_dados') return closing;
+      // Com a ficha, o Pix sai sozinho depois que o cliente envia os dados.
+      if (t.function.name === 'gerar_pix') return pix && !closing;
+      if (t.function.name === 'cliente_informou_pagamento') return pix || closing;
       return canSchedule(settings) || t.function.name === 'transferir_para_humano';
     });
     const history = conv.messages.slice(-Math.max(2, Number(cfg.memoryMessages || 20)));
@@ -127,6 +141,7 @@ export class Agent {
       onRoute: this.routeLead ? (args) => this.routeLead(conv, args, { dryRun }) : null,
       onSpecialist: this.routeSpecialist ? (args) => this.routeSpecialist(conv, args, { dryRun }) : null,
       onPix: this.createPix ? (args) => this.createPix(conv, args, { dryRun }) : null,
+      onForm: this.sendForm ? (args) => this.sendForm(conv, args, { dryRun }) : null,
       onPaidClaim: this.claimPaid ? (args) => this.claimPaid(conv, args, { dryRun }) : null,
       onHandoff: (reason) => {
         if (!dryRun) {

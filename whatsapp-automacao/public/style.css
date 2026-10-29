@@ -703,3 +703,11 @@ polyline.draft, .side-a, .side-b { fill: none; stroke-width: 3; vector-effect: n
 .line-card .line-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--text) 6%, transparent); }
 .line-card .line-status.connected { background: color-mix(in srgb, var(--lot-ok) 16%, transparent); color: #1e7f3a; }
 .line-card .line-status.qr { background: color-mix(in srgb, var(--lot-warn) 18%, transparent); color: #8a5a00; }
+
+/* Fechamento na ficha do prospecto */
+.closing-steps { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 4px; font-size: 13.5px; }
+.closing-steps li { color: var(--muted); }
+.closing-steps li.done { color: var(--text); }
+#leadClosing details { margin: 6px 0; font-size: 13px; }
+#leadClosing summary { cursor: pointer; font-weight: 500; }
+textarea.mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; line-height: 1.5; }

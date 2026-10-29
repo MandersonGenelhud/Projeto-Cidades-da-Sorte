@@ -295,3 +295,28 @@ test('se a IA falhar, o cliente não recebe mensagem de erro e o painel mostra o
   assert.match(agent.lastError.message, /limite de uso/);
   assert.equal(errors.length, 1);
 });
+
+test('fechamento: a atendente manda a ficha de dados (e não gera Pix direto) e escreve curto', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' }, payments: { pixKey: '12345678000190' } });
+  const seen = [];
+  const replies = [
+    { content: '', tool_calls: [call('f1', 'enviar_ficha_de_dados', { servico: 'Residência - Ouro', adultos: 2 })] },
+    (messages) => ({ content: `Perfeito! Preencha para mim seus dados pessoais para darmos continuidade na sua reserva: ${JSON.parse(messages.at(-1).content).link}`, tool_calls: [] }),
+  ];
+  const llm = { configured: true, chat: async ({ messages, tools }) => { seen.push({ system: messages[0].content, tools: tools.map((t) => t.function.name) }); const n = replies.shift(); return typeof n === 'function' ? n(messages) : n; } };
+  const agent = new Agent({ store, llm, now: () => NOW, createPix: async () => ({ ok: true }) });
+  const forms = [];
+  agent.sendForm = async (conv, args) => { forms.push(args); return { ok: true, link: 'https://painel.migra.com/ficha/abc?t=1' }; };
+  agent.closingStatus = () => 'Ficha de dados: enviada, AINDA NÃO preenchida.';
+  const r = await agent.simulate({ text: 'Quero fechar o ouro para mim e minha esposa' });
+  assert.equal(forms[0].adultos, 2);
+  assert.match(r.text, /ficha\/abc/);
+  assert.ok(seen[0].tools.includes('enviar_ficha_de_dados'));
+  assert.ok(!seen[0].tools.includes('gerar_pix'), 'com a ficha, o Pix sai sozinho depois dos dados');
+  assert.match(seen[0].system, /Fechamento da reserva/);
+  assert.match(seen[0].system, /AINDA NÃO preenchida/);
+  assert.match(seen[0].system, /NADA de textão/);
+  assert.match(seen[0].system, /Evite "contrato"/);
+});

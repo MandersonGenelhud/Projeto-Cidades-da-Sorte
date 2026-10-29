@@ -79,6 +79,20 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'enviar_ficha_de_dados',
+      description: 'Use assim que o cliente mostrar que quer mesmo fechar (ex.: "quero", "vamos fazer", "como faço para garantir"). Gera o link da ficha de dados pessoais (nome, CPF, RG, estado civil, endereço), já preenchida com o que sabemos. Quando ele enviar a ficha, o sistema manda sozinho a confirmação, o Pix da reserva e o termo da reserva para assinar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          servico: { type: 'string', description: 'O que o cliente vai fazer (ex.: residência permanente - pacote Ouro)' },
+          adultos: { type: 'number', description: 'Quantos adultos vão no processo, se ele disse' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'gerar_pix',
       description: 'Gera o Pix da reserva para o cliente pagar agora (o sistema envia o QR Code e o código copia e cola direto para ele). Use quando o cliente decidir fechar e já tiver passado o nome completo e o CPF. O valor é calculado pela regra da reserva; não invente valores.',
       parameters: {
@@ -174,6 +188,10 @@ export async function runTool(name, args, ctx) {
       case 'encaminhar_para_vendedor': {
         if (!ctx.onRoute) return { erro: 'Encaminhamento indisponível. Use transferir_para_humano.' };
         return await ctx.onRoute(args);
+      }
+      case 'enviar_ficha_de_dados': {
+        if (!ctx.onForm) return { erro: 'Ficha indisponível. Use transferir_para_humano.' };
+        return await ctx.onForm(args);
       }
       case 'gerar_pix': {
         if (!ctx.onPix) return { erro: 'Pagamento por Pix indisponível. Use encaminhar_para_vendedor.' };

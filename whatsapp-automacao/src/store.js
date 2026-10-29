@@ -98,6 +98,12 @@ const DEFAULT_DATA = {
       pendingMaxDays: 7,
       ...PRESET.agent,
     },
+    // Fechamento: ficha de dados → Pix → termo da reserva assinado no celular.
+    closing: {
+      enabled: true,
+      termAfter: 'pix', // pix (logo depois do Pix) | payment (depois do pagamento confirmado)
+      termTemplate: '', // vazio = modelo padrão
+    },
     // Pix no fechamento (reserva) e recibo em nome da empresa.
     payments: {
       enabled: true,
@@ -108,6 +114,7 @@ const DEFAULT_DATA = {
       company: { name: '', document: '', address: '', phone: '', email: '' },
       reservation: { base: 1000, perAdult: 800, description: 'reserva e início do processo (entrada + certidões)' },
       mercadopago: { accessToken: '', payerEmail: '' },
+      bankInfo: '', // dados da conta (opcional), enviados junto com o Pix
       notifyPhone: '', // WhatsApp extra para o aviso de Pix (além dos administradores)
     },
     // Programa de indicação (afiliados). Comissão por linha de negócio, em % da venda + valor fixo.

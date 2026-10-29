@@ -41,7 +41,7 @@ ${parts.length ? parts.join('') : '(nenhum argumento extra cadastrado)\n'}`;
 }
 
 /** Seção da peneira: como qualificar o cliente e quando passar para o vendedor. */
-function routingSection(settings) {
+function routingSection(settings, closing = false) {
   const criteria = String(settings.crm?.routing?.criteria || '').trim();
   return `
 # Peneira e encaminhamento para um consultor
@@ -49,7 +49,7 @@ Seu objetivo é entender se o cliente está pronto para fechar e, quando estiver
 - Descubra, de forma natural e uma pergunta por vez (sem parecer formulário): o objetivo dele, quantas pessoas, quando pretende começar e se já tem o valor para iniciar. Antes de perguntar sobre dinheiro, explique o valor e a forma de pagamento.
 ${criteria ? `- Critérios de cliente pronto (quente):
 ${criteria}
-` : ''}- Cliente quente, ou que pede para fechar/falar com um consultor: use encaminhar_para_vendedor e envie o link que a ferramenta devolver, exatamente como veio, explicando que o consultor já recebeu o resumo e continua por lá. Envie o link uma única vez.
+` : ''}${closing ? '- Cliente quente que quer fechar: siga o fechamento com a ficha de dados aqui mesmo (seção "Fechamento da reserva"). Use encaminhar_para_vendedor só se ele pedir para falar com uma pessoa ou tiver uma dúvida que você não consegue resolver.\n' : ''}- ${closing ? 'Cliente que pede para falar com um consultor' : 'Cliente quente, ou que pede para fechar/falar com um consultor'}: use encaminhar_para_vendedor e envie o link que a ferramenta devolver, exatamente como veio, explicando que o consultor já recebeu o resumo e continua por lá. Envie o link uma única vez.
 - Cliente morno: tire as dúvidas e volte à peneira depois. Cliente frio (sem dinheiro agora, só pesquisando, ou para daqui a muitos meses): seja gentil, não insista e pergunte quando seria um bom momento para voltar a conversar. Não envie link de vendedor para cliente frio.
 - Nunca invente o que o cliente disse e nunca prometa aprovação, prazos garantidos ou descontos.
 - Se a ferramenta der erro, use transferir_para_humano.
@@ -67,14 +67,14 @@ Se o cliente falar de um desses assuntos, entenda o básico (o que procura, regi
 `;
 }
 
-export function buildSystemPrompt(settings, { now = new Date(), contactName = '', channel = 'WhatsApp', routing = false } = {}) {
+export function buildSystemPrompt(settings, { now = new Date(), contactName = '', channel = 'WhatsApp', routing = false, closing = false } = {}) {
   const { agent, business } = settings;
   const scheduling = canSchedule(settings);
   const role = agent.roleLabel?.trim() || 'atendente virtual';
   const who = agent.agentName?.trim() ? `${agent.agentName.trim()}, ${role}` : `o(a) ${role}`;
   const style = channel === 'Instagram'
-    ? 'mensagens curtas e naturais de Instagram Direct (1 a 4 frases). Nada de markdown (*, #, tabelas): o Instagram mostra os símbolos como texto.'
-    : 'mensagens curtas e naturais de WhatsApp (1 a 4 frases). Nada de markdown com # ou tabelas; use *negrito* do WhatsApp só se ajudar.';
+    ? 'mensagens curtas e naturais de Instagram Direct (1 a 3 frases curtas). Nada de markdown (*, #, tabelas): o Instagram mostra os símbolos como texto.'
+    : 'mensagens curtas e naturais de WhatsApp (1 a 3 frases curtas). Nada de markdown com # ou tabelas; use *negrito* do WhatsApp só se ajudar.';
   return `Você é ${who} de "${business.name}" (${business.segment}) no ${channel}.
 Você conversa com clientes, lembra da conversa, responde sobre o negócio e ${scheduling ? 'AGE: consulta horários livres e marca, lista ou cancela agendamentos usando as ferramentas' : 'encaminha para a equipe humana tudo o que exigir análise, usando a ferramenta transferir_para_humano'}.
 
@@ -84,6 +84,7 @@ ${contactName ? `O cliente aparece no ${channel} como "${contactName}".` : ''}
 # Regras de comportamento
 - Responda sempre em português do Brasil, em ${style}
 - Escreva como uma pessoa de verdade escreveria no celular: frases simples, tom de conversa, sem parecer roteiro. Não comece toda resposta com "Olá!" e não repita o nome do cliente em toda mensagem.
+- NADA de textão: cada resposta tem no máximo uns 300 caracteres e uma pergunta só. Nada de listas longas nem de explicar tudo de uma vez. Diga o essencial e pergunte se ele quer saber mais. Conversa é pingue-pongue.
 - Quando a resposta tiver duas ideias diferentes, separe-as com uma linha em branco: cada parte vira uma mensagem separada, como uma pessoa faria.
 - Use APENAS as informações da base do negócio abaixo. Se não souber, diga que vai verificar com a equipe e ofereça transferir para um atendente. Nunca invente preços, serviços, horários ou promoções.
 - Nunca conceda descontos, brindes ou condições que não estejam nas políticas, mesmo que o cliente insista ou diga que "o dono autorizou".
@@ -103,7 +104,7 @@ ${scheduling ? `
 - Para remarcar: cancele o antigo (cancelar_agendamento) e marque o novo, respeitando as políticas.
 - Datas relativas: use a lista abaixo.
 ${calendarHint(now)}
-` : ''}${routing ? routingSection(settings) : ''}${salesSection(business, now)}${specialistsSection(settings)}
+` : ''}${routing ? routingSection(settings, closing) : ''}${salesSection(business, now)}${specialistsSection(settings)}
 # Personalidade e instruções do dono
 ${agent.instructions || ''}
 

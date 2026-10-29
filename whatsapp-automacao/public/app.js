@@ -589,6 +589,7 @@ loaders.settings = async () => {
   const [s, blacklist] = await Promise.all([api('/api/settings'), api('/api/blacklist')]);
   settingsCache = s;
   fillPayForm(s.payments || {});
+  fillClosingForm(s.closing || {});
   $('#formBrand').name.value = s.brand?.name || '';
   $('#formBrand').tagline.value = s.brand?.tagline || '';
   const f = $('#formSettings');
@@ -1263,7 +1264,7 @@ function fillPayForm(p) {
   const f = $('#formPay');
   f.enabled.checked = p.enabled !== false;
   f.provider.value = p.provider === 'mercadopago' ? 'mercadopago' : 'pix';
-  for (const k of ['pixKey', 'receiverName', 'receiverCity', 'notifyPhone']) f[k].value = p[k] || '';
+  for (const k of ['pixKey', 'receiverName', 'receiverCity', 'notifyPhone', 'bankInfo']) f[k].value = p[k] || '';
   f.resBase.value = p.reservation?.base ?? '';
   f.resPerAdult.value = p.reservation?.perAdult ?? '';
   f.resDescription.value = p.reservation?.description || '';
@@ -1275,6 +1276,26 @@ function fillPayForm(p) {
   f.mpEmail.value = p.mercadopago?.payerEmail || '';
   $('#mpBox').hidden = f.provider.value !== 'mercadopago';
 }
+// ---------- Fechamento (ficha de dados e termo da reserva) ----------
+let defaultTerm = '';
+async function fillClosingForm(c = {}) {
+  const f = $('#formClosing');
+  if (!defaultTerm) defaultTerm = (await api('/api/closing/template').catch(() => ({}))).text || '';
+  f.enabled.checked = c.enabled !== false;
+  f.termAfter.value = c.termAfter === 'payment' ? 'payment' : 'pix';
+  f.termTemplate.value = c.termTemplate?.trim() || defaultTerm;
+}
+$('#btnTermDefault').addEventListener('click', () => { $('#formClosing').termTemplate.value = defaultTerm; });
+$('#formClosing').addEventListener('submit', withBusy($('#formClosing'), async (e) => {
+  const f = e.target;
+  const text = f.termTemplate.value.trim();
+  const s = await api('/api/settings', {
+    method: 'PUT',
+    body: { closing: { enabled: f.enabled.checked, termAfter: f.termAfter.value, termTemplate: text === defaultTerm.trim() ? '' : text } },
+  });
+  fillClosingForm(s.closing);
+  toast('Fechamento salvo');
+}));
 $('#formPay').provider.addEventListener('change', (e) => { $('#mpBox').hidden = e.target.value !== 'mercadopago'; });
 $('#formPay').addEventListener('submit', withBusy($('#formPay'), async (e) => {
   const f = e.target;
@@ -1288,6 +1309,7 @@ $('#formPay').addEventListener('submit', withBusy($('#formPay'), async (e) => {
       receiverName: f.receiverName.value.trim(),
       receiverCity: f.receiverCity.value.trim(),
       notifyPhone: f.notifyPhone.value.trim(),
+      bankInfo: f.bankInfo.value.trim(),
       reservation: { base: Number(f.resBase.value || 0), perAdult: Number(f.resPerAdult.value || 0), description: f.resDescription.value.trim() },
       company: { name: f.coName.value.trim(), document: f.coDocument.value.trim(), address: f.coAddress.value.trim(), phone: phone.trim(), email: email.trim() },
       mercadopago: { accessToken: f.mpToken.value.trim(), payerEmail: f.mpEmail.value.trim() },
