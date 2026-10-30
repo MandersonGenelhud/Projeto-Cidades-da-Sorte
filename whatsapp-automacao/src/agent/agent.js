@@ -1,5 +1,6 @@
 // Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age.
 import { fixGreeting } from './greeting.js';
+import { parseJsonObject } from '../crm-ai.js';
 import { buildSystemPrompt, canSchedule } from './prompt.js';
 import { TOOL_DEFINITIONS, runTool } from './tools.js';
 import { humanizeConfig, noticeDelayMs, readingTimeMs, splitIntoBubbles, typingTimeMs } from '../humanize.js';
@@ -150,6 +151,11 @@ Não prometa desconto nem condição especial.`;
     if (this.sendQuote) system += '\n\n# Orçamento\nQuando o cliente pedir orçamento, perguntar quanto fica para a família ou para mais de um pacote, use gerar_orcamento com os pacotes, quantas pessoas em cada um e os adultos. O sistema manda o PDF oficial (número ORC) e o resumo com a entrada e as parcelas; você só comenta em uma frase e conduz para garantir a reserva. Não refaça as contas.';
     if (this.sendPlan) system += '\n\n# Passo a passo do pagamento\nQuando o cliente perguntar como funciona o pagamento, quanto paga em cada etapa, ou logo depois de fechar, use enviar_etapas_pagamento com o pacote e o número de pessoas. O sistema manda o fluxograma com os valores e as datas de cada parcela (contando da data de hoje; sábado e domingo passam para segunda); você só comenta em uma frase e pergunta se ficou alguma dúvida. Não refaça as contas por conta própria.';
     if (pix && !closing) system += `\n\n# Pagamento da reserva por Pix\nQuando o cliente decidir fechar, peça o nome completo e o CPF de quem vai pagar e use gerar_pix com o número de adultos. O sistema envia o QR Code e o código copia e cola em mensagens separadas, logo antes da sua resposta: diga o valor, que o código está na mensagem anterior para copiar e colar no app do banco, e que o recibo em nome da empresa chega aqui assim que o pagamento for confirmado. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que o pagamento foi confirmado por conta própria.`;
+    if (conv.continuity) {
+      system += `\n\n# Continuidade desta conversa (leia antes de responder)
+As mensagens anteriores do lado da empresa foram escritas pelo Marcos ou pela equipe, pessoalmente. Continue de onde a conversa parou: não recomece a apresentação, não repita perguntas já respondidas e não contradiga o que já foi combinado.
+Onde parou e próximo passo: ${conv.continuity}`;
+    }
     if (delayed) {
       system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece com a saudação de agora e agradeça por aguardar, por exemplo: "Oi, bom dia! Agradeço por aguardar. Nossa demanda está muito alta e responder um a um ficou um pouco complicado." Nunca peça desculpas. Depois siga a conversa normalmente, respondendo o que ele perguntou.';
     }
@@ -169,7 +175,8 @@ Não prometa desconto nem condição especial.`;
       if (t.function.name === 'cliente_informou_pagamento') return pix || closing;
       return canSchedule(settings) || t.function.name === 'transferir_para_humano';
     });
-    const history = conv.messages.slice(-Math.max(2, Number(cfg.memoryMessages || 20)));
+    // Quem ficou esperando: lê pelo menos 30 mensagens (as 20 anteriores + as que ele mandou).
+    const history = conv.messages.slice(-Math.max(2, Number(cfg.memoryMessages || 20), delayed ? 30 : 0));
     const messages = [{ role: 'system', content: system }, ...history.map(({ role, content }) => ({ role, content }))];
     const actions = [];
     const ctx = {
@@ -337,6 +344,36 @@ Não prometa desconto nem condição especial.`;
       Promise.resolve(this.onReplied(conv, { handoff: conv.handoff })).catch(() => {});
     }
     return last;
+  }
+
+  /**
+   * Antes de responder uma conversa antiga: lê as mensagens anteriores e decide se a atendente pode entrar
+   * (cliente esperando) ou se é conversa do Marcos (pessoal, negociação dele em andamento, outro assunto).
+   * Devolve { tipo, responder, motivo, continuidade }.
+   */
+  async triageBacklog(conv, texts = []) {
+    const lines = conv.messages.slice(-20).map((m) => `${m.role === 'user' ? 'CONTATO' : 'MARCOS/EQUIPE'}: ${String(m.content || '').replace(/\s+/g, ' ').slice(0, 400)}`);
+    const waiting = texts.map((t) => `CONTATO (sem resposta): ${String(t).replace(/\s+/g, ' ').slice(0, 400)}`);
+    const business = this.store.settings.business?.name || 'a empresa';
+    const system = `Você analisa conversas antigas do WhatsApp do Marcos Miguel, dono da ${business} (assessoria para brasileiros morarem, investirem e empreenderem no Paraguai). As linhas "MARCOS/EQUIPE" foram escritas por ele ou pela equipe, pessoalmente; "CONTATO" é a outra pessoa.
+Decida se a atendente virtual da empresa pode responder agora, continuando a conversa, sem parecer que caiu de paraquedas.
+responder = false quando:
+- é conversa pessoal (família, amigos, igreja, assuntos particulares do Marcos);
+- o Marcos está negociando ou finalizando pessoalmente algo específico com a pessoa (valores combinados, pagamento, encontro marcado, documentos com ele, "te mando amanhã", intimidade de quem já fala com ele direto);
+- é fornecedor, parceiro, funcionário, cobrança, outro negócio ou assunto que não é cliente da empresa;
+- não dá para entender o contexto e a entrada da atendente seria estranha.
+responder = true quando é cliente (ou interessado nos serviços) esperando resposta, sem negociação pessoal do Marcos em andamento.
+Na dúvida, responder = false.
+Responda só com JSON: {"tipo":"cliente_novo|cliente_em_atendimento|negociacao_do_marcos|pessoal|outro_assunto","responder":true,"motivo":"uma frase","continuidade":"em até 3 frases: em que ponto a conversa parou, o que já foi dito ou combinado e qual o próximo passo natural"}`;
+    const user = `Contato: ${conv.name || conv.phone || 'sem nome'}\n\n${[...lines, ...waiting].join('\n') || '(sem mensagens anteriores)'}`;
+    const reply = await this.llm.chat({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], tools: [] });
+    const v = parseJsonObject(reply?.content) || {};
+    return {
+      tipo: String(v.tipo || 'indefinido'),
+      responder: v.responder === true,
+      motivo: String(v.motivo || '').slice(0, 300),
+      continuidade: String(v.continuidade || '').slice(0, 600),
+    };
   }
 
   /** Conversa de teste pelo painel (passo 7). dryRun não grava agendamentos. */

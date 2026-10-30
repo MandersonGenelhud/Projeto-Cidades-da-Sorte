@@ -24,6 +24,7 @@ export function collectHandoffs({ store, crm, auth, maxDays = 30, includeSent = 
     if (conv.simulation || String(conv.key).startsWith('sim:')) continue;
     if (Date.parse(conv.updatedAt || 0) < since) continue;
     if (conv.digestSentAt && !includeSent) continue;
+    if (conv.triage && conv.triage.responder === false) continue; // conversa pessoal ou do próprio Marcos
     const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username });
     if (lead && !OPEN.has(lead.stage)) continue; // já fechou ou foi perdido
     const promisedMsg = [...(conv.messages || [])].reverse().find((m) => m.role === 'assistant' && FORWARD_RE.test(String(m.content || '')));

@@ -24,8 +24,8 @@ export function extractPending(messages, { now = Date.now(), maxDays = 7 } = {})
     if (!withText.length) continue;
     const last = withText.at(-1);
     if (last.timestamp < limit) continue;
-    // As 10 mensagens de antes (cliente e atendimento), para a IA entender a conversa.
-    const before = list.slice(0, list.length - trailing.length).filter((m) => m.text).slice(-10)
+    // As 20 mensagens de antes (cliente e Marcos/equipe), para a IA entender a conversa.
+    const before = list.slice(0, list.length - trailing.length).filter((m) => m.text).slice(-20)
       .map((m) => ({ role: m.fromMe ? 'assistant' : 'user', content: m.text, at: new Date(m.timestamp).toISOString() }));
     out.push({
       context: before,
@@ -237,11 +237,39 @@ export class PendingInbox {
       while (this.queue.length) {
         await this.#gate();
         if (!this.queue.length) break;
+        // Conversa nova (sem nada antes) também passa pela análise: cria a memória dela aqui.
+        if (this.items[this.queue[0]]) {
+          const it = this.items[this.queue[0]];
+          const c = this.agent.conversation(this.queue[0]);
+          c.phone ||= it.phone;
+          c.name ||= it.name;
+        }
         const jid = this.queue[0];
         const p = this.items[jid];
         const startedAt = Date.now();
         this.sentAt.push(startedAt);
-        if (p && (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected')) {
+        let skip = false;
+        const conv = this.agent.conversation(jid, { create: false });
+        // Antes de entrar: lê as mensagens anteriores e vê se é cliente esperando ou conversa do Marcos.
+        if (p && conv && !conv.handoff && this.agent.triageBacklog && this.store.settings.agent?.triagePending !== false) {
+          try {
+            const v = await this.agent.triageBacklog(conv, p.texts);
+            conv.triage = { ...v, at: new Date().toISOString() };
+            if (v.responder) conv.continuity = v.continuidade;
+            else {
+              skip = true;
+              conv.handoff = true;
+              conv.handoffReason = `Conversa do Marcos (${v.tipo.replace(/_/g, ' ')}): ${v.motivo}`;
+              this.store.addLog({ type: 'system', phone: p.phone || jid, message: `🙋 IA não entrou em ${p.name || p.phone || jid}: ${v.motivo || v.tipo}. Ficou para o Marcos.` });
+            }
+            this.store.save();
+          } catch (err) {
+            this.queue = [];
+            this.store.addLog({ type: 'system', message: `⏸️ A IA não conseguiu analisar as conversas antigas (${err.message}). A fila foi pausada; os clientes continuam na lista.` });
+            break;
+          }
+        }
+        if (!skip && p && (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected')) {
           await this.agent.handleIncoming(
             { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true },
             async (text, { typingMs } = {}) => {
@@ -263,6 +291,7 @@ export class PendingInbox {
             : `⏸️ A IA falhou e a fila foi pausada (${this.agent.lastError?.message || 'erro'}). Os clientes continuam na lista.` });
           break;
         }
+        if (conv) delete conv.continuity; // a análise vale só para a primeira resposta
         this.queue = this.queue.filter((j) => j !== jid);
         if (this.items[jid]) delete this.items[jid];
         this.#changed();
