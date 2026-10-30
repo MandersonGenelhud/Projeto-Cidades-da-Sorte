@@ -770,3 +770,10 @@ dialog.calc-dialog { width: min(640px, 96vw); }
 .ai-banner { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 16px; border-radius: 14px; margin: 0 0 16px; background: color-mix(in srgb, var(--lot-ok) 12%, transparent); font-size: 14px; }
 .ai-banner.warn { background: color-mix(in srgb, var(--lot-warn) 20%, transparent); }
 .sticky-save { position: sticky; bottom: 0; z-index: 4; display: flex; gap: 12px; align-items: center; padding: 12px 0; background: linear-gradient(transparent, var(--bg) 35%); }
+label.inline { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 14px; }
+label.inline select { width: auto; }
+table.clickable tbody tr[data-lead] { cursor: pointer; }
+table.clickable tbody tr[data-lead]:hover { background: var(--hover, rgba(0, 0, 0, 0.03)); }
+.chip.good { background: #e3f6e9; color: #1f7a46; }
+.chip.muted { opacity: 0.7; }
+#handoffFilter { width: auto; min-width: 180px; }

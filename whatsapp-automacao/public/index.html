@@ -238,6 +238,22 @@
         <h2>Equipe</h2>
         <div class="table-wrap"><table id="sellersTable"></table></div>
       </div>
+      <div class="panel">
+        <div class="conv-header">
+          <div>
+            <h2>📋 Acompanhamento dos clientes com os vendedores</h2>
+            <p class="hint">Quem pegou cada cliente, quando, em que pé está, o que está travando, por que não fechou e quando é o retorno. Clique numa linha para ver a conversa e o histórico.</p>
+          </div>
+          <select id="handoffFilter">
+            <option value="">Todos</option>
+            <option value="open">Em aberto</option>
+            <option value="idle">Parados há 2+ dias</option>
+            <option value="ganho">Fechados</option>
+            <option value="perdido">Perdidos</option>
+          </select>
+        </div>
+        <div class="table-wrap"><table id="handoffTable" class="clickable"></table></div>
+      </div>
       <div class="grid2">
         <div class="panel"><h2>Por que não fecharam</h2><div id="chartLost" class="hbars"></div></div>
         <div class="panel"><h2>Por que pediram para esperar</h2><div id="chartWait" class="hbars"></div></div>
@@ -718,7 +734,10 @@
         <div class="conv-header">
           <div>
             <h2>📥 Clientes esperando resposta <span class="badge pending" id="pendingCount">0</span></h2>
-            <p class="hint">Quem mandou mensagem e ainda não teve resposta nos últimos 7 dias (inclui o histórico que o celular envia ao conectar, no número principal e nos WhatsApps dos vendedores). Com a IA ligada, ela responde sozinha, um por vez, com intervalo entre as respostas e começando com um pedido de desculpas pela demora.</p>
+            <p class="hint">Quem mandou mensagem e ainda não teve resposta (inclui o histórico que o celular envia ao conectar, no número principal e nos WhatsApps dos vendedores). Com a IA ligada, ela responde sozinha, um por vez, com intervalo entre as respostas, começando com a saudação do horário e "agradeço por aguardar, nossa demanda está muito alta".</p>
+            <label class="inline">A IA responde sozinha quem esperou até
+              <select id="pendingMaxDays"><option value="7">7 dias</option><option value="15">15 dias</option><option value="30">30 dias</option></select>
+            </label>
           </div>
           <div class="row">
             <button class="btn small primary" id="btnPendingEveryone">🤖 Responder todos agora</button>

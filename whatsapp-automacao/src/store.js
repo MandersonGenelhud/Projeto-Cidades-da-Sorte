@@ -123,6 +123,8 @@ const DEFAULT_DATA = {
       enabled: true,
       termAfter: 'pix', // pix (logo depois do Pix) | payment (depois do pagamento confirmado)
       termTemplate: '', // vazio = modelo padrão
+      sellerIfNoPix: true, // recebeu orçamento/ficha e não pagou a entrada: vai para o vendedor com o PDF
+      sellerAfterHours: 24,
     },
     // Pix no fechamento (reserva) e recibo em nome da empresa.
     payments: {

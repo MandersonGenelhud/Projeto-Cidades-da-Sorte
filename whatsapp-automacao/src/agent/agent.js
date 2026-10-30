@@ -1,4 +1,5 @@
 // Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age.
+import { fixGreeting } from './greeting.js';
 import { buildSystemPrompt, canSchedule } from './prompt.js';
 import { TOOL_DEFINITIONS, runTool } from './tools.js';
 import { humanizeConfig, noticeDelayMs, readingTimeMs, splitIntoBubbles, typingTimeMs } from '../humanize.js';
@@ -142,7 +143,7 @@ Quem conduz até o fim é você: tira as dúvidas, contorna as objeções com os
 1. Tire TODAS as dúvidas. Quando parecer que acabou, pergunte: "Ficou alguma dúvida sobre o processo, os valores ou os documentos?"
 2. Com tudo claro, pergunte com leveza: "Tem mais alguma coisa que ainda impede você de começar com a gente?"
 3. Apareceu algo? Descubra exatamente o que é (dinheiro agora, prazo, confiança, família, documentos…) e contorne com os fatos da base, a história do Marcos e a prova social, sem pressionar. Depois volte ao fechamento (ficha de dados).
-4. Só se, depois disso, ele ainda tiver receio de fechar pela conversa ou insistir em falar com uma pessoa: use passar_fechamento_para_humano (com o interesse real, a situação atual, a dica de técnica de fechamento e a sugestão para finalizar) e diga exatamente: "Estou enviando seu contato tudo certinho para um atendente dentro do escritório para continuar seu atendimento. Qualquer coisa, fale aqui comigo." Você continua disponível: se ele escrever de novo, responda normalmente.
+4. Só se, depois disso, ele ainda tiver receio de fechar pela conversa, insistir em falar com uma pessoa, ou não conseguir pagar a entrada no Pix agora (mande o orçamento antes, com gerar_orcamento, se ainda não mandou): use passar_fechamento_para_humano (com o interesse real, a situação atual, a dica de técnica de fechamento e a sugestão para finalizar) e diga exatamente: "Estou enviando seu contato tudo certinho para um atendente dentro do escritório para continuar seu atendimento. Qualquer coisa, fale aqui comigo." Você continua disponível: se ele escrever de novo, responda normalmente.
 Não prometa desconto nem condição especial.`;
     }
     if (this.notifyOwner) system += '\n\n# Assuntos do Marcos\nQuem quer trabalhar na Migra (contratação, vaga, currículo), propostas de parceria de negócio, fornecedores, imprensa ou investidores: entenda o básico em 1 ou 2 perguntas e use avisar_marcos. Diga que passou direto para o Marcos e que ele mesmo retorna. Não venda pacote para essas pessoas.';
@@ -150,7 +151,7 @@ Não prometa desconto nem condição especial.`;
     if (this.sendPlan) system += '\n\n# Passo a passo do pagamento\nQuando o cliente perguntar como funciona o pagamento, quanto paga em cada etapa, ou logo depois de fechar, use enviar_etapas_pagamento com o pacote e o número de pessoas. O sistema manda o fluxograma com os valores e as datas de cada parcela (contando da data de hoje; sábado e domingo passam para segunda); você só comenta em uma frase e pergunta se ficou alguma dúvida. Não refaça as contas por conta própria.';
     if (pix && !closing) system += `\n\n# Pagamento da reserva por Pix\nQuando o cliente decidir fechar, peça o nome completo e o CPF de quem vai pagar e use gerar_pix com o número de adultos. O sistema envia o QR Code e o código copia e cola em mensagens separadas, logo antes da sua resposta: diga o valor, que o código está na mensagem anterior para copiar e colar no app do banco, e que o recibo em nome da empresa chega aqui assim que o pagamento for confirmado. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que o pagamento foi confirmado por conta própria.`;
     if (delayed) {
-      system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece pedindo desculpas pela demora, de forma breve e natural, e então responda.';
+      system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece com a saudação de agora e agradeça por aguardar, por exemplo: "Oi, bom dia! Agradeço por aguardar. Nossa demanda está muito alta e responder um a um ficou um pouco complicado." Nunca peça desculpas. Depois siga a conversa normalmente, respondendo o que ele perguntou.';
     }
     // Sem agenda, o agente só pode transferir para a equipe.
     const tools = TOOL_DEFINITIONS.filter((t) => {
@@ -217,7 +218,8 @@ Não prometa desconto nem condição especial.`;
       const reply = await this.llm.chat({ messages, tools });
       if (!reply.tool_calls.length) {
         if (!reply.content.trim()) throw new Error('A IA devolveu uma resposta vazia');
-        return { text: reply.content.trim(), actions };
+        // A saudação segue o horário de agora, nunca o da conversa de ontem.
+        return { text: fixGreeting(reply.content.trim(), this.now()), actions };
       }
       messages.push({ role: 'assistant', content: reply.content || null, tool_calls: reply.tool_calls, ...(reply._anthropic ? { _anthropic: reply._anthropic } : {}) });
       for (const call of reply.tool_calls) {

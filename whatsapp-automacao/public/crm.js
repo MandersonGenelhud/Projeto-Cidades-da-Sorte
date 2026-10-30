@@ -145,7 +145,33 @@ loaders.sales = async () => {
       <td>${r.conversion === null ? '—' : `${r.conversion}%`}</td><td>${money(r.wonValue)}</td>
       <td>${r.overdue ? `<span class="status-warn">⚠️ ${r.overdue}</span>` : '0'}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum prospecto ainda.</td></tr>'}</tbody>`;
   renderInsights(insights);
+  crmState.handoffs = await api(`/api/crm/handoffs?${q}`).catch(() => []);
+  renderHandoffs();
 };
+
+function renderHandoffs() {
+  const f = $('#handoffFilter').value;
+  const open = (r) => !['ganho', 'perdido'].includes(r.stage);
+  const rows = (crmState.handoffs || []).filter((r) => !f || (f === 'open' ? open(r) : f === 'idle' ? open(r) && r.idleDays >= 2 : r.stage === f));
+  const when = (iso) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—');
+  $('#handoffTable').innerHTML = `
+    <thead><tr><th>Cliente</th><th>Vendedor</th><th>Recebeu</th><th>Orçamento</th><th>Situação</th><th>O que trava / por que não fechou</th><th>Retorno</th><th>Vendedor mexeu</th></tr></thead>
+    <tbody>${rows.map((r) => `<tr data-lead="${esc(r.id)}">
+      <td><b>${esc(r.name || r.code)}</b><div class="hint">${esc(r.code)}${r.interest ? ` · ${esc(r.interest)}` : ''}</div></td>
+      <td>${esc(r.ownerName)}</td>
+      <td>${when(r.at)}<div class="hint">${esc(r.how)}</div></td>
+      <td>${r.quote ? `${esc(r.quote.number)}<div class="hint">${money(r.quote.total)}</div>` : '—'}</td>
+      <td><span class="chip small ${r.stage === 'ganho' ? 'good' : r.stage === 'perdido' ? 'muted' : ''}">${esc(r.stageLabel)}</span>${r.closedAt ? `<div class="hint">fechou ${when(r.closedAt)} · ${money(r.value)}</div>` : ''}</td>
+      <td>${esc(r.lostReason || r.difficulty || '—')}</td>
+      <td>${r.followUpAt ? `${when(`${r.followUpAt}T12:00:00`)}${r.followUpReason ? `<div class="hint">${esc(r.followUpReason)}</div>` : ''}` : '—'}</td>
+      <td>${r.idleDays === null ? '—' : r.idleDays >= 2 ? `<span class="status-warn">⚠️ há ${r.idleDays} dias</span>` : r.lastSellerAt ? 'em dia' : '<span class="status-warn">ainda não mexeu</span>'}</td>
+    </tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum cliente com vendedor neste período.</td></tr>'}</tbody>`;
+}
+$('#handoffFilter').addEventListener('change', renderHandoffs);
+$('#handoffTable').addEventListener('click', (e) => {
+  const id = e.target.closest('tr[data-lead]')?.dataset.lead;
+  if (id) openLead(id);
+});
 
 function renderInsights(ins) {
   if (!ins?.text) return;

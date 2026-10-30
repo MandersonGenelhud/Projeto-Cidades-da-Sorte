@@ -1077,6 +1077,7 @@ const ago = (ms) => {
 };
 async function loadPending() {
   const r = await api('/api/pending');
+  if (r.maxDays && document.activeElement !== $('#pendingMaxDays')) $('#pendingMaxDays').value = String(r.maxDays);
   $('#pendingCount').textContent = r.count;
   const checked = new Set($$('.pendingCheck:checked').map((c) => c.value));
   $('#pendingList').innerHTML = r.items.map((p) => `
@@ -1091,6 +1092,15 @@ async function loadPending() {
     : '';
   $('#btnPendingCancel').hidden = !r.running;
 }
+$('#pendingMaxDays').addEventListener('change', async (e) => {
+  try {
+    await api('/api/settings', { method: 'PUT', body: { agent: { pendingMaxDays: Number(e.target.value) } } });
+    toast(`A IA vai responder sozinha quem esperou até ${e.target.value} dias`);
+    loadPending();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 const markedPending = () => $$('.pendingCheck:checked').map((c) => c.value);
 $('#btnPendingAll').addEventListener('click', () => {
   const boxes = $$('.pendingCheck');

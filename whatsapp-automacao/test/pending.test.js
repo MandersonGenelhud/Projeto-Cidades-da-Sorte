@@ -48,7 +48,7 @@ function setup({ audience = 'all', testNumbers = [] } = {}) {
 
 const waitFor = async (fn) => { const end = Date.now() + 3000; while (!fn()) { if (Date.now() > end) throw new Error('timeout'); await new Promise((r) => setTimeout(r, 10)); } };
 
-test('responder pendentes: agente pede desculpas pela demora e a lista esvazia', async () => {
+test('responder pendentes: agente agradece por aguardar (sem pedir desculpas) e a lista esvazia', async () => {
   const { wa, inbox, prompts } = setup();
   inbox.ingestHistory([msg('595981111111@s.whatsapp.net', false, 'Quanto custa?', 120), msg('595982222222@s.whatsapp.net', false, 'oi', 60)].map((m) => ({ ...m, timestamp: Date.now() - 60000 })));
   assert.equal(inbox.list().length, 2);
@@ -56,7 +56,7 @@ test('responder pendentes: agente pede desculpas pela demora e a lista esvazia',
   assert.equal(r.queued, 2);
   await waitFor(() => !inbox.running && wa.sent.length === 2);
   assert.equal(inbox.list().length, 0);
-  assert.ok(prompts.every((p) => /pedindo desculpas pela demora/.test(p)));
+  assert.ok(prompts.every((p) => /agradeça por aguardar/.test(p) && /Nunca peça desculpas/.test(p)));
 });
 
 test('responder pendentes respeita o modo de teste', () => {

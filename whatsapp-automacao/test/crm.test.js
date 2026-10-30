@@ -247,3 +247,25 @@ test('dados de exemplo entram e saem com um clique', async () => {
   assert.ok(crm.leads.some((l) => l.id === real.id));
   assert.ok(!store.data.users.some((u) => u.login.startsWith('exemplo.')));
 });
+
+test('acompanhamento do Marcos: quem pegou o cliente, o que trava, retorno e vendedor parado', async () => {
+  const { Auth } = await import('../src/auth.js');
+  const { Crm } = await import('../src/crm.js');
+  const { tempStore } = await import('./helpers.js');
+  const store = tempStore();
+  const auth = new Auth({ store, dataDir: store.dataDir });
+  const admin = auth.create({ name: 'Marcos', login: 'marcos', password: 'segredo123', role: 'admin' });
+  const ana = auth.create({ name: 'Ana Souza', login: 'ana', password: 'segredo123', role: 'seller', whatsapp: '5545999990001' });
+  const crm = new Crm({ store, auth });
+  const lead = crm.create(admin, { name: 'Carla', phone: '5511988887777', interest: 'Pacote Ouro' });
+  crm.update(admin, lead.id, { ownerId: ana.id });
+  const l = crm.byId(lead.id);
+  l.handoff = { toId: ana.id, at: new Date().toISOString(), reason: 'Recebeu o orçamento e não pagou a entrada', auto: true };
+  const rows = crm.handoffs();
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].ownerName, 'Ana Souza');
+  assert.equal(rows[0].how, 'Pix não pago');
+  assert.match(rows[0].difficulty, /não pagou a entrada/);
+  assert.equal(rows[0].lastSellerAt, null, 'a vendedora ainda não mexeu');
+  assert.equal(crm.handoffs({ ownerId: 'outro' }).length, 0);
+});

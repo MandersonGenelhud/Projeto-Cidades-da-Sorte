@@ -487,6 +487,33 @@ export class Crm {
   }
 
   // ---------- Números para o painel do dono ----------
+  /** Acompanhamento: quem pegou cada cliente, em que pé está, o que trava e quando é o retorno. */
+  handoffs({ from, to, ownerId } = {}) {
+    const inRange = (iso) => Boolean(iso) && (!from || iso.slice(0, 10) >= from) && (!to || iso.slice(0, 10) <= to);
+    const now = Date.now();
+    return this.leads
+      .filter((l) => l.ownerId && (!ownerId || l.ownerId === ownerId))
+      .map((l) => {
+        const at = l.handoff?.toId === l.ownerId ? l.handoff.at : l.assignedAt || l.createdAt;
+        const mine = (l.timeline || []).filter((t) => t.byId === l.ownerId);
+        const lastSeller = mine.at(-1)?.at || null;
+        const quote = (this.store.data.quotes || []).filter((q) => q.leadId === l.id).at(-1);
+        return {
+          id: l.id, code: l.code, name: l.name || '', phone: l.phone || '', ownerId: l.ownerId, ownerName: this.ownerName(l.ownerId),
+          at, how: l.handoff?.toId === l.ownerId ? (l.handoff.auto ? 'Pix não pago' : 'IA passou (receio)') : 'Rodízio / painel',
+          stage: l.stage, stageLabel: stageLabel(l.stage), interest: l.interest || '', value: l.closedValue || l.value || 0,
+          quote: quote ? { number: quote.number, total: quote.plan.total } : null,
+          difficulty: l.stage === 'perdido' ? '' : l.handoff?.reason || l.closingBrief?.objecao || l.qualification?.objections || '',
+          lostReason: l.stage === 'perdido' ? l.lostReason || '' : '',
+          followUpAt: OPEN.has(l.stage) ? l.followUpAt || null : null, followUpReason: l.followUpReason || '',
+          closedAt: l.stage === 'ganho' ? l.closedAt || null : null,
+          lastSellerAt: lastSeller, idleDays: OPEN.has(l.stage) ? Math.floor((now - Date.parse(lastSeller || at)) / 86_400_000) : null,
+        };
+      })
+      .filter((r) => inRange(r.at) || (OPEN.has(r.stage) && !from) || inRange(r.closedAt))
+      .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  }
+
   stats({ from, to, ownerId } = {}) {
     const inRange = (iso) => (!from || iso.slice(0, 10) >= from) && (!to || iso.slice(0, 10) <= to);
     const all = this.leads.filter((l) => !ownerId || l.ownerId === ownerId);

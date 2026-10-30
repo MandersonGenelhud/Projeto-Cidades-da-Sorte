@@ -70,7 +70,8 @@ export class PendingInbox {
   }
 
   /** Histórico do celular: adiciona quem estava esperando (sem apagar o que já existe). */
-  ingestHistory(messages, { maxDays = Number(this.store.settings.agent.pendingMaxDays || 7), label = 'WhatsApp' } = {}) {
+  // Guarda até 30 dias; quem a IA responde sozinha segue o prazo escolhido no painel (7, 15 ou 30 dias).
+  ingestHistory(messages, { maxDays = Math.max(30, Number(this.store.settings.agent.pendingMaxDays || 7)), label = 'WhatsApp' } = {}) {
     let added = 0;
     for (const p of extractPending(messages, { maxDays })) {
       const current = this.items[p.jid];

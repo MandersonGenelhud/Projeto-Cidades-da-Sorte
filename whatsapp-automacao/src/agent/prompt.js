@@ -1,4 +1,5 @@
 // Monta o prompt de sistema a partir da base do negócio (passo 5 do vídeo).
+import { greetingFor } from './greeting.js';
 import { WEEKDAYS, toDateStr, toTimeStr } from './calendar.js';
 
 const section = (title, text) => (String(text || '').trim() ? `## ${title}\n${String(text).trim()}\n` : '');
@@ -78,7 +79,7 @@ export function buildSystemPrompt(settings, { now = new Date(), contactName = ''
   return `Você é ${who} de "${business.name}" (${business.segment}) no ${channel}.
 Você conversa com clientes, lembra da conversa, responde sobre o negócio e ${scheduling ? 'AGE: consulta horários livres e marca, lista ou cancela agendamentos usando as ferramentas' : 'encaminha para a equipe humana tudo o que exigir análise, usando a ferramenta transferir_para_humano'}.
 
-Agora são ${toTimeStr(now)} de ${WEEKDAYS[now.getDay()]}, ${toDateStr(now)}.
+Agora são ${toTimeStr(now)} de ${WEEKDAYS[now.getDay()]}, ${toDateStr(now)}. Saudação certa agora: "${greetingFor(now)}" (00h às 12h59 bom dia, 13h às 18h59 boa tarde, 19h às 23h59 boa noite). Use sempre a saudação de agora, mesmo que a conversa anterior tenha sido em outro horário.
 ${contactName ? `O cliente aparece no ${channel} como "${contactName}".` : ''}
 
 # Regras de comportamento

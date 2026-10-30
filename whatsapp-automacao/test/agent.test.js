@@ -379,3 +379,25 @@ test('a IA fecha a venda: só passa ao escritório com receio, sem parar de resp
   assert.match(seen[0].system, /Migra School/);
   assert.match(seen[0].system, /alugar no começo ou já comprar um terreno e construir/);
 });
+
+test('saudação pelo horário: 0h–12h59 bom dia, 13h–18h59 boa tarde, 19h–23h59 boa noite', async () => {
+  const { greetingFor, fixGreeting } = await import('../src/agent/greeting.js');
+  const at = (h, m = 0) => new Date(2026, 9, 30, h, m);
+  assert.equal(greetingFor(at(0, 0)), 'bom dia');
+  assert.equal(greetingFor(at(12, 59)), 'bom dia');
+  assert.equal(greetingFor(at(13, 0)), 'boa tarde');
+  assert.equal(greetingFor(at(18, 59)), 'boa tarde');
+  assert.equal(greetingFor(at(19, 0)), 'boa noite');
+  assert.equal(greetingFor(at(23, 59)), 'boa noite');
+  assert.equal(fixGreeting('Oi, Boa noite! Tudo bem?', at(8)), 'Oi, Bom dia! Tudo bem?');
+  assert.equal(fixGreeting('boa tarde, Ana', at(21)), 'boa noite, Ana');
+  // A resposta da IA sai com a saudação de agora, mesmo que ela repita a de ontem à noite.
+  const store = tempStore();
+  store.updateSettings({ agent: { enabled: true, audience: 'all', apiKey: 'x' } });
+  const llm = { configured: true, chat: async () => ({ content: 'Boa noite, Carla! Que bom te ver de novo.', tool_calls: [] }) };
+  const agent = new Agent({ store, llm, now: () => at(9, 15) });
+  const conv = agent.conversation('5511988887777@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Oi, voltei');
+  const r = await agent.think(conv);
+  assert.equal(r.text, 'Bom dia, Carla! Que bom te ver de novo.');
+});

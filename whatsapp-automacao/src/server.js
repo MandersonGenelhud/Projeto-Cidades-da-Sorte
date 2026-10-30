@@ -290,53 +290,105 @@ agent.sendQuote = async (conv, args, { dryRun } = {}) => {
   }
 };
 
-// Quando o cliente sente receio mesmo depois de tudo, um atendente do escritório continua (a IA segue disponível).
-agent.closeHandoff = async (conv, args, { dryRun } = {}) => {
-  const say = 'Estou enviando seu contato tudo certinho para um atendente dentro do escritório para continuar seu atendimento. Qualquer coisa, fale aqui comigo.';
-  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real o resumo vai para o atendente. Diga ao cliente exatamente: "${say}"` };
-  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
-    || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
-  // Quem continua: o dono do WhatsApp da conversa (vendedor) > o responsável pelo cliente > o atendente da vez > o Marcos.
-  const parsed = parseLineKey(conv.key);
+// Passa o cliente para o vendedor com tudo pronto: resumo, prévia da conversa e o PDF do orçamento.
+// Usado quando o cliente tem receio (a IA chama) e quando o Pix da entrada não veio (automático).
+async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', auto = false }) {
+  convKey ||= conv?.key;
+  conv ||= agent.conversation(convKey, { create: false }) || { key: convKey, messages: [] };
+  const parsed = parseLineKey(convKey);
   const lineOwner = parsed ? auth.get(lines.get(parsed.id)?.ownerId) : null;
   const leadOwner = lead?.ownerId ? auth.get(lead.ownerId) : null;
   let closer = lineOwner || leadOwner;
-  if (!closer && lead && store.settings.crm?.routing?.enabled !== false) closer = crm.routeLead(lead, { reason: 'receio do cliente: atendente do escritório continua' }) || null;
-  const brief = {
-    resumo: String(args.resumo || '').trim(), pacote: args.pacote || lead?.interest || '', pessoas: args.pessoas || lead?.people || 1,
-    interesse: args.interesse_real || '', situacao: args.situacao_atual || '', duvidas: args.duvidas_esclarecidas || '', objecao: args.objecao || '',
-    tentativas: args.o_que_ja_foi_dito || '', dica: args.dica_de_fechamento || '', sugestao: args.sugestao || '',
-    moradia: args.moradia || '', temperatura: args.temperatura || '', at: new Date().toISOString(),
-  };
-  const who = lead?.name || conv.name || (conv.phone ? `+${conv.phone}` : 'Cliente');
+  if (!closer && lead && store.settings.crm?.routing?.enabled !== false) closer = crm.routeLead(lead, { reason: reason || 'atendente do escritório continua' }) || null;
+  // Orçamento: o último desta conversa; sem orçamento, monta um com o pacote de interesse.
+  let quote = quotes.list.filter((q) => q.convKey === convKey || (lead && q.leadId === lead.id)).at(-1) || null;
+  if (!quote && lead?.interest && crm.matchPackage(lead.interest)) {
+    try {
+      quote = quotes.create({ items: [{ pacote: lead.interest, quantidade: lead.people || 1 }], adults: lead.people || 1, client: lead.name || conv.name || '', phone: lead.phone || '', consultant: closer?.name?.split(' ')[0], leadId: lead.id, convKey });
+    } catch {
+      quote = null;
+    }
+  }
+  const phone = conv.phone || lead?.phone || '';
+  const who = lead?.name || conv.name || (phone ? `+${phone}` : 'Cliente');
   const preview = chatPreview(conv, 10);
+  const q = lead?.qualification || {};
   const text = [
-    '🤝 *Cliente para você continuar o atendimento*',
-    `👤 ${who}${conv.phone ? ` · +${conv.phone}` : ''}${lead?.code ? ` · ${lead.code}` : ''}`,
-    brief.pacote ? `📦 ${brief.pacote} · ${brief.pessoas} pessoa(s)` : '',
-    brief.temperatura ? `🌡️ ${brief.temperatura}` : '',
-    `\n📝 *Sobre o cliente:* ${brief.resumo}`,
+    auto ? `⏰ *Cliente não pagou a entrada: continue com ele*` : '🤝 *Cliente para você continuar o atendimento*',
+    `👤 ${who}${phone ? ` · +${phone}` : ''}${lead?.code ? ` · ${lead.code}` : ''}`,
+    reason ? `❗ ${reason}` : '',
+    quote ? `🧾 Orçamento ${quote.number}: ${quote.items.map((r) => `${r.name} × ${r.qty}`).join(', ')} · total R$ ${quote.plan.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · entrada R$ ${quote.plan.entry.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (PDF em anexo)` : (brief.pacote || lead?.interest ? `📦 ${brief.pacote || lead.interest} · ${brief.pessoas || lead?.people || 1} pessoa(s)` : ''),
+    brief.temperatura || q.temperature ? `🌡️ ${brief.temperatura || q.temperature}` : '',
+    `\n📝 *Sobre o cliente:* ${brief.resumo || lead?.aiSummary || 'veja a prévia da conversa abaixo'}`,
     brief.interesse ? `🎯 *Interesse real:* ${brief.interesse}` : '',
     brief.situacao ? `📍 *Situação atual:* ${brief.situacao}` : '',
     brief.duvidas ? `✅ *Dúvidas já esclarecidas:* ${brief.duvidas}` : '',
-    brief.objecao ? `🚧 *O receio dele:* ${brief.objecao}` : '',
+    brief.objecao || q.objections ? `🚧 *O que ainda impede:* ${brief.objecao || q.objections}` : '',
     brief.tentativas ? `💬 *O que a IA já disse:* ${brief.tentativas}` : '',
     brief.dica ? `\n🧠 *Técnica de fechamento:* ${brief.dica}` : '',
     brief.sugestao ? `🏁 *Sugestão para finalizar:* ${brief.sugestao}` : '',
     brief.moradia ? `🏠 Moradia: ${brief.moradia} (oportunidade para a Migra Imobiliária)` : '',
     preview ? `\n💬 *Prévia da conversa:*\n${preview}` : '',
-    `\nA IA continua disponível para o cliente. Chame ele${conv.phone ? `: https://wa.me/${conv.phone}` : ' pelo painel (Conversas)'}`,
+    `\nA IA continua disponível para o cliente. Chame ele${phone ? `: https://wa.me/${phone}` : ' pelo painel (Conversas)'}`,
   ].filter(Boolean).join('\n');
   if (lead) {
-    lead.closingBrief = brief;
+    if (Object.keys(brief).length) lead.closingBrief = { ...brief, at: new Date().toISOString() };
+    lead.handoff = { toId: closer?.id || null, toName: closer?.name || '', at: new Date().toISOString(), reason: reason || brief.objecao || '', quote: quote?.number || '', auto };
     if (['novo', 'em_contato'].includes(lead.stage)) crm.update({ name: 'IA', role: 'admin' }, lead.id, { stage: 'proposta' });
-    crm.addNote({ name: 'IA', role: 'admin' }, lead.id, text.replace(/\*/g, ''));
+    crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `${closer ? `➡️ Encaminhado para ${closer.name}` : '➡️ Encaminhado ao escritório'}${reason ? `: ${reason}` : ''}${quote ? ` · ${quote.number}` : ''}`);
+    store.save();
   }
-  if (closer?.whatsapp && wa.status === 'connected') await wa.send(closer.whatsapp, { text, typing: false }).catch(() => {});
-  else await notifyAdmins(text);
+  if (quote) quote.forwardedAt = new Date().toISOString();
+  const send = async (to) => {
+    await wa.send(to, { text, typing: false });
+    if (quote && fs.existsSync(quotes.file(quote))) await wa.send(to, { text: '', media: { path: quotes.file(quote), mimetype: 'application/pdf', fileName: `${quote.number}.pdf` }, typing: false });
+  };
+  if (wa.status === 'connected') {
+    if (closer?.whatsapp) await send(closer.whatsapp).catch(() => {});
+    else for (const u of auth.users.filter((x) => x.role === 'admin' && x.active !== false && x.whatsapp)) await send(u.whatsapp).catch(() => {});
+  }
   notify('crm', { id: lead?.id });
+  return { closer, quote };
+}
+
+// Quando o cliente sente receio (ou não consegue pagar a entrada agora), um atendente do escritório continua.
+agent.closeHandoff = async (conv, args, { dryRun } = {}) => {
+  const say = 'Estou enviando seu contato tudo certinho para um atendente dentro do escritório para continuar seu atendimento. Qualquer coisa, fale aqui comigo.';
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real o resumo e o PDF do orçamento vão para o vendedor. Diga ao cliente exatamente: "${say}"` };
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
+    || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+  const brief = Object.fromEntries(Object.entries({
+    resumo: String(args.resumo || '').trim(), pacote: args.pacote || '', pessoas: args.pessoas || '',
+    interesse: args.interesse_real, situacao: args.situacao_atual, duvidas: args.duvidas_esclarecidas, objecao: args.objecao,
+    tentativas: args.o_que_ja_foi_dito, dica: args.dica_de_fechamento, sugestao: args.sugestao, moradia: args.moradia, temperatura: args.temperatura,
+  }).filter(([, v]) => v));
+  const { closer } = await forwardToSeller({ conv, lead, brief, reason: args.objecao ? `Receio: ${args.objecao}` : '' });
   return { ok: true, quem: closer?.name?.split(' ')[0] || 'o escritório', instrucao: `Diga ao cliente exatamente: "${say}" Depois continue disponível: se ele voltar a escrever, responda normalmente.` };
 };
+
+// Pix da entrada não veio: depois do prazo, o cliente vai para o vendedor com o orçamento.
+function forwardUnpaid(now = Date.now()) {
+  const c = store.settings.closing || {};
+  if (c.sellerIfNoPix === false) return;
+  const hours = Number(c.sellerAfterHours) || 24;
+  const paid = (key, leadId, since) => (store.data.payments || []).some((p) => p.status === 'paid' && (p.convKey === key || (leadId && p.leadId === leadId)) && p.createdAt >= since);
+  const latest = new Map();
+  for (const q of quotes.list) if (q.convKey) latest.set(q.convKey, q);
+  for (const f of store.data.closing || []) if (f.convKey && !latest.has(f.convKey)) latest.set(f.convKey, { convKey: f.convKey, leadId: f.leadId, createdAt: f.createdAt, form: f });
+  for (const item of latest.values()) {
+    if (item.forwardedAt || item.form?.forwardedAt) continue;
+    if (now - Date.parse(item.createdAt) < hours * 3_600_000 || now - Date.parse(item.createdAt) > 30 * 86_400_000) continue;
+    const lead = item.leadId ? crm.byId(item.leadId) : crm.findForConversation({ key: item.convKey });
+    if (!lead || ['ganho', 'perdido'].includes(lead.stage) || lead.handoff?.at > item.createdAt) continue;
+    if (paid(item.convKey, lead.id, item.createdAt) || item.form?.term?.status === 'assinado') continue;
+    if (item.form) item.form.forwardedAt = new Date().toISOString();
+    else item.forwardedAt = new Date().toISOString();
+    store.save();
+    forwardToSeller({ convKey: item.convKey, lead, reason: `Recebeu ${item.form ? 'a ficha' : `o orçamento ${item.number}`} há mais de ${hours}h e não pagou a entrada no Pix`, auto: true })
+      .catch((e) => store.addLog({ type: 'error', message: `Encaminhar ao vendedor: ${e.message}` }));
+  }
+}
+setInterval(() => forwardUnpaid(), 15 * 60_000).unref();
 
 // Contratação, parcerias e assuntos de negócio vão direto para o WhatsApp do Marcos.
 agent.notifyOwner = async (conv, args, { dryRun } = {}) => {
@@ -1200,6 +1252,8 @@ app.put('/api/settings', async (req, res) => {
   const before = JSON.stringify(cloudConfig());
   const igBefore = JSON.stringify(instagramConfig());
   store.updateSettings(stripMaskedSecrets(req.body));
+  // Prazo de quem a IA responde sozinha mudou: já coloca na fila quem entrou no prazo.
+  if (req.body?.agent?.pendingMaxDays) setTimeout(() => pending.autoAnswer(), 1000).unref?.();
   // Credenciais da Meta mudaram: reconecta para validar.
   if (wa.mode === 'cloud' && JSON.stringify(cloudConfig()) !== before) wa.restart();
   if (JSON.stringify(instagramConfig()) !== igBefore) instagram.start();
@@ -1324,7 +1378,7 @@ app.delete('/api/conversations/:key', (req, res) => {
 // Conversas sem resposta
 app.get('/api/pending', (req, res) => {
   const items = pending.list().filter((p) => canSeeConv(req.user, p.jid)).map((p) => ({ ...p, channelLabel: convLabel(p.jid) }));
-  res.json({ ...pending.status(), count: items.length, items });
+  res.json({ ...pending.status(), count: items.length, items, maxDays: Number(store.settings.agent?.pendingMaxDays || 7) });
 });
 
 // Migra Imóveis (administração)
@@ -1624,6 +1678,10 @@ app.delete('/api/leads/:id', (req, res) => {
 
 // CRM: retornos e números
 app.get('/api/crm/agenda', (req, res) => res.json(crm.agenda(req.user)));
+app.get('/api/crm/handoffs', (req, res) => {
+  const ownerId = req.user.role === 'admin' ? req.query.owner || undefined : req.user.id;
+  res.json(crm.handoffs({ from: req.query.from, to: req.query.to, ownerId }));
+});
 app.get('/api/crm/stats', (req, res) => {
   const ownerId = req.user.role === 'admin' ? req.query.owner || undefined : req.user.id;
   res.json(crm.stats({ from: req.query.from, to: req.query.to, ownerId }));

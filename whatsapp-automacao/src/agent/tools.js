@@ -98,7 +98,7 @@ export const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'passar_fechamento_para_humano',
-      description: 'ÚLTIMO recurso. Você mesma fecha a venda: tire as dúvidas, contorne as objeções, mande orçamento e ficha. Use isto SÓ quando, depois de tentar (história do Marcos, prova social, segurança do termo e do recibo), o cliente ainda tiver receio de fechar pela conversa ou insistir em falar com uma pessoa. O atendente do escritório recebe a prévia da conversa e as dicas de fechamento; você continua disponível para o cliente.',
+      description: 'ÚLTIMO recurso. Você mesma fecha a venda: tire as dúvidas, contorne as objeções, mande orçamento e ficha. Use isto SÓ quando: (1) depois de tentar (história do Marcos, prova social, segurança do termo e do recibo), o cliente ainda tiver receio de fechar pela conversa ou insistir em falar com uma pessoa; ou (2) ele recebeu o orçamento mas não consegue pagar a entrada no Pix agora. O vendedor recebe a prévia da conversa, as dicas de fechamento e o PDF do orçamento; você continua disponível para o cliente.',
       parameters: {
         type: 'object',
         properties: {
