@@ -1391,6 +1391,7 @@ const SECRET_PATHS = [
   ['instagram', 'accessToken'],
   ['instagram', 'appSecret'],
   ['payments', 'mercadopago', 'accessToken'],
+  ['updater', 'token'],
 ];
 const MASK = '••••••';
 const mask = (v) => (v ? `${MASK}${String(v).slice(-4)}` : '');
@@ -1697,7 +1698,7 @@ app.post('/api/pending/dismiss', (req, res) => {
 });
 
 // Atualização do programa
-const updater = new Updater({ root: ROOT, dataDir: DATA_DIR });
+const updater = new Updater({ root: ROOT, dataDir: DATA_DIR, token: () => process.env.GITHUB_TOKEN || store.settings.updater?.token || '' });
 app.get('/api/update/check', async (_req, res) => res.json(await updater.check()));
 app.post('/api/update', async (_req, res) => {
   const result = await updater.update();

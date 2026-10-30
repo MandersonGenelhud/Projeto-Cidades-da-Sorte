@@ -1358,6 +1358,15 @@ $('#formAppt').addEventListener('submit', withBusy($('#formAppt'), async (e) => 
 }));
 
 // ---------- Atualização ----------
+$('#btnUpdateToken').addEventListener('click', async () => {
+  const token = $('#updateToken').value.trim();
+  if (!token) return toast('Cole a chave de leitura do GitHub', true);
+  try {
+    await api('/api/settings', { method: 'PUT', body: { updater: { token } } });
+    $('#updateToken').value = '';
+    toast('Chave salva. Clique em "Verificar".');
+  } catch (err) { toast(err.message, true); }
+});
 $('#btnUpdateCheck').addEventListener('click', async () => {
   $('#updateStatus').textContent = 'Verificando…';
   try {

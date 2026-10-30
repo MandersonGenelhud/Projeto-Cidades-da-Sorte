@@ -29,11 +29,13 @@ test('atualiza o código a partir do GitHub sem tocar na pasta data', async () =
   fs.writeFileSync(path.join(root, 'INICIAR-WINDOWS.bat'), 'atalho original');
   fs.writeFileSync(path.join(data, 'db.json'), '{"meus":"dados"}');
 
-  const fetchImpl = async (url) => {
-    if (url.includes('api.github.com')) return { ok: true, json: async () => ({ sha: 'abc123', commit: { message: 'Melhora o ritmo humano\n\ndetalhes', committer: { date: '2026-10-27T12:00:00Z' } } }) };
+  const auth = [];
+  const fetchImpl = async (url, opts = {}) => {
+    auth.push(opts.headers?.Authorization || '');
+    if (url.includes('/commits/')) return { ok: true, json: async () => ({ sha: 'abc123', commit: { message: 'Melhora o ritmo humano\n\ndetalhes', committer: { date: '2026-10-27T12:00:00Z' } } }) };
     return { ok: true, arrayBuffer: async () => fs.readFileSync(tgz) };
   };
-  const up = new Updater({ root, dataDir: data, fetchImpl });
+  const up = new Updater({ root, dataDir: data, fetchImpl, token: () => 'github_pat_leitura' });
   assert.equal((await up.check()).updateAvailable, true);
 
   const r = await up.update();
@@ -43,6 +45,10 @@ test('atualiza o código a partir do GitHub sem tocar na pasta data', async () =
   assert.equal(fs.readFileSync(path.join(root, 'public', 'app.js'), 'utf8'), '// painel novo');
   assert.equal(fs.readFileSync(path.join(root, 'INICIAR-WINDOWS.bat'), 'utf8'), 'atalho original');
   assert.equal(fs.readFileSync(path.join(data, 'db.json'), 'utf8'), '{"meus":"dados"}');
+  assert.ok(auth.every((a) => a === 'Bearer github_pat_leitura'), 'repositório privado: usa a chave de leitura');
+  // Privado sem chave: mensagem clara.
+  const priv = new Updater({ root, dataDir: data, fetchImpl: async () => ({ ok: false, status: 404 }) });
+  await assert.rejects(() => priv.check(), /repositório está privado/);
   assert.equal((await up.check()).updateAvailable, false);
   assert.equal(fs.existsSync(path.join(data, 'update')), false);
 });

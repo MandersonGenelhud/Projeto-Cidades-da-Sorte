@@ -21,7 +21,9 @@ const UPDATED_PATHS = ['src', 'public', 'package.json', 'package-lock.json', 'RE
 export const RESTART_EXIT_CODE = 3; // os atalhos INICIAR reabrem o programa com este código
 
 export class Updater {
-  constructor({ root, dataDir, fetchImpl = globalThis.fetch, source = UPDATE_SOURCE }) {
+  /** token(): chave de leitura do GitHub, necessária quando o repositório é privado. */
+  constructor({ root, dataDir, fetchImpl = globalThis.fetch, source = UPDATE_SOURCE, token = () => '' }) {
+    this.token = token;
     this.root = root;
     this.dir = path.join(dataDir, 'update');
     this.versionFile = path.join(dataDir, 'version.json');
@@ -38,12 +40,20 @@ export class Updater {
     }
   }
 
+  #headers() {
+    const t = String(this.token() || '').trim();
+    return { Accept: 'application/vnd.github+json', 'User-Agent': 'zapauto-updater', ...(t ? { Authorization: `Bearer ${t}` } : {}) };
+  }
+
   /** Consulta o último commit publicado no GitHub. */
   async latestVersion() {
     const { owner, repo, branch } = this.source;
-    const res = await this.fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${encodeURIComponent(branch)}`, {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'zapauto-updater' },
-    });
+    const res = await this.fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${encodeURIComponent(branch)}`, { headers: this.#headers() });
+    if (res.status === 404 || res.status === 401) {
+      throw new Error(this.token()
+        ? 'O GitHub recusou a chave de atualização (vencida ou sem acesso ao repositório). Gere outra e cole em Configurações → Atualizar o agente.'
+        : 'O repositório está privado: cole a chave de leitura do GitHub em Configurações → Atualizar o agente.');
+    }
     if (!res.ok) throw new Error(`Não foi possível consultar o GitHub (HTTP ${res.status})`);
     const data = await res.json();
     return { sha: data.sha, date: data.commit?.committer?.date || null, message: (data.commit?.message || '').split('\n')[0] };
@@ -65,7 +75,8 @@ export class Updater {
       fs.rmSync(this.dir, { recursive: true, force: true });
       fs.mkdirSync(this.dir, { recursive: true });
 
-      const res = await this.fetch(`https://codeload.github.com/${owner}/${repo}/tar.gz/${latest.sha}`);
+      // Pela API (funciona com repositório público ou privado, com a chave de leitura).
+      const res = await this.fetch(`https://api.github.com/repos/${owner}/${repo}/tarball/${latest.sha}`, { headers: this.#headers() });
       if (!res.ok) throw new Error(`Falha ao baixar a atualização (HTTP ${res.status})`);
       const archive = path.join(this.dir, 'latest.tar.gz');
       fs.writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
