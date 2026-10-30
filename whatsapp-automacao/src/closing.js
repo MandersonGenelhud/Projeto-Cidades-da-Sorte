@@ -228,6 +228,8 @@ export class Closing {
   async afterForm(f) {
     const first = f.data.nome.split(' ')[0];
     await this.#say(f, `Recebi seus dados, ${first}! ✅ Já ficam guardados aqui para darmos entrada no seu processo.`);
+    // Orçamento refeito com o nome completo da ficha (quando já existe um pacote combinado).
+    if (this.onFilled) await this.onFilled(f).catch((e) => this.store.addLog({ type: 'error', message: `Orçamento depois da ficha: ${e.message}` }));
     const pay = this.store.settings.payments || {};
     const canPix = this.payments && pay.enabled !== false && Boolean(pay.pixKey || pay.mercadopago?.accessToken) && this.payments.reservationAmount(1) > 0;
     if (canPix) {

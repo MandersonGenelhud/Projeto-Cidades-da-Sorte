@@ -27,7 +27,7 @@ import { Tunnel } from './tunnel.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Affiliates } from './affiliates.js';
-import { LineManager, matchSeller, parseLineKey } from './lines.js';
+import { LineManager, lineKey, matchSeller, parseLineKey } from './lines.js';
 import { Closing, DEFAULT_TERM } from './closing.js';
 import { humanizeConfig, splitIntoBubbles } from './humanize.js';
 import { Visits } from './visits.js';
@@ -236,7 +236,7 @@ agent.sendForm = async (conv, args, { dryRun } = {}) => {
   return {
     ok: true,
     link: closing.formUrl(f),
-    instrucao: 'Mande o link exatamente como veio, numa mensagem curta: peça para preencher os dados pessoais para dar continuidade na reserva e diga que esses dados já serão usados para dar entrada no processo e ficam guardados com segurança. Depois que ele enviar a ficha, o sistema manda sozinho a confirmação, o Pix e o termo da reserva.',
+    instrucao: 'Mande o link exatamente como veio e oriente de forma bem simples: é só tocar no link e preencher cada campo (leva uns 2 minutos, não precisa copiar nem colar nada, o CEP completa o endereço sozinho) e no final tocar em "Enviar meus dados"; se travar em algum campo, ele te chama aqui. Diga que esses dados já servem para dar entrada no processo e ficam guardados com segurança. Depois que ele enviar, o sistema manda sozinho a confirmação, o orçamento com o nome dele, o Pix e o termo da reserva.',
   };
 };
 // Passo a passo do pagamento (fluxograma): pela atendente, pelo painel e depois do termo assinado.
@@ -1002,6 +1002,7 @@ const SELLER_ROUTES = [
   ['POST', /^\/conversations\/[^/]+\/(reply|handoff)$/],
   ['*', /^\/security\/(2fa\/(setup|enable|disable)|logout-all)$/],
   ['*', /^\/quotes(\/|$)/],
+  ['POST', /^\/closing\/link$/],
 ];
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth/') || req.path.startsWith('/public/') || req.path.startsWith('/affiliate/')) return next();
@@ -1925,6 +1926,44 @@ app.get('/orcamento/:id', (req, res) => {
   res.setHeader('Content-Disposition', `inline; filename="${q.number}.pdf"`);
   res.sendFile(quotes.file(q));
 });
+// Ficha de dados pelo vendedor: link para o cliente só tocar e preencher (sem copiar e colar nada).
+const fichaMessage = (name, url) => `Oi${name ? `, ${String(name).split(' ')[0]}` : ''}! Para eu deixar tudo pronto para você, é só tocar no link abaixo e preencher os seus dados. Leva uns 2 minutos e não precisa copiar nem colar nada: cada campo explica o que colocar, e o CEP já completa o endereço sozinho.\n\n${url}\n\nNo final, toque em "Enviar meus dados". Se travar em algum campo, me chama aqui que eu te ajudo. 😊`;
+app.post('/api/closing/link', (req, res) => {
+  const b = req.body || {};
+  const phone = normalizePhone(b.phone);
+  if (!phone) throw httpError(400, 'Informe o WhatsApp do cliente');
+  if (!publicBase()) throw httpError(400, 'O sistema ainda não tem endereço na internet: ligue o acesso pela internet (aba Conexões) ou use a VPS, para o cliente conseguir abrir o link.');
+  // A confirmação e o Pix saem do WhatsApp do próprio vendedor quando ele está conectado; senão, do número principal.
+  const line = req.user.role !== 'admin' ? lines.byOwner(req.user.id) : null;
+  const key = line && wa.isConnected?.(lineKey(line.id, `${phone}@s.whatsapp.net`)) ? lineKey(line.id, `${phone}@s.whatsapp.net`) : phone;
+  let lead = crm.findForConversation({ key, phone }) || crm.ensureFromConversation({ key, phone, name: b.client, channel: 'whatsapp' });
+  if (lead && req.user.role !== 'admin' && !lead.ownerId) crm.assign(req.user, lead.id, req.user.id);
+  if (lead && !crm.canSee(req.user, lead)) throw httpError(403, 'Este cliente é de outro vendedor');
+  if (lead && b.client && !lead.name) lead.name = String(b.client).trim();
+  const f = closing.createForm({ convKey: key, lead, servico: b.servico || '', adultos: b.adults });
+  const url = closing.formUrl(f);
+  if (lead) crm.addNote(req.user, lead.id, '📝 Ficha de dados enviada ao cliente');
+  res.json({ url, text: fichaMessage(b.client, url) });
+});
+// Cliente preencheu a ficha: refaz o último orçamento com o nome completo e manda o PDF.
+closing.onFilled = async (f) => {
+  if (!f.convKey) return;
+  const lead = f.leadId ? crm.byId(f.leadId) : null;
+  const last = quotes.list.filter((q) => (lead && q.leadId === lead.id) || (q.phone && f.data.whatsapp && samePhone(q.phone, normalizePhone(f.data.whatsapp) || ''))).at(-1);
+  const items = last ? last.items.map((r) => ({ pacote: r.name, quantidade: r.qty })) : (lead?.interest && crm.matchPackage(lead.interest) ? [{ pacote: lead.interest, quantidade: Number(f.data.adultos) || 1 }] : null);
+  if (!items) return;
+  const owner = lead?.ownerId ? auth.get(lead.ownerId) : null;
+  const q = quotes.create({
+    items, adults: Number(f.data.adultos) || 1, client: f.data.nome, phone: normalizePhone(f.data.whatsapp) || lead?.phone || '',
+    consultant: owner?.name || last?.consultant || '', leadId: lead?.id || null, convKey: f.convKey,
+    parcels: last?.plan?.custom ? last.plan.parcels.map((x) => ({ pct: x.pct, date: x.date })) : null,
+    createdBy: last?.createdBy || (owner ? { id: owner.id, name: owner.name } : null),
+  });
+  const text = `📄 Aqui está o seu orçamento ${q.number}, já com o seu nome completo.`;
+  await wa.send(f.convKey, String(f.convKey).startsWith('ig:') ? { text: `${text} ${quoteLink(q)}`, typing: false } : { text, media: { path: quotes.file(q), mimetype: 'application/pdf', fileName: `${q.number}.pdf` }, typing: false });
+  const conv = agent.conversation(f.convKey, { create: false });
+  if (conv) agent.remember(conv, 'assistant', `${text} [PDF do orçamento enviado]`);
+};
 // Orçamentos: cada vendedor vê os dele; o administrador vê todos.
 const canSeeQuote = (user, q) => user.role === 'admin' || q.createdBy?.id === user.id;
 const quoteView = (q) => ({

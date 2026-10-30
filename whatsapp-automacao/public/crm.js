@@ -1416,3 +1416,25 @@ $('#btnQuoteCreate').addEventListener('click', async (e) => {
   }
 });
 $('#quoteSearch').addEventListener('input', () => { clearTimeout(quoteState.search); quoteState.search = setTimeout(loadQuoteList, 300); });
+
+// Ficha de dados: link para o cliente só tocar e preencher (o vendedor copia a mensagem ou abre o WhatsApp do cliente).
+$('#btnQuoteFicha').addEventListener('click', async (e) => {
+  const b = quoteBody();
+  if (!b.phone) return toast('Informe o WhatsApp do cliente', true);
+  e.target.disabled = true;
+  try {
+    const r = await api('/api/closing/link', { method: 'POST', body: { client: b.client, phone: b.phone, adults: b.adults, servico: b.items.map((i) => `${i.pacote} × ${i.quantidade}`).join(', ') } });
+    const phone = b.phone.replace(/\D/g, '');
+    $('#quoteResult').innerHTML = `<div class="quote-result"><b>📝 Ficha de dados pronta para o cliente</b>
+      <p class="hint">O cliente toca no link, preenche os campos no celular e toca em "Enviar meus dados". Depois disso, o sistema manda sozinho a confirmação, o orçamento com o nome completo dele, o Pix e o termo da reserva.</p>
+      <div class="row"><a class="btn primary small" href="https://wa.me/${phone}?text=${encodeURIComponent(r.text)}" target="_blank" rel="noopener">Abrir WhatsApp do cliente com a mensagem</a>
+      <button type="button" class="btn small" id="btnFichaCopy">Copiar mensagem</button></div></div>`;
+    $('#btnFichaCopy').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(r.text); toast('Mensagem copiada'); } catch { prompt('Copie a mensagem:', r.text); }
+    });
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    e.target.disabled = false;
+  }
+});

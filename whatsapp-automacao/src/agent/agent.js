@@ -130,7 +130,7 @@ export class Agent {
     if (closing) {
       const status = this.closingStatus ? this.closingStatus(conv) : '';
       system += `\n\n# Fechamento da reserva (siga esta ordem)
-1. Quando perceber que o cliente quer mesmo fechar, diga algo como "Perfeito! Preencha para mim seus dados pessoais para darmos continuidade na sua reserva" e use enviar_ficha_de_dados. Mande o link e explique, em uma frase, que esses dados já serão usados para dar entrada no processo dele e ficam guardados com segurança, só para isso. Não peça CPF, RG ou endereço pelo chat: a ficha faz isso.
+1. Quando perceber que o cliente quer mesmo fechar, diga algo como "Perfeito! Preencha para mim seus dados pessoais para darmos continuidade na sua reserva" e use enviar_ficha_de_dados. Mande o link e oriente de um jeito bem simples: é só tocar e preencher cada campo, sem copiar nem colar nada (o CEP completa o endereço sozinho), e no final tocar em "Enviar meus dados"; se travar em algum campo, ele te chama aqui. Em uma frase, diga que esses dados já servem para dar entrada no processo e ficam guardados com segurança. Não peça CPF, RG ou endereço pelo chat: a ficha faz isso.
 2. Quando ele enviar a ficha, o sistema manda sozinho a confirmação, o Pix da reserva e o termo da reserva para assinar. Você só acompanha: tira dúvidas, pede o comprovante do Pix e lembra de assinar o termo.
 3. Fale em "dar entrada no processo", "garantir a sua reserva" e "termo da reserva". Evite a palavra "contrato": ela assusta e não é preciso.
 4. Se ele disser que já preencheu e a ficha não aparecer como preenchida abaixo, peça com gentileza para conferir se clicou em "Enviar meus dados" no final.${status ? `\n\n## Situação deste cliente agora\n${status}` : ''}`;
