@@ -1360,6 +1360,41 @@
       </div>
     </form>
   </dialog>
+  <dialog id="contractDialog" class="calc-dialog">
+    <div class="conv-header"><h2>📝 Contrato <span id="contractNumber" class="muted"></span></h2><button type="button" class="icon-btn" id="contractClose" aria-label="Fechar">✕</button></div>
+    <p class="hint" id="contractInfo"></p>
+    <details class="contract-paste">
+      <summary>✨ Colar a mensagem do cliente (copiada do WhatsApp) e preencher sozinho</summary>
+      <textarea id="contractPaste" rows="5" placeholder="Ex.: Nome: Luiza Fernandes da Silva&#10;CPF 529.982.247-25 · RG 12.345.678-9 SSP/PR&#10;Rua das Flores, 120, Centro, Marechal C. Rondon/PR, CEP 85960-000…"></textarea>
+      <button type="button" class="btn small" id="btnContractExtract">Preencher os campos com esta mensagem</button>
+    </details>
+    <form id="contractForm" class="form contract-form" autocomplete="off">
+      <label class="wide">Nome completo <input name="nome" required /></label>
+      <label>Nacionalidade <input name="nacionalidade" placeholder="Brasileira" /></label>
+      <label>Estado civil <input name="estadoCivil" placeholder="Casado(a)" /></label>
+      <label>Profissão <input name="profissao" /></label>
+      <label>CPF <input name="cpf" inputmode="numeric" /></label>
+      <label>RG <input name="rg" /></label>
+      <label>Órgão emissor <input name="rgOrgao" placeholder="SSP/PR" /></label>
+      <label>CEP <input name="cep" inputmode="numeric" /></label>
+      <label class="wide">Rua / avenida <input name="rua" /></label>
+      <label>Número <input name="numero" /></label>
+      <label>Complemento <input name="complemento" /></label>
+      <label>Bairro <input name="bairro" /></label>
+      <label>Cidade <input name="cidade" /></label>
+      <label>UF <input name="uf" maxlength="2" /></label>
+      <label>WhatsApp <input name="whatsapp" /></label>
+      <label>E-mail <input name="email" type="email" /></label>
+      <label class="wide">Quem mais vai no processo (nome e parentesco) <input name="acompanhantes" placeholder="Ex.: Carlos Silva (esposo)" /></label>
+    </form>
+    <p class="hint">Campos em branco saem no contrato como linha para completar à mão. A contratada sai como MIGRA ASESORIA PARAGUAY E.A.S., "Responsável: Migra Assessoria", sem assinatura.</p>
+    <div class="row">
+      <button type="button" class="btn primary" id="btnContractMake">📄 Gerar contrato em PDF</button>
+      <a class="btn" id="contractOpen" target="_blank" rel="noopener" hidden>Abrir contrato</a>
+      <a class="btn" id="contractDownload" hidden>Baixar</a>
+    </div>
+  </dialog>
+
   <dialog id="calcDialog" class="calc-dialog">
     <div class="conv-header"><h2>🧮 Calculadora de orçamento</h2><button type="button" class="icon-btn" id="calcClose" aria-label="Fechar">✕</button></div>
     <p class="hint" id="calcFor"></p>

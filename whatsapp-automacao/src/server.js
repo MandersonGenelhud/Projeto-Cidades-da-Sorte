@@ -33,6 +33,8 @@ import { humanizeConfig, splitIntoBubbles } from './humanize.js';
 import { Visits } from './visits.js';
 import { PayPlans, planMessage } from './payplan.js';
 import { Quotes } from './quotes.js';
+import { contractPdf } from './contract.js';
+import { parseJsonObject } from './crm-ai.js';
 import { collectHandoffs, digestMessage } from './digest.js';
 import { Sectors } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
@@ -1003,6 +1005,7 @@ const SELLER_ROUTES = [
   ['*', /^\/security\/(2fa\/(setup|enable|disable)|logout-all)$/],
   ['*', /^\/quotes(\/|$)/],
   ['POST', /^\/closing\/link$/],
+  ['POST', /^\/contract\/extract$/],
 ];
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth/') || req.path.startsWith('/public/') || req.path.startsWith('/affiliate/')) return next();
@@ -1969,7 +1972,7 @@ const canSeeQuote = (user, q) => user.role === 'admin' || q.createdBy?.id === us
 const quoteView = (q) => ({
   id: q.id, number: q.number, client: q.client, phone: q.phone, consultant: q.consultant, total: q.plan.total, entry: q.plan.entry,
   items: q.items.map((r) => ({ name: r.name, qty: r.qty })), issued: q.issued, validUntil: q.validUntil, leadId: q.leadId,
-  createdBy: q.createdBy?.name || '', createdAt: q.createdAt, custom: Boolean(q.plan.custom),
+  createdBy: q.createdBy?.name || '', createdAt: q.createdAt, custom: Boolean(q.plan.custom), hasContract: Boolean(q.contract),
   expired: q.validUntil < new Date().toISOString().slice(0, 10),
   url: `/api/quotes/${q.id}/pdf`, publicUrl: quoteLink(q),
 });
@@ -2005,6 +2008,64 @@ app.post('/api/quotes', async (req, res) => {
   if (lead) crm.addNote(req.user, lead.id, `🧾 Orçamento ${q.number} · R$ ${q.plan.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
   securityEvent('orcamento_criado', req.user, req, `${q.number} · ${q.client} · R$ ${q.plan.total}`);
   res.json({ ...quoteView(q), sent: Boolean(key), text: quotes.message(q, quoteLink(q)) });
+});
+// ---------- Contrato (preenchido com os dados do cliente e do orçamento) ----------
+const CONTRACT_FIELDS = ['nome', 'nacionalidade', 'estadoCivil', 'profissao', 'rg', 'rgOrgao', 'cpf', 'cep', 'rua', 'numero', 'complemento', 'bairro', 'cidade', 'uf', 'whatsapp', 'email', 'acompanhantes'];
+const contractDir = path.join(DATA_DIR, 'contratos');
+const contractFile = (q) => path.join(contractDir, `CT-${q.number.replace(/^ORC-/, '')}.pdf`);
+const pickClient = (src = {}) => Object.fromEntries(CONTRACT_FIELDS.map((k) => [k, String(src[k] ?? '').replace(/\s+/g, ' ').trim().slice(0, k === 'acompanhantes' ? 600 : 200)]));
+// Dados já conhecidos: os do último contrato deste orçamento > a ficha que o cliente preencheu > o orçamento.
+app.get('/api/quotes/:id/contract-data', (req, res) => {
+  const q = quotes.list.find((x) => x.id === req.params.id);
+  if (!q || !canSeeQuote(req.user, q)) throw httpError(404, 'Orçamento não encontrado');
+  const lead = q.leadId ? crm.byId(q.leadId) : (q.phone ? crm.findForConversation({ phone: q.phone }) : null);
+  const form = (lead && closing.forLead(lead.id)) || (q.convKey && closing.forConversation(q.convKey)) || null;
+  const fromForm = form?.status === 'preenchida' ? form.data : {};
+  res.json({ client: pickClient({ nome: q.client, whatsapp: q.phone ? `+${q.phone}` : '', ...fromForm, ...(q.contract?.client || {}) }), fromForm: Boolean(form?.status === 'preenchida'), hasContract: Boolean(q.contract) });
+});
+// O vendedor cola a mensagem do cliente (copiada do WhatsApp): a IA separa nome, CPF, RG, endereço…
+app.post('/api/contract/extract', async (req, res) => {
+  const text = String(req.body?.text || '').slice(0, 6000);
+  if (!text.trim()) throw httpError(400, 'Cole a mensagem do cliente com os dados');
+  const found = {};
+  const cpf = text.match(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/);
+  if (cpf) found.cpf = cpf[0];
+  const cep = text.match(/\b\d{5}-?\d{3}\b/);
+  if (cep) found.cep = cep[0];
+  const email = text.match(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  if (email) found.email = email[0];
+  if (llm.configured) {
+    try {
+      const reply = await llm.chat({ tools: [], messages: [
+        { role: 'system', content: `Extraia os dados pessoais do texto que o cliente mandou no WhatsApp, para preencher um contrato. Responda só com JSON com estas chaves (string vazia quando não houver): ${CONTRACT_FIELDS.join(', ')}. "acompanhantes" = outras pessoas que vão no processo (nome e parentesco). Copie exatamente o que está escrito; não invente nada.` },
+        { role: 'user', content: text },
+      ] });
+      Object.assign(found, Object.fromEntries(Object.entries(parseJsonObject(reply?.content) || {}).filter(([k, v]) => CONTRACT_FIELDS.includes(k) && String(v || '').trim())));
+    } catch (e) {
+      store.addLog({ type: 'error', message: `Extrair dados do contrato: ${e.message}` });
+    }
+  }
+  res.json({ client: pickClient(found), ai: llm.configured });
+});
+app.post('/api/quotes/:id/contract', (req, res) => {
+  const q = quotes.list.find((x) => x.id === req.params.id);
+  if (!q || !canSeeQuote(req.user, q)) throw httpError(404, 'Orçamento não encontrado');
+  const client = pickClient(req.body?.client || {});
+  if (!client.nome) throw httpError(400, 'Informe o nome completo do contratante');
+  fs.mkdirSync(contractDir, { recursive: true });
+  fs.writeFileSync(contractFile(q), contractPdf({ client, quote: q, cfg: store.settings.contract || {} }));
+  q.contract = { client, at: new Date().toISOString(), by: req.user.name };
+  store.save();
+  if (q.leadId) crm.addNote(req.user, q.leadId, `📝 Contrato CT-${q.number.replace(/^ORC-/, '')} gerado`);
+  securityEvent('contrato_gerado', req.user, req, `CT-${q.number.replace(/^ORC-/, '')} · ${client.nome}`);
+  res.json({ ok: true, url: `/api/quotes/${q.id}/contract.pdf` });
+});
+app.get('/api/quotes/:id/contract.pdf', (req, res) => {
+  const q = quotes.list.find((x) => x.id === req.params.id);
+  if (!q || !canSeeQuote(req.user, q) || !fs.existsSync(contractFile(q))) throw httpError(404, 'Contrato não encontrado: gere o contrato primeiro');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="Contrato CT-${q.number.replace(/^ORC-/, '')}.pdf"`);
+  res.sendFile(contractFile(q));
 });
 app.get('/api/quotes/:id/pdf', (req, res) => {
   const q = quotes.list.find((x) => x.id === req.params.id);

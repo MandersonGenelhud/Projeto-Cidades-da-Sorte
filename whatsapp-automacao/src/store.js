@@ -126,6 +126,8 @@ const DEFAULT_DATA = {
       instagram: '@migraparaguayassessoria',
       address: '', // vazio = Santa Rita - Alto Paraná, Paraguai
     },
+    // Contrato: dados da contratada (a assinatura sai como "Responsável: Migra Assessoria", sem nome de pessoa).
+    contract: { company: 'MIGRA ASESORIA PARAGUAY E.A.S.', ruc: '80171751-5', address: 'Calle Las Palmeras, Edifício Domício 2, Santa Rita, Alto Paraná, República do Paraguai', signer: 'Migra Assessoria', city: 'Santa Rita, Alto Paraná', foro: 'Santa Rita, República do Paraguai', payee: 'Migra Paraguai Assessoria LTDA, CNPJ 58.521.546/0001-78' },
     // Segurança: duas etapas obrigatórias para todos (administrador e vendedores).
     security: { require2fa: true, backupDir: '' },
     // Fechamento: ficha de dados → Pix → termo da reserva assinado no celular.

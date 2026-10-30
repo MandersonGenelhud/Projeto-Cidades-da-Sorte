@@ -962,3 +962,9 @@ tbody tr:hover td { background: color-mix(in srgb, var(--blue) 6%, transparent);
   .quote-parcel input[type="date"] { min-width: 0; }
 }
 .quote-sum .row-x b { white-space: nowrap; }
+.contract-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; }
+.contract-form .wide { grid-column: span 2; }
+.contract-paste { margin: 6px 0 14px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 12px; }
+.contract-paste summary { cursor: pointer; font-weight: 600; }
+.contract-paste textarea { width: 100%; margin: 10px 0 8px; }
+@media (max-width: 640px) { .contract-form { grid-template-columns: 1fr 1fr; } .contract-form .wide { grid-column: 1 / -1; } }

@@ -196,6 +196,11 @@ export class PdfCanvas {
     return textWidth(str, size, bold) + spacing * String(str).length;
   }
 
+  /** Quebra o texto em linhas que cabem na largura (para quem controla a paginação). */
+  lines(str, maxW, { size = 10, bold = false } = {}) {
+    return wrapLine(str, size, bold, maxW);
+  }
+
   measure(str, maxW, { size = 10, bold = false, lead = 1.35 } = {}) {
     return wrapLine(str, size, bold, maxW).length * size * lead;
   }

@@ -1352,7 +1352,8 @@ async function loadQuoteList() {
       <td class="small">${q.items.map((i) => `${esc(i.name)} × ${i.qty}`).join('<br>')}${q.custom ? '<div class="hint">parcelas personalizadas</div>' : ''}</td>
       <td><b>${brl2(q.total)}</b></td>${admin ? `<td>${esc(q.createdBy || q.consultant)}</td>` : ''}
       <td>${q.expired ? '<span class="badge canceled">Vencido</span>' : `<span class="badge done">até ${esc(q.validUntil.split('-').reverse().join('/'))}</span>`}</td>
-      <td><a class="btn small" href="${q.url}" target="_blank" rel="noopener">Abrir PDF</a> <a class="btn small" href="${q.url}?download=1">Baixar</a></td></tr>`).join('') || `<tr><td colspan="${admin ? 8 : 7}" class="muted">Nenhum orçamento ainda.</td></tr>`}</tbody>`;
+      <td><a class="btn small" href="${q.url}" target="_blank" rel="noopener">Abrir PDF</a> <a class="btn small" href="${q.url}?download=1">Baixar</a>
+        <button type="button" class="btn small${q.hasContract ? '' : ' primary'}" data-contract="${esc(q.id)}" data-number="${esc(q.number)}">📝 ${q.hasContract ? 'Contrato ✓' : 'Contrato'}</button></td></tr>`).join('') || `<tr><td colspan="${admin ? 8 : 7}" class="muted">Nenhum orçamento ainda.</td></tr>`}</tbody>`;
 }
 loaders.quotes = async () => {
   if (!quoteState.packages.length) {
@@ -1403,8 +1404,10 @@ $('#btnQuoteCreate').addEventListener('click', async (e) => {
     $('#quoteResult').innerHTML = `<div class="quote-result"><b>✅ Orçamento ${esc(q.number)} gerado · ${brl2(q.total)}</b>
       <div class="row"><a class="btn primary small" href="${q.url}" target="_blank" rel="noopener">Abrir PDF</a><a class="btn small" href="${q.url}?download=1">Baixar PDF</a>
       <button type="button" class="btn small" id="btnQuoteCopy">Copiar mensagem</button>
-      ${phone ? `<a class="btn small" href="https://wa.me/${phone}?text=${encodeURIComponent(q.text)}" target="_blank" rel="noopener">Abrir WhatsApp do cliente</a>` : ''}</div>
+      ${phone ? `<a class="btn small" href="https://wa.me/${phone}?text=${encodeURIComponent(q.text)}" target="_blank" rel="noopener">Abrir WhatsApp do cliente</a>` : ''}
+      <button type="button" class="btn small" id="btnQuoteContract">📝 Gerar contrato</button></div>
       <p class="hint">Baixe o PDF e envie junto com a mensagem pelo seu WhatsApp.</p></div>`;
+    $('#btnQuoteContract').addEventListener('click', () => openContract(q.id, q.number));
     $('#btnQuoteCopy').addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(q.text); toast('Mensagem copiada'); } catch { prompt('Copie a mensagem:', q.text); }
     });
@@ -1437,4 +1440,69 @@ $('#btnQuoteFicha').addEventListener('click', async (e) => {
   } finally {
     e.target.disabled = false;
   }
+});
+
+// ---------- CONTRATO (a partir do orçamento) ----------
+const contractState = { id: null };
+async function openContract(id, number) {
+  contractState.id = id;
+  const f = $('#contractForm');
+  f.reset();
+  $('#contractPaste').value = '';
+  $('#contractNumber').textContent = number ? `· ${number}` : '';
+  $('#contractOpen').hidden = $('#contractDownload').hidden = true;
+  try {
+    const r = await api(`/api/quotes/${id}/contract-data`);
+    for (const [k, v] of Object.entries(r.client)) if (f[k]) f[k].value = v;
+    $('#contractInfo').textContent = r.fromForm
+      ? '✅ Dados puxados da ficha que o cliente preencheu. Confira e gere o contrato.'
+      : 'Preencha os dados do cliente, ou cole a mensagem dele (copiada do WhatsApp) que o sistema preenche sozinho.';
+    if (r.hasContract) {
+      $('#contractOpen').href = `/api/quotes/${id}/contract.pdf`;
+      $('#contractDownload').href = `/api/quotes/${id}/contract.pdf?download=1`;
+      $('#contractOpen').hidden = $('#contractDownload').hidden = false;
+    }
+  } catch (err) {
+    toast(err.message, true);
+  }
+  if (!$('#contractDialog').open) $('#contractDialog').showModal();
+}
+$('#contractClose').addEventListener('click', () => $('#contractDialog').close());
+$('#btnContractExtract').addEventListener('click', async (e) => {
+  const text = $('#contractPaste').value.trim();
+  if (!text) return toast('Cole a mensagem do cliente', true);
+  e.target.disabled = true;
+  try {
+    const r = await api('/api/contract/extract', { method: 'POST', body: { text } });
+    const f = $('#contractForm');
+    let n = 0;
+    for (const [k, v] of Object.entries(r.client)) if (v && f[k]) { f[k].value = v; n++; }
+    toast(n ? `${n} campo(s) preenchido(s). Confira antes de gerar.` : 'Não encontrei dados nessa mensagem', !n);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    e.target.disabled = false;
+  }
+});
+$('#btnContractMake').addEventListener('click', async (e) => {
+  const client = Object.fromEntries(new FormData($('#contractForm')));
+  if (!client.nome.trim()) return toast('Informe o nome completo do contratante', true);
+  e.target.disabled = true;
+  try {
+    const r = await api(`/api/quotes/${contractState.id}/contract`, { method: 'POST', body: { client } });
+    $('#contractOpen').href = r.url;
+    $('#contractDownload').href = `${r.url}?download=1`;
+    $('#contractOpen').hidden = $('#contractDownload').hidden = false;
+    window.open(r.url, '_blank');
+    toast('Contrato gerado');
+    loadQuoteList();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    e.target.disabled = false;
+  }
+});
+$('#quoteTable').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-contract]');
+  if (b) openContract(b.dataset.contract, b.dataset.number);
 });
