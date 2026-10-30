@@ -33,6 +33,7 @@ import { humanizeConfig, splitIntoBubbles } from './humanize.js';
 import { Visits } from './visits.js';
 import { PayPlans, planMessage } from './payplan.js';
 import { Quotes } from './quotes.js';
+import { Sales } from './sales.js';
 import { contractPdf } from './contract.js';
 import { parseJsonObject } from './crm-ai.js';
 import { collectHandoffs, digestMessage } from './digest.js';
@@ -224,7 +225,10 @@ const closing = new Closing({
     if (conv) agent.remember(conv, 'assistant', text);
   },
 });
-payments.onPaid = (p) => closing.onPaid(p);
+payments.onPaid = (p) => {
+  closing.onPaid(p);
+  setTimeout(() => salesOnPaid(p), 0); // a venda nasce com a entrada já recebida
+};
 agent.sendForm = async (conv, args, { dryRun } = {}) => {
   if (dryRun || String(conv.key).startsWith('sim:')) {
     return { ok: true, simulacao: true, link: 'https://exemplo.com/ficha/teste', instrucao: 'Simulação: mande o link ao cliente pedindo para preencher os dados pessoais para dar continuidade na reserva.' };
@@ -279,6 +283,20 @@ closing.onSigned = async (f) => {
 
 // Orçamentos ORC-AAAA-NNNNN: PDF com a marca + mensagem no formato da equipe.
 const quotes = new Quotes({ store, dataDir: DATA_DIR, secret: auth.secret, matchPackage: (n) => crm.matchPackage(n) });
+// Contratos e vendas (parcelas e comissões).
+const sales = new Sales({ store, auth, notify });
+// Pix da entrada confirmado: a venda é lançada sozinha a partir do último orçamento do cliente.
+const salesOnPaid = (p) => {
+  try {
+    const q = quotes.list.filter((x) => (p.leadId && x.leadId === p.leadId) || (p.convKey && x.convKey === p.convKey)).at(-1);
+    if (!q) return;
+    const lead = p.leadId ? crm.byId(p.leadId) : null;
+    const sale = sales.fromQuote(q, { by: 'Sistema', sellerId: lead?.ownerId || q.createdBy?.id || null, entryPaid: true });
+    if (sale.parcels[0].status !== 'pago') sales.setParcel({ role: 'admin', name: 'Sistema (Pix confirmado)' }, sale.id, 0, { paid: true, method: 'Pix' });
+  } catch (e) {
+    store.addLog({ type: 'error', message: `Lançar venda após o Pix: ${e.message}` });
+  }
+};
 const quoteLink = (q) => (publicBase() ? `${publicBase()}/orcamento/${q.id}?t=${quotes.token(q.id)}` : '');
 async function sendQuote({ convKey, lead, items, adults, client, consultant, start }) {
   const q = quotes.create({ items, adults, ...(/^\d{4}-\d{2}-\d{2}$/.test(String(start || '')) ? { start } : {}), client: client || lead?.name || '', phone: lead?.phone || '', consultant, leadId: lead?.id || null, convKey });
@@ -1007,6 +1025,9 @@ const SELLER_ROUTES = [
   ['*', /^\/quotes(\/|$)/],
   ['POST', /^\/closing\/link$/],
   ['POST', /^\/contract\/extract$/],
+  ['GET', /^\/sales(\/summary)?$/],
+  ['GET', /^\/sales\/[a-f0-9]+$/],
+  ['POST', /^\/quotes\/[a-f0-9]+\/sale$/],
 ];
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth/') || req.path.startsWith('/public/') || req.path.startsWith('/affiliate/')) return next();
@@ -1973,7 +1994,7 @@ const canSeeQuote = (user, q) => user.role === 'admin' || q.createdBy?.id === us
 const quoteView = (q) => ({
   id: q.id, number: q.number, client: q.client, phone: q.phone, consultant: q.consultant, total: q.plan.total, entry: q.plan.entry,
   items: q.items.map((r) => ({ name: r.name, qty: r.qty })), issued: q.issued, validUntil: q.validUntil, leadId: q.leadId,
-  createdBy: q.createdBy?.name || '', createdAt: q.createdAt, custom: Boolean(q.plan.custom), hasContract: Boolean(q.contract),
+  createdBy: q.createdBy?.name || '', createdAt: q.createdAt, custom: Boolean(q.plan.custom), hasContract: Boolean(q.contract), sale: sales.list.find((s) => s.quoteId === q.id && s.status !== 'cancelada')?.number || '',
   expired: q.validUntil < new Date().toISOString().slice(0, 10),
   url: `/api/quotes/${q.id}/pdf`, publicUrl: quoteLink(q),
 });
@@ -2146,6 +2167,60 @@ app.post('/api/conversations/:key/closing/:action', async (req, res) => {
     throw httpError(400, 'Ação desconhecida');
   }
   notify('crm', { id: lead?.id });
+  res.json({ ok: true });
+});
+// ---------- Contratos e vendas ----------
+const lotStock = () => realty.listDevelopments().map((d) => ({ name: d.name, ...d.summary }));
+app.get('/api/sales', (req, res) => res.json(sales.listFor(req.user, req.query)));
+app.get('/api/sales/summary', (req, res) => {
+  const out = sales.summary(req.user, req.query);
+  if (req.user.role === 'admin') out.stock = lotStock();
+  out.defaultPct = Number(store.settings.sales?.commissionPct) || 0;
+  res.json(out);
+});
+app.get('/api/sales/:id', (req, res) => {
+  const s = sales.get(req.params.id);
+  if (!s || !sales.canSee(req.user, s)) throw httpError(404, 'Venda não encontrada');
+  res.json(sales.view(s));
+});
+app.post('/api/quotes/:id/sale', (req, res) => {
+  const q = quotes.list.find((x) => x.id === req.params.id);
+  if (!q || !canSeeQuote(req.user, q)) throw httpError(404, 'Orçamento não encontrado');
+  const sale = sales.fromQuote(q, { by: req.user, sellerId: req.user.role === 'admin' ? (req.body?.sellerId || q.createdBy?.id || null) : req.user.id });
+  if (q.leadId && crm.byId(q.leadId)?.stage !== 'ganho') {
+    try { crm.setStage(req.user, crm.byId(q.leadId), { stage: 'ganho', closedValue: q.plan.total }); store.save(); } catch { /* o funil segue como está */ }
+  }
+  securityEvent('venda_lancada', req.user, req, `${sale.number} · ${sale.client.nome} · R$ ${sale.total}`);
+  res.json(sales.view(sale));
+});
+app.post('/api/sales/:id/parcel/:index', (req, res) => {
+  const s = sales.setParcel(req.user, req.params.id, req.params.index, req.body || {});
+  securityEvent('venda_parcela', req.user, req, `${s.number} · ${s.parcels[Number(req.params.index)]?.label} · ${req.body?.paid === false ? 'desfeito' : 'recebido'}`);
+  res.json(sales.view(s));
+});
+app.post('/api/sales/:id/commission', (req, res) => {
+  const s = sales.setCommission(req.user, req.params.id, req.body || {});
+  securityEvent('comissao_alterada', req.user, req, `${s.number} · ${s.commission.pct}% · R$ ${s.commission.value} · ${s.commission.status}`);
+  res.json(sales.view(s));
+});
+app.post('/api/sales/:id/seller', (req, res) => res.json(sales.view(sales.setSeller(req.user, req.params.id, req.body?.sellerId))));
+app.post('/api/sales/:id/cancel', (req, res) => {
+  const s = sales.cancel(req.user, req.params.id, req.body?.reason);
+  securityEvent('venda_cancelada', req.user, req, `${s.number} · ${req.body?.reason || ''}`);
+  res.json(sales.view(s));
+});
+app.put('/api/sales/settings', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  const pct = Number(req.body?.commissionPct);
+  if (!(pct >= 0 && pct <= 100)) throw httpError(400, 'Percentual inválido');
+  store.updateSettings({ sales: { commissionPct: pct } });
+  // Percentual próprio de cada vendedor (vazio = usa o padrão).
+  for (const [id, v] of Object.entries(req.body?.perSeller || {})) {
+    const u = auth.get(id);
+    if (u) u.commissionPct = v === '' || v === null ? null : Number(v);
+  }
+  store.save();
+  securityEvent('comissao_padrao', req.user, req, `${pct}%`);
   res.json({ ok: true });
 });
 app.get('/api/quotes/:id/pdf', (req, res) => {

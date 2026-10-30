@@ -25,6 +25,7 @@
       <div class="nav-group">Vendas</div>
       <button data-tab="sales" data-admin>📈 Vendas</button>
       <button data-tab="quotes">🧾 Orçamentos</button>
+      <button data-tab="contracts">💼 Contratos e vendas</button>
       <button data-tab="leads">🗂️ Prospectos</button>
       <button data-tab="followups">📅 Retornos <span class="nav-badge" id="dueBadge" hidden>0</span></button>
       <button data-tab="payments">💳 Pagamentos</button>
@@ -311,6 +312,45 @@
           <input id="quoteSearch" type="search" placeholder="Buscar por número, cliente ou telefone" />
         </div>
         <div class="table-wrap"><table id="quoteTable"></table></div>
+      </div>
+    </section>
+
+    <section id="tab-contracts" class="tab">
+      <div class="page-head">
+        <h1>Contratos e vendas</h1>
+        <div class="row">
+          <select id="salesFilterPeriod">
+            <option value="month">Este mês</option>
+            <option value="lastmonth">Mês passado</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="year">Este ano</option>
+            <option value="all">Tudo</option>
+          </select>
+          <select id="salesFilterSeller" data-admin><option value="">Toda a equipe</option></select>
+        </div>
+      </div>
+      <div class="cards" id="salesBoardKpis"></div>
+      <div class="grid2" data-admin>
+        <div class="panel"><h2>👥 Por vendedor</h2><div class="table-wrap"><table id="salesBySeller"></table></div></div>
+        <div class="panel"><h2>🏡 Estoque de lotes</h2><div id="salesStock" class="hint"></div></div>
+      </div>
+      <details class="panel" data-admin id="commissionSettings">
+        <summary><b>⚙️ Comissões: percentual padrão e por vendedor</b></summary>
+        <p class="hint">O percentual vale para as vendas novas. Em cada venda, você pode mudar o percentual ou colocar um valor fixo, e marcar quando a comissão foi paga. Tudo fica registrado.</p>
+        <div class="row"><label>Percentual padrão (%) <input id="commissionDefault" type="number" min="0" max="100" step="0.1" /></label></div>
+        <div id="commissionPerSeller" class="commission-grid"></div>
+        <button type="button" class="btn primary" id="btnCommissionSave">Salvar comissões</button>
+      </details>
+      <div class="panel">
+        <div class="conv-header">
+          <h2>📑 Vendas</h2>
+          <div class="row">
+            <select id="salesFilterStatus"><option value="">Todas</option><option value="ativa">Em andamento</option><option value="atrasada">Com parcela atrasada</option><option value="concluida">Quitadas</option><option value="cancelada">Canceladas</option></select>
+            <input id="salesSearch" type="search" placeholder="Buscar cliente, número ou vendedor" />
+          </div>
+        </div>
+        <p class="hint">A venda é lançada sozinha quando o Pix da entrada é confirmado. Também dá para lançar pelo orçamento (aba Orçamentos → 💼 Lançar venda).</p>
+        <div class="table-wrap"><table id="salesTable" class="clickable"></table></div>
       </div>
     </section>
 
@@ -1360,6 +1400,11 @@
       </div>
     </form>
   </dialog>
+  <dialog id="saleDialog" class="calc-dialog">
+    <div class="conv-header"><h2 id="saleTitle">Venda</h2><button type="button" class="icon-btn" id="saleClose" aria-label="Fechar">✕</button></div>
+    <div id="saleBody"></div>
+  </dialog>
+
   <dialog id="contractDialog" class="calc-dialog">
     <div class="conv-header"><h2>📝 Contrato <span id="contractNumber" class="muted"></span></h2><button type="button" class="icon-btn" id="contractClose" aria-label="Fechar">✕</button></div>
     <p class="hint" id="contractInfo"></p>

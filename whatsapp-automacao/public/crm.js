@@ -72,8 +72,8 @@ function vbars(el, rows) {
 }
 
 // ---------- VENDAS (painel do dono) ----------
-function periodRange() {
-  const v = $('#salesPeriod').value;
+function periodRange(sel = '#salesPeriod') {
+  const v = $(sel).value;
   const d = new Date();
   const ym = (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`;
   if (v === 'month') return { from: `${ym(d.getFullYear(), d.getMonth())}-01`, to: todayStr() };
@@ -1353,6 +1353,7 @@ async function loadQuoteList() {
       <td><b>${brl2(q.total)}</b></td>${admin ? `<td>${esc(q.createdBy || q.consultant)}</td>` : ''}
       <td>${q.expired ? '<span class="badge canceled">Vencido</span>' : `<span class="badge done">até ${esc(q.validUntil.split('-').reverse().join('/'))}</span>`}</td>
       <td><a class="btn small" href="${q.url}" target="_blank" rel="noopener">Abrir PDF</a> <a class="btn small" href="${q.url}?download=1">Baixar</a>
+        ${q.sale ? `<span class="badge done">💼 ${esc(q.sale)}</span>` : `<button type="button" class="btn small" data-sale="${esc(q.id)}" data-number="${esc(q.number)}">💼 Lançar venda</button>`}
         <button type="button" class="btn small${q.hasContract ? '' : ' primary'}" data-contract="${esc(q.id)}" data-number="${esc(q.number)}">📝 ${q.hasContract ? 'Contrato ✓' : 'Contrato'}</button></td></tr>`).join('') || `<tr><td colspan="${admin ? 8 : 7}" class="muted">Nenhum orçamento ainda.</td></tr>`}</tbody>`;
 }
 loaders.quotes = async () => {
@@ -1505,4 +1506,120 @@ $('#btnContractMake').addEventListener('click', async (e) => {
 $('#quoteTable').addEventListener('click', (e) => {
   const b = e.target.closest('[data-contract]');
   if (b) openContract(b.dataset.contract, b.dataset.number);
+});
+
+
+// ---------- CONTRATOS E VENDAS ----------
+const SALE_STATUS = { ativa: '<span class="badge running">Em andamento</span>', concluida: '<span class="badge done">Quitada</span>', cancelada: '<span class="badge canceled">Cancelada</span>' };
+const dBr = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—');
+const saleState = { users: [] };
+loaders.contracts = async () => {
+  const admin = window.currentUser?.role === 'admin';
+  const q = new URLSearchParams({ ...periodRange('#salesFilterPeriod'), ...($('#salesFilterSeller').value ? { seller: $('#salesFilterSeller').value } : {}) });
+  const [sum, list] = await Promise.all([
+    api(`/api/sales/summary?${q}`),
+    api(`/api/sales?${new URLSearchParams({ ...(admin && $('#salesFilterSeller').value ? { seller: $('#salesFilterSeller').value } : {}), ...($('#salesFilterStatus').value ? { status: $('#salesFilterStatus').value } : {}), q: $('#salesSearch').value || '' })}`),
+  ]);
+  const kpi = (label, value, sub = '', tone = '') => `<div class="card kpi ${tone}"><div class="kpi-head"><span class="label">${label}</span></div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
+  $('#salesBoardKpis').innerHTML = [
+    kpi(admin ? 'Vendido no período' : 'Minhas vendas no período', brl2(sum.sold), `${sum.sales} contrato(s)`),
+    kpi('Recebido no período', brl2(sum.received), 'entradas e parcelas confirmadas'),
+    kpi('A receber', brl2(sum.toReceive), 'parcelas em aberto'),
+    kpi('Em atraso', brl2(sum.overdue), sum.overdue ? '<span class="status-warn">⚠️ cobrar os clientes</span>' : 'nenhuma parcela atrasada', sum.overdue ? 'warn' : ''),
+    kpi(admin ? 'Comissões a pagar' : 'Minhas comissões a receber', brl2(sum.commissionOpen), `${brl2(sum.commissionPaid)} pagas no período`),
+  ].join('');
+  if (admin) {
+    if (!saleState.users.length) {
+      saleState.users = (await api('/api/users')).filter((u) => u.active && !u.pending);
+      $('#salesFilterSeller').innerHTML = `<option value="">Toda a equipe</option>${saleState.users.map((u) => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}`;
+    }
+    $('#salesBySeller').innerHTML = `<thead><tr><th>Vendedor</th><th>Vendas</th><th>Vendido</th><th>Recebido</th><th>Comissão a pagar</th><th>Paga</th></tr></thead><tbody>${sum.bySeller.map((b) => `<tr><td><b>${esc(b.name)}</b></td><td>${b.sales}</td><td>${brl2(b.sold)}</td><td>${brl2(b.received)}</td><td>${brl2(b.commissionOpen)}</td><td>${brl2(b.commissionPaid)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Nenhuma venda ainda.</td></tr>'}</tbody>`;
+    $('#salesStock').innerHTML = (sum.stock || []).map((d) => `<div class="stock-row"><b>${esc(d.name)}</b><span>🟢 ${d.disponivel || 0} disponíveis</span><span>🟡 ${d.reservado || 0} reservados</span><span>🔴 ${d.vendido || 0} vendidos</span><span>⚪ ${d.loteadora || 0} da loteadora</span><span class="muted">${d.total} lotes</span></div>`).join('') || 'Nenhum loteamento cadastrado (aba Loteamentos).';
+    $('#commissionDefault').value = sum.defaultPct;
+    $('#commissionPerSeller').innerHTML = saleState.users.map((u) => `<label>${esc(u.name)} <input type="number" min="0" max="100" step="0.1" data-pct="${esc(u.id)}" value="${u.commissionPct ?? ''}" placeholder="padrão" /></label>`).join('');
+  }
+  $('#salesTable').innerHTML = `<thead><tr><th>Venda</th><th>Data</th><th>Cliente</th>${admin ? '<th>Vendedor</th>' : ''}<th>Total</th><th>Recebido</th><th>Próxima parcela</th><th>Comissão</th><th>Situação</th></tr></thead>
+    <tbody>${list.map((v) => `<tr data-sale-id="${esc(v.id)}"><td><b>${esc(v.number)}</b><div class="hint">${esc(v.quoteNumber)}</div></td><td>${dBr(v.createdAt)}</td>
+      <td>${esc(v.client.nome)}<div class="hint">${v.client.phone ? esc(fmtPhone(v.client.phone)) : ''}</div></td>${admin ? `<td>${esc(v.sellerName || '—')}</td>` : ''}
+      <td><b>${brl2(v.total)}</b></td>
+      <td>${brl2(v.received)}<div class="progress"><span style="width:${Math.min(100, Math.round((v.received / (v.total || 1)) * 100))}%"></span></div></td>
+      <td>${v.next ? `${esc(v.next.label)} · ${brl2(v.next.value)}<div class="hint">${v.next.late ? '<span class="status-warn">⚠️ atrasada desde ' : ''}${dBr(v.next.due)}${v.next.late ? '</span>' : ''}</div>` : '—'}</td>
+      <td>${brl2(v.commission.value)}<div class="hint">${v.commission.pct}% · ${v.commission.status === 'paga' ? `paga ${dBr(v.commission.paidAt)}` : 'a pagar'}</div></td>
+      <td>${SALE_STATUS[v.status] || ''}${v.overdue ? ' <span class="badge paused">atraso</span>' : ''}</td></tr>`).join('') || `<tr><td colspan="${admin ? 9 : 8}" class="muted">Nenhuma venda ainda.</td></tr>`}</tbody>`;
+};
+for (const sel of ['#salesFilterPeriod', '#salesFilterSeller', '#salesFilterStatus']) $(sel).addEventListener('change', () => loaders.contracts());
+$('#salesSearch').addEventListener('input', () => { clearTimeout(saleState.t); saleState.t = setTimeout(() => loaders.contracts(), 300); });
+$('#btnCommissionSave').addEventListener('click', async () => {
+  const perSeller = Object.fromEntries($$('#commissionPerSeller [data-pct]').map((i) => [i.dataset.pct, i.value === '' ? '' : Number(i.value)]));
+  try {
+    await api('/api/sales/settings', { method: 'PUT', body: { commissionPct: Number($('#commissionDefault').value) || 0, perSeller } });
+    saleState.users = [];
+    toast('Comissões salvas (valem para as vendas novas)');
+    loaders.contracts();
+  } catch (err) { toast(err.message, true); }
+});
+async function openSale(id) {
+  const admin = window.currentUser?.role === 'admin';
+  const v = await api(`/api/sales/${id}`);
+  $('#saleTitle').textContent = `💼 ${v.number} · ${v.client.nome}`;
+  $('#saleBody').innerHTML = `
+    <div class="sale-head"><div><span class="hint">Total</span><b>${brl2(v.total)}</b></div><div><span class="hint">Recebido</span><b>${brl2(v.received)}</b></div><div><span class="hint">Em aberto</span><b>${brl2(v.open)}</b></div><div><span class="hint">Vendedor</span><b>${esc(v.sellerName || '—')}</b></div></div>
+    <p class="hint">${v.items.map((i) => `${esc(i.name)} × ${i.qty}`).join(' · ')} · orçamento ${esc(v.quoteNumber)} · ${SALE_STATUS[v.status] || ''}</p>
+    <h3>Parcelas</h3>
+    <div class="table-wrap"><table><thead><tr><th>Parcela</th><th>Valor</th><th>Vencimento</th><th>Situação</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>
+      ${v.parcels.map((p, i) => `<tr><td><b>${esc(p.label)}</b></td><td>${brl2(p.value)}</td><td>${dBr(p.due)}</td>
+        <td>${p.status === 'pago' ? `<span class="badge done">Recebida ${dBr(p.paidAt)}</span><div class="hint">${esc(p.method || '')}${p.confirmedBy ? ` · por ${esc(p.confirmedBy)}` : ''}</div>` : p.due && p.due < new Date().toISOString().slice(0, 10) ? '<span class="badge paused">Atrasada</span>' : '<span class="badge pending">A receber</span>'}</td>
+        ${admin && v.status !== 'cancelada' ? `<td>${p.status === 'pago' ? `<button class="btn small" data-parcel="${i}" data-paid="0">Desfazer</button>` : `<button class="btn small primary" data-parcel="${i}" data-paid="1">✅ Confirmar recebimento</button>`}</td>` : admin ? '<td></td>' : ''}</tr>`).join('')}
+    </tbody></table></div>
+    <h3>Comissão</h3>
+    <div class="sale-commission">
+      <span><b>${brl2(v.commission.value)}</b> (${v.commission.pct}%) · ${v.commission.status === 'paga' ? `<span class="badge done">paga em ${dBr(v.commission.paidAt)}</span>` : '<span class="badge paused">a pagar</span>'}${v.commission.note ? ` · ${esc(v.commission.note)}` : ''}</span>
+      ${admin && v.status !== 'cancelada' ? `<div class="row"><label class="inline">% <input id="saleCommPct" type="number" min="0" max="100" step="0.1" value="${v.commission.pct}" /></label><label class="inline">ou valor R$ <input id="saleCommValue" type="number" min="0" step="0.01" placeholder="${v.commission.value}" /></label>
+        <button class="btn small" id="btnSaleComm">Salvar comissão</button>
+        <button class="btn small ${v.commission.status === 'paga' ? '' : 'primary'}" id="btnSaleCommPaid">${v.commission.status === 'paga' ? 'Marcar como a pagar' : '💸 Marcar comissão como paga'}</button></div>` : ''}
+    </div>
+    ${admin && v.status !== 'cancelada' ? `<div class="row"><label class="inline">Vendedor <select id="saleSeller">${saleState.users.map((u) => `<option value="${esc(u.id)}" ${u.id === v.sellerId ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select></label><button class="btn small" id="btnSaleSeller">Trocar vendedor</button>
+      <button class="btn small danger" id="btnSaleCancel">Cancelar venda</button></div>` : ''}
+    <h3>Histórico (quem fez o quê)</h3>
+    <ul class="sale-history">${v.history.slice().reverse().map((h) => `<li><span class="hint">${new Date(h.at).toLocaleString('pt-BR')} · ${esc(h.by)}</span><br>${esc(h.text)}</li>`).join('')}</ul>`;
+  const act = async (url, body, msg) => {
+    try { await api(url, { method: 'POST', body }); toast(msg); openSale(id); loaders.contracts(); } catch (err) { toast(err.message, true); }
+  };
+  $$('#saleBody [data-parcel]').forEach((b) => b.addEventListener('click', () => {
+    const paid = b.dataset.paid === '1';
+    if (paid) {
+      const date = prompt('Data do recebimento (dd/mm/aaaa):', new Date().toLocaleDateString('pt-BR'));
+      if (!date) return;
+      const [d, m, y] = date.split('/');
+      const method = prompt('Forma de pagamento:', 'Pix') || 'Pix';
+      act(`/api/sales/${id}/parcel/${b.dataset.parcel}`, { paid: true, date: `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`, method }, 'Recebimento confirmado');
+    } else if (confirm('Desfazer o recebimento desta parcela?')) act(`/api/sales/${id}/parcel/${b.dataset.parcel}`, { paid: false }, 'Recebimento desfeito');
+  }));
+  $('#btnSaleComm')?.addEventListener('click', () => {
+    const value = $('#saleCommValue').value;
+    act(`/api/sales/${id}/commission`, value !== '' ? { value: Number(value) } : { pct: Number($('#saleCommPct').value) }, 'Comissão atualizada');
+  });
+  $('#btnSaleCommPaid')?.addEventListener('click', () => act(`/api/sales/${id}/commission`, { status: v.commission.status === 'paga' ? 'a_pagar' : 'paga' }, 'Comissão atualizada'));
+  $('#btnSaleSeller')?.addEventListener('click', () => act(`/api/sales/${id}/seller`, { sellerId: $('#saleSeller').value }, 'Vendedor alterado'));
+  $('#btnSaleCancel')?.addEventListener('click', () => {
+    const reason = prompt('Motivo do cancelamento:');
+    if (reason) act(`/api/sales/${id}/cancel`, { reason }, 'Venda cancelada');
+  });
+  if (!$('#saleDialog').open) $('#saleDialog').showModal();
+}
+$('#saleClose').addEventListener('click', () => $('#saleDialog').close());
+$('#salesTable').addEventListener('click', (e) => {
+  const id = e.target.closest('tr[data-sale-id]')?.dataset.saleId;
+  if (id) openSale(id);
+});
+// Orçamentos → lançar a venda
+$('#quoteTable').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-sale]');
+  if (!b) return;
+  if (!confirm(`Lançar a venda do orçamento ${b.dataset.number}? Ela entra em Contratos e vendas com as parcelas e a comissão.`)) return;
+  try {
+    const v = await api(`/api/quotes/${b.dataset.sale}/sale`, { method: 'POST', body: {} });
+    toast(`Venda ${v.number} lançada`);
+    loadQuoteList();
+  } catch (err) { toast(err.message, true); }
 });
