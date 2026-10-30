@@ -952,11 +952,15 @@ $('#btnLeadPlan').addEventListener('click', () => crmState.current?.id && openCa
 // ---------- VISITAS AO ESCRITÓRIO ----------
 const VISIT_STATUS = { pendente: '<span class="badge paused">⏳ Aguardando você</span>', confirmada: '<span class="badge done">✅ Confirmada</span>', remarcar: '<span class="badge pending">🔁 Remarcando</span>', cancelada: '<span class="badge canceled">Cancelada</span>', realizada: '<span class="badge running">Realizada</span>' };
 loaders.visits = async () => {
-  const [list, settings] = await Promise.all([api('/api/visits'), api('/api/settings')]);
+  const [list, settings, users] = await Promise.all([api('/api/visits'), api('/api/settings'), api('/api/users').catch(() => [])]);
+  const sellers = (Array.isArray(users) ? users : users.users || []).filter((u) => u.active !== false && u.whatsapp);
+  const sellerOptions = sellers.map((u) => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('');
   const today = new Date().toISOString().slice(0, 10);
   $('#visitTable').innerHTML = `<thead><tr><th>Pedido</th><th>Cliente</th><th>Preferência</th><th>Assunto</th><th>Vem preparado?</th><th>Situação</th><th></th></tr></thead><tbody>${list.map((v) => `
     <tr data-visit="${esc(v.id)}"><td>${fmtDate(v.createdAt)}</td>
-      <td><b>${esc(v.name || 'Cliente')}</b><div class="hint">${v.phone ? esc(fmtPhone(v.phone)) : ''}${v.leadCode ? ` · ${esc(v.leadCode)}` : ''} · ${v.people} pessoa(s)</div></td>
+      <td><b>${esc(v.name || 'Cliente')}</b><div class="hint">${v.phone ? esc(fmtPhone(v.phone)) : ''}${v.leadCode ? ` · ${esc(v.leadCode)}` : ''} · ${v.people} pessoa(s)</div>
+        <div class="hint">${v.forwardedTo ? `📤 Passado para <b>${esc(v.forwardedTo)}</b>` : v.ownerName ? `👤 Com <b>${esc(v.ownerName)}</b>` : '<span class="status-warn">Sem vendedor</span>'}</div>
+        ${v.status !== 'cancelada' && sellerOptions ? `<div class="visit-actions"><select data-f="seller"><option value="">Vendedor…</option>${sellerOptions}</select><button class="btn small" data-act="forward">📤 Passar</button></div>` : ''}</td>
       <td>${esc(v.preferred || '—')}${v.period ? `<div class="hint">${esc(v.period)}</div>` : ''}</td>
       <td>${esc(v.subject || '—')}</td><td class="small">${esc(v.prepared || '—')}</td>
       <td>${VISIT_STATUS[v.status] || esc(v.status)}${v.status === 'confirmada' ? `<div class="hint">${esc(v.date.split('-').reverse().join('/'))} às ${esc(v.time)}</div>` : ''}</td>
@@ -992,6 +996,13 @@ $('#visitTable').addEventListener('click', async (e) => {
       const message = prompt('Mensagem para o cliente (opcional):', '');
       if (message === null) return;
       await api(`/api/visits/${id}/cancel`, { method: 'POST', body: { message } });
+    } else if (act === 'forward') {
+      const sel = $('[data-f="seller"]', row);
+      if (!sel.value) return toast('Escolha o vendedor', true);
+      const name = sel.selectedOptions[0].textContent;
+      if (!confirm(`Passar este cliente para ${name}? Ele(a) vira o responsável e recebe o resumo no WhatsApp, enviado pelo número conectado.`)) return;
+      await api(`/api/visits/${id}/forward`, { method: 'POST', body: { ownerId: sel.value } });
+      toast(`Enviado para ${name}`);
     } else if (act === 'done') {
       await api(`/api/visits/${id}/done`, { method: 'POST' });
     }

@@ -1890,7 +1890,47 @@ app.post('/api/quotes', async (req, res) => {
   res.json({ number: q.number, total: q.plan.total, sent: Boolean(key), text: quotes.message(q, quoteLink(q)), url: `/orcamento/${q.id}?t=${quotes.token(q.id)}` });
 });
 // Visitas ao escritório.
-app.get('/api/visits', (_req, res) => res.json([...visits.list].reverse().map((v) => ({ ...v, leadCode: v.leadId ? crm.byId(v.leadId)?.code || '' : '' }))));
+app.get('/api/visits', (_req, res) => res.json([...visits.list].reverse().map((v) => {
+  const lead = v.leadId ? crm.byId(v.leadId) : null;
+  return { ...v, leadCode: lead?.code || '', ownerName: lead?.ownerId ? auth.get(lead.ownerId)?.name || '' : '' };
+})));
+// Passa o pedido de visita para um vendedor: vira o responsável e recebe o resumo no WhatsApp (enviado do número conectado).
+app.post('/api/visits/:id/forward', async (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  const v = visits.get(req.params.id);
+  if (!v) throw httpError(404, 'Pedido de visita não encontrado');
+  const seller = auth.get(req.body?.ownerId);
+  if (!seller || seller.active === false) throw httpError(400, 'Escolha o vendedor');
+  if (!seller.whatsapp) throw httpError(400, `${seller.name} está sem WhatsApp cadastrado (aba Equipe)`);
+  if (wa.status !== 'connected') throw httpError(400, 'Conecte o WhatsApp primeiro (aba Conexões)');
+  const lead = (v.leadId && crm.byId(v.leadId))
+    || crm.findForConversation({ key: v.convKey, phone: v.phone })
+    || crm.ensureFromConversation({ key: v.convKey || v.phone, phone: v.phone, name: v.name, channel: 'whatsapp' });
+  if (lead) {
+    v.leadId = lead.id;
+    crm.assign(req.user, lead.id, seller.id);
+  }
+  const conv = v.convKey ? agent.conversation(v.convKey, { create: false }) : null;
+  const first = (n) => String(n || '').trim().split(/\s+/)[0] || '';
+  const preview = conv ? chatPreview(conv, 8) : '';
+  const text = [
+    '🏢 *Cliente para você: pediu visita ao escritório*',
+    `👤 ${v.name || 'Cliente'}${v.phone ? ` · +${v.phone}` : ''}${lead?.code ? ` · ${lead.code}` : ''} · ${v.people} pessoa(s)`,
+    v.phone ? `💬 Chame agora: https://wa.me/${v.phone}` : '',
+    `📅 Preferência: ${v.preferred || '-'}${v.period ? ` (${v.period})` : ''}${v.status === 'confirmada' ? ` · CONFIRMADA ${String(v.date).split('-').reverse().join('/')} às ${v.time}` : ' · ainda não confirmada'}`,
+    v.subject ? `🎯 Assunto: ${v.subject}` : '',
+    v.prepared ? `💼 Vem preparado: ${v.prepared}` : '',
+    lead?.aiSummary ? `📝 ${lead.aiSummary}` : '',
+    preview ? `\n💬 *Prévia da conversa:*\n${preview}` : '',
+    `\n✍️ *Como começar:*\nOi${first(v.name) ? `, ${first(v.name)}` : ''}! Aqui é ${first(seller.name)}, da Migra Paraguai. O Marcos me passou o seu pedido de visita ao escritório${v.subject ? ` para ${v.subject.toLowerCase()}` : ''}. Vou cuidar do seu atendimento: qual dia fica melhor para você vir?`,
+  ].filter(Boolean).join('\n');
+  await wa.send(seller.whatsapp, { text, typing: false });
+  Object.assign(v, { forwardedTo: seller.name, forwardedAt: new Date().toISOString() });
+  if (lead) crm.addNote(req.user, lead.id, `🏢 Pedido de visita passado para ${seller.name}`);
+  store.save();
+  notify('visits', { id: v.id });
+  res.json({ ok: true, seller: seller.name });
+});
 app.post('/api/visits/:id/confirm', async (req, res) => res.json(await visits.confirm(req.params.id, { ...req.body, by: req.user.name })));
 app.post('/api/visits/:id/reschedule', async (req, res) => res.json(await visits.reschedule(req.params.id, req.body)));
 app.post('/api/visits/:id/cancel', async (req, res) => res.json(await visits.cancel(req.params.id, req.body)));
