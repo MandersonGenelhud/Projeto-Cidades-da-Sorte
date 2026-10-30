@@ -24,7 +24,11 @@ export function extractPending(messages, { now = Date.now(), maxDays = 7 } = {})
     if (!withText.length) continue;
     const last = withText.at(-1);
     if (last.timestamp < limit) continue;
+    // As 10 mensagens de antes (cliente e atendimento), para a IA entender a conversa.
+    const before = list.slice(0, list.length - trailing.length).filter((m) => m.text).slice(-10)
+      .map((m) => ({ role: m.fromMe ? 'assistant' : 'user', content: m.text, at: new Date(m.timestamp).toISOString() }));
     out.push({
+      context: before,
       jid,
       phone: withText.find((m) => m.phone)?.phone || null,
       name: withText.find((m) => m.name)?.name || '',
@@ -81,8 +85,10 @@ export class PendingInbox {
         const lastReply = Date.parse(this.store.data.conversations[p.jid].messages.at(-1).at);
         if (lastReply >= p.at) continue;
       }
+      this.#seedContext(p);
       const ig = String(p.jid).startsWith('ig:');
-      this.items[p.jid] = { ...p, channel: ig ? 'instagram' : 'whatsapp', username: ig ? messages.find((m) => m.jid === p.jid && m.username)?.username || '' : '', source: 'histórico' };
+      const { context, ...item } = p;
+      this.items[p.jid] = { ...item, channel: ig ? 'instagram' : 'whatsapp', username: ig ? messages.find((m) => m.jid === p.jid && m.username)?.username || '' : '', source: 'histórico' };
       added++;
     }
     if (added) {
@@ -92,6 +98,18 @@ export class PendingInbox {
       setTimeout(() => this.autoAnswer({ minAgeMs: 0 }), 5000).unref?.();
     }
     return added;
+  }
+
+  /** Conversa que o sistema ainda não conhecia: guarda as mensagens anteriores na memória da IA. */
+  #seedContext(p) {
+    if (!p.context?.length) return;
+    const conv = this.agent.conversation(p.jid);
+    if (conv.messages.length) return;
+    conv.phone ||= p.phone;
+    conv.name ||= p.name;
+    conv.messages.push(...p.context);
+    conv.updatedAt = new Date().toISOString();
+    this.store.save();
   }
 
   /** Mensagem recebida agora: entra na lista até alguém responder. */

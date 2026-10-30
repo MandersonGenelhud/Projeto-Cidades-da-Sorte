@@ -117,3 +117,20 @@ test('responde sozinho quem ficou esperando, até 7 dias, sem atropelar quem aca
   await waitFor(() => !inbox.running && wa.sent.length === 1);
   assert.equal(wa.sent[0].to, 'a@s.whatsapp.net');
 });
+
+test('histórico do celular: a IA recebe as 10 mensagens anteriores da conversa como contexto', async () => {
+  const { store, inbox } = setup();
+  store.updateSettings({ agent: { autoAnswerPending: false } });
+  const jid = '595983333333@s.whatsapp.net';
+  const old = [];
+  for (let i = 0; i < 14; i++) old.push(msg(jid, i % 2 === 1, `mensagem ${i}`, 300 - i * 10));
+  old.push(msg(jid, false, 'e aí, como faço para começar?', 20));
+  inbox.ingestHistory(old.map((m) => ({ ...m, timestamp: Date.now() - (NOW - m.timestamp) })));
+  const conv = store.data.conversations[jid];
+  assert.equal(conv.messages.length, 10);
+  assert.equal(conv.messages[0].content, 'mensagem 4');
+  assert.equal(conv.messages.at(-1).content, 'mensagem 13');
+  assert.equal(conv.messages.at(-1).role, 'assistant');
+  assert.deepEqual(inbox.list()[0].texts, ['e aí, como faço para começar?']);
+  assert.equal(inbox.list()[0].context, undefined);
+});
