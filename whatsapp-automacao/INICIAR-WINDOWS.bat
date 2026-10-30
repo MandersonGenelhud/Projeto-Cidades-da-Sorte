@@ -56,5 +56,13 @@ if %errorlevel%==3 (
   echo  Atualizado! Reabrindo o agente...
   goto rodar
 )
+rem Codigo 0 = desligado de proposito (Ctrl+C). Qualquer outro = caiu: reabre sozinho.
+if not %errorlevel%==0 (
+  set OPEN_BROWSER=
+  echo.
+  echo  O agente parou por um erro. Reabrindo em 10 segundos...
+  timeout /t 10 /nobreak >nul
+  goto rodar
+)
 echo.
 pause

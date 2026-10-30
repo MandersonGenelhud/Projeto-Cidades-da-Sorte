@@ -615,7 +615,10 @@ async function notifyFollowUps() {
 
 wa.on('status', (state) => {
   notify('status', state);
-  if (state.status === 'connected') console.log(`✅ WhatsApp conectado: ${state.me?.phone}`);
+  if (state.status === 'connected') {
+    console.log(`✅ WhatsApp conectado: ${state.me?.phone}`);
+    setTimeout(() => sendTunnelNotice().catch(() => {}), 5000).unref?.();
+  }
   if (state.error) console.log(`⚠️  Conexão: ${state.error}`);
   if (state.status === 'qr') console.log(`📱 Abra http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT} e escaneie o QR Code`);
 });
@@ -684,14 +687,66 @@ store.on('log', (log) => notify('log', log));
 const tunnel = new Tunnel({ dataDir: DATA_DIR, port: PORT });
 // O túnel é um programa à parte: fecha junto com o painel (inclusive ao atualizar).
 process.on('exit', () => tunnel.stop());
+// Sem VPS nem domínio, o endereço provisório liga sozinho (a menos que alguém tenha desligado no painel).
+const hasFixedUrl = () => Boolean(process.env.PUBLIC_URL) || Boolean(store.settings.crm?.panelUrl && !store.settings.crm.panelUrl.includes('trycloudflare.com'));
+const tunnelWanted = () => process.env.TUNNEL !== 'off' && store.settings.instagram?.tunnel !== false && !hasFixedUrl();
+let tunnelRetry = 0;
+let tunnelTimer = null;
+const restartTunnelSoon = () => {
+  if (tunnelTimer || !tunnelWanted()) return;
+  const wait = Math.min(300_000, 30_000 * 2 ** tunnelRetry++); // 30 s, 1 min, 2 min... até 5 min
+  store.addLog({ type: 'system', message: `🌐 Endereço na internet fora do ar${tunnel.state.error ? ` (${tunnel.state.error})` : ''}. Tentando de novo em ${Math.round(wait / 1000)} s.` });
+  tunnelTimer = setTimeout(() => {
+    tunnelTimer = null;
+    if (tunnelWanted()) tunnel.start().catch(() => restartTunnelSoon());
+  }, wait);
+  tunnelTimer.unref?.();
+};
 tunnel.on('status', (st) => {
   notify('tunnel', st);
   if (st.url) {
+    tunnelRetry = 0;
     store.addLog({ type: 'system', message: `🌐 Endereço na internet ligado: ${st.url} (webhook do Instagram: ${st.url}/webhook/instagram)` });
     const current = store.settings.crm?.panelUrl || '';
     if (!current || current.includes('trycloudflare.com')) store.updateSettings({ crm: { panelUrl: st.url } });
+    if (store.data.lastTunnelUrl !== st.url && !hasFixedUrl()) {
+      const changed = Boolean(store.data.lastTunnelUrl);
+      store.data.lastTunnelUrl = st.url;
+      store.data.tunnelNotice = { url: st.url, changed };
+      store.save();
+      sendTunnelNotice();
+    }
   }
+  // Caiu (internet, Cloudflare): tenta de novo sozinho.
+  if ((st.status === 'error' || st.status === 'off') && !st.url) restartTunnelSoon();
 });
+/** Avisa a equipe no WhatsApp o endereço novo do sistema (se o WhatsApp estiver fora do ar, avisa quando voltar). */
+async function sendTunnelNotice() {
+  const n = store.data.tunnelNotice;
+  if (!n || wa.status !== 'connected') return;
+  store.data.tunnelNotice = null;
+  store.save();
+  const phones = new Set(auth.users.filter((u) => u.active !== false && !u.pending && u.whatsapp).map((u) => u.whatsapp));
+  const text = `🌐 ${n.changed ? 'O endereço do sistema Migra mudou.' : 'O sistema Migra já está na internet.'}\nEntre por aqui: ${n.url}\n${n.changed ? 'Links enviados antes desta mudança (contratos, orçamentos, indicação) param de abrir: gere e envie de novo pelo painel.' : 'Use sempre o link mais recente que chegar por aqui.'}`;
+  for (const phone of phones) await wa.send(phone, { text, typing: false }).catch(() => {});
+  store.addLog({ type: 'system', message: `🌐 Endereço avisado para ${phones.size} pessoa(s) da equipe: ${n.url}` });
+}
+// Confere a cada 5 minutos se o endereço abre de verdade; 3 falhas seguidas = liga um túnel novo.
+let tunnelFails = 0;
+setInterval(async () => {
+  if (tunnel.state.status !== 'on' || !tunnel.state.url) return;
+  try {
+    const r = await fetch(`${tunnel.state.url}/api/brand`, { signal: AbortSignal.timeout(15_000) });
+    tunnelFails = r.ok ? 0 : tunnelFails + 1;
+  } catch {
+    tunnelFails++;
+  }
+  if (tunnelFails >= 3) {
+    tunnelFails = 0;
+    store.addLog({ type: 'system', message: '🌐 O endereço na internet parou de responder. Ligando um novo...' });
+    tunnel.stop(); // o aviso de "desligado" religa sozinho em seguida
+  }
+}, 5 * 60_000).unref();
 
 // ---- App ----
 const app = express();
@@ -1281,7 +1336,7 @@ app.post('/api/connection/mode', async (req, res) => {
 });
 app.get('/api/instagram/status', (_req, res) => res.json(instagram.getState()));
 app.post('/api/instagram/sync', async (_req, res) => res.json(await syncInstagram()));
-app.get('/api/tunnel', (_req, res) => res.json({ ...tunnel.state, auto: Boolean(store.settings.instagram?.tunnel) }));
+app.get('/api/tunnel', (_req, res) => res.json({ ...tunnel.state, auto: tunnelWanted() }));
 app.post('/api/tunnel/start', async (_req, res) => {
   store.updateSettings({ instagram: { tunnel: true } });
   res.json(await tunnel.start());
@@ -2617,7 +2672,7 @@ if (process.env.NODE_ENV !== 'test') {
   wa.start().catch((err) => console.error('Erro ao iniciar o WhatsApp:', err));
   instagram.start().catch((err) => console.error('Erro ao iniciar o Instagram:', err));
   lines.startAll().catch((err) => console.error('Erro ao ligar os números da equipe:', err.message));
-  if (store.settings.instagram?.tunnel) tunnel.start().catch((err) => console.error('Erro ao ligar o túnel:', err.message));
+  if (tunnelWanted()) tunnel.start().catch((err) => { console.error('Erro ao ligar o túnel:', err.message); restartTunnelSoon(); });
   scheduler.start();
   // Retornos agendados: confere a cada 10 minutos.
   setInterval(() => notifyFollowUps().catch((err) => store.addLog({ type: 'error', message: `Retornos: ${err.message}` })), 10 * 60_000).unref();

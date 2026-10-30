@@ -121,4 +121,5 @@ test('túnel: escolhe o arquivo certo e acha o endereço público', async () => 
   assert.equal(downloadName('darwin', 'arm64').file, 'cloudflared-darwin-arm64.tgz');
   assert.equal(findTunnelUrl('INF |  https://bold-tree-cat-dog.trycloudflare.com  |'), 'https://bold-tree-cat-dog.trycloudflare.com');
   assert.equal(findTunnelUrl('nada aqui'), null);
+  assert.equal(findTunnelUrl('ERR failed to request quick Tunnel: Post "https://api.trycloudflare.com/tunnel": EOF'), null, 'mensagem de erro não é endereço');
 });

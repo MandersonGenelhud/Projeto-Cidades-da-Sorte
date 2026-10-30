@@ -8,7 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const RELEASES = 'https://github.com/cloudflare/cloudflared/releases/latest/download';
-const URL_RE = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i;
+// Endereço do túnel rápido: palavras com hífen (ex.: bold-tree-cat-dog). "api.trycloudflare.com" aparece nas mensagens de erro e não vale.
+const URL_RE = /https:\/\/[a-z0-9]+(?:-[a-z0-9]+)+\.trycloudflare\.com/i;
 
 /** Nome do arquivo do cloudflared para este sistema. */
 export function downloadName(platform = process.platform, arch = process.arch) {
