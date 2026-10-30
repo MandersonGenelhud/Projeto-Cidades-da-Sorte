@@ -1354,7 +1354,7 @@ async function loadQuoteList() {
       <td>${q.expired ? '<span class="badge canceled">Vencido</span>' : `<span class="badge done">até ${esc(q.validUntil.split('-').reverse().join('/'))}</span>`}</td>
       <td><a class="btn small" href="${q.url}" target="_blank" rel="noopener">Abrir PDF</a> <a class="btn small" href="${q.url}?download=1">Baixar</a>
         ${q.sale ? `<span class="badge done">💼 ${esc(q.sale)}</span>` : `<button type="button" class="btn small" data-sale="${esc(q.id)}" data-number="${esc(q.number)}">💼 Lançar venda</button>`}
-        <button type="button" class="btn small${q.hasContract ? '' : ' primary'}" data-contract="${esc(q.id)}" data-number="${esc(q.number)}">📝 ${q.hasContract ? 'Contrato ✓' : 'Contrato'}</button></td></tr>`).join('') || `<tr><td colspan="${admin ? 8 : 7}" class="muted">Nenhum orçamento ainda.</td></tr>`}</tbody>`;
+        <button type="button" class="btn small${q.hasContract ? '' : ' primary'}" data-contract="${esc(q.id)}" data-number="${esc(q.number)}">${q.contractSigned ? '✍️ Contrato assinado' : q.hasContract ? '📝 Contrato ✓' : '📝 Contrato'}</button></td></tr>`).join('') || `<tr><td colspan="${admin ? 8 : 7}" class="muted">Nenhum orçamento ainda.</td></tr>`}</tbody>`;
 }
 loaders.quotes = async () => {
   if (!quoteState.packages.length) {
@@ -1452,10 +1452,13 @@ async function openContract(id, number) {
   $('#contractPaste').value = '';
   $('#contractNumber').textContent = number ? `· ${number}` : '';
   $('#contractOpen').hidden = $('#contractDownload').hidden = true;
+  $('#contractSignResult').innerHTML = '';
   try {
     const r = await api(`/api/quotes/${id}/contract-data`);
     for (const [k, v] of Object.entries(r.client)) if (f[k]) f[k].value = v;
-    $('#contractInfo').textContent = r.fromForm
+    $('#contractInfo').textContent = r.signed
+      ? '✅ Este contrato já foi assinado pelo cliente. Abra a via assinada abaixo.'
+      : r.fromForm
       ? '✅ Dados puxados da ficha que o cliente preencheu. Confira e gere o contrato.'
       : 'Preencha os dados do cliente, ou cole a mensagem dele (copiada do WhatsApp) que o sistema preenche sozinho.';
     if (r.hasContract) {
@@ -1622,4 +1625,27 @@ $('#quoteTable').addEventListener('click', async (e) => {
     toast(`Venda ${v.number} lançada`);
     loadQuoteList();
   } catch (err) { toast(err.message, true); }
+});
+
+$('#btnContractSign').addEventListener('click', async (e) => {
+  const client = Object.fromEntries(new FormData($('#contractForm')));
+  if (!client.nome.trim()) return toast('Informe o nome completo do contratante', true);
+  if (!confirm('Gerar o contrato e enviar o link para o cliente assinar pelo celular?')) return;
+  e.target.disabled = true;
+  try {
+    const r = await api(`/api/quotes/${contractState.id}/contract/sign-link`, { method: 'POST', body: { client, send: true } });
+    const phone = String(client.whatsapp || '').replace(/\D/g, '');
+    $('#contractSignResult').innerHTML = `<div class="quote-result">${r.sent ? '<b>✅ Link de assinatura enviado no WhatsApp do cliente.</b>' : '<b>Link pronto. Envie para o cliente:</b>'}
+      <div class="row">${phone ? `<a class="btn small primary" href="https://wa.me/${phone}?text=${encodeURIComponent(r.text)}" target="_blank" rel="noopener">Abrir WhatsApp do cliente com a mensagem</a>` : ''}
+      <button type="button" class="btn small" id="btnSignCopy">Copiar mensagem</button></div>
+      <p class="hint">Assim que ele assinar, a via assinada chega para ele e para vocês, e o contrato aparece como "assinado".</p></div>`;
+    $('#btnSignCopy').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(r.text); toast('Mensagem copiada'); } catch { prompt('Copie a mensagem:', r.text); }
+    });
+    loadQuoteList();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    e.target.disabled = false;
+  }
 });

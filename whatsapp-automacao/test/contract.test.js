@@ -44,3 +44,23 @@ test('contrato preenchido: cliente, serviços, parcelas por extenso e a Migra As
   const empty = contractPdf({ client: {}, quote, issued: '2026-10-30' });
   assert.ok(empty.length > 1000);
 });
+
+test('contrato assinado pelo celular: assinatura, escolha do uso de imagem e comprovante no PDF', async () => {
+  const plan = paymentPlan({ total: 12997, people: 1, adults: 1, start: '2026-10-30' });
+  const quote = { number: 'ORC-2026-09800', items: [{ name: 'Pacote Ouro', qty: 1, price: 12997, total: 12997 }], plan };
+  // JPEG mínimo válido (1×1) para a assinatura.
+  const jpeg = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
+  const pdf = contractPdf({ client: { nome: 'João Pereira', cpf: '529.982.247-25' }, quote, issued: '2026-10-30', sign: { image: jpeg, signedAt: '2026-10-30T21:00:00Z', ip: '200.1.2.3', ua: 'iPhone', hash: 'abc123def456', imageConsent: 'nao' } });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cts-'));
+  const file = path.join(dir, 's.pdf');
+  fs.writeFileSync(file, pdf);
+  assert.ok(pdf.includes(Buffer.from('/Subtype /Image')), 'a assinatura vai como imagem no PDF');
+  let text;
+  try { text = execFileSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf8' }); } catch { return; }
+  const flat = text.replace(/\s+/g, ' ');
+  assert.match(flat, /REGISTRO DA ASSINATURA ELETRÔNICA/);
+  assert.match(flat, /IP: 200\.1\.2\.3/);
+  assert.match(flat, /\( X \) Não autorizo/);
+  assert.match(flat, /Assinado eletronicamente pelo\(a\) contratante/);
+  assert.match(flat, /ABC123DEF456/);
+});

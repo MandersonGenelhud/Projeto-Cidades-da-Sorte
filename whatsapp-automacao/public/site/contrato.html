@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>Contrato · Migra</title>
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="stylesheet" href="/site/site.css" />
+  <link rel="stylesheet" href="/site/fechamento.css" />
+  <style>.ct-sum { display: grid; gap: 10px; margin: 14px 0; } .ct-sum div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px; background: #f4f7f5; } .ct-sum span { color: #6e6e73; font-size: 14px; } .ct-sum b { text-align: right; font-variant-numeric: tabular-nums; }</style>
+</head>
+<body class="flow">
+  <header class="flow-head"><img src="/brand/logo" alt="Migra Paraguai" /></header>
+  <main class="flow-wrap" id="page"><p class="muted center">Carregando…</p></main>
+  <script src="/site/site.js"></script>
+  <script>
+    const id = location.pathname.split('/').pop();
+    const t = new URLSearchParams(location.search).get('t') || '';
+    let info;
+    let inked = 0;
+    function signed(pdf) {
+      $('#page').innerHTML = `
+        <div class="flow-card center">
+          <div class="big-check" aria-hidden="true">✓</div>
+          <h1>Contrato assinado!</h1>
+          <p>Sua via assinada também foi enviada no WhatsApp. Ela passa a valer com a confirmação do pagamento da entrada.</p>
+          ${pdf ? `<a class="btn block" href="${esc(pdf)}" target="_blank" rel="noopener">Ver o contrato assinado (PDF)</a>` : ''}
+          <a class="btn primary block" href="whatsapp://">Voltar para o WhatsApp</a>
+        </div>`;
+    }
+    const brl = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    function render() {
+      $('#page').innerHTML = `
+        <div class="flow-card">
+          <p class="eyebrow-s">${esc(info.number)}</p>
+          <h1>Seu contrato</h1>
+          <p class="reassure"><span aria-hidden="true">📄</span> Montamos o contrato com os seus dados e as condições combinadas. Leia com calma e assine aqui mesmo, com o dedo.</p>
+          <div class="ct-sum">
+            <div><span>Serviços</span><b>${info.items.map(esc).join('<br>')}</b></div>
+            <div><span>Valor total</span><b>${brl(info.total)}</b></div>
+            <div><span>Entrada na reserva</span><b>${brl(info.entry)}</b></div>
+          </div>
+          <a class="btn block" href="${esc(info.pdf)}" target="_blank" rel="noopener">📄 Ler o contrato completo (PDF)</a>
+          <p class="fine">Abre numa nova aba. Depois de ler, volte aqui para assinar.</p>
+        </div>
+        <form class="flow-card fields" id="f" novalidate>
+          <h2>Uso de imagem (cláusula nona)</h2>
+          <p class="fine" style="text-align:left">É opcional. Se autorizar, a Migra pode usar sua imagem e depoimentos nas redes sociais e materiais, e você pode cancelar quando quiser.</p>
+          <label class="check-row"><input type="radio" name="imagem" value="sim" /> <span>Autorizo</span></label>
+          <label class="check-row"><input type="radio" name="imagem" value="nao" /> <span>Não autorizo</span></label>
+          <h2>Assinatura</h2>
+          <label class="fl"><span>Seu nome completo</span><input name="nome" autocomplete="name" value="${esc(info.nome)}" /></label>
+          ${info.askCpf ? '<label class="fl"><span>Seu CPF</span><input name="cpf" inputmode="numeric" placeholder="000.000.000-00" /></label>' : ''}
+          <div class="fl"><span>Assine no quadro</span>
+            <div class="sig-box"><canvas id="sig" aria-label="Quadro de assinatura"></canvas><span class="sig-line">Assine acima da linha</span></div>
+            <button type="button" class="btn small" id="clear">Limpar assinatura</button>
+          </div>
+          <label class="check-row"><input type="checkbox" name="aceite" /> <span>Li o contrato e concordo com todas as cláusulas e condições.</span></label>
+          <p class="err" id="err" role="alert"></p>
+          <button class="btn primary block" id="go">Assinar o contrato</button>
+          <p class="fine">Ao assinar, registramos a data, a hora, o IP e o aparelho, que vão no PDF como comprovante da assinatura eletrônica.</p>
+        </form>`;
+      setupPad();
+      $('[name="cpf"]')?.addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11).replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'); });
+      $('#f').addEventListener('submit', submit);
+    }
+    function setupPad() {
+      const c = $('#sig');
+      const ctx = c.getContext('2d');
+      const size = () => {
+        const r = c.getBoundingClientRect();
+        const dpr = Math.min(2, devicePixelRatio || 1);
+        c.width = r.width * dpr;
+        c.height = r.height * dpr;
+        ctx.scale(dpr, dpr);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, r.width, r.height);
+        ctx.lineWidth = 2.4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#0b1f4d';
+        inked = 0;
+      };
+      size();
+      let last = null;
+      const pos = (e) => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      c.addEventListener('pointerdown', (e) => { c.setPointerCapture(e.pointerId); last = pos(e); e.preventDefault(); });
+      c.addEventListener('pointermove', (e) => {
+        if (!last) return;
+        const p = pos(e);
+        ctx.beginPath();
+        ctx.moveTo(...last);
+        ctx.lineTo(...p);
+        ctx.stroke();
+        inked += Math.hypot(p[0] - last[0], p[1] - last[1]);
+        last = p;
+      });
+      const up = () => (last = null);
+      c.addEventListener('pointerup', up);
+      c.addEventListener('pointercancel', up);
+      $('#clear').onclick = size;
+    }
+    async function submit(e) {
+      e.preventDefault();
+      const f = e.target;
+      const err = $('#err');
+      err.textContent = '';
+      if (inked < 60) { err.textContent = 'Faça a sua assinatura no quadro, por favor.'; return; }
+      if (!f.imagem.value) { err.textContent = 'Escolha se autoriza ou não o uso de imagem.'; return; }
+      if (!f.aceite.checked) { err.textContent = 'Marque que leu e concorda com o contrato.'; return; }
+      const btn = $('#go');
+      btn.disabled = true;
+      btn.textContent = 'Assinando…';
+      try {
+        await api(`/api/public/contrato/${id}/assinar?t=${encodeURIComponent(t)}`, {
+          method: 'POST',
+          body: { nome: f.nome.value, cpf: f.cpf?.value || '', imagem: f.imagem.value, aceite: true, assinatura: $('#sig').toDataURL('image/jpeg', 0.85) },
+        });
+        const fresh = await api(`/api/public/contrato/${id}?t=${encodeURIComponent(t)}`);
+        signed(fresh.pdf);
+        scrollTo({ top: 0 });
+      } catch (ex) {
+        err.textContent = ex.message;
+        btn.disabled = false;
+        btn.textContent = 'Assinar o contrato';
+      }
+    }
+    (async () => {
+      try {
+        info = await api(`/api/public/contrato/${id}?t=${encodeURIComponent(t)}`);
+      } catch (e) {
+        $('#page').innerHTML = `<div class="flow-card center"><h1>Contrato indisponível</h1><p class="muted">${esc(e.message)}</p></div>`;
+        return;
+      }
+      if (info.status === 'assinado') signed(info.pdf);
+      else render();
+    })();
+  </script>
+</body>
+</html>

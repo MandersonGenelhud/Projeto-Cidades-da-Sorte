@@ -1432,9 +1432,11 @@
       <label>E-mail <input name="email" type="email" /></label>
       <label class="wide">Quem mais vai no processo (nome e parentesco) <input name="acompanhantes" placeholder="Ex.: Carlos Silva (esposo)" /></label>
     </form>
-    <p class="hint">Campos em branco saem no contrato como linha para completar à mão. A contratada sai como MIGRA ASESORIA PARAGUAY E.A.S., "Responsável: Migra Assessoria", sem assinatura.</p>
+    <p class="hint">O cliente recebe um link, lê o contrato, escolhe se autoriza o uso de imagem e assina com o dedo. A via assinada (com data, hora, IP e aparelho) volta para ele e para vocês no WhatsApp. A contratada sai como MIGRA ASESORIA PARAGUAY E.A.S., "Responsável: Migra Assessoria".</p>
+    <div id="contractSignResult"></div>
     <div class="row">
-      <button type="button" class="btn primary" id="btnContractMake">📄 Gerar contrato em PDF</button>
+      <button type="button" class="btn primary" id="btnContractSign">✍️ Enviar para o cliente assinar pelo celular</button>
+      <button type="button" class="btn" id="btnContractMake">📄 Só gerar o PDF</button>
       <a class="btn" id="contractOpen" target="_blank" rel="noopener" hidden>Abrir contrato</a>
       <a class="btn" id="contractDownload" hidden>Baixar</a>
     </div>

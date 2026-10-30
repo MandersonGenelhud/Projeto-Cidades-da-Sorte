@@ -733,7 +733,7 @@ app.post('/webhook', (req, res) => {
 if (PANEL_PASSWORD) {
   const expected = Buffer.from(`${PANEL_USER}:${PANEL_PASSWORD}`);
   // Páginas públicas (site de imóveis, portal do indicador, recibos) ficam fora da senha extra.
-  const PUBLIC = /^\/(imoveis|parceiros|r\/|recibo\/|ficha\/|termo\/|etapas\/|orcamento\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
+  const PUBLIC = /^\/(imoveis|parceiros|r\/|recibo\/|ficha\/|termo\/|etapas\/|orcamento\/|contrato\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
   app.use((req, res, next) => {
     if (PUBLIC.test(req.path)) return next();
     const [scheme, encoded] = (req.headers.authorization || '').split(' ');
@@ -1994,7 +1994,7 @@ const canSeeQuote = (user, q) => user.role === 'admin' || q.createdBy?.id === us
 const quoteView = (q) => ({
   id: q.id, number: q.number, client: q.client, phone: q.phone, consultant: q.consultant, total: q.plan.total, entry: q.plan.entry,
   items: q.items.map((r) => ({ name: r.name, qty: r.qty })), issued: q.issued, validUntil: q.validUntil, leadId: q.leadId,
-  createdBy: q.createdBy?.name || '', createdAt: q.createdAt, custom: Boolean(q.plan.custom), hasContract: Boolean(q.contract), sale: sales.list.find((s) => s.quoteId === q.id && s.status !== 'cancelada')?.number || '',
+  createdBy: q.createdBy?.name || '', createdAt: q.createdAt, custom: Boolean(q.plan.custom), hasContract: Boolean(q.contract), contractSigned: q.contract?.status === 'assinado', sale: sales.list.find((s) => s.quoteId === q.id && s.status !== 'cancelada')?.number || '',
   expired: q.validUntil < new Date().toISOString().slice(0, 10),
   url: `/api/quotes/${q.id}/pdf`, publicUrl: quoteLink(q),
 });
@@ -2043,7 +2043,7 @@ app.get('/api/quotes/:id/contract-data', (req, res) => {
   const lead = q.leadId ? crm.byId(q.leadId) : (q.phone ? crm.findForConversation({ phone: q.phone }) : null);
   const form = (lead && closing.forLead(lead.id)) || (q.convKey && closing.forConversation(q.convKey)) || null;
   const fromForm = form?.status === 'preenchida' ? form.data : {};
-  res.json({ client: pickClient({ nome: q.client, whatsapp: q.phone ? `+${q.phone}` : '', ...fromForm, ...(q.contract?.client || {}) }), fromForm: Boolean(form?.status === 'preenchida'), hasContract: Boolean(q.contract) });
+  res.json({ client: pickClient({ nome: q.client, whatsapp: q.phone ? `+${q.phone}` : '', ...fromForm, ...(q.contract?.client || {}) }), fromForm: Boolean(form?.status === 'preenchida'), hasContract: Boolean(q.contract), signed: q.contract?.status === 'assinado' });
 });
 // O vendedor cola a mensagem do cliente (copiada do WhatsApp): a IA separa nome, CPF, RG, endereço…
 app.post('/api/contract/extract', async (req, res) => {
@@ -2074,20 +2074,124 @@ app.post('/api/quotes/:id/contract', (req, res) => {
   if (!q || !canSeeQuote(req.user, q)) throw httpError(404, 'Orçamento não encontrado');
   const client = pickClient(req.body?.client || {});
   if (!client.nome) throw httpError(400, 'Informe o nome completo do contratante');
+  if (q.contract?.status === 'assinado') throw httpError(400, 'Este contrato já foi assinado pelo cliente e não pode ser alterado. Para mudar algo, faça um novo orçamento.');
   fs.mkdirSync(contractDir, { recursive: true });
   fs.writeFileSync(contractFile(q), contractPdf({ client, quote: q, cfg: store.settings.contract || {} }));
-  q.contract = { client, at: new Date().toISOString(), by: req.user.name };
+  q.contract = { ...(q.contract || {}), client, at: new Date().toISOString(), by: req.user.name, status: q.contract?.status || 'gerado' };
   store.save();
   if (q.leadId) crm.addNote(req.user, q.leadId, `📝 Contrato CT-${q.number.replace(/^ORC-/, '')} gerado`);
   securityEvent('contrato_gerado', req.user, req, `CT-${q.number.replace(/^ORC-/, '')} · ${client.nome}`);
   res.json({ ok: true, url: `/api/quotes/${q.id}/contract.pdf` });
 });
+// ---------- Contrato assinado pelo celular ----------
+const contractToken = (id) => crypto.createHmac('sha256', auth.secret).update(`ct:${id}`).digest('base64url').slice(0, 20);
+const contractSignUrl = (q) => (publicBase() ? `${publicBase()}/contrato/${q.id}?t=${contractToken(q.id)}` : '');
+const signedFile = (q) => path.join(contractDir, `CT-${q.number.replace(/^ORC-/, '')}-assinado.pdf`);
+function publicContract(req) {
+  const q = quotes.list.find((x) => x.id === req.params.id);
+  const t = String(req.query.t || '');
+  const ok = q && q.contract && t.length === 20 && crypto.timingSafeEqual(Buffer.from(t), Buffer.from(contractToken(q.id)));
+  if (!ok) throw httpError(404, 'Link inválido ou contrato não encontrado. Peça um novo link no WhatsApp.');
+  return q;
+}
+/** Gera o contrato (se ainda não existe) e devolve o link e a mensagem para o cliente assinar. */
+function prepareContractSign(q, client, user) {
+  if (!publicBase()) throw httpError(400, 'O sistema ainda não tem endereço na internet (aba Conexões → criar endereço, ou a VPS).');
+  if (client) {
+    fs.mkdirSync(contractDir, { recursive: true });
+    fs.writeFileSync(contractFile(q), contractPdf({ client, quote: q, cfg: store.settings.contract || {} }));
+    q.contract = { ...(q.contract || {}), client, at: new Date().toISOString(), by: user?.name || 'Sistema', status: 'enviado', signedAt: null };
+    store.save();
+  }
+  if (!q.contract?.client?.nome) throw httpError(400, 'Gere o contrato com os dados do cliente primeiro.');
+  const url = contractSignUrl(q);
+  const first = q.contract.client.nome.split(' ')[0];
+  const ct = `CT-${q.number.replace(/^ORC-/, '')}`;
+  return { url, text: `${first}, preparei o seu contrato (${ct}) com os seus dados e as condições combinadas. É só tocar no link, ler com calma e assinar pelo celular mesmo, com o dedo:\n\n${url}\n\nNo final, você recebe aqui a sua via assinada. Qualquer dúvida, me chama. 😊` };
+}
+app.post('/api/quotes/:id/contract/sign-link', async (req, res) => {
+  const q = quotes.list.find((x) => x.id === req.params.id);
+  if (!q || !canSeeQuote(req.user, q)) throw httpError(404, 'Orçamento não encontrado');
+  const r = prepareContractSign(q, req.body?.client ? pickClient(req.body.client) : null, req.user);
+  let sent = false;
+  if (req.body?.send && q.convKey && (wa.isConnected ? wa.isConnected(q.convKey) : wa.status === 'connected')) {
+    await wa.send(q.convKey, { text: r.text, typing: false });
+    const conv = agent.conversation(q.convKey, { create: false });
+    if (conv) agent.remember(conv, 'assistant', r.text);
+    sent = true;
+  }
+  if (q.leadId) crm.addNote(req.user, q.leadId, '✍️ Contrato enviado para assinatura pelo celular');
+  res.json({ ...r, sent });
+});
+app.get('/contrato/:id', sitePage('contrato'));
+app.get('/api/public/contrato/:id', (req, res) => {
+  const q = publicContract(req);
+  const t = contractToken(q.id);
+  res.json({
+    status: q.contract.status === 'assinado' ? 'assinado' : 'enviado',
+    number: `CT-${q.number.replace(/^ORC-/, '')}`,
+    nome: q.contract.client.nome,
+    askCpf: Boolean(q.contract.client.cpf),
+    total: q.plan.total, entry: q.plan.entry,
+    items: q.items.map((r) => `${r.name} × ${r.qty}`),
+    pdf: `/api/public/contrato/${q.id}/pdf?t=${t}`,
+    company: (store.settings.contract || {}).company || 'MIGRA ASESORIA PARAGUAY E.A.S.',
+  });
+});
+app.get('/api/public/contrato/:id/pdf', (req, res) => {
+  const q = publicContract(req);
+  const file = q.contract.status === 'assinado' && fs.existsSync(signedFile(q)) ? signedFile(q) : contractFile(q);
+  if (!fs.existsSync(file)) throw httpError(404, 'Contrato não encontrado');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="Contrato CT-${q.number.replace(/^ORC-/, '')}.pdf"`);
+  res.sendFile(file);
+});
+app.post('/api/public/contrato/:id/assinar', async (req, res) => {
+  const q = publicContract(req);
+  const b = req.body || {};
+  const c = q.contract;
+  if (c.status === 'assinado') return res.json({ ok: true, already: true });
+  const norm = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!b.aceite) throw httpError(400, 'Marque que leu e concorda com o contrato.');
+  if (!['sim', 'nao'].includes(b.imagem)) throw httpError(400, 'Escolha se autoriza ou não o uso de imagem (cláusula nona).');
+  if (norm(b.nome) !== norm(c.client.nome)) throw httpError(400, 'Digite o seu nome completo igual ao do contrato.');
+  if (c.client.cpf && String(b.cpf || '').replace(/\D/g, '') !== String(c.client.cpf).replace(/\D/g, '')) throw httpError(400, 'O CPF não confere com o do contrato.');
+  const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(b.assinatura || ''));
+  const sig = m ? Buffer.from(m[1], 'base64') : null;
+  if (!sig || sig.length < 1500 || sig.length > 800_000) throw httpError(400, 'Faça a sua assinatura no quadro, por favor.');
+  const signedAt = new Date().toISOString();
+  const meta = clientMeta(req);
+  const hash = crypto.createHash('sha256').update(JSON.stringify({ n: q.number, c: c.client, t: q.plan.total, p: q.plan.parcels, at: signedAt })).update(sig).digest('hex');
+  const sign = { image: sig, signedAt, ip: meta.ip || '', ua: String(meta.ua || '').slice(0, 300), hash, imageConsent: b.imagem };
+  fs.writeFileSync(signedFile(q), contractPdf({ client: c.client, quote: q, cfg: store.settings.contract || {}, issued: c.at?.slice(0, 10), sign }));
+  fs.writeFileSync(path.join(contractDir, `assinatura-${q.id}.jpg`), sig);
+  Object.assign(c, { status: 'assinado', signedAt, ip: sign.ip, ua: sign.ua, hash, imageConsent: b.imagem });
+  store.save();
+  const ct = `CT-${q.number.replace(/^ORC-/, '')}`;
+  const media = { path: signedFile(q), mimetype: 'application/pdf', fileName: `Contrato ${ct} assinado.pdf` };
+  // Via do cliente no WhatsApp (na conversa dele) e aviso para o vendedor e o Marcos.
+  const key = q.convKey || (q.phone ? q.phone : null);
+  if (key) {
+    const text = `Contrato assinado, ${c.client.nome.split(' ')[0]}! ✍️ Segue a sua via. Ele passa a valer com a confirmação do pagamento da entrada.`;
+    await wa.send(key, String(key).startsWith('ig:') ? { text, typing: false } : { text, media, typing: false }).catch(() => {});
+    const conv = agent.conversation(key, { create: false });
+    if (conv) agent.remember(conv, 'assistant', `${text} [PDF do contrato assinado]`);
+  }
+  const notice = `✍️ *Contrato assinado pelo cliente*\n👤 ${c.client.nome}${c.client.cpf ? ` · CPF ${c.client.cpf}` : ''}\n📄 ${ct} · R$ ${q.plan.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n🕒 ${new Date(signedAt).toLocaleString('pt-BR')}\nO PDF assinado está no painel (Orçamentos → Contrato).`;
+  const seller = q.createdBy?.id ? auth.get(q.createdBy.id) : null;
+  if (seller?.whatsapp && seller.role !== 'admin' && wa.status === 'connected') await wa.send(seller.whatsapp, { text: notice, media, typing: false }).catch(() => {});
+  await notifyAdmins(notice).catch(() => {});
+  if (q.leadId) crm.addNote({ name: 'Cliente', role: 'admin' }, q.leadId, `✍️ Contrato ${ct} assinado pelo cliente (código ${hash.slice(0, 10).toUpperCase()})`);
+  notify('crm', { id: q.leadId });
+  res.json({ ok: true });
+});
 app.get('/api/quotes/:id/contract.pdf', (req, res) => {
   const q = quotes.list.find((x) => x.id === req.params.id);
   if (!q || !canSeeQuote(req.user, q) || !fs.existsSync(contractFile(q))) throw httpError(404, 'Contrato não encontrado: gere o contrato primeiro');
+  const signed = q.contract?.status === 'assinado' && fs.existsSync(signedFile(q));
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="Contrato CT-${q.number.replace(/^ORC-/, '')}.pdf"`);
-  res.sendFile(contractFile(q));
+  res.setHeader('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="Contrato CT-${q.number.replace(/^ORC-/, '')}${signed ? ' assinado' : ''}.pdf"`);
+  res.sendFile(signed ? signedFile(q) : contractFile(q));
 });
 // ---------- Fechamento pela conversa: cada etapa num botão (sai do WhatsApp da própria conversa) ----------
 function closingContext(user, key) {
@@ -2111,7 +2215,7 @@ app.get('/api/conversations/:key/closing', (req, res) => {
     quote: quote ? { number: quote.number, total: quote.plan.total } : null,
     ficha: form ? form.status : null,
     pix: pay ? pay.status : null,
-    contract: Boolean(quote?.contract),
+    contract: quote?.contract ? (quote.contract.status === 'assinado' ? 'assinado' : quote.contract.status === 'enviado' ? 'enviado' : 'gerado') : null,
     term: form?.term?.status || null,
     paid: pay?.status === 'paid',
     admin: req.user.role === 'admin',
@@ -2131,15 +2235,13 @@ app.post('/api/conversations/:key/closing/:action', async (req, res) => {
     await sayTo(conv, fichaMessage(first, closing.formUrl(f)));
   } else if (act === 'contract') {
     if (!quote) throw httpError(400, 'Faça primeiro o orçamento deste cliente (aba Orçamentos).');
+    if (quote.contract?.status === 'assinado') throw httpError(400, 'Este contrato já foi assinado pelo cliente. A via assinada está em Orçamentos → Contrato.');
     const client = filled ? pickClient(filled) : quote.contract?.client;
     if (!client?.nome) throw httpError(400, 'O cliente ainda não preencheu a ficha. Envie a ficha, ou gere o contrato na aba Orçamentos colando os dados dele.');
-    fs.mkdirSync(contractDir, { recursive: true });
-    fs.writeFileSync(contractFile(quote), contractPdf({ client, quote, cfg: store.settings.contract || {} }));
-    quote.contract = { client, at: new Date().toISOString(), by: req.user.name };
-    store.save();
-    const ct = `CT-${quote.number.replace(/^ORC-/, '')}`;
-    await sayTo(conv, `📄 ${first ? `${first}, s` : 'S'}egue o seu contrato de prestação de serviços (${ct}), já com os seus dados e as condições do orçamento ${quote.number}. Ele passa a valer após a confirmação do pagamento da entrada. Qualquer dúvida, me chama aqui.`, { path: contractFile(quote), mimetype: 'application/pdf', fileName: `Contrato ${ct}.pdf` });
-    securityEvent('contrato_gerado', req.user, req, `${ct} · ${client.nome}`);
+    if (!quote.convKey) quote.convKey = conv.key;
+    const r = prepareContractSign(quote, client, req.user);
+    await sayTo(conv, r.text);
+    securityEvent('contrato_enviado', req.user, req, `CT-${quote.number.replace(/^ORC-/, '')} · ${client.nome}`);
   } else if (act === 'pix') {
     const c = store.settings.payments || {};
     if (c.enabled === false || !(c.pixKey || c.mercadopago?.accessToken)) throw httpError(400, 'O Pix não está configurado (Configurações → Pagamentos).');

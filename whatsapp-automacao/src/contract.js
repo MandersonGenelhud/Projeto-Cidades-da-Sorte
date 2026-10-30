@@ -82,7 +82,11 @@ export function fullAddress(d = {}) {
  * client: { nome, nacionalidade, estadoCivil, profissao, rg, rgOrgao, cpf, endereco | rua…, whatsapp, email, acompanhantes }
  * quote: orçamento (itens, plano, número). cfg: dados da contratada (CONTRACT_DEFAULTS).
  */
-export function contractPdf({ client = {}, quote, cfg = {}, issued }) {
+/**
+ * sign (opcional): assinatura eletrônica do(a) contratante
+ * { image: JPEG, signedAt, ip, ua, hash, imageConsent: 'sim' | 'nao' }.
+ */
+export function contractPdf({ client = {}, quote, cfg = {}, issued, sign = null }) {
   const K = { ...CONTRACT_DEFAULTS, ...Object.fromEntries(Object.entries(cfg).filter(([, v]) => v)) };
   const p = quote.plan;
   const date = issued || new Date().toISOString().slice(0, 10);
@@ -106,6 +110,7 @@ export function contractPdf({ client = {}, quote, cfg = {}, issued }) {
     c.text(number, W - M, first ? 22 : 14, { size: first ? 12 : 9, bold: true, color: C.gold, align: 'right' });
     c.text(`Ref. orçamento ${quote.number}`, W - M, first ? 40 : 28, { size: first ? 8.5 : 7.5, color: '#cfe0d7', align: 'right' });
     if (first) c.text('Válido somente após a confirmação do pagamento da entrada', W - M, 56, { size: 7.5, bold: true, color: '#ffe8a3', align: 'right' });
+    if (first && sign) c.text(`Assinado eletronicamente pelo(a) contratante em ${new Date(sign.signedAt).toLocaleString('pt-BR', { timeZone: 'America/Asuncion' })}`, W - M, 70, { size: 7.5, color: '#bff0d6', align: 'right' });
     y = first ? 118 : 74;
   };
   const newPage = () => {
@@ -223,7 +228,7 @@ export function contractPdf({ client = {}, quote, cfg = {}, issued }) {
   ]);
   clause('CLÁUSULA NONA – DO USO DE IMAGEM E VOZ (OPCIONAL)', [
     'O(A) CONTRATANTE, marcando abaixo, decide se autoriza, de forma gratuita, a CONTRATADA a utilizar sua imagem, voz e depoimentos relacionados aos serviços em redes sociais, site e materiais de divulgação, de forma ética e respeitosa. A autorização pode ser revogada a qualquer tempo, por escrito, para usos futuros.',
-    '(   ) Autorizo          (   ) Não autorizo',
+    sign ? `( ${sign.imageConsent === 'sim' ? 'X' : '  '} ) Autorizo          ( ${sign.imageConsent === 'sim' ? '  ' : 'X'} ) Não autorizo` : '(   ) Autorizo          (   ) Não autorizo',
   ]);
   clause('CLÁUSULA DÉCIMA – DO FORO', [
     `As partes elegem o foro de ${K.foro} para dirimir quaisquer controvérsias oriundas deste contrato, com renúncia a qualquer outro, por mais privilegiado que seja.`,
@@ -232,10 +237,16 @@ export function contractPdf({ client = {}, quote, cfg = {}, issued }) {
   para(`${K.city}, ${longDate(date)}.`, { bold: true, gap: 14 });
 
   // Assinaturas (sem nomes de pessoas pela contratada)
-  need(170);
+  need(sign ? 220 : 170);
   y += 26;
   const sw = (maxW - 40) / 2;
   const sx = M + sw + 40;
+  if (sign?.image) y += 48; // espaço para a assinatura, sem cobrir a data
+  if (sign?.image) {
+    // A assinatura feita com o dedo, em cima da linha do contratante.
+    const h = c.image(sign.image, M + 6, y - 58, Math.min(170, sw));
+    if (h > 58) y += h - 58;
+  }
   c.line(M, y, M + sw, y, { color: '#8a948f', width: 0.8 });
   c.line(sx, y, sx + sw, y, { color: '#8a948f', width: 0.8 });
   c.text(blank(d.nome, 'CONTRATANTE').toUpperCase().slice(0, 44), M, y + 6, { size: 8.5, bold: true, color: C.ink });
@@ -250,6 +261,26 @@ export function contractPdf({ client = {}, quote, cfg = {}, issued }) {
   c.line(sx, y, sx + sw, y, { color: '#8a948f', width: 0.8 });
   c.text('Testemunha 1 – Nome / CPF', M, y + 6, { size: 8, color: C.gray });
   c.text('Testemunha 2 – Nome / CPF', sx, y + 6, { size: 8, color: C.gray });
+  y += 30;
+  if (sign) {
+    // Comprovante da assinatura eletrônica.
+    need(96);
+    c.rect(M, y, maxW, 86, { fill: C.soft, stroke: C.line, radius: 8, lineWidth: 0.6 });
+    c.text('REGISTRO DA ASSINATURA ELETRÔNICA', M + 12, y + 10, { size: 8, bold: true, color: C.green, spacing: 0.4 });
+    const rows = [
+      `Assinado pelo(a) contratante ${blank(d.nome).toUpperCase()} (CPF ${blank(d.cpf)}) em ${new Date(sign.signedAt).toLocaleString('pt-BR', { timeZone: 'America/Asuncion' })} (horário do Paraguai).`,
+      `IP: ${sign.ip || '-'} · Aparelho: ${String(sign.ua || '-').slice(0, 90)}`,
+      `Uso de imagem: ${sign.imageConsent === 'sim' ? 'autorizado' : 'não autorizado'} · Código de verificação: ${String(sign.hash || '').slice(0, 32).toUpperCase()}`,
+    ];
+    let ry = y + 26;
+    for (const r of rows) {
+      for (const line of c.lines(r, maxW - 24, { size: 7.5 })) {
+        c.text(line, M + 12, ry, { size: 7.5, color: C.ink });
+        ry += 11;
+      }
+    }
+    y += 96;
+  }
 
   // Rodapé em todas as páginas
   const pages = c.pages;
