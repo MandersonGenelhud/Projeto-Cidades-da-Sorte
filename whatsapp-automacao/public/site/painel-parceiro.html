@@ -21,7 +21,7 @@
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px">
       <div class="box form">
         <h2>Seus links</h2>
-        <label>Link do site (imóveis e serviços)
+        <label>Seu link de indicação (abre o pré-cadastro)
           <span class="copy"><input id="linkSite" readonly /><button class="btn small" data-copy="#linkSite">Copiar</button></span></label>
         <label>Link direto para o WhatsApp da Migra
           <span class="copy"><input id="linkWa" readonly /><button class="btn small" data-copy="#linkWa">Copiar</button></span></label>
@@ -46,8 +46,14 @@
     </div>
 
     <div class="box">
+      <h2>Materiais para divulgar</h2>
+      <p class="muted small">Loteamentos, imóveis e o pré-cadastro, cada um já com o seu código. Toque em WhatsApp para enviar.</p>
+      <div id="materials" class="form"></div>
+    </div>
+
+    <div class="box">
       <h2>Suas indicações</h2>
-      <p class="muted small">Pessoas que entraram pelo seu link ou com o seu código. Por privacidade, mostramos só o nome e a situação.</p>
+      <p class="muted small">Pessoas que entraram pelo seu link ou com o seu código. Por privacidade, mostramos só o nome, o serviço, quem da Migra está atendendo e a situação.</p>
       <div class="table-wrap"><table id="leads"></table></div>
     </div>
 
@@ -59,9 +65,15 @@
     <form class="box form" id="profile">
       <h2>Meus dados</h2>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
-        <label>Chave Pix <input name="pixKey" /></label>
+        <label>Receber em <select name="country" id="country"><option value="BR">🇧🇷 Brasil (Pix)</option><option value="PY">🇵🇾 Paraguai (conta bancária)</option></select></label>
+        <label data-br>Chave Pix <input name="pixKey" /></label>
+        <label data-br>CPF do titular <input name="cpf" inputmode="numeric" /></label>
+        <label data-py>Banco <input name="bank" /></label>
+        <label data-py>Número da conta <input name="account" /></label>
+        <label data-py>Titular da conta <input name="holder" /></label>
+        <label data-py>Cédula (CI) ou RUC do titular <input name="doc" /></label>
         <label>E-mail <input name="email" type="email" /></label>
-        <label>Nova senha (opcional) <input name="password" type="password" minlength="6" autocomplete="new-password" /></label>
+        <label>Nova senha (opcional, 8+ com letras e números) <input name="password" type="password" minlength="8" autocomplete="new-password" /></label>
       </div>
       <p class="err" id="profileMsg"></p>
       <button class="btn">Salvar</button>
@@ -84,7 +96,7 @@
       const s = me.stats;
       $('#hello').textContent = `Olá, ${me.me.name.split(' ')[0]}!`;
       $('#kpis').innerHTML = [
-        ['Cliques no link', s.clicks], ['Pessoas diferentes', s.visitors], ['Indicações cadastradas', s.leads], ['Negócios fechados', s.won], ['Comissão a receber', brl(s.toReceive)], ['Comissão recebida', brl(s.paid)],
+        ['Cliques no link', s.clicks], ['Pessoas diferentes', s.visitors], ['Pré-cadastros', s.precadastros], ['Em atendimento', s.attending], ['Negócios fechados', s.won], ['Comissão a receber', brl(s.toReceive)], ['Comissão recebida', brl(s.paid)],
       ].map(([l, v]) => `<div class="kpi"><span>${l}</span><b>${v}</b></div>`).join('');
       $('#linkSite').value = me.links.site;
       $('#linkWa').value = me.links.whatsapp || 'O WhatsApp da Migra ainda não está conectado';
@@ -93,12 +105,21 @@
       $('#qr').src = '/api/affiliate/qr';
       if (!$('#msg').value) $('#msg').value = me.shareMessage;
       $('#shareStatus').href = `https://wa.me/?text=${encodeURIComponent(personal('', me.links.site).replace(/^Oi, ! /, 'Oi! '))}`;
-      $('#leads').innerHTML = `<thead><tr><th>Nome</th><th>Desde</th><th>Serviço</th><th>Situação</th></tr></thead><tbody>${me.leads.map((l) => `<tr><td><b>${esc(l.name)}</b></td><td>${fmt(l.since)}</td><td>${esc(l.category)}</td><td><span class="pill ${l.stage === 'ganho' ? 'ok' : ''}">${esc(l.status)}</span></td></tr>`).join('') || '<tr><td colspan="4" class="muted">Ainda não há indicações. Compartilhe o seu link!</td></tr>'}</tbody>`;
+      $('#leads').innerHTML = `<thead><tr><th>Nome</th><th>Desde</th><th>Serviço</th><th>Atendimento</th><th>Situação</th></tr></thead><tbody>${me.leads.map((l) => `<tr><td><b>${esc(l.name)}</b>${l.precadastro ? '<div class="muted small">fez o pré-cadastro</div>' : ''}</td><td>${fmt(l.since)}</td><td>${esc(l.category)}</td><td>${l.seller ? esc(l.seller) : '<span class="muted">aguardando</span>'}</td><td><span class="pill ${l.stage === 'ganho' ? 'ok' : ''}">${esc(l.status)}</span></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Ainda não há indicações. Compartilhe o seu link!</td></tr>'}</tbody>`;
+      $('#materials').innerHTML = (me.materials || []).map((m) => `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:8px 10px;flex-wrap:wrap">
+        <span><b>${esc(m.title)}</b> <span class="pill">${esc(m.kind)}</span><br /><span class="muted small">${[m.city, m.info].filter(Boolean).map(esc).join(' · ')}</span></span>
+        <a class="btn small wa" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`${m.title}${m.city ? ` (${m.city})` : ''}: ${m.url}`)}">WhatsApp</a></div>`).join('');
       $('#comms').innerHTML = `<thead><tr><th>Cliente</th><th>Valor da venda</th><th>Comissão</th><th>Situação</th></tr></thead><tbody>${me.commissions.map((c) => `<tr><td>${esc(c.clientName)}</td><td>${brl(c.saleValue, c.currency)}</td><td><b>${brl(c.amount, c.currency)}</b></td><td>${c.status === 'paga' ? `<span class="pill ok">Paga em ${fmt(c.paidAt)}</span>` : '<span class="pill warn">A receber</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">As comissões aparecem aqui quando uma indicação fecha negócio.</td></tr>'}</tbody>`;
       const f = $('#profile');
-      f.pixKey.value = me.me.pixKey || '';
-      f.email.value = me.me.email || '';
+      for (const k of ['country', 'pixKey', 'cpf', 'bank', 'account', 'holder', 'doc', 'email']) f[k].value = me.me[k] || (k === 'country' ? 'BR' : '');
+      showPay();
     }
+    const showPay = () => {
+      const py = $('#country').value === 'PY';
+      $$('[data-br]').forEach((el) => (el.hidden = py));
+      $$('[data-py]').forEach((el) => (el.hidden = !py));
+    };
+    $('#country').addEventListener('change', showPay);
     $$('[data-copy]').forEach((b) => b.addEventListener('click', async () => {
       const input = $(b.dataset.copy);
       try { await navigator.clipboard.writeText(input.value); b.textContent = 'Copiado ✓'; } catch { input.select(); }

@@ -50,10 +50,10 @@ test('loteamento: gera quadra em grade, muda situação e esconde preço do vend
 test('indicação: primeiro indicador vale, comissão só na venda confirmada e aviso ao indicador', async () => {
   const { store, crm, affiliates, admin, sent } = setup();
   store.updateSettings({ affiliates: { rates: { imoveis: { percent: 2, fixed: 0 }, migracao: { percent: 5, fixed: 100 } } } });
-  const ana = affiliates.signup({ name: 'Ana Paula', whatsapp: '11 98765-4321', password: 'senha123', acceptTerms: true });
-  const beto = affiliates.signup({ name: 'Beto', whatsapp: '11 91234-5678', password: 'senha123', acceptTerms: true });
+  const ana = affiliates.signup({ name: 'Ana Paula', whatsapp: '11 98765-4321', password: 'senha123', pixKey: 'ana@pix.com', acceptTerms: true });
+  const beto = affiliates.signup({ name: 'Beto', whatsapp: '11 91234-5678', password: 'senha123', pixKey: 'ana@pix.com', acceptTerms: true });
   assert.match(ana.code, /^anapaula\d{3}$/);
-  assert.throws(() => affiliates.signup({ name: 'Ana Paula', whatsapp: '11 98765-4321', password: 'senha123', acceptTerms: true }), /já está cadastrado/);
+  assert.throws(() => affiliates.signup({ name: 'Ana Paula', whatsapp: '11 98765-4321', password: 'senha123', pixKey: 'ana@pix.com', acceptTerms: true }), /já está cadastrado/);
   assert.throws(() => affiliates.login('11 98765-4321', 'errada'), /incorretos/);
 
   // Link: cookie de indicação só é gravado na primeira vez.
@@ -107,7 +107,7 @@ test('cliente do site vira um único prospecto de imóveis, com o indicador do l
 test('comissão de imóvel em dólar sai em dólar', async () => {
   const { store, crm, affiliates, admin } = setup();
   store.updateSettings({ affiliates: { rates: { imoveis: { percent: 3, fixed: 0 } } } });
-  const ana = affiliates.signup({ name: 'Ana', whatsapp: '11 98765-4321', password: 'senha123', acceptTerms: true });
+  const ana = affiliates.signup({ name: 'Ana', whatsapp: '11 98765-4321', password: 'senha123', pixKey: 'ana@pix.com', acceptTerms: true });
   const lead = crm.byId(crm.create(admin, { name: 'Carlos', phone: '5511977776666', category: 'imoveis', value: 18000 }).id);
   lead.currency = 'USD';
   affiliates.attach(lead, ana);

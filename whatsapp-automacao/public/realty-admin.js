@@ -541,31 +541,31 @@ function showLot(id) {
 
 // ---------- INDICADORES ----------
 loaders.affiliates = async () => {
-  const [list, comms, settings] = await Promise.all([api('/api/affiliates'), api('/api/affiliates-commissions'), api('/api/settings')]);
+  const [list, comms, settings, meta] = await Promise.all([api('/api/affiliates'), api('/api/affiliates-commissions'), api('/api/settings'), api('/api/affiliates-meta')]);
   const toPay = comms.filter((c) => c.status === 'a_pagar');
   const sum = (l, f) => l.reduce((s, x) => s + (Number(f(x)) || 0), 0);
   $('#affKpis').innerHTML = [
     ['Indicadores ativos', list.filter((a) => a.status === 'ativo').length, `${list.length} cadastrados`, 'affiliates'],
     ['Cliques nos links', sum(list, (a) => a.stats.clicks), `${sum(list, (a) => a.stats.visitors)} pessoas diferentes`, 'send'],
-    ['Indicações', sum(list, (a) => a.stats.leads), `${sum(list, (a) => a.stats.won)} fecharam negócio`, 'userPlus'],
+    ['Pré-cadastros', sum(list, (a) => a.stats.precadastros), `${sum(list, (a) => a.stats.leads)} indicações · ${sum(list, (a) => a.stats.attending)} em atendimento · ${sum(list, (a) => a.stats.won)} fechadas`, 'userPlus'],
     ['Comissões a pagar', sumByCurrency(toPay), `${toPay.length} comissão(ões)`, 'money'],
   ].map(([l, v, sub, ico]) => `<div class="card kpi"><div class="kpi-head"><span class="label">${l}</span><span class="kpi-ico">${icon(ico, 16)}</span></div><div class="value">${v}</div><div class="sub">${sub}</div></div>`).join('');
-  $('#commTable').innerHTML = `<thead><tr><th>Data</th><th>Indicador</th><th>Cliente</th><th>Linha</th><th>Venda</th><th>Comissão</th><th>Pix do indicador</th><th>Situação</th><th></th></tr></thead><tbody>${comms.map((c) => `
-    <tr data-comm="${esc(c.id)}"><td>${fmtDate(c.createdAt)}</td><td><b>${esc(c.affName)}</b></td><td>${esc(c.clientName)}</td><td>${c.category === 'imoveis' ? 'Imóveis' : 'Migração'}</td>
+  $('#commTable').innerHTML = `<thead><tr><th>Data</th><th>Indicador</th><th>Cliente</th><th>Linha</th><th>Venda</th><th>Comissão</th><th>Receber em</th><th>Situação</th><th></th></tr></thead><tbody>${comms.map((c) => `
+    <tr data-comm="${esc(c.id)}"><td>${fmtDate(c.createdAt)}</td><td><b>${esc(c.affName)}</b></td><td>${esc(c.clientName)}</td><td>${esc(meta.categories.find((x) => x.key === c.category)?.label || c.category)}</td>
       <td>${brlFmt(c.saleValue, c.currency)}</td><td><b>${brlFmt(c.amount, c.currency)}</b><div class="hint">${c.percent}%${c.fixed ? ` + ${brlFmt(c.fixed, c.currency)}` : ''}</div></td><td class="small">${esc(c.affPix || '—')}</td>
       <td>${c.status === 'paga' ? `<span class="badge done">Paga ${fmtDate(c.paidAt)}</span>` : c.status === 'cancelada' ? '<span class="badge canceled">Cancelada</span>' : '<span class="badge paused">A pagar</span>'}</td>
       <td class="row">${c.status === 'a_pagar' ? '<button class="btn small primary" data-act="paid">Marcar como paga</button><button class="btn small danger" data-act="cancel">Cancelar</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">As comissões aparecem aqui quando uma venda de cliente indicado é confirmada.</td></tr>'}</tbody>`;
-  $('#affTable').innerHTML = `<thead><tr><th>Indicador</th><th>Código</th><th>WhatsApp</th><th>Cliques</th><th>Indicações</th><th>Vendas</th><th>A receber</th><th>Situação</th></tr></thead><tbody>${list.map((a) => `
-    <tr data-aff="${esc(a.id)}"><td><b>${esc(a.name)}</b><div class="hint">desde ${fmtDate(a.createdAt)}${a.email ? ` · ${esc(a.email)}` : ''}</div></td><td><code>${esc(a.code)}</code></td><td>${esc(fmtPhone(a.whatsapp))}</td>
-      <td>${a.stats.clicks}</td><td>${a.stats.leads}</td><td>${a.stats.won}</td><td>${brlFmt(a.stats.toReceive)}</td>
-      <td><button class="btn small ${a.status === 'ativo' ? '' : 'danger'}" data-act="toggle">${a.status === 'ativo' ? 'Ativo · bloquear' : 'Bloqueado · reativar'}</button></td></tr>`).join('') || '<tr><td colspan="8" class="muted">Ninguém cadastrado ainda. Divulgue a página /parceiros.</td></tr>'}</tbody>`;
+  $('#affTable').innerHTML = `<thead><tr><th>Indicador</th><th>Código</th><th>WhatsApp</th><th>Cliques</th><th>Pré-cadastros</th><th>Em atendimento</th><th>Vendas</th><th>A receber</th><th>Situação</th></tr></thead><tbody>${list.map((a) => `
+    <tr data-aff="${esc(a.id)}"><td><b>${esc(a.name)}</b><div class="hint">desde ${fmtDate(a.createdAt)}${a.email ? ` · ${esc(a.email)}` : ''}</div><div class="hint">${esc(a.payout || 'sem dados para receber')}</div></td><td><code>${esc(a.code)}</code></td><td>${esc(fmtPhone(a.whatsapp))}</td>
+      <td>${a.stats.clicks}<div class="hint">${a.stats.visitors} pessoa(s)</div></td><td>${a.stats.precadastros}<div class="hint">${a.stats.leads} indicação(ões)</div></td><td>${a.stats.attending}</td><td>${a.stats.won}</td><td>${brlFmt(a.stats.toReceive)}</td>
+      <td><button class="btn small ${a.status === 'ativo' ? '' : 'danger'}" data-act="toggle">${a.status === 'ativo' ? 'Ativo · bloquear' : 'Bloqueado · reativar'}</button></td></tr>`).join('') || '<tr><td colspan="9" class="muted">Ninguém cadastrado ainda. Divulgue a página /parceiros.</td></tr>'}</tbody>`;
   const a = settings.affiliates || {};
   const f = $('#formAff');
   f.enabled.checked = a.enabled !== false;
-  f.imoveisPercent.value = a.rates?.imoveis?.percent ?? 0;
-  f.imoveisFixed.value = a.rates?.imoveis?.fixed ?? 0;
-  f.migracaoPercent.value = a.rates?.migracao?.percent ?? 0;
-  f.migracaoFixed.value = a.rates?.migracao?.fixed ?? 0;
+  $('#affRates').innerHTML = meta.categories.map((c) => `<div class="commission-seller" data-cat="${esc(c.key)}"><b>${esc(c.label)}</b>
+    <label>% da venda <input type="number" min="0" max="100" step="0.1" data-k="percent" value="${c.percent}" /></label>
+    <label>Valor fixo por venda <input type="number" min="0" step="1" data-k="fixed" value="${c.fixed}" /></label></div>`).join('');
+  f.services.value = meta.services.map((x) => `${x.label} | ${x.category}`).join('\n');
   f.cookieDays.value = a.cookieDays ?? 180;
   f.shareMessage.value = a.shareMessage || '';
 };
@@ -599,10 +599,9 @@ $('#formAff').addEventListener('submit', withBusy($('#formAff'), async (e) => {
       enabled: f.enabled.checked,
       cookieDays: Number(f.cookieDays.value || 180),
       shareMessage: f.shareMessage.value,
-      rates: {
-        imoveis: { percent: Number(f.imoveisPercent.value || 0), fixed: Number(f.imoveisFixed.value || 0) },
-        migracao: { percent: Number(f.migracaoPercent.value || 0), fixed: Number(f.migracaoFixed.value || 0) },
-      },
+      rates: Object.fromEntries($$('#affRates [data-cat]').map((el) => [el.dataset.cat, { percent: Number(el.querySelector('[data-k=percent]').value || 0), fixed: Number(el.querySelector('[data-k=fixed]').value || 0) }])),
+      services: f.services.value.split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([label]) => label)
+        .map(([label, cat]) => ({ label, category: (cat || 'migracao').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '') || 'migracao' })),
     } },
   });
   toast('Regras do programa salvas');

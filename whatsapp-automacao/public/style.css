@@ -1001,3 +1001,5 @@ tbody tr:hover td { background: color-mix(in srgb, var(--blue) 6%, transparent);
 #salesTable td, #salesBySeller td, #saleBody td { white-space: nowrap; }
 #salesTable td:nth-child(3) { white-space: normal; min-width: 150px; }
 .sale-head b { white-space: nowrap; }
+.commission-seller { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line, #dfe6ee); border-radius: 12px; }
+.commission-seller label { font-size: 12.5px; }

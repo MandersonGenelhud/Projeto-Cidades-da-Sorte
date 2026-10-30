@@ -25,7 +25,8 @@ export function checkPassword(password, stored) {
 const publicUser = (u) => (u ? {
   id: u.id, name: u.name, login: u.login, role: u.role, whatsapp: u.whatsapp || '', active: u.active !== false,
   receivesLeads: u.receivesLeads ?? u.role === 'seller', leadsReceived: u.leadsReceived || 0, lastLeadAt: u.lastLeadAt || null, rotationSeq: u.rotationSeq || 0,
-  twoFactor: Boolean(u.totpEnabled), pending: Boolean(u.pending), requestedAt: u.requestedAt || null, commissionPct: u.commissionPct ?? null,
+  twoFactor: Boolean(u.totpEnabled), pending: Boolean(u.pending), requestedAt: u.requestedAt || null, commissionPct: u.commissionPct ?? null, affiliateCommissionPct: u.affiliateCommissionPct ?? null,
+  receivesAffiliateLeads: Boolean(u.receivesAffiliateLeads), refCode: u.refCode || '',
 } : null);
 
 export class Auth {
@@ -97,6 +98,7 @@ export class Auth {
       if (u.active) delete u.pending; // liberado pelo administrador
     }
     if (patch.receivesLeads !== undefined) u.receivesLeads = Boolean(patch.receivesLeads);
+    if (patch.receivesAffiliateLeads !== undefined) u.receivesAffiliateLeads = Boolean(patch.receivesAffiliateLeads);
     if (patch.password) {
       if (String(patch.password).length < 6) throw Object.assign(new Error('A senha precisa ter pelo menos 6 caracteres'), { status: 400 });
       u.passwordHash = hashPassword(patch.password);

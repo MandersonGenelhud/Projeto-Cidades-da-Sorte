@@ -16,7 +16,7 @@
       <div style="display:grid;gap:16px">
         <span class="eyebrow">Programa de indicação Migra</span>
         <h1>Indique quem sonha com o Paraguai e ganhe comissão</h1>
-        <p>Você conhece alguém que quer morar, investir, abrir empresa ou comprar um terreno no Paraguai? Envie o seu link. Quando a pessoa fechar com a Migra, você recebe a sua comissão no Pix.</p>
+        <p>Você conhece alguém que quer morar, investir, abrir empresa ou comprar um terreno no Paraguai? Envie o seu link. A pessoa faz um pré-cadastro rápido, a equipe Migra atende e, quando ela fechar, você recebe a sua comissão: no Pix (Brasil) ou na sua conta (Paraguai).</p>
         <div id="ratesBox" class="counts" style="color:#fff"></div>
       </div>
       <div class="box" style="color:var(--text)">
@@ -25,9 +25,19 @@
           <label>Nome completo <input name="name" required autocomplete="name" /></label>
           <label>WhatsApp (com DDD) <input name="whatsapp" required inputmode="tel" autocomplete="tel" placeholder="+55 11 98765-4321" /></label>
           <label>E-mail <input name="email" type="email" autocomplete="email" /></label>
-          <label>Chave Pix para receber as comissões <input name="pixKey" placeholder="CPF, e-mail, celular ou chave aleatória" /></label>
-          <label>CPF <input name="cpf" inputmode="numeric" /></label>
-          <label>Crie uma senha <input name="password" type="password" minlength="6" required autocomplete="new-password" /></label>
+          <label>Onde você quer receber as comissões?
+            <select name="country" id="country"><option value="BR">🇧🇷 Brasil (Pix)</option><option value="PY">🇵🇾 Paraguai (conta bancária)</option></select></label>
+          <div class="form" id="payBR">
+            <label>Chave Pix <input name="pixKey" placeholder="CPF, e-mail, celular ou chave aleatória" /></label>
+            <label>CPF do titular <input name="cpf" inputmode="numeric" /></label>
+          </div>
+          <div class="form" id="payPY" hidden>
+            <label>Banco <input name="bank" placeholder="Ex.: Itaú Paraguay, Ueno, Banco Basa" /></label>
+            <label>Número da conta <input name="account" /></label>
+            <label>Titular da conta <input name="holder" /></label>
+            <label>Cédula (CI) ou RUC do titular <input name="doc" /></label>
+          </div>
+          <label>Crie uma senha (mínimo 8, com letras e números) <input name="password" type="password" minlength="8" required autocomplete="new-password" /></label>
           <label class="check"><input type="checkbox" name="acceptTerms" required /> <span>Li e aceito as <a href="#regras">regras do programa</a>.</span></label>
           <p class="err" id="signupErr"></p>
           <button class="btn primary">Criar meu link de indicação</button>
@@ -46,8 +56,8 @@
     <h2 style="margin-bottom:16px">Como funciona</h2>
     <div class="steps3">
       <div class="box"><b>1</b><h3>Pegue o seu link</h3><p class="muted">Cadastro grátis em 1 minuto. Você recebe um link e um código só seus.</p></div>
-      <div class="box"><b>2</b><h3>Compartilhe</h3><p class="muted">Mande para amigos, família e grupos. Quem entra pelo seu link fica registrado como sua indicação.</p></div>
-      <div class="box"><b>3</b><h3>Receba no Pix</h3><p class="muted">A equipe da Migra atende e fecha a venda. Quando o negócio é confirmado, a comissão é sua.</p></div>
+      <div class="box"><b>2</b><h3>Compartilhe</h3><p class="muted">Mande para amigos, família e grupos. A pessoa abre o seu link e preenche o pré-cadastro: é isso que registra a indicação como sua. No escritório virtual você vê cliques, pré-cadastros e quem já está em atendimento.</p></div>
+      <div class="box"><b>3</b><h3>Receba a comissão</h3><p class="muted">A equipe da Migra atende e fecha a venda. Quando o negócio é confirmado, a comissão é sua.</p></div>
     </div>
   </section>
 
@@ -56,10 +66,10 @@
       <h2 style="margin-bottom:12px">Regras do programa</h2>
       <ol class="rules">
         <li><b>Vale o primeiro indicador.</b> O cliente fica ligado a quem indicou primeiro, mesmo que compre semanas depois ou que outra pessoa indique de novo.</li>
-        <li>A indicação é registrada quando a pessoa entra pelo seu link (vale por <span id="cookieDays">180</span> dias naquele aparelho), chama no WhatsApp pelo seu link ou informa o seu código.</li>
+        <li>A indicação é registrada quando a pessoa entra pelo seu link e faz o pré-cadastro (o link vale por <span id="cookieDays">180</span> dias naquele aparelho), chama no WhatsApp pelo seu link ou informa o seu código.</li>
         <li>A comissão é paga só quando o negócio é fechado e confirmado pela Migra. Cadastro ou visita não geram comissão.</li>
         <li>Quem atende e fecha a venda é sempre a equipe da Migra. Você indica; a Migra cuida do resto.</li>
-        <li>O pagamento é feito na chave Pix cadastrada, depois da confirmação do pagamento do cliente.</li>
+        <li>O pagamento é feito nos dados cadastrados (Pix no Brasil ou conta bancária no Paraguai), depois da confirmação do pagamento do cliente.</li>
         <li>Divulgue com honestidade: não prometa preços, prazos ou condições que não estejam nos materiais da Migra, e só envie mensagens para quem conhece você.</li>
         <li>Indicações de você mesmo, cadastros falsos ou spam cancelam a participação.</li>
       </ol>
@@ -78,6 +88,7 @@
       $('#ratesBox').innerHTML = rates.map(([k, r]) => `<span>💰 ${LABEL[k] || k}: <b>${[Number(r.percent) ? `${r.percent}%` : '', Number(r.fixed) ? `R$ ${Number(r.fixed).toLocaleString('pt-BR')}` : ''].filter(Boolean).join(' + ')}</b> por venda fechada</span>`).join('');
       if (!c.affiliates.enabled) $('#signup').innerHTML = '<p>O programa de indicação está pausado no momento.</p>';
     }).catch(() => {});
+    $('#country').addEventListener('change', (e) => { $('#payBR').hidden = e.target.value !== 'BR'; $('#payPY').hidden = e.target.value !== 'PY'; });
     $$('.tabs button').forEach((b) => b.addEventListener('click', () => {
       $$('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
       $('#signup').hidden = b.dataset.tab !== 'signup';

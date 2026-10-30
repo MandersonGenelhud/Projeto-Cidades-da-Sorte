@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Pré-cadastro · Migra</title>
+  <meta name="description" content="Faça o seu pré-cadastro e um consultor da Migra Paraguai entra em contato." />
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/site/site.css" />
+</head>
+<body>
+  <section class="hero">
+    <div class="wrap" style="grid-template-columns:minmax(0,1.1fr) minmax(300px,440px);align-items:start;gap:32px" id="heroGrid">
+      <div style="display:grid;gap:16px">
+        <span class="eyebrow" id="who">Pré-cadastro Migra</span>
+        <h1>Seu projeto no Paraguai começa com um consultor de verdade</h1>
+        <p>Residência e cédula, empresa, terrenos, imóveis e veículos. Deixe seus dados e um consultor da Migra chama você no WhatsApp para entender o seu caso, sem compromisso.</p>
+        <div class="counts" style="color:#fff"><span>✅ Atendimento em português</span><span>📍 Equipe no Paraguai</span><span>🔒 Seus dados só com a Migra</span></div>
+      </div>
+      <div class="box" style="color:var(--text)">
+        <form class="form" id="pre">
+          <h2 style="margin:0">Pré-cadastro</h2>
+          <label>Nome completo <input name="name" required autocomplete="name" /></label>
+          <label>WhatsApp (com DDD) <input name="whatsapp" required inputmode="tel" autocomplete="tel" placeholder="+55 11 98765-4321" /></label>
+          <label>O que você procura? <select name="interest" id="interest" required></select></label>
+          <label>Cidade e estado onde você mora <input name="city" autocomplete="address-level2" placeholder="Ex.: Cascavel, PR" /></label>
+          <label>Melhor horário para falar <select name="when"><option value="">Qualquer horário</option><option>Manhã</option><option>Tarde</option><option>Noite</option></select></label>
+          <label>Quer contar algo? (opcional) <textarea name="message" rows="3" maxlength="300"></textarea></label>
+          <label class="check"><input type="checkbox" name="consent" required /> <span>Autorizo a Migra a entrar em contato comigo pelo WhatsApp. Veja a <a href="/privacidade.html" target="_blank" rel="noopener">política de privacidade</a>.</span></label>
+          <p class="err" id="preErr"></p>
+          <button class="btn primary">Quero ser atendido</button>
+        </form>
+        <div id="done" class="form" hidden>
+          <h2 style="margin:0">Pré-cadastro recebido ✅</h2>
+          <p id="doneText"></p>
+          <a class="btn wa" id="doneWa" target="_blank" rel="noopener" hidden>Falar agora no WhatsApp</a>
+          <p class="muted small">Seu código de atendimento: <b id="doneCode"></b></p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <script src="/site/site.js"></script>
+  <script>
+    siteChrome('parceiros');
+    if (matchMedia('(max-width: 860px)').matches) $('#heroGrid').style.gridTemplateColumns = '1fr';
+    const ref = new URLSearchParams(location.search).get('ref') || '';
+    api(`/api/public/ref?ref=${encodeURIComponent(ref)}`).then((r) => {
+      if (r.name) $('#who').textContent = r.kind === 'consultor' ? `Atendimento com ${r.name}, consultor Migra` : `Indicação de ${r.name}`;
+      $('#interest').innerHTML = r.services.map((s) => `<option>${esc(s)}</option>`).join('');
+    }).catch(() => {});
+    api('/api/public/catalog').then((c) => setHeaderWhatsapp(c.whatsapp)).catch(() => {});
+    $('#pre').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('#preErr').textContent = '';
+      const btn = e.target.querySelector('button');
+      btn.disabled = true;
+      try {
+        const body = Object.fromEntries(new FormData(e.target));
+        body.consent = e.target.consent.checked;
+        body.ref = ref;
+        const r = await api('/api/public/precadastro', { method: 'POST', body });
+        $('#pre').hidden = true;
+        $('#done').hidden = false;
+        $('#doneCode').textContent = r.code;
+        $('#doneText').textContent = r.seller ? `Obrigado! ${r.seller}, da equipe Migra, vai chamar você no WhatsApp em breve.` : 'Obrigado! Um consultor da Migra vai chamar você no WhatsApp em breve.';
+        if (r.whatsappUrl) { $('#doneWa').href = r.whatsappUrl; $('#doneWa').hidden = false; }
+      } catch (err) {
+        $('#preErr').textContent = err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

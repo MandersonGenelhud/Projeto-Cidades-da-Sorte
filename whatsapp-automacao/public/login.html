@@ -98,7 +98,8 @@
     fetch('/api/auth/state').then((r) => r.json()).then((s) => {
       if (s.user && s.setup2fa) return startTwofa();
       if (s.user) return (location.href = back());
-      setMode(s.needsSetup ? 'setup' : 'login');
+      // Link de convite da equipe (?cadastro=1) já abre o cadastro de vendedor.
+      setMode(s.needsSetup ? 'setup' : new URLSearchParams(location.search).has('cadastro') ? 'signup' : 'login');
     });
     $('btnMode').addEventListener('click', () => setMode(mode === 'signup' ? 'login' : 'signup'));
 

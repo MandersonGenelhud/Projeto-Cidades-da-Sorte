@@ -623,14 +623,17 @@ loaders.team = async () => {
       <div class="grow"><b>${esc(u.name)}</b> ${u.role === 'admin' ? '<span class="badge running">Administrador</span>' : '<span class="badge pending">Vendedor</span>'}
         ${u.active ? '' : '<span class="badge canceled">Inativo</span>'} ${u.twoFactor ? '<span class="badge done">🔐 2 etapas</span>' : '<span class="badge paused">só senha</span>'}
         <div class="meta">login: ${esc(u.login)}${u.whatsapp ? ` · WhatsApp ${esc(fmtPhone(u.whatsapp))}` : ' · sem WhatsApp (fora do rodízio)'}
-          · ${u.receivesLeads && u.whatsapp ? `🔄 no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : '⏸️ fora do rodízio'}</div></div>
-      ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? '⏸️ Pausar rodízio' : '▶️ Pôr no rodízio'}</button>` : ''}
+          · ${u.receivesLeads && u.whatsapp ? `🔄 no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : '⏸️ fora do rodízio'}
+          · ${u.receivesAffiliateLeads ? '🤝 recebe indicações de parceiros' : '🚫 não recebe indicações de parceiros'}</div></div>
+      ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? '⏸️ Pausar rodízio' : '▶️ Pôr no rodízio'}</button>
+        <button class="btn small" data-act="affleads" title="Indicações de parceiros pagam comissão menor ao vendedor">${u.receivesAffiliateLeads ? '🤝 Parar indicações' : '🤝 Receber indicações'}</button>` : ''}
       <button class="btn small" data-act="edit">✏️ Editar</button>
       <button class="btn small" data-act="password">🔑 Senha</button>
       ${u.id === window.currentUser.id ? '' : `<button class="btn small ${u.active ? 'danger' : ''}" data-act="toggle">${u.active ? 'Desativar' : 'Reativar'}</button>`}
       <button class="btn small" data-act="transfer" title="Passar os prospectos em aberto para outra pessoa">🔁 Passar carteira</button>
     </div>`).join('');
-  $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads }) => ({ id, name, receivesLeads })));
+  $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads, receivesAffiliateLeads }) => ({ id, name, receivesLeads, receivesAffiliateLeads })));
+  renderSystemLinks().catch(() => {});
 
   const c = settings.crm || {};
   const f = $('#formCrmSettings');
@@ -666,6 +669,9 @@ $('#teamList').addEventListener('click', async (e) => {
     if (act === 'rotation') {
       const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
       await api(`/api/users/${id}`, { method: 'PATCH', body: { receivesLeads: !u?.receivesLeads } });
+    } else if (act === 'affleads') {
+      const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
+      await api(`/api/users/${id}`, { method: 'PATCH', body: { receivesAffiliateLeads: !u?.receivesAffiliateLeads } });
     } else if (act === 'edit') {
       const name = prompt('Nome:');
       if (name === null) return;
@@ -1539,7 +1545,11 @@ loaders.contracts = async () => {
     $('#salesBySeller').innerHTML = `<thead><tr><th>Vendedor</th><th>Vendas</th><th>Vendido</th><th>Recebido</th><th>Comissão a pagar</th><th>Paga</th></tr></thead><tbody>${sum.bySeller.map((b) => `<tr><td><b>${esc(b.name)}</b></td><td>${b.sales}</td><td>${brl2(b.sold)}</td><td>${brl2(b.received)}</td><td>${brl2(b.commissionOpen)}</td><td>${brl2(b.commissionPaid)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Nenhuma venda ainda.</td></tr>'}</tbody>`;
     $('#salesStock').innerHTML = (sum.stock || []).map((d) => `<div class="stock-row"><b>${esc(d.name)}</b><span>🟢 ${d.disponivel || 0} disponíveis</span><span>🟡 ${d.reservado || 0} reservados</span><span>🔴 ${d.vendido || 0} vendidos</span><span>⚪ ${d.loteadora || 0} da loteadora</span><span class="muted">${d.total} lotes</span></div>`).join('') || 'Nenhum loteamento cadastrado (aba Loteamentos).';
     $('#commissionDefault').value = sum.defaultPct;
-    $('#commissionPerSeller').innerHTML = saleState.users.map((u) => `<label>${esc(u.name)} <input type="number" min="0" max="100" step="0.1" data-pct="${esc(u.id)}" value="${u.commissionPct ?? ''}" placeholder="padrão" /></label>`).join('');
+    $('#commissionAffiliate').value = sum.affiliateSellerPct ?? '';
+    $('#commissionPartnerInfo').innerHTML = 'A comissão do parceiro (indicador) fica em <b>Indicadores → Regras do programa</b>. Deixe um campo do vendedor vazio para usar o padrão.';
+    $('#commissionPerSeller').innerHTML = saleState.users.map((u) => `<div class="commission-seller"><b>${esc(u.name)}</b>
+      <label>Tradicional (%) <input type="number" min="0" max="100" step="0.1" data-pct="${esc(u.id)}" value="${u.commissionPct ?? ''}" placeholder="padrão" /></label>
+      <label>Com indicação (%) <input type="number" min="0" max="100" step="0.1" data-pct-aff="${esc(u.id)}" value="${u.affiliateCommissionPct ?? ''}" placeholder="padrão" /></label></div>`).join('');
   }
   $('#salesTable').innerHTML = `<thead><tr><th>Venda</th><th>Data</th><th>Cliente</th>${admin ? '<th>Vendedor</th>' : ''}<th>Total</th><th>Recebido</th><th>Próxima parcela</th><th>Comissão</th><th>Situação</th></tr></thead>
     <tbody>${list.map((v) => `<tr data-sale-id="${esc(v.id)}"><td><b>${esc(v.number)}</b><div class="hint">${esc(v.quoteNumber)}</div></td><td>${dBr(v.createdAt)}</td>
@@ -1554,8 +1564,10 @@ for (const sel of ['#salesFilterPeriod', '#salesFilterSeller', '#salesFilterStat
 $('#salesSearch').addEventListener('input', () => { clearTimeout(saleState.t); saleState.t = setTimeout(() => loaders.contracts(), 300); });
 $('#btnCommissionSave').addEventListener('click', async () => {
   const perSeller = Object.fromEntries($$('#commissionPerSeller [data-pct]').map((i) => [i.dataset.pct, i.value === '' ? '' : Number(i.value)]));
+  const perSellerAffiliate = Object.fromEntries($$('#commissionPerSeller [data-pct-aff]').map((i) => [i.dataset.pctAff, i.value === '' ? '' : Number(i.value)]));
+  const aff = $('#commissionAffiliate').value;
   try {
-    await api('/api/sales/settings', { method: 'PUT', body: { commissionPct: Number($('#commissionDefault').value) || 0, perSeller } });
+    await api('/api/sales/settings', { method: 'PUT', body: { commissionPct: Number($('#commissionDefault').value) || 0, affiliateSellerPct: aff === '' ? '' : Number(aff), perSeller, perSellerAffiliate } });
     saleState.users = [];
     toast('Comissões salvas (valem para as vendas novas)');
     loaders.contracts();
@@ -1577,6 +1589,7 @@ async function openSale(id) {
     <h3>Comissão</h3>
     <div class="sale-commission">
       <span><b>${brl2(v.commission.value)}</b> (${v.commission.pct}%) · ${v.commission.status === 'paga' ? `<span class="badge done">paga em ${dBr(v.commission.paidAt)}</span>` : '<span class="badge paused">a pagar</span>'}${v.commission.note ? ` · ${esc(v.commission.note)}` : ''}</span>
+      ${v.affiliate ? `<div class="hint">🤝 Venda indicada por <b>${esc(v.affiliate.name)}</b>: o vendedor recebe o percentual "com indicação" e a comissão do parceiro (estimada em ${brl2(v.affiliate.value)}) é paga em Indicadores.</div>` : ''}
       ${admin && v.status !== 'cancelada' ? `<div class="row"><label class="inline">% <input id="saleCommPct" type="number" min="0" max="100" step="0.1" value="${v.commission.pct}" /></label><label class="inline">ou valor R$ <input id="saleCommValue" type="number" min="0" step="0.01" placeholder="${v.commission.value}" /></label>
         <button class="btn small" id="btnSaleComm">Salvar comissão</button>
         <button class="btn small ${v.commission.status === 'paga' ? '' : 'primary'}" id="btnSaleCommPaid">${v.commission.status === 'paga' ? 'Marcar como a pagar' : '💸 Marcar comissão como paga'}</button></div>` : ''}
@@ -1648,4 +1661,76 @@ $('#btnContractSign').addEventListener('click', async (e) => {
   } finally {
     e.target.disabled = false;
   }
+});
+
+// ---------- Links para convidar a equipe e os parceiros ----------
+async function renderSystemLinks() {
+  const box = $('#systemLinks');
+  if (!box) return;
+  const l = await api('/api/system/links');
+  if (!l.base) {
+    box.innerHTML = `<h2>🔗 Links para convidar</h2><p class="status-warn">⚠️ O sistema ainda não tem endereço na internet. Vá em <b>Conexões WhatsApp → Acesso pela internet → Criar endereço</b> (ou publique na VPS). Depois os links aparecem aqui.</p>`;
+    return;
+  }
+  const msgs = {
+    marcos: `Marcos, este é o painel da Migra: ${l.panel}\nEntre com o login de administrador que eu criei para você. No primeiro acesso, o sistema pede para ligar a verificação em duas etapas (app Google Authenticator). Nunca passe sua senha ou código para ninguém, nem para mim.`,
+    team: `Olá! Este é o sistema da Migra para orçamentos, contratos e vendas.\nCrie o seu acesso aqui: ${l.signup}\nDepois do cadastro, eu libero o seu acesso. No primeiro login, o sistema pede para ligar a verificação em duas etapas (app Google Authenticator). Não envie sua senha nem códigos para ninguém.`,
+    partners: `Quer indicar a Migra Paraguai e ganhar comissão? Faça o seu cadastro de parceiro aqui: ${l.partners}\nVocê recebe um link só seu e acompanha cliques, pré-cadastros e comissões no seu escritório virtual.`,
+  };
+  const row = (title, url, key) => `<div class="item"><div class="grow"><b>${title}</b><div class="meta"><code>${esc(url)}</code></div></div>
+    <button class="btn small" data-copy-text="${esc(url)}">Copiar link</button>
+    <a class="btn small primary" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msgs[key])}">Enviar no WhatsApp</a></div>`;
+  box.innerHTML = `<h2>🔗 Links para convidar</h2>
+    ${l.fixed ? '' : '<p class="hint">⚠️ Este endereço é provisório (túnel): muda quando o computador reinicia. Para um endereço fixo, publique na VPS com um domínio.</p>'}
+    ${row('Marcos (administrador): painel', l.panel, 'marcos')}
+    ${row('Equipe: criar acesso de vendedor (você libera depois)', l.signup, 'team')}
+    ${row('Parceiros: cadastro de indicador', l.partners, 'partners')}
+    <p class="hint">O Marcos não se cadastra pelo link: crie o acesso dele no formulário <b>Cadastrar vendedor</b> com o tipo <b>Administrador</b> e mande só o link do painel. Ele mesmo cria a senha definitiva (botão 🔑) e liga a verificação em duas etapas.</p>`;
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-copy-text]');
+  if (!b) return;
+  try { await navigator.clipboard.writeText(b.dataset.copyText); toast('Link copiado'); } catch { prompt('Copie o link:', b.dataset.copyText); }
+});
+
+// ---------- DIVULGAR (equipe) ----------
+let shareState = null;
+const shareText = (name, link) => ($('#shareMsg').value || '{link}').replaceAll('{nome}', String(name || '').split(' ')[0]).replaceAll('{link}', link).replace(/^Oi, ! /, 'Oi! ');
+loaders.share = async () => {
+  const r = await api('/api/referral/me');
+  shareState = r;
+  $('#shareKpis').innerHTML = [
+    ['Cliques no seu link', r.stats.clicks, `${r.stats.visitors} pessoa(s) diferente(s)`],
+    ['Pré-cadastros na sua carteira', r.stats.precadastros, 'pelo seu link ou de parceiros'],
+    ['Clientes de parceiros', r.stats.fromPartners, r.receivesAffiliateLeads ? 'você está recebendo' : 'você não está recebendo'],
+  ].map(([l, v, sub]) => `<div class="card kpi"><div class="kpi-head"><span class="label">${l}</span></div><div class="value">${v}</div><div class="sub">${sub}</div></div>`).join('');
+  $('#shareOptIn').checked = r.receivesAffiliateLeads;
+  $('#shareOptInfo').innerHTML = `Venda tradicional: <b>${r.commission.normal}%</b> de comissão. Venda indicada por parceiro: <b>${r.commission.withPartner}%</b> (parte da comissão vai para o parceiro). Ligado, você entra no rodízio dos pré-cadastros dos parceiros.`;
+  $('#shareLink').value = r.link;
+  $('#shareQr').src = `/api/referral/qr?ts=${Date.now()}`;
+  $('#shareNoUrl').hidden = r.publicUrl;
+  if (!$('#shareMsg').value) $('#shareMsg').value = r.shareMessage;
+  $('#shareWa').href = `https://wa.me/?text=${encodeURIComponent(shareText('', r.link))}`;
+  $('#shareMaterials').innerHTML = r.materials.map((m) => `<div class="item"><div class="grow"><b>${esc(m.title)}</b> <span class="badge pending">${esc(m.kind)}</span><div class="meta">${[m.city, m.info].filter(Boolean).map(esc).join(' · ')}</div></div>
+    <button class="btn small" data-copy-text="${esc(m.url)}">Copiar</button>
+    <a class="btn small primary" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`${m.title}${m.city ? ` (${m.city})` : ''}: ${m.url}`)}">WhatsApp</a></div>`).join('');
+};
+$('#shareOptIn').addEventListener('change', async (e) => {
+  try {
+    await api('/api/me/prefs', { method: 'PATCH', body: { receivesAffiliateLeads: e.target.checked } });
+    toast(e.target.checked ? 'Você vai receber clientes indicados por parceiros' : 'Você não vai mais receber indicações de parceiros');
+    loaders.share();
+  } catch (err) { toast(err.message, true); e.target.checked = !e.target.checked; }
+});
+$('#btnShareCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('#shareLink').value); toast('Link copiado'); } catch { $('#shareLink').select(); }
+});
+$('#btnShareBuild').addEventListener('click', () => {
+  if (!shareState) return;
+  const rows = $('#shareContacts').value.split('\n').map((l) => l.split(/[,;\t]/)).map(([n, ...p]) => [n?.trim() || '', p.join('').replace(/\D/g, '')]).filter(([, p]) => p.length >= 10);
+  $('#shareSendList').innerHTML = rows.map(([n, p]) => {
+    const phone = p.length <= 11 ? `55${p}` : p;
+    return `<div class="item"><div class="grow"><b>${esc(n || 'Contato')}</b> <span class="meta">+${phone}</span></div>
+      <a class="btn small primary" target="_blank" rel="noopener" href="https://wa.me/${phone}?text=${encodeURIComponent(shareText(n, shareState.link))}">Enviar</a></div>`;
+  }).join('') || '<p class="hint">Nenhum telefone válido. Use: Nome, telefone com DDD.</p>';
 });

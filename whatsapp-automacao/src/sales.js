@@ -10,8 +10,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 
 export class Sales {
-  constructor({ store, auth, notify = () => {} }) {
-    Object.assign(this, { store, auth, notify });
+  constructor({ store, auth, notify = () => {}, referral = () => null }) {
+    // referral(leadId) → { id, name, percent, fixed } do parceiro que indicou o cliente (ou null).
+    Object.assign(this, { store, auth, notify, referral });
     store.data.sales ||= [];
   }
 
@@ -52,6 +53,20 @@ export class Sales {
     return Number.isFinite(Number(own)) && own !== null && own !== '' ? Number(own) : Number(this.config.commissionPct) || 0;
   }
 
+  /**
+   * Comissão do vendedor nesta venda: em venda indicada por parceiro vale o percentual
+   * "vendedor com indicação" (menor, porque parte vai para o parceiro), se o Marcos definiu.
+   */
+  pctFor(sellerId, affiliated) {
+    const own = sellerId ? this.auth.get(sellerId)?.affiliateCommissionPct : null;
+    if (affiliated) {
+      if (own !== null && own !== undefined && own !== '' && Number.isFinite(Number(own))) return Number(own);
+      const def = this.config.affiliateSellerPct;
+      if (def !== null && def !== undefined && def !== '' && Number.isFinite(Number(def))) return Number(def);
+    }
+    return this.commissionPct(sellerId);
+  }
+
   #number() {
     this.store.data.saleSeq = (this.store.data.saleSeq || 0) + 1;
     return `VD-${new Date().getFullYear()}-${String(this.store.data.saleSeq).padStart(4, '0')}`;
@@ -68,7 +83,8 @@ export class Sales {
       { label: 'Entrada', value: p.entry, due: p.start, status: 'pendente' },
       ...p.parcels.map((x) => ({ label: x.label, value: x.value, due: x.date, status: 'pendente' })),
     ];
-    const pct = this.commissionPct(seller?.id);
+    const ref = quote.leadId ? this.referral(quote.leadId) : null;
+    const pct = this.pctFor(seller?.id, Boolean(ref));
     const sale = {
       id: crypto.randomBytes(6).toString('hex'),
       number: this.#number(),
@@ -82,12 +98,14 @@ export class Sales {
       total: p.total,
       parcels,
       commission: { pct, value: cents((p.total * pct) / 100), manual: false, status: 'a_pagar', paidAt: null, note: '' },
+      // Parceiro que indicou: a comissão dele é paga em Indicadores (aqui fica só a referência).
+      affiliate: ref ? { id: ref.id, name: ref.name, percent: ref.percent, fixed: ref.fixed, value: cents((p.total * (ref.percent || 0)) / 100 + (ref.fixed || 0)) } : null,
       status: 'ativa',
       createdAt: new Date().toISOString(),
       createdBy: by?.name || by || 'Sistema',
       history: [],
     };
-    this.#log(sale, by, `Venda lançada a partir do orçamento ${quote.number} · ${brl(p.total)} · comissão ${pct}%`);
+    this.#log(sale, by, `Venda lançada a partir do orçamento ${quote.number} · ${brl(p.total)} · comissão ${pct}%${ref ? ` (venda indicada por ${ref.name})` : ''}`);
     if (entryPaid) {
       Object.assign(sale.parcels[0], { status: 'pago', paidAt: today(), method: 'Pix', confirmedBy: 'Sistema (Pix confirmado)' });
       this.#log(sale, 'Sistema', `Entrada recebida (Pix confirmado): ${brl(sale.parcels[0].value)}`);
@@ -154,7 +172,7 @@ export class Sales {
     const from = sale.sellerName;
     Object.assign(sale, { sellerId: seller.id, sellerName: seller.name });
     if (!sale.commission.manual && sale.commission.status !== 'paga') {
-      sale.commission.pct = this.commissionPct(seller.id);
+      sale.commission.pct = this.pctFor(seller.id, Boolean(sale.affiliate));
       sale.commission.value = cents((sale.total * sale.commission.pct) / 100);
     }
     this.#log(sale, user, `Vendedor: ${from || '-'} → ${seller.name}`);

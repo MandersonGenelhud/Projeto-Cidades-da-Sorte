@@ -9,6 +9,8 @@ Nenhum sistema é impossível de invadir. O objetivo é tornar a invasão muito 
 | Senhas | Guardadas só como hash scrypt com sal, nunca em texto. |
 | Verificação em duas etapas (2FA) | **Obrigatória para todos.** No primeiro acesso, o sistema só deixa configurar o app autenticador (código de 6 números, padrão TOTP/RFC 6238). |
 | Cadastro de vendedor | A pessoa se cadastra pelo link, mas só entra depois que o administrador libera na aba Equipe. O pedido avisa os administradores no WhatsApp. Senha com no mínimo 8 caracteres, com letras e números. |
+| Portal dos parceiros | Senha com no mínimo 8 caracteres, com letras e números. O parceiro vê só o nome, o serviço e a situação das indicações dele, nunca o telefone do cliente. Os dados de recebimento (Pix ou conta no Paraguai) aparecem só para o administrador. |
+| Pré-cadastro público | No máximo 8 envios por hora do mesmo IP. Exige autorização de contato (LGPD). Indicar a si mesmo não gera comissão, e vale o primeiro indicador. |
 | Orçamentos | Cada vendedor vê só os próprios orçamentos; o administrador vê todos. A criação fica registrada nos acessos (quem fez, número, cliente, valor). |
 | Limite de tentativas | 5 senhas erradas no mesmo login, ou 20 no mesmo IP, bloqueiam por 15 minutos. Vale também para o portal dos parceiros. O bloqueio avisa os administradores no WhatsApp. |
 | Aviso de acesso novo | Entrada de um IP novo avisa os administradores no WhatsApp. |

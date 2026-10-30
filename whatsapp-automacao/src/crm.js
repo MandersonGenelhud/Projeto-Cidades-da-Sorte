@@ -294,17 +294,18 @@ export class Crm {
   }
 
   /** Próximo da vez: quem recebeu cliente há mais tempo (ou nunca recebeu). */
-  nextSeller() {
-    const list = this.rotation();
+  nextSeller(pool = null) {
+    // Com "pool", vale só quem passa no filtro (ex.: quem aceita indicações de parceiros), dentro ou fora do rodízio comum.
+    const list = pool ? this.auth.users.filter((u) => u.active !== false && !u.pending && u.whatsapp && pool(u)) : this.rotation();
     if (!list.length) return null;
     return [...list].sort((a, b) => (a.rotationSeq || 0) - (b.rotationSeq || 0) || a.name.localeCompare(b.name))[0];
   }
 
   /** Entrega o prospecto para o próximo vendedor do rodízio (ou mantém o atual, se ainda puder atender). */
-  routeLead(lead, { reason = 'rodízio' } = {}) {
+  routeLead(lead, { reason = 'rodízio', pool = null } = {}) {
     const current = lead.ownerId ? this.auth.get(lead.ownerId) : null;
     if (current && current.active !== false && current.whatsapp) return current;
-    const seller = this.nextSeller();
+    const seller = this.nextSeller(pool);
     if (!seller) return null;
     this.#assign('Sistema', lead, seller.id, reason);
     seller.lastLeadAt = new Date().toISOString();

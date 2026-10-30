@@ -38,6 +38,7 @@
       <button data-tab="realty" data-admin>🏠 Imóveis</button>
       <button data-tab="lots">🗺️ Loteamentos</button>
       <button data-tab="affiliates" data-admin>🤝 Indicadores</button>
+      <button data-tab="share">📣 Divulgar e indicar</button>
       <div class="nav-group" data-admin>Atendimento automático</div>
       <button data-tab="dashboard" data-admin>📊 Painel</button>
       <button data-tab="connection" data-admin>📱 Conexões WhatsApp</button>
@@ -335,9 +336,13 @@
         <div class="panel"><h2>🏡 Estoque de lotes</h2><div id="salesStock" class="hint"></div></div>
       </div>
       <details class="panel" data-admin id="commissionSettings">
-        <summary><b>⚙️ Comissões: percentual padrão e por vendedor</b></summary>
-        <p class="hint">O percentual vale para as vendas novas. Em cada venda, você pode mudar o percentual ou colocar um valor fixo, e marcar quando a comissão foi paga. Tudo fica registrado.</p>
-        <div class="row"><label>Percentual padrão (%) <input id="commissionDefault" type="number" min="0" max="100" step="0.1" /></label></div>
+        <summary><b>⚙️ Comissões: vendedor, vendedor com indicação e parceiro</b></summary>
+        <p class="hint">Os percentuais valem para as vendas novas. <b>Venda tradicional:</b> o vendedor recebe o percentual normal. <b>Venda indicada por parceiro:</b> o vendedor recebe o percentual "com indicação" (menor) e o parceiro recebe a comissão dele, definida em <b>Indicadores</b>. Em cada venda dá para mudar o percentual ou colocar um valor fixo. Tudo fica registrado.</p>
+        <div class="row">
+          <label>Vendedor, venda tradicional (%) <input id="commissionDefault" type="number" min="0" max="100" step="0.1" /></label>
+          <label>Vendedor, venda indicada por parceiro (%) <input id="commissionAffiliate" type="number" min="0" max="100" step="0.1" placeholder="igual à tradicional" /></label>
+        </div>
+        <p class="hint" id="commissionPartnerInfo"></p>
         <div id="commissionPerSeller" class="commission-grid"></div>
         <button type="button" class="btn primary" id="btnCommissionSave">Salvar comissões</button>
       </details>
@@ -447,6 +452,40 @@
       </div>
     </section>
 
+    <!-- DIVULGAR (equipe) -->
+    <section id="tab-share" class="tab">
+      <div class="page-head"><h1>📣 Divulgar e indicar</h1></div>
+      <p class="hint">Os mesmos links e materiais dos parceiros. Quem entra pelo seu link e faz o pré-cadastro vem direto para a sua carteira.</p>
+      <div class="cards" id="shareKpis"></div>
+      <div class="grid2">
+        <div class="panel form">
+          <h2>Indicações de parceiros</h2>
+          <label class="check"><input type="checkbox" id="shareOptIn" /> <span>Quero receber clientes indicados por parceiros</span></label>
+          <p class="hint" id="shareOptInfo"></p>
+          <h2>Seu link</h2>
+          <div class="row"><input id="shareLink" readonly class="grow" /><button type="button" class="btn small" id="btnShareCopy">Copiar</button></div>
+          <div class="row" style="align-items:center">
+            <img id="shareQr" alt="QR Code do seu link" width="132" height="132" style="border-radius:10px;border:1px solid var(--line)" />
+            <div class="form grow"><a class="btn primary" id="shareWa" target="_blank" rel="noopener">Compartilhar no WhatsApp</a><span class="hint">Mostre o QR Code no celular para quem estiver perto escanear.</span></div>
+          </div>
+          <p class="hint" id="shareNoUrl" hidden>⚠️ O sistema ainda não tem endereço na internet, então o link só abre neste computador. Peça ao administrador para ligar o acesso pela internet.</p>
+        </div>
+        <div class="panel form">
+          <h2>Convidar meus contatos</h2>
+          <p class="hint">Cole os contatos (um por linha: <b>Nome, telefone</b>). Cada um vira um botão que abre o <b>seu</b> WhatsApp com a mensagem pronta. Você confere e envia, um por um, sem disparo em massa.</p>
+          <label>Mensagem (use {nome} e {link})<textarea id="shareMsg" rows="4"></textarea></label>
+          <label>Contatos<textarea id="shareContacts" rows="4" placeholder="Maria, 11 98765-4321"></textarea></label>
+          <button type="button" class="btn" id="btnShareBuild">Montar lista de envio</button>
+          <div id="shareSendList" class="form"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Materiais para divulgar</h2>
+        <p class="hint">Cada link já leva o seu código. Toque em WhatsApp para enviar.</p>
+        <div id="shareMaterials"></div>
+      </div>
+    </section>
+
     <!-- INDICADORES -->
     <section id="tab-affiliates" class="tab">
       <div class="page-head">
@@ -465,13 +504,12 @@
       <form class="panel form" id="formAff">
         <h2>Regras do programa</h2>
         <label class="check"><input type="checkbox" name="enabled" /> Programa de indicação aberto para novos cadastros</label>
-        <div class="grid2 tight">
-          <label>Imóveis: comissão (% da venda) <input type="number" min="0" step="0.1" name="imoveisPercent" /></label>
-          <label>Imóveis: valor fixo por venda (R$) <input type="number" min="0" step="1" name="imoveisFixed" /></label>
-          <label>Migração (residência, cédula, empresa): % da venda <input type="number" min="0" step="0.1" name="migracaoPercent" /></label>
-          <label>Migração: valor fixo por venda (R$) <input type="number" min="0" step="1" name="migracaoFixed" /></label>
-          <label>A indicação pelo link vale por (dias) <input type="number" min="1" name="cookieDays" /></label>
-        </div>
+        <h3>Comissão do parceiro por linha de negócio</h3>
+        <p class="hint">O parceiro recebe só quando a venda é confirmada. A comissão do vendedor em venda indicada (menor) fica em <b>Contratos e vendas → Comissões</b>.</p>
+        <div class="commission-grid" id="affRates"></div>
+        <label>A indicação pelo link vale por (dias) <input type="number" min="1" name="cookieDays" /></label>
+        <label><span>Serviços que podem ser indicados (um por linha: <b>Nome do serviço | linha de comissão</b>). Para revender um serviço novo, acrescente uma linha; uma linha nova (ex.: <i>escola</i>) ganha o campo de comissão depois de salvar.</span>
+          <textarea name="services" rows="6" placeholder="Residência e cédula paraguaia | migracao&#10;Terreno ou loteamento | imoveis&#10;Veículos (Migra Motors) | veiculos"></textarea></label>
         <label>Mensagem sugerida para os indicadores compartilharem (use {nome} e {link})<textarea name="shareMessage" rows="3"></textarea></label>
         <button class="btn primary">Salvar regras</button>
       </form>
@@ -596,6 +634,7 @@
           <button class="btn primary">Cadastrar</button>
         </form>
       </div>
+      <div class="panel" id="systemLinks"></div>
       <form class="panel form" id="formCrmSettings">
         <h2>Regras do CRM</h2>
         <label>Como os clientes chegam aos vendedores

@@ -180,6 +180,7 @@ const realty = new Realty({ store, dataDir: DATA_DIR });
 const affiliates = new Affiliates({
   store,
   crm,
+  auth,
   secret: auth.secret,
   notifyAffiliate: async (phone, text) => {
     if (wa.status === 'connected') await wa.send(phone, { text, typing: false });
@@ -284,7 +285,17 @@ closing.onSigned = async (f) => {
 // Orçamentos ORC-AAAA-NNNNN: PDF com a marca + mensagem no formato da equipe.
 const quotes = new Quotes({ store, dataDir: DATA_DIR, secret: auth.secret, matchPackage: (n) => crm.matchPackage(n) });
 // Contratos e vendas (parcelas e comissões).
-const sales = new Sales({ store, auth, notify });
+const sales = new Sales({
+  store,
+  auth,
+  notify,
+  // Venda de cliente indicado: o vendedor recebe o percentual "com indicação" e a venda mostra o parceiro.
+  referral: (leadId) => {
+    const l = crm.byId(leadId);
+    const a = l?.affiliateId ? affiliates.get(l.affiliateId) : null;
+    return a ? { id: a.id, name: a.name, ...affiliates.rate(l.commissionCategory || l.category) } : null;
+  },
+});
 // Pix da entrada confirmado: a venda é lançada sozinha a partir do último orçamento do cliente.
 const salesOnPaid = (p) => {
   try {
@@ -733,7 +744,7 @@ app.post('/webhook', (req, res) => {
 if (PANEL_PASSWORD) {
   const expected = Buffer.from(`${PANEL_USER}:${PANEL_PASSWORD}`);
   // Páginas públicas (site de imóveis, portal do indicador, recibos) ficam fora da senha extra.
-  const PUBLIC = /^\/(imoveis|parceiros|r\/|recibo\/|ficha\/|termo\/|etapas\/|orcamento\/|contrato\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
+  const PUBLIC = /^\/(imoveis|parceiros|indicacao|r\/|recibo\/|ficha\/|termo\/|etapas\/|orcamento\/|contrato\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
   app.use((req, res, next) => {
     if (PUBLIC.test(req.path)) return next();
     const [scheme, encoded] = (req.headers.authorization || '').split(' ');
@@ -752,6 +763,7 @@ app.get('/imoveis/p/:slug', sitePage('imovel'));
 app.get('/imoveis/l/:slug', sitePage('loteamento'));
 app.get('/parceiros', sitePage('parceiros'));
 app.get('/parceiros/painel', sitePage('painel-parceiro'));
+app.get('/indicacao', sitePage('indicacao'));
 app.get('/imoveis/fotos/:name', (req, res) => {
   const file = realty.imagePath(req.params.name);
   if (!file) return res.sendStatus(404);
@@ -759,10 +771,57 @@ app.get('/imoveis/fotos/:name', (req, res) => {
 });
 // Link de indicação: grava quem indicou (o primeiro vale) e leva para o site.
 app.get('/r/:code', (req, res) => {
-  const { cookies } = affiliates.recordClick(req, req.params.code);
+  const { cookies, affiliate, seller } = affiliates.recordClick(req, req.params.code);
   if (cookies.length) res.set('Set-Cookie', cookies);
-  const to = String(req.query.to || '/imoveis');
+  // Sem destino, o link leva ao pré-cadastro (é ele que garante a comissão de quem indicou).
+  const code = affiliate?.code || seller?.refCode || '';
+  const to = String(req.query.to || (code ? `/indicacao?ref=${code}` : '/imoveis'));
   res.redirect(to.startsWith('/') && !to.startsWith('//') ? to : '/imoveis');
+});
+// Página do pré-cadastro: quem indicou (só o primeiro nome) e os serviços que dá para escolher.
+app.get('/api/public/ref', (req, res) => {
+  const { affiliate, seller } = affiliates.referrer(req, String(req.query.ref || ''));
+  const who = affiliate || seller;
+  res.json({
+    name: who ? String(who.name).split(' ')[0] : '',
+    kind: affiliate ? 'parceiro' : seller ? 'consultor' : '',
+    services: affiliates.services.map((x) => x.label),
+    business: store.settings.business?.name || 'Migra Paraguai',
+    enabled: store.settings.affiliates?.enabled !== false,
+  });
+});
+// Limite simples contra robôs no formulário público (por IP, por hora).
+const preRegHits = new Map();
+const preRegAllowed = (ip) => {
+  const now = Date.now();
+  const list = (preRegHits.get(ip) || []).filter((t) => now - t < 3_600_000);
+  if (list.length >= 8) return false;
+  list.push(now);
+  preRegHits.set(ip, list);
+  if (preRegHits.size > 5000) preRegHits.clear();
+  return true;
+};
+app.post('/api/public/precadastro', async (req, res) => {
+  if (!preRegAllowed(clientIp(req))) throw httpError(429, 'Recebemos muitos cadastros deste aparelho. Tente de novo mais tarde.');
+  const b = req.body || {};
+  const ref = affiliates.referrer(req, String(b.ref || ''));
+  const r = affiliates.preRegister(b, ref);
+  const { lead, owner, affiliate, service, extra } = r;
+  const first = (n) => String(n || '').split(' ')[0];
+  const sent = (to, text) => (to && wa.status === 'connected' ? wa.send(to, { text, typing: false }).catch(() => {}) : Promise.resolve());
+  const brief = `👤 ${lead.name} · +${lead.phone}\n🎯 ${service.label}${extra ? `\n📝 ${extra}` : ''}${affiliate ? `\n🤝 Indicado por ${affiliate.name} (${affiliate.code})` : ref.seller ? '\n🔗 Veio pelo seu link' : ''}`;
+  if (owner) {
+    await sent(owner.whatsapp, `📝 *Novo pré-cadastro* — ${lead.code}\n${brief}\n\nChame o cliente agora: https://wa.me/${lead.phone}\nO prospecto já está na sua carteira em Prospectos.`);
+  } else {
+    await notifyAdmins(`📝 *Pré-cadastro sem vendedor* — ${lead.code}\n${brief}\n\nNinguém está com "Receber indicações de parceiros" ligado. Passe o prospecto para um vendedor em Prospectos.`);
+  }
+  if (affiliate) {
+    await sent(affiliate.whatsapp, `📝 Boa notícia, ${first(affiliate.name)}! ${first(lead.name)} fez o pré-cadastro pelo seu link (${service.label}).${owner ? ` Quem vai atender é ${first(owner.name)}, da equipe Migra.` : ' A equipe Migra vai entrar em contato.'}\nAcompanhe no seu escritório virtual.`);
+  }
+  notify('crm', { id: lead.id });
+  const main = mainWhatsapp();
+  const text = `Olá! Acabei de fazer o pré-cadastro (código ${lead.code}). Meu nome é ${lead.name} e tenho interesse em: ${service.label}.`;
+  res.json({ ok: true, code: lead.code, seller: owner ? first(owner.name) : '', whatsappUrl: main ? `https://wa.me/${main}?text=${encodeURIComponent(text)}` : '' });
 });
 const mainWhatsapp = () => wa.getState().me?.phone || '';
 app.get('/api/public/catalog', (_req, res) => {
@@ -870,15 +929,27 @@ app.get('/api/affiliate/me', (req, res) => {
     leads: affiliates.myLeads(a),
     commissions: affiliates.myCommissions(a),
     rates: store.settings.affiliates?.rates || {},
+    categories: affiliates.categories(),
     links: {
       site: link,
       imoveis: `${link}?to=/imoveis`,
       whatsapp: wa ? `https://wa.me/${wa}?text=${encodeURIComponent(`Olá! Vim pela indicação de ${a.name} (código de indicação: ${a.code}). Quero saber mais sobre a Migra Paraguai.`)}` : '',
     },
+    materials: shareMaterials(link),
     shareMessage: store.settings.affiliates?.shareMessage || '',
     business: store.settings.business?.name || 'Migra Paraguai',
   });
 });
+/** Loteamentos e imóveis para divulgar, cada um com o link de quem indica. */
+function shareMaterials(link) {
+  const devs = realty.listDevelopments().filter((d) => !d.hidden).map((d) => ({
+    kind: 'Loteamento', title: d.name, city: d.city || '', info: d.summary?.disponivel ? `${d.summary.disponivel} lote(s) disponível(is)` : '', url: `${link}?to=/imoveis/l/${d.slug}`,
+  }));
+  const props = realty.listProperties({ publicOnly: true }).slice(0, 40).map((p) => ({
+    kind: 'Imóvel', title: p.title, city: p.city || '', info: p.price ? `${{ USD: 'US$', PYG: 'Gs.', BRL: 'R$' }[p.currency] || p.currency || ''} ${Number(p.price).toLocaleString('pt-BR')}` : '', url: `${link}?to=/imoveis/p/${p.slug}`,
+  }));
+  return [{ kind: 'Pré-cadastro', title: 'Formulário de pré-cadastro (todos os serviços)', city: '', info: 'Garante a indicação', url: link }, { kind: 'Site', title: 'Catálogo de imóveis e terrenos', city: '', info: '', url: `${link}?to=/imoveis` }, ...devs, ...props];
+}
 app.get('/api/affiliate/qr', async (req, res) => {
   const a = affiliateOnly(req);
   const base = String(store.settings.crm?.panelUrl || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
@@ -886,8 +957,8 @@ app.get('/api/affiliate/qr', async (req, res) => {
 });
 app.patch('/api/affiliate/me', (req, res) => {
   const a = affiliateOnly(req);
-  const { pixKey, email, password } = req.body || {};
-  res.json(affiliates.publicAffiliate(affiliates.update(a.id, { pixKey, email, password })));
+  const { email, password, country, pixKey, cpf, bank, account, holder, doc } = req.body || {};
+  res.json(affiliates.publicAffiliate(affiliates.update(a.id, { email, password, country, pixKey, cpf, bank, account, holder, doc })));
 });
 
 // Recibo para o cliente (link assinado, sem login).
@@ -1028,6 +1099,8 @@ const SELLER_ROUTES = [
   ['GET', /^\/sales(\/summary)?$/],
   ['GET', /^\/sales\/[a-f0-9]+$/],
   ['POST', /^\/quotes\/[a-f0-9]+\/sale$/],
+  ['GET', /^\/referral\/(me|qr)$/],
+  ['PATCH', /^\/me\/prefs$/],
 ];
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth/') || req.path.startsWith('/public/') || req.path.startsWith('/affiliate/')) return next();
@@ -1045,6 +1118,51 @@ app.use('/api', (req, res, next) => {
   next();
 });
 app.get('/api/me', (req, res) => res.json(publicUser(req.user)));
+// Preferências que o próprio vendedor controla.
+app.patch('/api/me/prefs', (req, res) => {
+  const patch = {};
+  if (req.body?.receivesAffiliateLeads !== undefined) patch.receivesAffiliateLeads = Boolean(req.body.receivesAffiliateLeads);
+  res.json(auth.update(req.user.id, patch));
+});
+// "Divulgar": a equipe tem os mesmos links e materiais dos parceiros.
+const linkBase = (req) => (publicBase() || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+app.get('/api/referral/me', (req, res) => {
+  const code = affiliates.sellerCode(req.user);
+  const link = `${linkBase(req)}/r/${code}`;
+  const clicks = affiliates.data.clicks.filter((c) => c.sellerId === req.user.id);
+  const mine = crm.leads.filter((l) => l.ownerId === req.user.id);
+  const u = auth.get(req.user.id);
+  res.json({
+    code,
+    link,
+    receivesAffiliateLeads: Boolean(u.receivesAffiliateLeads),
+    stats: {
+      clicks: clicks.length,
+      visitors: new Set(clicks.map((c) => c.visitor)).size,
+      precadastros: mine.filter((l) => l.precadastroAt).length,
+      fromPartners: mine.filter((l) => l.affiliateId).length,
+    },
+    commission: { normal: sales.commissionPct(u.id), withPartner: sales.pctFor(u.id, true) },
+    materials: shareMaterials(link),
+    shareMessage: store.settings.affiliates?.shareMessage || '',
+    publicUrl: Boolean(publicBase()),
+  });
+});
+app.get('/api/referral/qr', async (req, res) => {
+  res.type('image/png').send(await QRCode.toBuffer(`${linkBase(req)}/r/${affiliates.sellerCode(req.user)}`, { width: 360, margin: 1 }));
+});
+// Links para convidar a equipe e os parceiros (aba Equipe).
+app.get('/api/system/links', (req, res) => {
+  const base = publicBase();
+  res.json({
+    base,
+    fixed: Boolean(store.settings.crm?.panelUrl && !/trycloudflare\.com/.test(store.settings.crm.panelUrl)) || Boolean(process.env.PUBLIC_URL),
+    panel: base ? `${base}/` : '',
+    signup: base ? `${base}/login.html?cadastro=1` : '',
+    partners: base ? `${base}/parceiros` : '',
+    site: base ? `${base}/imoveis` : '',
+  });
+});
 // ---------- Segurança da conta ----------
 app.get('/api/security/2fa/setup', async (req, res) => {
   const u = req.user;
@@ -1656,6 +1774,7 @@ app.delete('/api/realty/developments/:id/lots/:lotId', (req, res) => {
 
 // Programa de indicação (administração)
 app.get('/api/affiliates', (_req, res) => res.json(affiliates.adminList()));
+app.get('/api/affiliates-meta', (_req, res) => res.json({ categories: affiliates.categories(), services: affiliates.services }));
 app.patch('/api/affiliates/:id', (req, res) => res.json(affiliates.publicAffiliate(affiliates.update(req.params.id, req.body))));
 app.get('/api/affiliates-commissions', (_req, res) => res.json(affiliates.adminCommissions()));
 app.post('/api/affiliates-commissions/:id/paid', (req, res) => res.json(affiliates.markPaid(req.params.id, { by: req.user.name, note: req.body?.note })));
@@ -2278,6 +2397,7 @@ app.get('/api/sales/summary', (req, res) => {
   const out = sales.summary(req.user, req.query);
   if (req.user.role === 'admin') out.stock = lotStock();
   out.defaultPct = Number(store.settings.sales?.commissionPct) || 0;
+  out.affiliateSellerPct = store.settings.sales?.affiliateSellerPct ?? null;
   res.json(out);
 });
 app.get('/api/sales/:id', (req, res) => {
@@ -2315,11 +2435,17 @@ app.put('/api/sales/settings', (req, res) => {
   if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
   const pct = Number(req.body?.commissionPct);
   if (!(pct >= 0 && pct <= 100)) throw httpError(400, 'Percentual inválido');
-  store.updateSettings({ sales: { commissionPct: pct } });
+  const affPct = req.body?.affiliateSellerPct;
+  if (affPct !== undefined && affPct !== '' && affPct !== null && !(Number(affPct) >= 0 && Number(affPct) <= 100)) throw httpError(400, 'Percentual com indicação inválido');
+  store.updateSettings({ sales: { commissionPct: pct, ...(affPct !== undefined ? { affiliateSellerPct: affPct === '' || affPct === null ? null : Number(affPct) } : {}) } });
   // Percentual próprio de cada vendedor (vazio = usa o padrão).
   for (const [id, v] of Object.entries(req.body?.perSeller || {})) {
     const u = auth.get(id);
     if (u) u.commissionPct = v === '' || v === null ? null : Number(v);
+  }
+  for (const [id, v] of Object.entries(req.body?.perSellerAffiliate || {})) {
+    const u = auth.get(id);
+    if (u) u.affiliateCommissionPct = v === '' || v === null ? null : Number(v);
   }
   store.save();
   securityEvent('comissao_padrao', req.user, req, `${pct}%`);
