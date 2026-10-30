@@ -34,6 +34,7 @@ import { Visits } from './visits.js';
 import { PayPlans, planMessage } from './payplan.js';
 import { Quotes } from './quotes.js';
 import { collectHandoffs, digestMessage } from './digest.js';
+import { Sectors } from './sectors.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
 import { Crm, STAGES } from './crm.js';
@@ -147,6 +148,16 @@ const router = new LeadRouter({
 });
 agent.routeLead = (conv, args, opts) => router.route(conv, args, opts);
 agent.routeSpecialist = (conv, args, opts) => router.routeSpecialist(conv, args, opts);
+// Setores (loteamentos, documentação, veículos): a IA direciona e o atendente do setor recebe o resumo.
+const sectors = new Sectors({
+  store,
+  crm,
+  auth,
+  send: (phone, text) => wa.send(phone, { text, typing: false }),
+  canSend: () => wa.status === 'connected',
+  notifyAdmins: (text) => notifyAdmins(text),
+});
+agent.routeSector = (conv, args, opts) => sectors.route(conv, args, opts);
 // Migra Imóveis (catálogo e loteamentos) e programa de indicação.
 const realty = new Realty({ store, dataDir: DATA_DIR });
 const affiliates = new Affiliates({
@@ -301,6 +312,14 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
   const lineOwner = parsed ? auth.get(lines.get(parsed.id)?.ownerId) : null;
   const leadOwner = lead?.ownerId ? auth.get(lead.ownerId) : null;
   let closer = lineOwner || leadOwner;
+  // Sem dono: os atendentes do setor de documentação (painel); depois, o rodízio de vendedores.
+  if (!closer) {
+    const p = sectors.next('documentacao');
+    if (p) {
+      closer = p.id ? auth.get(p.id) : { id: null, name: p.name, whatsapp: p.whatsapp };
+      if (p.id && lead) crm.update({ name: 'IA', role: 'admin' }, lead.id, { ownerId: p.id });
+    }
+  }
   if (!closer && lead && store.settings.crm?.routing?.enabled !== false) closer = crm.routeLead(lead, { reason: reason || 'atendente do escritório continua' }) || null;
   // Orçamento: o último desta conversa; sem orçamento, monta um com o pacote de interesse.
   let quote = quotes.list.filter((q) => q.convKey === convKey || (lead && q.leadId === lead.id)).at(-1) || null;

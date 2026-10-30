@@ -149,6 +149,24 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'direcionar_para_setor',
+      description: 'Direciona o cliente para o atendente do setor certo do Grupo Migra, que recebe o resumo no WhatsApp e entra em contato com o cliente. Use para loteamentos/terrenos/imóveis (inclusive quem quer falar com o dono de um loteamento) e para veículos, depois de entender o básico do que ele procura.',
+      parameters: {
+        type: 'object',
+        properties: {
+          setor: { type: 'string', enum: ['loteamentos', 'veiculos', 'documentacao'], description: 'loteamentos = terrenos, lotes, casas e imóveis (Migra Imobiliária); veiculos = carros e motos (Migra Motors); documentacao = residência, cédula e migração' },
+          resumo: { type: 'string', description: 'O que o cliente quer, em até 2 frases' },
+          detalhes: { type: 'string', description: 'O que ele já disse: cidade ou loteamento, tamanho, orçamento, prazo, modelo do veículo…' },
+          nome: { type: 'string', description: 'Nome do cliente, se ele disse' },
+          telefone: { type: 'string', description: 'WhatsApp do cliente (peça no Instagram, onde não temos o número)' },
+        },
+        required: ['setor', 'resumo'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'avisar_marcos',
       description: 'Para assuntos que não são venda de pacote e vão direto para o Marcos: quem quer trabalhar na Migra (contratação, currículo, vaga), propostas de parceria de negócio, fornecedores, imprensa ou investidores. Avisa o Marcos no WhatsApp dele com o resumo.',
       parameters: {
@@ -311,6 +329,10 @@ export async function runTool(name, args, ctx) {
       case 'gerar_orcamento': {
         if (!ctx.onQuote) return { erro: 'Orçamento indisponível. Use enviar_etapas_pagamento.' };
         return await ctx.onQuote(args);
+      }
+      case 'direcionar_para_setor': {
+        if (!ctx.onSector) return { erro: 'Indisponível. Use avisar_marcos.' };
+        return await ctx.onSector(args);
       }
       case 'avisar_marcos': {
         if (!ctx.onOwner) {

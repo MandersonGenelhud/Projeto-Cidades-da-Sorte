@@ -521,9 +521,18 @@
         <label>Critérios da peneira (quando o cliente está pronto para o vendedor)
           <textarea name="routingCriteria" rows="5"></textarea>
         </label>
-        <label>Especialistas por assunto (um por linha: Assunto = Nome = WhatsApp)
-          <textarea name="specialists" rows="3" placeholder="Terrenos, lotes, casas e imóveis = Robson = +595 981 000000"></textarea>
+        <h3>🏢 Setores e atendentes</h3>
+        <p class="hint">Coloque os atendentes de cada setor, um por linha: <b>Nome = WhatsApp</b>. A IA direciona o cliente pelo assunto e o atendente recebe o resumo no WhatsApp para entrar em contato. Com mais de um atendente, vai um de cada vez. Setor sem ninguém: o aviso vai para o Marcos.</p>
+        <label>🏡 Loteamentos e terrenos (Migra Imobiliária)
+          <textarea name="sectorLoteamentos" rows="2" placeholder="Robson = +595 981 000000"></textarea>
         </label>
+        <label>🛂 Documentação e migração (Migra Paraguai): recebe quem a IA passa para um humano
+          <textarea name="sectorDocumentacao" rows="2" placeholder="Ana = +55 45 99999-0001&#10;Pedro = +595 982 000000"></textarea>
+        </label>
+        <label>🚗 Veículos (Migra Motors)
+          <textarea name="sectorVeiculos" rows="2" placeholder="Carlos = +595 983 000000"></textarea>
+        </label>
+        <input type="hidden" name="specialists" />
         <div class="row">
           <label>Cotação do dólar para os painéis (R$ por US$ 1) <input type="number" step="0.01" min="0" name="fxUSD" /></label>
           <label>Cotação do guarani (R$ por Gs. 1) <input type="number" step="0.00001" min="0" name="fxPYG" /></label>

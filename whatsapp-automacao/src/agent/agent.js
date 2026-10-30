@@ -22,6 +22,7 @@ export class Agent {
     this.sendPlan = null; // (conversa, args, { dryRun }) => envia o passo a passo do pagamento
     this.sendQuote = null; // (conversa, args, { dryRun }) => gera e envia o orçamento ORC (PDF + resumo)
     this.notifyOwner = null; // (conversa, args, { dryRun }) => contratação/parcerias direto para o Marcos
+    this.routeSector = null; // (conversa, args, { dryRun }) => loteamentos/veículos para o atendente do setor
     this.closeHandoff = null; // (conversa, args, { dryRun }) => passa o fechamento ao Marcos/vendedor com o resumo
     this.claimPaid = claimPaid || null; // (conversa, args) => cliente disse que pagou
     this.routeSpecialist = routeSpecialist || null; // (conversa, args, { dryRun }) => passa para o especialista do assunto
@@ -118,7 +119,8 @@ export class Agent {
     if (note) system += `\n\n# Este WhatsApp\n${note}`;
     const known = this.contextFor ? this.contextFor(conv) : '';
     if (known) system += `\n\n# O que já sabemos deste cliente (CRM)\n${known}\nUse isso: cumprimente pelo nome, mostre que já sabe o interesse dele ("vi aqui que você...") e siga para o fechamento sem repetir perguntas já respondidas.`;
-    const specialists = Boolean(this.routeSpecialist) && (settings.crm?.specialists || []).some((s) => s.topic && s.name);
+    // Com os setores no painel, o especialista antigo (terrenos → Robson) dá lugar a eles.
+    const specialists = !this.routeSector && Boolean(this.routeSpecialist) && (settings.crm?.specialists || []).some((s) => s.topic && s.name);
     const pay = settings.payments || {};
     const pix = Boolean(this.createPix) && pay.enabled !== false && Boolean(pay.pixKey || pay.mercadopago?.accessToken) && Number(pay.reservation?.base || pay.reservation?.perAdult) > 0;
     if (closing) {
@@ -147,6 +149,13 @@ Quem conduz até o fim é você: tira as dúvidas, contorna as objeções com os
 4. Só se, depois disso, ele ainda tiver receio de fechar pela conversa, insistir em falar com uma pessoa, ou não conseguir pagar a entrada no Pix agora (mande o orçamento antes, com gerar_orcamento, se ainda não mandou): use passar_fechamento_para_humano (com o interesse real, a situação atual, a dica de técnica de fechamento e a sugestão para finalizar) e diga exatamente: "Estou enviando seu contato tudo certinho para um atendente dentro do escritório para continuar seu atendimento. Qualquer coisa, fale aqui comigo." Você continua disponível: se ele escrever de novo, responda normalmente.
 Não prometa desconto nem condição especial.`;
     }
+    if (this.routeSector) {
+      system += `\n\n# Setores do Grupo Migra (direcione para o atendente certo)
+- Terrenos, lotes, loteamentos, casas e imóveis (inclusive quem quer falar com o dono de um loteamento): diga que a Migra Imobiliária é a responsável pelos investimentos e pela venda dos lotes, e que ele pode resolver tudo por aqui. Entenda o básico em 1 ou 2 perguntas (o que procura, cidade ou loteamento, orçamento, prazo), diga "Para um melhor atendimento, vou direcionar você para o correspondente referente ao seu interesse" e use direcionar_para_setor com setor "loteamentos". Avise que ele vai entrar em contato. Não invente preço, metragem nem disponibilidade.
+- Carros e motos (comprar, vender ou importar): entenda o básico (modelo, ano, orçamento) e use direcionar_para_setor com setor "veiculos", com a mesma frase e o mesmo aviso.
+- Documentação e migração (residência, cédula, RUC, empresa): esse atendimento é seu; siga a venda e o fechamento normalmente.
+- No Instagram, peça o WhatsApp do cliente antes de direcionar.`;
+    }
     if (this.notifyOwner) system += '\n\n# Assuntos do Marcos\nQuem quer trabalhar na Migra (contratação, vaga, currículo), propostas de parceria de negócio, fornecedores, imprensa ou investidores: entenda o básico em 1 ou 2 perguntas e use avisar_marcos. Diga que passou direto para o Marcos e que ele mesmo retorna. Não venda pacote para essas pessoas.';
     if (this.sendQuote) system += '\n\n# Orçamento\nQuando o cliente pedir orçamento, perguntar quanto fica para a família ou para mais de um pacote, use gerar_orcamento com os pacotes, quantas pessoas em cada um e os adultos. O sistema manda o PDF oficial (número ORC) e o resumo com a entrada e as parcelas; você só comenta em uma frase e conduz para garantir a reserva. Não refaça as contas.';
     if (this.sendPlan) system += '\n\n# Passo a passo do pagamento\nQuando o cliente perguntar como funciona o pagamento, quanto paga em cada etapa, ou logo depois de fechar, use enviar_etapas_pagamento com o pacote e o número de pessoas. O sistema manda o fluxograma com os valores e as datas de cada parcela (contando da data de hoje; sábado e domingo passam para segunda); você só comenta em uma frase e pergunta se ficou alguma dúvida. Não refaça as contas por conta própria.';
@@ -165,6 +174,7 @@ Onde parou e próximo passo: ${conv.continuity}`;
       if (t.function.name === 'encaminhar_para_vendedor') return routing;
       if (t.function.name === 'gerar_orcamento') return Boolean(this.sendQuote);
       if (t.function.name === 'avisar_marcos') return Boolean(this.notifyOwner);
+      if (t.function.name === 'direcionar_para_setor') return Boolean(this.routeSector);
       if (t.function.name === 'encaminhar_para_especialista') return specialists;
       if (t.function.name === 'enviar_ficha_de_dados') return closing;
       if (t.function.name === 'agendar_visita_escritorio') return visits;
@@ -192,6 +202,7 @@ Onde parou e próximo passo: ${conv.continuity}`;
       onCloseHandoff: this.closeHandoff ? (args) => this.closeHandoff(conv, args, { dryRun }) : null,
       onQuote: this.sendQuote ? (args) => this.sendQuote(conv, args, { dryRun }) : null,
       onOwner: this.notifyOwner ? (args) => this.notifyOwner(conv, args, { dryRun }) : null,
+      onSector: this.routeSector ? (args) => this.routeSector(conv, args, { dryRun }) : null,
       // Pausa a IA nesta conversa (um humano assume), sem o aviso genérico de transferência.
       pause: (reason) => {
         if (dryRun) return;

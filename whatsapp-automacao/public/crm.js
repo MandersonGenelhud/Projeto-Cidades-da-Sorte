@@ -642,6 +642,11 @@ loaders.team = async () => {
   f.fxUSD.value = c.fx?.USD ?? 5.5;
   f.fxPYG.value = c.fx?.PYG ?? 0.0007;
   f.specialists.value = (c.specialists || []).map((s) => [s.topic, s.name, s.whatsapp ? `+${s.whatsapp}` : ''].join(' = ')).join('\n');
+  const sec = c.sectors || {};
+  const people = (id) => (sec[id]?.people || []).map((p) => `${p.name} = ${p.whatsapp ? `+${p.whatsapp}` : ''}`).join('\n');
+  f.sectorLoteamentos.value = people('loteamentos');
+  f.sectorDocumentacao.value = people('documentacao');
+  f.sectorVeiculos.value = people('veiculos');
   f.autoCreate.checked = c.autoCreate !== false;
   f.aiExtract.checked = c.aiExtract !== false;
   f.notifyFollowUps.checked = c.notifyFollowUps !== false;
@@ -711,6 +716,10 @@ $('#formCrmSettings').addEventListener('submit', withBusy($('#formCrmSettings'),
       specialists: f.specialists.value.split('\n').map((line) => line.split('=').map((x) => x.trim()))
         .filter(([topic, name]) => topic && name)
         .map(([topic, name, whatsapp = '']) => ({ topic, name, whatsapp: whatsapp.replace(/\D/g, '') })),
+      sectors: (() => {
+        const parse = (t) => t.split('\n').map((l) => l.split(/[=:]/).map((x) => x.trim())).filter(([n]) => n).map(([name, w = '']) => ({ name, whatsapp: w.replace(/\D/g, '') }));
+        return { loteamentos: { people: parse(f.sectorLoteamentos.value) }, documentacao: { people: parse(f.sectorDocumentacao.value) }, veiculos: { people: parse(f.sectorVeiculos.value) } };
+      })(),
       panelUrl: f.panelUrl.value.trim(),
       ownerPhone: f.ownerPhone.value.replace(/\D/g, ''),
       fx: { USD: Number(f.fxUSD.value) || 1, PYG: Number(f.fxPYG.value) || 0 },

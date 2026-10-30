@@ -946,6 +946,9 @@ const TOOL_LABEL = {
   cliente_informou_pagamento: '🧾 avisou a equipe do pagamento',
   encaminhar_para_vendedor: '🤝 passou para o consultor',
   encaminhar_para_especialista: '🏠 passou para o especialista',
+  direcionar_para_setor: '🏷️ direcionou para o setor',
+  gerar_orcamento: '🧾 gerou o orçamento',
+  avisar_marcos: '📌 avisou o Marcos',
   agendar_visita_escritorio: '🏢 pediu a visita ao Marcos',
   enviar_etapas_pagamento: '📋 enviou as etapas de pagamento',
 };

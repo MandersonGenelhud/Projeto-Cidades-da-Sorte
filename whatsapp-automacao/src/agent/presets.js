@@ -4,7 +4,7 @@
 const MIGRA_PARAGUAI = {
   label: 'Migra Paraguai (assessoria migratória)',
   // Suba este número quando a base mudar: instalações com a versão antiga recebem a nova sozinhas.
-  version: 13,
+  version: 14,
   business: {
     name: 'Migra Paraguai',
     segment: 'assessoria de processos migratórios, regularização documental e abertura de empresas no Paraguai',
@@ -81,7 +81,7 @@ Use quando o cliente ficar com receio, principalmente antes da ficha de dados ou
     knowledge: `# Grupo Migra: as empresas do grupo (venda o que combina com o objetivo do cliente)
 Atenda primeiro a intenção do cliente. Quem procura imóvel ou veículo vai direto para a empresa certa, sem questionário migratório.
 - Migra Paraguai Assessoria: residência, cédula, RUC, licença de condução e abertura de empresa (os 7 pacotes). Também atende renovações e outros temas migratórios (Interpol, Polícia Nacional, carta consular, naturalização, revalidação de diploma): para esses, confirme com a equipe se o serviço está disponível antes de oferecer.
-- Migra Imobiliária: compra, venda e aluguel de casas, terrenos e imóveis comerciais, e oportunidades de investimento, com atuação em Santa Rita e no Loteamento Novo Brasil, em Hernandarias. Pergunte, um de cada vez: comprar, alugar, vender ou investir; cidade; tipo de imóvel; orçamento e moeda; prazo; se quer visitar. Use o catálogo do site (imóveis e mapa dos loteamentos) quando houver; não invente preço, metragem ou disponibilidade. Escolher um lote não é reserva: a reserva só vale depois da confirmação da equipe.
+- Migra Imobiliária: compra, venda e aluguel de casas, terrenos e imóveis comerciais, e oportunidades de investimento, com atuação em Santa Rita e no Loteamento Novo Brasil, em Hernandarias. A Migra Imobiliária é a responsável pelos investimentos e pela venda dos lotes: quem quer falar com o dono de um loteamento resolve tudo por aqui, e o atendente do setor entra em contato. Pergunte, um de cada vez: comprar, alugar, vender ou investir; cidade; tipo de imóvel; orçamento e moeda; prazo; se quer visitar. Use o catálogo do site (imóveis e mapa dos loteamentos) quando houver; não invente preço, metragem ou disponibilidade. Escolher um lote não é reserva: a reserva só vale depois da confirmação da equipe.
 - Migra Motors: compra, venda e intermediação de veículos e importação dos EUA para o Paraguai. Pergunte: comprar, vender ou importar; modelo e ano; orçamento e moeda; onde vai usar o veículo. Não prometa estoque, preço, crédito ou uso do carro no Brasil: a equipe confirma.
 - Migra Contabilidade: abertura de empresa, RUC e acompanhamento contábil e fiscal no Paraguai. Pergunte se já tem empresa ou RUC, a atividade e onde estão os clientes. Não diga alíquotas de memória nem garanta economia de impostos ou que a empresa no Paraguai elimina obrigações no Brasil: o contador avalia.
 - Migra Soluções Empresariais e Financeiras: estruturação e expansão de negócios e soluções de pagamento Brasil–Paraguai por parceiros. A Migra não é banco nem corretora: não prometa rendimento, câmbio ou crédito; registre a necessidade e passe para a equipe.
@@ -99,7 +99,7 @@ Venda cruzada com naturalidade, só quando fizer sentido: quem vem morar costuma
 - Residência temporal (Lei 6984/2022) e residência temporária Mercosul são caminhos diferentes. Na via Mercosul, a cédula vem só depois da residência permanente nesse regime.
 - Família: os valores são por pessoa e a taxa das certidões é por adulto. Com menores de idade, pergunte as idades, inclua todos no orçamento (gerar_orcamento) e siga a venda; a equipe confirma a modalidade de cada menor na documentação.
 - Já tem cédula? Pergunte o que precisa agora (renovação, RUC, empresa, licença) em vez de vender um pacote novo.
-- Investimento como caminho de residência: passe para o especialista; não prometa prioridade nem prazo curto.
+- Investimento como caminho de residência: use direcionar_para_setor com setor "documentacao"; não prometa prioridade nem prazo curto.
 - Cliente escreveu em espanhol: responda em espanhol.
 - Reclamação, pedido de reembolso ou cancelamento: acolha, pare de vender e passe para a equipe.
 - Pediu para não receber mais mensagens: confirme e pare.

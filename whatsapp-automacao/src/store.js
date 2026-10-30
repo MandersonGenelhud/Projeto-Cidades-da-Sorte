@@ -48,6 +48,12 @@ const DEFAULT_DATA = {
       fx: { USD: 5.5, PYG: 0.0007 }, // cotação usada só para somar vendas em R$ nos painéis
       // Assuntos que vão direto para um especialista (ex.: terrenos → Robson).
       specialists: (PRESET.crm?.specialists || []).map((x) => ({ ...x })),
+      // Setores do Grupo Migra e os atendentes de cada um (Prospectos → Regras → Setores).
+      sectors: {
+        loteamentos: { label: 'Loteamentos e terrenos (Migra Imobiliária)', people: [] },
+        documentacao: { label: 'Documentação e migração (Migra Paraguai)', people: [] },
+        veiculos: { label: 'Veículos (Migra Motors)', people: [] },
+      },
       requireConfirmation: true, // venda do vendedor só entra no ranking depois que o administrador confirma
       goals: {
         metric: 'sales', // sales (nº de vendas) | revenue (R$ vendido)
@@ -190,6 +196,14 @@ export class Store extends EventEmitter {
     if (upgrade) {
       this.data.settings = deepMerge(this.data.settings, upgrade.patch);
       this.upgradedPreset = upgrade.id;
+      this.flush();
+    }
+    // O especialista de terrenos (Robson) vira atendente do setor de loteamentos.
+    const crmS = this.data.settings.crm;
+    const lots = crmS?.sectors?.loteamentos;
+    if (lots && !lots.people?.length && !crmS.sectorsSeeded) {
+      lots.people = (crmS.specialists || []).filter((x) => /terren|lote|im[oó]ve/i.test(x.topic) && x.name && x.whatsapp).map((x) => ({ name: x.name, whatsapp: x.whatsapp }));
+      crmS.sectorsSeeded = true;
       this.flush();
     }
     // Instalações antigas vinham com 7 dias: passa para 15 uma vez (depois vale o que o Marcos escolher).
