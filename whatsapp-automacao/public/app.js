@@ -118,7 +118,7 @@ function renderStatus(state) {
   } else if (state.status === 'qr' && state.qr) {
     area.innerHTML = `<img src="${state.qr}" alt="QR Code" /><p>Escaneie com o WhatsApp do celular</p>`;
   } else {
-    area.innerHTML = '<p class="muted">Conectando ao WhatsApp… o QR Code aparecerá aqui.</p>';
+    area.innerHTML = `<p class="muted">Conectando ao WhatsApp… o QR Code aparecerá aqui.</p>${state.lastError ? `<p class="err">⚠️ Última tentativa: ${esc(state.lastError)}. O sistema tenta de novo sozinho.</p><p class="hint">Se continuar sem QR Code: clique em "Desconectar número" (gera uma sessão nova) ou use "Conecte por código" logo abaixo.</p>` : ''}`;
   }
 }
 

@@ -1041,6 +1041,7 @@ const lineCard = (l, people) => `
         <div class="row"><label>Ou conecte com código (sem câmera) <input data-field="phone" placeholder="+55 11 98765-4321" value="${esc(l.ownerWhatsapp ? `+${l.ownerWhatsapp}` : '')}" /></label><button type="button" class="btn small" data-act="pair">Gerar código</button></div>
         <div class="pairing-code" data-code hidden></div>` : ''}
       ${l.status === 'connecting' || (l.status === 'qr' && !l.qr) ? '<p class="hint">Gerando o QR Code… aguarde alguns segundos.</p>' : ''}
+      ${l.status !== 'connected' && l.lastError ? `<p class="err">⚠️ ${esc(l.lastError)}</p>` : ''}
       <div class="row">
         <button type="button" class="btn small" data-act="restart">Reconectar</button>
         ${l.status === 'connected' ? '<button type="button" class="btn small danger" data-act="logout">Desconectar</button>' : ''}

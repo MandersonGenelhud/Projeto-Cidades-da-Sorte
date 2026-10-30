@@ -43,3 +43,10 @@ test('isWithinBusinessHours', () => {
   assert.equal(isWithinBusinessHours(cfg, new Date(2026, 9, 25, 10, 0)), false); // domingo
   assert.equal(isWithinBusinessHours({ enabled: false }, new Date()), true);
 });
+
+test('queda do WhatsApp explicada em português no painel', async () => {
+  const { describeClose } = await import('../src/transports/whatsapp-web.js');
+  assert.match(describeClose(408), /internet do computador ou firewall/);
+  assert.match(describeClose(440), /outro computador ou a VPS/);
+  assert.match(describeClose(999, 'xyz'), /conexão caiu \(código 999\): xyz/);
+});

@@ -6,6 +6,7 @@ import makeWASocket, {
   Browsers,
   DisconnectReason,
   fetchLatestBaileysVersion,
+  fetchLatestWaWebVersion,
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
@@ -45,6 +46,22 @@ export function normalizeMessage(msg, lidToPn = new Map()) {
   };
 }
 
+/** Motivo da queda em português, para o painel. */
+export function describeClose(code, message = '') {
+  const known = {
+    401: 'sessão encerrada no celular',
+    403: 'o WhatsApp recusou a conexão deste número (bloqueio temporário?)',
+    405: 'o WhatsApp recusou a conexão (versão ou sessão antiga); tentando de novo com sessão nova',
+    408: 'sem resposta do WhatsApp (internet do computador ou firewall/antivírus bloqueando web.whatsapp.com)',
+    411: 'conflito de sessão com outro aparelho',
+    428: 'conexão encerrada pelo WhatsApp',
+    440: 'este número foi aberto em outro lugar (outro computador ou a VPS ligados com o mesmo número?)',
+    500: 'sessão salva corrompida; gerando uma nova',
+    503: 'WhatsApp fora do ar no momento',
+  };
+  return `${known[code] || 'conexão caiu'}${code ? ` (código ${code})` : ''}${!known[code] && message ? `: ${message}` : ''}`;
+}
+
 export class WhatsAppClient extends EventEmitter {
   constructor({ authDir, logLevel = 'silent' }) {
     super();
@@ -57,10 +74,12 @@ export class WhatsAppClient extends EventEmitter {
     this.jidCache = new Map();
     this.sentIds = new Set(); // mensagens enviadas por este sistema (para não confundir com o dono)
     this.stopping = false;
+    this.failures = 0; // quedas seguidas antes de aparecer o QR Code ou conectar
+    this.lastError = null; // motivo da última queda, mostrado no painel
   }
 
   getState() {
-    return { status: this.status, qr: this.qr, me: this.me };
+    return { status: this.status, qr: this.qr, me: this.me, lastError: this.lastError };
   }
 
   #setStatus(status, extra = {}) {
@@ -73,11 +92,15 @@ export class WhatsAppClient extends EventEmitter {
     this.stopping = false;
     this.#setStatus('connecting', { qr: null });
     const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
+    // Versão atual do WhatsApp Web (com versão velha o WhatsApp recusa e o QR Code não aparece).
+    // Cada consulta tem limite de tempo para nunca ficar preso em "Conectando…".
+    const within = (p, ms) => Promise.race([p, sleep(ms).then(() => ({}))]);
     let version;
-    try {
-      ({ version } = await fetchLatestBaileysVersion());
-    } catch {
-      version = undefined; // usa a versão embutida na biblioteca
+    const a = await within(fetchLatestWaWebVersion().catch(() => ({})), 6000);
+    if (a?.version && a.isLatest !== false) version = a.version;
+    if (!version) {
+      const b = await within(fetchLatestBaileysVersion().catch(() => ({})), 6000);
+      version = b?.version || a?.version; // sem internet para consultar: usa a embutida
     }
 
     const sock = makeWASocket({
@@ -96,10 +119,13 @@ export class WhatsAppClient extends EventEmitter {
     sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
       if (this.sock !== sock) return; // evento de um socket antigo (após restart)
       if (qr) {
+        this.failures = 0;
         const dataUrl = await QRCode.toDataURL(qr, { margin: 1, width: 300 });
-        this.#setStatus('qr', { qr: dataUrl });
+        this.#setStatus('qr', { qr: dataUrl, lastError: null });
       }
       if (connection === 'open') {
+        this.failures = 0;
+        this.lastError = null;
         const id = sock.user?.id;
         this.#setStatus('connected', {
           qr: null,
@@ -109,14 +135,24 @@ export class WhatsAppClient extends EventEmitter {
       if (connection === 'close') {
         const code = lastDisconnect?.error?.output?.statusCode;
         const loggedOut = code === DisconnectReason.loggedOut;
+        const wasUp = this.status === 'connected' || this.status === 'qr';
+        // 515 = o WhatsApp pede para reiniciar logo depois de ler o QR Code (normal).
+        const normal = code === DisconnectReason.restartRequired;
+        if (!normal && !wasUp) this.failures++;
+        this.lastError = normal ? null : describeClose(code, lastDisconnect?.error?.message);
         this.#setStatus('disconnected', { qr: null, me: null });
-        if (loggedOut) {
+        if (this.lastError && !loggedOut) this.emit('log', { type: 'error', message: `WhatsApp: ${this.lastError}` });
+        // Sessão encerrada no celular, ou sessão salva que não abre mais (comum depois de "Desconectar"):
+        // apaga a sessão antiga para gerar um QR Code novo.
+        const stale = !state.creds?.registered || this.failures >= 3;
+        if (loggedOut || (this.failures >= 2 && stale && [401, 403, 405, 411, 428, 440, 500].includes(code))) {
           this.#clearAuth();
-          this.emit('log', { type: 'system', message: 'Sessão encerrada no celular. Escaneie o QR Code novamente.' });
+          this.emit('log', { type: 'system', message: loggedOut ? 'Sessão encerrada no celular. Escaneie o QR Code novamente.' : 'Sessão antiga do WhatsApp apagada para gerar um QR Code novo.' });
         }
         if (!this.stopping) {
-          // Reconecta automaticamente (após logout, gera um novo QR Code).
-          await sleep(loggedOut ? 1000 : 3000);
+          // Reconecta sozinho; se continuar caindo, espera mais (o WhatsApp bloqueia tentativas seguidas).
+          const wait = loggedOut || normal ? 1000 : Math.min(60_000, 3000 * 2 ** Math.min(this.failures, 5));
+          await sleep(wait);
           this.start().catch((err) => this.emit('log', { type: 'error', message: `Falha ao reconectar: ${err.message}` }));
         }
       }
