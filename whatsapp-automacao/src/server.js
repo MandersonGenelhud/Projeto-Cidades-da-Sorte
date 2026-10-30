@@ -24,6 +24,7 @@ import { LeadRouter, chatPreview } from './routing.js';
 import { buildRanking, currentMonth } from './ranking.js';
 import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
+import { makeContractFlow } from './autocontract.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Affiliates } from './affiliates.js';
@@ -1084,7 +1085,7 @@ const loginGuard = new LoginGuard();
 const clientIp = (req) => String(req.ip || req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
 function securityEvent(type, user, req, extra = '') {
   store.data.securityLog ||= [];
-  store.data.securityLog.push({ at: new Date().toISOString(), type, user: user?.name || user || '', ip: clientIp(req), ua: String(req.get('user-agent') || '').slice(0, 160), extra });
+  store.data.securityLog.push({ at: new Date().toISOString(), type, user: user?.name || user || '', ip: req ? clientIp(req) : 'sistema', ua: String(req?.get?.('user-agent') || '').slice(0, 160), extra });
   if (store.data.securityLog.length > 1000) store.data.securityLog.splice(0, store.data.securityLog.length - 1000);
   store.save();
 }
@@ -2162,6 +2163,10 @@ closing.onFilled = async (f) => {
   await wa.send(f.convKey, String(f.convKey).startsWith('ig:') ? { text: `${text} ${quoteLink(q)}`, typing: false } : { text, media: { path: quotes.file(q), mimetype: 'application/pdf', fileName: `${q.number}.pdf` }, typing: false });
   const conv = agent.conversation(f.convKey, { create: false });
   if (conv) agent.remember(conv, 'assistant', `${text} [PDF do orçamento enviado]`);
+  // O cliente tinha pedido o contrato: com a ficha preenchida, ele sai sozinho.
+  if (f.contractRequested || lead?.contractRequested) {
+    await sendContractTo({ convKey: f.convKey, lead, quote: q, client: pickClient(f.data) }).catch((e) => store.addLog({ type: 'error', message: `Contrato automático: ${e.message}` }));
+  }
 };
 // Orçamentos: cada vendedor vê os dele; o administrador vê todos.
 const canSeeQuote = (user, q) => user.role === 'admin' || q.createdBy?.id === user.id;
@@ -2283,6 +2288,21 @@ function prepareContractSign(q, client, user) {
   const ct = `CT-${q.number.replace(/^ORC-/, '')}`;
   return { url, text: `${first}, preparei o seu contrato (${ct}) com os seus dados e as condições combinadas. É só tocar no link, ler com calma e assinar pelo celular mesmo, com o dedo:\n\n${url}\n\nNo final, você recebe aqui a sua via assinada. Qualquer dúvida, me chama. 😊` };
 }
+// ---------- Contrato automático pela atendente de IA ----------
+const contractFlow = makeContractFlow({
+  store, crm, closing, auth, lines, parseLineKey, samePhone, pickClient, publicBase,
+  quotes: () => quotes.list,
+  prepare: (q, client) => prepareContractSign(q, client, { name: 'IA' }),
+  makeQuote: (args) => sendQuote(args),
+  say: async (convKey, text) => {
+    await wa.send(convKey, { text, typing: false });
+    const conv = agent.conversation(convKey, { create: false });
+    if (conv) agent.remember(conv, 'assistant', text);
+  },
+  audit: (text) => securityEvent('contrato_enviado', { name: 'IA (atendente)' }, null, text),
+});
+const sendContractTo = contractFlow.sendContractTo;
+agent.sendContract = contractFlow.sendContract;
 app.post('/api/quotes/:id/contract/sign-link', async (req, res) => {
   const q = quotes.list.find((x) => x.id === req.params.id);
   if (!q || !canSeeQuote(req.user, q)) throw httpError(404, 'Orçamento não encontrado');

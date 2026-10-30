@@ -21,6 +21,7 @@ export class Agent {
     this.visitInfo = null; // (conversa) => regras da visita e pedidos já feitos por este cliente
     this.sendPlan = null; // (conversa, args, { dryRun }) => envia o passo a passo do pagamento
     this.sendQuote = null; // (conversa, args, { dryRun }) => gera e envia o orçamento ORC (PDF + resumo)
+    this.sendContract = null; // (conversa, args, { dryRun }) => gera o contrato e manda o link para assinar (ou a ficha, se faltar dado)
     this.notifyOwner = null; // (conversa, args, { dryRun }) => contratação/parcerias direto para o Marcos
     this.routeSector = null; // (conversa, args, { dryRun }) => loteamentos/veículos para o atendente do setor
     this.scheduleReturn = null; // (conversa, args, { dryRun }) => retorno combinado com data e hora
@@ -132,7 +133,7 @@ export class Agent {
       system += `\n\n# Fechamento da reserva (siga esta ordem)
 1. Quando perceber que o cliente quer mesmo fechar, diga algo como "Perfeito! Preencha para mim seus dados pessoais para darmos continuidade na sua reserva" e use enviar_ficha_de_dados. Mande o link e oriente de um jeito bem simples: é só tocar e preencher cada campo, sem copiar nem colar nada (o CEP completa o endereço sozinho), e no final tocar em "Enviar meus dados"; se travar em algum campo, ele te chama aqui. Em uma frase, diga que esses dados já servem para dar entrada no processo e ficam guardados com segurança. Não peça CPF, RG ou endereço pelo chat: a ficha faz isso.
 2. Quando ele enviar a ficha, o sistema manda sozinho a confirmação, o Pix da reserva e o termo da reserva para assinar. Você só acompanha: tira dúvidas, pede o comprovante do Pix e lembra de assinar o termo.
-3. Fale em "dar entrada no processo", "garantir a sua reserva" e "termo da reserva". Evite a palavra "contrato": ela assusta e não é preciso.
+3. Fale em "dar entrada no processo", "garantir a sua reserva" e "termo da reserva". Não ofereça "contrato" por conta própria: a palavra assusta. Mas, se o cliente PEDIR o contrato, use enviar_contrato (veja abaixo).
 4. Se ele disser que já preencheu e a ficha não aparecer como preenchida abaixo, peça com gentileza para conferir se clicou em "Enviar meus dados" no final.${status ? `\n\n## Situação deste cliente agora\n${status}` : ''}`;
     }
     const visits = Boolean(this.requestVisit) && settings.visits?.enabled !== false;
@@ -170,6 +171,7 @@ Não prometa desconto nem condição especial.`;
     }
     if (this.notifyOwner) system += '\n\n# Assuntos do Marcos\nQuem quer trabalhar na Migra (contratação, vaga, currículo), propostas de parceria de negócio, fornecedores, imprensa ou investidores: entenda o básico em 1 ou 2 perguntas e use avisar_marcos. Diga que passou direto para o Marcos e que ele mesmo retorna. Não venda pacote para essas pessoas.';
     if (this.sendQuote) system += '\n\n# Orçamento\nQuando o cliente pedir orçamento, perguntar quanto fica para a família ou para mais de um pacote, use gerar_orcamento com os pacotes, quantas pessoas em cada um e os adultos. O sistema manda o PDF oficial (número ORC) e o resumo com a entrada e as parcelas; você só comenta em uma frase e conduz para garantir a reserva. Não refaça as contas.';
+    if (this.sendContract) system += '\n\n# Contrato (quando o cliente pedir)\nSe o cliente pedir o contrato ("me manda o contrato", "quero ver o contrato", "como fica o contrato?"), use enviar_contrato na hora. Com os dados dele já na ficha, o sistema gera o contrato preenchido com o orçamento e manda o link para assinar pelo celular; você só diz em uma frase que é só tocar, ler com calma e assinar com o dedo. Se faltarem dados, o sistema devolve o link da ficha: mande e explique que, assim que ele enviar os dados, o contrato chega aqui sozinho. Se ainda não houver orçamento, pergunte o pacote e quantas pessoas e chame enviar_contrato com esses dados. Nunca peça CPF, RG ou endereço pelo chat e nunca invente cláusulas ou condições: o contrato oficial responde por si.';
     if (this.sendPlan) system += '\n\n# Passo a passo do pagamento\nQuando o cliente perguntar como funciona o pagamento, quanto paga em cada etapa, ou logo depois de fechar, use enviar_etapas_pagamento com o pacote e o número de pessoas. O sistema manda o fluxograma com os valores e as datas de cada parcela (contando da data de hoje; sábado e domingo passam para segunda); você só comenta em uma frase e pergunta se ficou alguma dúvida. Não refaça as contas por conta própria.';
     if (pix && !closing) system += `\n\n# Pagamento da reserva por Pix\nQuando o cliente decidir fechar, peça o nome completo e o CPF de quem vai pagar e use gerar_pix com o número de adultos. O sistema envia o QR Code e o código copia e cola em mensagens separadas, logo antes da sua resposta: diga o valor, que o código está na mensagem anterior para copiar e colar no app do banco, e que o recibo em nome da empresa chega aqui assim que o pagamento for confirmado. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que o pagamento foi confirmado por conta própria.`;
     if (conv.continuity) {
@@ -186,6 +188,7 @@ Onde parou e próximo passo: ${conv.continuity}`;
       // Com o fechamento pela IA, ninguém é mandado para vendedor: o último recurso é passar_fechamento_para_humano.
       if (t.function.name === 'encaminhar_para_vendedor') return routing;
       if (t.function.name === 'gerar_orcamento') return Boolean(this.sendQuote);
+      if (t.function.name === 'enviar_contrato') return Boolean(this.sendContract);
       if (t.function.name === 'avisar_marcos') return Boolean(this.notifyOwner);
       if (t.function.name === 'direcionar_para_setor') return Boolean(this.routeSector);
       if (t.function.name === 'agendar_retorno') return Boolean(this.scheduleReturn);
@@ -215,6 +218,7 @@ Onde parou e próximo passo: ${conv.continuity}`;
       onPlan: this.sendPlan ? (args) => this.sendPlan(conv, args, { dryRun }) : null,
       onCloseHandoff: this.closeHandoff ? (args) => this.closeHandoff(conv, args, { dryRun }) : null,
       onQuote: this.sendQuote ? (args) => this.sendQuote(conv, args, { dryRun }) : null,
+      onContract: this.sendContract ? (args) => this.sendContract(conv, args, { dryRun }) : null,
       onOwner: this.notifyOwner ? (args) => this.notifyOwner(conv, args, { dryRun }) : null,
       onSector: this.routeSector ? (args) => this.routeSector(conv, args, { dryRun }) : null,
       onReturn: this.scheduleReturn ? (args) => this.scheduleReturn(conv, args, { dryRun }) : null,

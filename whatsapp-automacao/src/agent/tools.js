@@ -149,6 +149,32 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'enviar_contrato',
+      description: 'Gera o contrato de prestação de serviços (já preenchido com os dados do cliente e o orçamento) e envia o link para ele assinar pelo celular. Use quando o cliente PEDIR o contrato. Se ainda faltarem os dados pessoais, o sistema devolve o link da ficha: mande ao cliente, e o contrato sai sozinho quando ele preencher. Se ainda não houver orçamento, informe o pacote e as pessoas.',
+      parameters: {
+        type: 'object',
+        properties: {
+          itens: {
+            type: 'array',
+            description: 'Só se ainda não houver orçamento: pacotes e quantas pessoas em cada um',
+            items: {
+              type: 'object',
+              properties: {
+                pacote: { type: 'string' },
+                quantidade: { type: 'number' },
+              },
+              required: ['pacote', 'quantidade'],
+            },
+          },
+          adultos: { type: 'number', description: 'Quantos adultos no total (se souber)' },
+          nome: { type: 'string', description: 'Nome do cliente (se souber)' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'direcionar_para_setor',
       description: 'Direciona o cliente para o atendente do setor certo do Grupo Migra, que recebe o resumo no WhatsApp e entra em contato com o cliente. Use para loteamentos/terrenos/imóveis (inclusive quem quer falar com o dono de um loteamento) e para veículos, depois de entender o básico do que ele procura.',
       parameters: {
@@ -346,6 +372,10 @@ export async function runTool(name, args, ctx) {
       case 'gerar_orcamento': {
         if (!ctx.onQuote) return { erro: 'Orçamento indisponível. Use enviar_etapas_pagamento.' };
         return await ctx.onQuote(args);
+      }
+      case 'enviar_contrato': {
+        if (!ctx.onContract) return { erro: 'Contrato indisponível por aqui. Use passar_fechamento_para_humano (ou transferir_para_humano) para a equipe enviar.' };
+        return await ctx.onContract(args);
       }
       case 'direcionar_para_setor': {
         if (!ctx.onSector) return { erro: 'Indisponível. Use avisar_marcos.' };
