@@ -20,7 +20,11 @@ test('dono respondeu pelo celular: agente pausa e guarda a resposta na memória'
   await agent.handleIncoming({ key: 'j1', phone: '595981123456', text: 'beleza' }, async (t) => sent.push(t));
   assert.deepEqual(sent, ['Olá! Como posso ajudar?']); // agente ficou em silêncio
 
-  assert.equal(agent.ownerReplied({ key: 'outra', text: 'x' }), null); // conversa que o agente nunca atendeu
+  // O Marcos começou a conversa (a IA nunca tinha atendido): quando o cliente responder, a IA fica quieta.
+  agent.ownerReplied({ key: 'nova', phone: '595982000000', text: 'Oi, Ana! Aqui é o Marcos.' });
+  assert.equal(agent.conversation('nova').handoff, true);
+  await agent.handleIncoming({ key: 'nova', phone: '595982000000', text: 'Oi Marcos!' }, async (t) => sent.push(t));
+  assert.deepEqual(sent, ['Olá! Como posso ajudar?']);
 });
 
 test('com a opção desligada, a resposta do dono não pausa o agente', async () => {

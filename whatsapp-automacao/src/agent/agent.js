@@ -85,8 +85,11 @@ export class Agent {
    * pausa o agente nesta conversa para os dois não responderem ao mesmo tempo.
    */
   ownerReplied({ key, phone, text }) {
-    const conv = this.conversation(key, { create: false });
-    if (!conv) return null; // conversa que o agente nunca atendeu
+    const pause = this.config.pauseOnOwnerReply !== false;
+    // Conversa que o Marcos começou (a IA nunca tinha atendido): já nasce pausada, para a IA não entrar quando o cliente responder.
+    const conv = this.conversation(key, { create: pause });
+    if (!conv) return null;
+    conv.phone ||= phone || null;
     if (text) this.remember(conv, 'assistant', text);
     if (this.config.pauseOnOwnerReply !== false && !conv.handoff) {
       conv.handoff = true;
