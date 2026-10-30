@@ -26,6 +26,7 @@
     <label id="nameWrap" hidden>Seu nome <input name="name" autocomplete="name" /></label>
     <label>Login <input name="login" autocomplete="username" required placeholder="ex.: marcos" /></label>
     <label>Senha <input name="password" type="password" autocomplete="current-password" required minlength="6" /></label>
+    <label id="codeWrap" hidden>Código do app autenticador (6 números) <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" /></label>
     <label id="waWrap" hidden>Seu WhatsApp (para receber avisos de retorno) <input name="whatsapp" placeholder="+595 981 123456" /></label>
     <p class="err" id="err"></p>
     <button class="btn primary" id="btn">Entrar</button>
@@ -60,6 +61,15 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return (document.getElementById('err').textContent = data.error || 'Não foi possível entrar');
+      if (data.needs2fa) {
+        // Verificação em duas etapas: pede o código do app e envia de novo.
+        document.getElementById('codeWrap').hidden = false;
+        form.code.required = true;
+        form.code.focus();
+        document.getElementById('err').textContent = '';
+        document.getElementById('intro').textContent = 'Digite o código de 6 números que aparece agora no seu app autenticador.';
+        return;
+      }
       location.href = back();
     });
   </script>

@@ -1050,6 +1050,27 @@
     <!-- CONFIGURAÇÕES -->
     <section id="tab-settings" class="tab">
       <h1>Configurações</h1>
+      <div class="panel" id="securityPanel">
+        <h2>🔐 Segurança</h2>
+        <p class="hint">Verificação em duas etapas: além da senha, o painel pede um código de 6 números do app autenticador do seu celular (Google Authenticator, Microsoft Authenticator ou Authy). Mesmo quem descobrir a senha não entra.</p>
+        <div id="twofaBox"></div>
+        <div class="row">
+          <button type="button" class="btn" id="btnLogoutAll">🚪 Sair de todos os meus outros aparelhos</button>
+          <button type="button" class="btn danger" id="btnRevokeEveryone">🚨 Derrubar todos os acessos (invasão)</button>
+        </div>
+        <h3>👥 Equipe</h3>
+        <div id="securityUsers" class="hint"></div>
+        <h3>💾 Backup automático criptografado</h3>
+        <p class="hint">Todo dia o sistema guarda uma cópia criptografada de tudo (clientes, conversas, vendas, configurações) e mantém os últimos 30 dias. Para não perder nada se o computador ou a VPS der problema, guarde também uma cópia <b>fora</b> deste disco: informe uma pasta do Google Drive/OneDrive sincronizada, ou baixe o backup de vez em quando. Guarde a chave do backup num lugar seguro (sem ela o arquivo não abre).</p>
+        <div class="row">
+          <label>Pasta extra para a cópia (opcional) <input id="backupDir" placeholder="C:\Users\Marcos\Google Drive\Backup Migra Hub" /></label>
+          <button type="button" class="btn primary" id="btnBackupNow">💾 Fazer backup agora</button>
+          <button type="button" class="btn" id="btnBackupKey">🔑 Ver a chave do backup</button>
+        </div>
+        <div id="backupList" class="hint"></div>
+        <h3>📜 Acessos recentes</h3>
+        <div class="table-wrap"><table id="securityLog"></table></div>
+      </div>
       <form id="formBrand" class="panel form">
         <h2>🎨 Nome e logo do sistema</h2>
         <div class="brand-preview"><img id="brandPreview" src="/brand/logo" alt="Logo atual" /></div>

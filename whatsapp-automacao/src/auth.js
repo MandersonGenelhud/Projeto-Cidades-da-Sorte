@@ -6,7 +6,7 @@ import path from 'node:path';
 import { normalizePhone, uid } from './utils.js';
 
 const COOKIE = 'zapauto_sessao';
-const SESSION_DAYS = 30;
+const SESSION_DAYS = 7; // depois disso, entra de novo
 
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -25,6 +25,7 @@ export function checkPassword(password, stored) {
 const publicUser = (u) => (u ? {
   id: u.id, name: u.name, login: u.login, role: u.role, whatsapp: u.whatsapp || '', active: u.active !== false,
   receivesLeads: u.receivesLeads ?? u.role === 'seller', leadsReceived: u.leadsReceived || 0, lastLeadAt: u.lastLeadAt || null, rotationSeq: u.rotationSeq || 0,
+  twoFactor: Boolean(u.totpEnabled),
 } : null);
 
 export class Auth {
@@ -95,6 +96,7 @@ export class Auth {
     if (patch.password) {
       if (String(patch.password).length < 6) throw Object.assign(new Error('A senha precisa ter pelo menos 6 caracteres'), { status: 400 });
       u.passwordHash = hashPassword(patch.password);
+      u.sessionVersion = (u.sessionVersion || 0) + 1; // senha nova derruba os outros acessos
     }
     this.store.save();
     return publicUser(u);
@@ -111,14 +113,29 @@ export class Auth {
     return crypto.createHmac('sha256', this.secret).update(value).digest('base64url');
   }
 
-  sessionCookie(user) {
+  /** secure: só manda o cookie por HTTPS (na VPS). */
+  sessionCookie(user, { secure = false } = {}) {
     const exp = Date.now() + SESSION_DAYS * 86_400_000;
-    const value = `${user.id}.${exp}`;
-    return `${COOKIE}=${value}.${this.#sign(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`;
+    const value = `${user.id}.${user.sessionVersion || 0}.${exp}`;
+    return `${COOKIE}=${value}.${this.#sign(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}${secure ? '; Secure' : ''}`;
   }
 
   clearCookie() {
     return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  }
+
+  /** Sai de todos os aparelhos (este usuário) — os cookies antigos param de valer. */
+  revokeSessions(id) {
+    const u = this.get(id);
+    if (!u) return;
+    u.sessionVersion = (u.sessionVersion || 0) + 1;
+    this.store.save();
+  }
+
+  /** Derruba todo mundo (invasão): todos precisam entrar de novo. */
+  revokeAll() {
+    for (const u of this.users) u.sessionVersion = (u.sessionVersion || 0) + 1;
+    this.store.save();
   }
 
   /** Usuário da requisição (ou null). */
@@ -128,13 +145,14 @@ export class Auth {
       .map((c) => c.trim())
       .find((c) => c.startsWith(`${COOKIE}=`));
     if (!raw) return null;
-    const [id, exp, sig] = raw.slice(COOKIE.length + 1).split('.');
-    if (!id || !exp || !sig) return null;
-    const expected = this.#sign(`${id}.${exp}`);
+    const [id, ver, exp, sig] = raw.slice(COOKIE.length + 1).split('.');
+    if (!id || !ver || !exp || !sig) return null;
+    const expected = this.#sign(`${id}.${ver}.${exp}`);
     if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
     if (Number(exp) < Date.now()) return null;
     const u = this.get(id);
-    return u && u.active !== false ? u : null;
+    if (!u || u.active === false || Number(ver) !== (u.sessionVersion || 0)) return null;
+    return u;
   }
 }
 

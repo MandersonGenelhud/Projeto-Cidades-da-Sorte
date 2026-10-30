@@ -587,7 +587,76 @@ function applyDefaultDelays() {
   if (settingsCache.defaultDelayMax) f.delayMax.value = settingsCache.defaultDelayMax;
 }
 
+// ---------- Segurança ----------
+const SEC_EVENTS = { entrou: '✅ Entrou', senha_errada: '❌ Senha errada', codigo_errado: '❌ Código errado', bloqueado: '🚫 Bloqueado (muitas tentativas)', '2fa_ligada': '🔐 Ligou 2 etapas', '2fa_desligada': '⚠️ Desligou 2 etapas', saiu_de_todos: '🚪 Saiu de todos os aparelhos', derrubou_todos: '🚨 Derrubou todos os acessos', baixou_backup: '💾 Baixou backup', viu_chave_backup: '🔑 Viu a chave do backup' };
+async function loadSecurity() {
+  const me = await api('/api/me');
+  $('#twofaBox').innerHTML = me.twoFactor
+    ? '<p>✅ Verificação em duas etapas <b>ligada</b> na sua conta.</p><button type="button" class="btn small" id="btn2faOff">Desligar</button>'
+    : '<p class="status-warn">⚠️ Sua conta está protegida só pela senha.</p><button type="button" class="btn primary" id="btn2faOn">🔐 Ligar verificação em duas etapas</button>';
+  $('#btn2faOn')?.addEventListener('click', async () => {
+    const r = await api('/api/security/2fa/setup');
+    $('#twofaBox').innerHTML = `<ol class="hint"><li>Instale o <b>Google Authenticator</b> (ou Microsoft Authenticator) no celular.</li><li>No app, toque em <b>+</b> e escaneie o QR Code abaixo (ou digite a chave).</li><li>Digite o código de 6 números que aparece no app.</li></ol>
+      <img src="${r.qr}" alt="QR Code da verificação em duas etapas" width="200" height="200" /><p class="hint">Chave: <code>${esc(r.secret)}</code></p>
+      <div class="row"><input id="twofaCode" inputmode="numeric" maxlength="6" placeholder="000000" /><button type="button" class="btn primary" id="btn2faConfirm">Confirmar e ligar</button></div>`;
+    $('#btn2faConfirm').addEventListener('click', async () => {
+      try {
+        await api('/api/security/2fa/enable', { method: 'POST', body: { code: $('#twofaCode').value } });
+        toast('Verificação em duas etapas ligada');
+        loadSecurity();
+      } catch (err) { toast(err.message, true); }
+    });
+  });
+  $('#btn2faOff')?.addEventListener('click', async () => {
+    const password = prompt('Para desligar, digite sua senha:');
+    if (!password) return;
+    const code = prompt('E o código de 6 números do app autenticador:');
+    if (!code) return;
+    try {
+      await api('/api/security/2fa/disable', { method: 'POST', body: { password, code } });
+      toast('Verificação em duas etapas desligada');
+      loadSecurity();
+    } catch (err) { toast(err.message, true); }
+  });
+  if (me.role !== 'admin') {
+    for (const id of ['#btnRevokeEveryone', '#securityUsers', '#backupList', '#securityLog']) $(id).hidden = true;
+    return;
+  }
+  const r = await api('/api/security/log');
+  $('#securityUsers').innerHTML = r.users.filter((u) => u.active).map((u) => `${u.twoFactor ? '🔐' : '⚠️'} ${esc(u.name)} (${u.role === 'admin' ? 'administrador' : 'vendedor'}): ${u.twoFactor ? 'duas etapas ligada' : '<b>só senha</b>'}`).join('<br>');
+  $('#backupDir').value = r.backupDir || '';
+  $('#backupList').innerHTML = r.lastBackup
+    ? `Último backup: ${new Date(r.lastBackup.at).toLocaleString('pt-BR')}${r.lastBackup.extra ? ' (com cópia extra)' : ''}. ${r.backups.map((b) => `<a href="/api/security/backup/${encodeURIComponent(b.name)}">${esc(b.name)}</a>`).join(' · ')}`
+    : 'Nenhum backup ainda: o primeiro é feito 1 minuto depois de ligar o sistema.';
+  $('#securityLog').innerHTML = `<thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>IP</th><th>Aparelho</th></tr></thead><tbody>${r.events.map((e) => `<tr><td>${new Date(e.at).toLocaleString('pt-BR')}</td><td>${esc(e.user)}</td><td>${SEC_EVENTS[e.type] || esc(e.type)}</td><td>${esc(e.ip)}</td><td class="hint">${esc(e.ua.slice(0, 60))}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhum acesso registrado ainda.</td></tr>'}</tbody>`;
+}
+$('#btnLogoutAll').addEventListener('click', async () => {
+  if (!confirm('Sair da sua conta em todos os outros aparelhos? Este continua conectado.')) return;
+  await api('/api/security/logout-all', { method: 'POST' });
+  toast('Pronto: os outros aparelhos foram desconectados');
+});
+$('#btnRevokeEveryone').addEventListener('click', async () => {
+  if (!confirm('Derrubar TODOS os acessos ao painel (inclusive dos vendedores)? Todo mundo vai precisar entrar de novo. Use se suspeitar de invasão e troque as senhas em seguida.')) return;
+  await api('/api/security/revoke-everyone', { method: 'POST' });
+  toast('Todos os acessos foram derrubados');
+  loadSecurity();
+});
+$('#btnBackupNow').addEventListener('click', async () => {
+  try {
+    const r = await api('/api/security/backup', { method: 'POST', body: { backupDir: $('#backupDir').value } });
+    toast(`Backup feito${r.extra ? ' (com cópia na pasta extra)' : ''}`);
+    loadSecurity();
+  } catch (err) { toast(err.message, true); }
+});
+$('#btnBackupKey').addEventListener('click', async () => {
+  try {
+    const r = await api('/api/security/backup-key');
+    prompt('Chave do backup: copie e guarde num lugar seguro (gerenciador de senhas ou papel guardado). Não mande por WhatsApp.', r.key);
+  } catch (err) { toast(err.message, true); }
+});
+
 loaders.settings = async () => {
+  loadSecurity().catch(() => {});
   const [s, blacklist] = await Promise.all([api('/api/settings'), api('/api/blacklist')]);
   settingsCache = s;
   fillPayForm(s.payments || {});

@@ -35,6 +35,8 @@ import { PayPlans, planMessage } from './payplan.js';
 import { Quotes } from './quotes.js';
 import { collectHandoffs, digestMessage } from './digest.js';
 import { Sectors } from './sectors.js';
+import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
+import { Backups } from './backup.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
 import { Crm, STAGES } from './crm.js';
@@ -227,6 +229,9 @@ agent.sendForm = async (conv, args, { dryRun } = {}) => {
 };
 // Passo a passo do pagamento (fluxograma): pela atendente, pelo painel e depois do termo assinado.
 const payplans = new PayPlans({ store, secret: auth.secret });
+// Backup diário criptografado (30 dias) + cópia extra opcional fora deste disco.
+const backups = new Backups({ store, dataDir: DATA_DIR, log: (l) => store.addLog(l) });
+backups.schedule();
 async function sendPaymentPlan({ convKey, lead, packageName, people, adults, start }) {
   const pkg = crm.matchPackage(packageName || lead?.interest || '');
   if (!pkg) return { erro: `Pacote não encontrado. Pacotes: ${(store.settings.crm?.packages || []).map((p) => p.name).join(', ')}` };
@@ -647,7 +652,21 @@ tunnel.on('status', (st) => {
 
 // ---- App ----
 const app = express();
-app.set('trust proxy', true);
+// Só confia no proxy da própria máquina/rede (Caddy na VPS): de fora, ninguém falsifica o IP.
+app.set('trust proxy', 'loopback, linklocal, uniquelocal');
+app.disable('x-powered-by');
+// Cabeçalhos de segurança: sem iframe de terceiros (clickjacking), sem adivinhar tipo de arquivo, HTTPS obrigatório na VPS.
+app.use((req, res, next) => {
+  res.set({
+    'X-Frame-Options': 'SAMEORIGIN',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+  });
+  if (req.secure) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  next();
+});
 // Guarda o corpo bruto para validar a assinatura do webhook da Meta.
 app.use(express.json({ limit: '5mb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
 
@@ -788,7 +807,18 @@ app.post('/api/affiliate/signup', (req, res) => {
   res.set('Set-Cookie', affiliates.sessionCookie(a)).json(affiliates.publicAffiliate(a));
 });
 app.post('/api/affiliate/login', (req, res) => {
-  const a = affiliates.login(req.body?.whatsapp, req.body?.password);
+  const key = `parceiro:${String(req.body?.whatsapp || '').replace(/\D/g, '')}`;
+  const ip = clientIp(req);
+  const wait = loginGuard.blocked({ login: key, ip });
+  if (wait) throw httpError(429, `Muitas tentativas erradas. Espere ${wait} minuto(s) e tente de novo.`);
+  let a;
+  try {
+    a = affiliates.login(req.body?.whatsapp, req.body?.password);
+  } catch (e) {
+    loginGuard.fail({ login: key, ip });
+    throw e;
+  }
+  loginGuard.success({ login: key });
   res.set('Set-Cookie', affiliates.sessionCookie(a)).json(affiliates.publicAffiliate(a));
 });
 app.post('/api/affiliate/logout', (_req, res) => res.set('Set-Cookie', affiliates.clearCookie()).json({ ok: true }));
@@ -870,18 +900,58 @@ app.get('/api/auth/state', (req, res) => {
 app.post('/api/auth/setup', (req, res) => {
   if (!auth.needsSetup) throw httpError(403, 'O administrador já foi criado. Entre com login e senha.');
   const user = auth.create({ ...req.body, role: 'admin' });
-  res.set('Set-Cookie', auth.sessionCookie(auth.get(user.id))).json(user);
+  res.set('Set-Cookie', auth.sessionCookie(auth.get(user.id), { secure: req.secure })).json(user);
 });
-app.post('/api/auth/login', (req, res) => {
-  const user = auth.login(req.body.login, req.body.password);
-  if (!user) throw httpError(401, 'Login ou senha incorretos');
-  store.addLog({ type: 'system', message: `🔑 ${user.name} entrou no painel` });
+// Login protegido: limite de tentativas, código do app autenticador (2 etapas) e aviso de acesso novo.
+const loginGuard = new LoginGuard();
+const clientIp = (req) => String(req.ip || req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
+function securityEvent(type, user, req, extra = '') {
+  store.data.securityLog ||= [];
+  store.data.securityLog.push({ at: new Date().toISOString(), type, user: user?.name || user || '', ip: clientIp(req), ua: String(req.get('user-agent') || '').slice(0, 160), extra });
+  if (store.data.securityLog.length > 1000) store.data.securityLog.splice(0, store.data.securityLog.length - 1000);
+  store.save();
+}
+app.post('/api/auth/login', async (req, res) => {
+  const login = String(req.body.login || '').trim().toLowerCase();
+  const ip = clientIp(req);
+  const wait = loginGuard.blocked({ login, ip });
+  if (wait) throw httpError(429, `Muitas tentativas erradas. Por segurança, espere ${wait} minuto(s) e tente de novo.`);
+  const user = auth.login(login, req.body.password);
+  if (!user) {
+    const locked = loginGuard.fail({ login, ip });
+    securityEvent('senha_errada', login, req);
+    if (locked) {
+      securityEvent('bloqueado', login, req);
+      notifyAdmins(`🚨 *Tentativas de senha bloqueadas no painel*\nLogin tentado: ${login || '-'}\nIP: ${ip}\nHora: ${new Date().toLocaleString('pt-BR')}\n\nSe não foi alguém da equipe, alguém está tentando entrar. Troque as senhas e ligue a verificação em duas etapas (Configurações → Segurança).`).catch(() => {});
+    }
+    throw httpError(401, 'Login ou senha incorretos');
+  }
+  // Verificação em duas etapas: pede o código do app autenticador.
+  if (user.totpEnabled && !verifyTotp(user.totpSecret, req.body.code)) {
+    if (req.body.code) {
+      loginGuard.fail({ login, ip });
+      securityEvent('codigo_errado', user, req);
+      throw httpError(401, 'Código incorreto. Use o código de 6 números que aparece agora no app autenticador.');
+    }
+    return res.json({ needs2fa: true });
+  }
+  loginGuard.success({ login });
+  securityEvent('entrou', user, req);
+  // Aparelho/endereço novo: avisa os administradores no WhatsApp.
+  user.knownIps ||= [];
+  if (!user.knownIps.includes(ip)) {
+    const first = !user.knownIps.length;
+    user.knownIps = [...user.knownIps, ip].slice(-20);
+    if (!first) notifyAdmins(`🔐 *Novo acesso ao painel*\n👤 ${user.name} (${user.role === 'admin' ? 'administrador' : 'vendedor'})\n🌐 IP ${ip}\n📱 ${String(req.get('user-agent') || '').slice(0, 90)}\n🕒 ${new Date().toLocaleString('pt-BR')}\n\nSe não foi essa pessoa: Configurações → Segurança → "Derrubar todos os acessos" e troque a senha.`).catch(() => {});
+  }
+  store.addLog({ type: 'system', message: `🔑 ${user.name} entrou no painel (IP ${ip})` });
   // Guarda o endereço público do painel para o link da ficha no aviso ao vendedor.
   const host = req.get('host') || '';
   if (user.role === 'admin' && !store.settings.crm?.panelUrl && host && !/^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(host)) {
     store.updateSettings({ crm: { panelUrl: `${req.protocol}://${host}` } });
   }
-  res.set('Set-Cookie', auth.sessionCookie(user)).json(publicUser(user));
+  store.save();
+  res.set('Set-Cookie', auth.sessionCookie(user, { secure: req.secure })).json(publicUser(user));
 });
 app.post('/api/auth/logout', (_req, res) => {
   res.set('Set-Cookie', auth.clearCookie()).json({ ok: true });
@@ -897,6 +967,7 @@ const SELLER_ROUTES = [
   ['GET', /^\/realty\//],
   ['PATCH', /^\/realty\/developments\/[^/]+\/lots\/[^/]+$/],
   ['POST', /^\/conversations\/[^/]+\/(reply|handoff)$/],
+  ['*', /^\/security\/(2fa\/(setup|enable|disable)|logout-all)$/],
 ];
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth/') || req.path.startsWith('/public/') || req.path.startsWith('/affiliate/')) return next();
@@ -910,6 +981,76 @@ app.use('/api', (req, res, next) => {
   next();
 });
 app.get('/api/me', (req, res) => res.json(publicUser(req.user)));
+// ---------- Segurança da conta ----------
+app.get('/api/security/2fa/setup', async (req, res) => {
+  const u = req.user;
+  if (u.totpEnabled) throw httpError(400, 'A verificação em duas etapas já está ligada');
+  u.totpPending = newTotpSecret();
+  store.save();
+  const url = otpauthUrl(u.totpPending, u.login, store.settings.brand?.name || 'Migra Hub');
+  res.json({ secret: u.totpPending, qr: await QRCode.toDataURL(url, { margin: 1, width: 240 }) });
+});
+app.post('/api/security/2fa/enable', (req, res) => {
+  const u = req.user;
+  if (!u.totpPending || !verifyTotp(u.totpPending, req.body.code)) throw httpError(400, 'Código incorreto. Confira o código que aparece agora no app e tente de novo.');
+  u.totpSecret = u.totpPending;
+  u.totpEnabled = true;
+  delete u.totpPending;
+  u.sessionVersion = (u.sessionVersion || 0) + 1; // outros aparelhos precisam entrar de novo, já com o código
+  store.save();
+  securityEvent('2fa_ligada', u, req);
+  res.set('Set-Cookie', auth.sessionCookie(u, { secure: req.secure })).json({ ok: true });
+});
+app.post('/api/security/2fa/disable', (req, res) => {
+  const u = req.user;
+  if (!auth.login(u.login, req.body.password) || !verifyTotp(u.totpSecret, req.body.code)) throw httpError(400, 'Senha ou código incorretos');
+  u.totpEnabled = false;
+  delete u.totpSecret;
+  store.save();
+  securityEvent('2fa_desligada', u, req);
+  notifyAdmins(`⚠️ ${u.name} desligou a verificação em duas etapas do painel.`).catch(() => {});
+  res.json({ ok: true });
+});
+app.post('/api/security/logout-all', (req, res) => {
+  auth.revokeSessions(req.user.id);
+  securityEvent('saiu_de_todos', req.user, req);
+  res.set('Set-Cookie', auth.sessionCookie(auth.get(req.user.id), { secure: req.secure })).json({ ok: true });
+});
+app.post('/api/security/revoke-everyone', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  auth.revokeAll();
+  securityEvent('derrubou_todos', req.user, req);
+  notifyAdmins(`🚨 ${req.user.name} derrubou todos os acessos ao painel. Todos precisam entrar de novo.`).catch(() => {});
+  res.set('Set-Cookie', auth.sessionCookie(auth.get(req.user.id), { secure: req.secure })).json({ ok: true });
+});
+app.get('/api/security/log', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  res.json({
+    events: (store.data.securityLog || []).slice(-200).reverse(),
+    users: auth.users.map((u) => ({ name: u.name, role: u.role, twoFactor: Boolean(u.totpEnabled), active: u.active !== false })),
+    backups: backups.list().slice(0, 10),
+    lastBackup: store.data.lastBackup || null,
+    backupDir: store.settings.security?.backupDir || '',
+  });
+});
+app.post('/api/security/backup', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  if (req.body?.backupDir !== undefined) store.updateSettings({ security: { backupDir: String(req.body.backupDir || '').trim() } });
+  res.json(backups.run());
+});
+app.get('/api/security/backup/:name', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  const f = backups.file(req.params.name);
+  if (!f) throw httpError(404, 'Backup não encontrado');
+  securityEvent('baixou_backup', req.user, req, req.params.name);
+  res.download(f);
+});
+app.get('/api/security/backup-key', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  if (auth.get(req.user.id).totpEnabled !== true) throw httpError(403, 'Ligue a verificação em duas etapas para ver a chave do backup');
+  securityEvent('viu_chave_backup', req.user, req);
+  res.json({ key: backups.key.toString('hex') });
+});
 
 const upload = multer({
   storage: multer.diskStorage({
