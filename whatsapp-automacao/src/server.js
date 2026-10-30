@@ -37,6 +37,7 @@ import { collectHandoffs, digestMessage } from './digest.js';
 import { Sectors } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
 import { Backups } from './backup.js';
+import { AutoFollowUps } from './followups.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
 import { Crm, STAGES } from './crm.js';
@@ -160,6 +161,17 @@ const sectors = new Sectors({
   notifyAdmins: (text) => notifyAdmins(text),
 });
 agent.routeSector = (conv, args, opts) => sectors.route(conv, args, opts);
+// Retorno combinado: a IA marca dia e hora com o cliente e, no dia, retoma a conversa sozinha.
+const followups = new AutoFollowUps({
+  store,
+  crm,
+  agent,
+  send: (key, text) => wa.send(key, { text }),
+  canSend: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected') && agent.active,
+  log: (l) => store.addLog(l),
+});
+agent.scheduleReturn = (conv, args, opts) => followups.schedule(conv, args, opts);
+setInterval(() => followups.run().catch((e) => store.addLog({ type: 'error', message: `Retornos combinados: ${e.message}` })), 10 * 60_000).unref();
 // Migra Imóveis (catálogo e loteamentos) e programa de indicação.
 const realty = new Realty({ store, dataDir: DATA_DIR });
 const affiliates = new Affiliates({

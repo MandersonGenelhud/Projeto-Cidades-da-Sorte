@@ -1018,6 +1018,7 @@ const TOOL_LABEL = {
   direcionar_para_setor: '🏷️ direcionou para o setor',
   gerar_orcamento: '🧾 gerou o orçamento',
   avisar_marcos: '📌 avisou o Marcos',
+  agendar_retorno: '📅 marcou o retorno',
   agendar_visita_escritorio: '🏢 pediu a visita ao Marcos',
   enviar_etapas_pagamento: '📋 enviou as etapas de pagamento',
 };

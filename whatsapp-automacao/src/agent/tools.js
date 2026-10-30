@@ -167,6 +167,23 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'agendar_retorno',
+      description: 'Quando o cliente disser "mais pra frente", "vou pensar", "depois eu vejo" e você já tentou contornar: combine com ele um dia e horário exatos e registre aqui. No dia, o sistema retoma a conversa sozinho com o cliente. Use só depois que ele concordar com a data.',
+      parameters: {
+        type: 'object',
+        properties: {
+          data: { type: 'string', description: 'Dia combinado, no formato AAAA-MM-DD (até 90 dias)' },
+          hora: { type: 'string', description: 'Horário combinado, HH:MM (entre 08:00 e 20:00)' },
+          motivo: { type: 'string', description: 'Por que ele pediu para esperar, nas palavras dele' },
+          o_que_falta: { type: 'string', description: 'O que falta para fechar e qual o próximo passo no retorno (ex.: receber o salário dia 10 e pagar a entrada)' },
+        },
+        required: ['data', 'motivo'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'avisar_marcos',
       description: 'Para assuntos que não são venda de pacote e vão direto para o Marcos: quem quer trabalhar na Migra (contratação, currículo, vaga), propostas de parceria de negócio, fornecedores, imprensa ou investidores. Avisa o Marcos no WhatsApp dele com o resumo.',
       parameters: {
@@ -333,6 +350,10 @@ export async function runTool(name, args, ctx) {
       case 'direcionar_para_setor': {
         if (!ctx.onSector) return { erro: 'Indisponível. Use avisar_marcos.' };
         return await ctx.onSector(args);
+      }
+      case 'agendar_retorno': {
+        if (!ctx.onReturn) return { erro: 'Indisponível. Use passar_fechamento_para_humano.' };
+        return await ctx.onReturn(args);
       }
       case 'avisar_marcos': {
         if (!ctx.onOwner) {

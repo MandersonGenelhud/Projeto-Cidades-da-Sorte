@@ -23,6 +23,7 @@ export class Agent {
     this.sendQuote = null; // (conversa, args, { dryRun }) => gera e envia o orçamento ORC (PDF + resumo)
     this.notifyOwner = null; // (conversa, args, { dryRun }) => contratação/parcerias direto para o Marcos
     this.routeSector = null; // (conversa, args, { dryRun }) => loteamentos/veículos para o atendente do setor
+    this.scheduleReturn = null; // (conversa, args, { dryRun }) => retorno combinado com data e hora
     this.closeHandoff = null; // (conversa, args, { dryRun }) => passa o fechamento ao Marcos/vendedor com o resumo
     this.claimPaid = claimPaid || null; // (conversa, args) => cliente disse que pagou
     this.routeSpecialist = routeSpecialist || null; // (conversa, args, { dryRun }) => passa para o especialista do assunto
@@ -107,7 +108,7 @@ export class Agent {
    * Gera a resposta para a conversa `key` (o texto do cliente já está na memória).
    * Retorna { text, actions } — actions lista as ferramentas usadas.
    */
-  async think(conv, { dryRun = false, delayed = false } = {}) {
+  async think(conv, { dryRun = false, delayed = false, extraSystem = '' } = {}) {
     const cfg = this.config;
     const settings = this.store.settings;
     const channel = String(conv.key).startsWith('ig:') ? 'Instagram' : 'WhatsApp';
@@ -156,6 +157,14 @@ Não prometa desconto nem condição especial.`;
 - Documentação e migração (residência, cédula, RUC, empresa): esse atendimento é seu; siga a venda e o fechamento normalmente.
 - No Instagram, peça o WhatsApp do cliente antes de direcionar.`;
     }
+    if (this.scheduleReturn) {
+      system += `\n\n# Nunca encerre o atendimento
+- Não se despeça nem encerre a conversa: nada de "tchau", "bom final de semana", "fica à vontade", "no seu tempo", "quando quiser, me chama". Toda mensagem termina com uma pergunta ou um próximo passo concreto.
+- O objetivo é ir até o fim: ficha de dados → Pix da reserva → termo assinado. Pegue informações precisas: quantas pessoas e adultos, qual pacote, quando quer começar (data) e se já tem o valor da entrada.
+- Se o cliente agradecer ou se despedir, responda curto e já puxe o próximo passo (ex.: "Quer que eu já te mande a ficha para garantir a sua reserva?").
+- "Mais pra frente", "vou pensar", "depois eu vejo": acolha, descubra o motivo real e contorne. Se ainda assim não for agora, proponha dia e hora exatos ("Combinado! Posso te chamar na quinta, dia 06/11, às 10h?") e, com o sim dele, use agendar_retorno. Nunca deixe a data em aberto.
+- Se ele não quiser fechar com você nem marcar data, use passar_fechamento_para_humano.`;
+    }
     if (this.notifyOwner) system += '\n\n# Assuntos do Marcos\nQuem quer trabalhar na Migra (contratação, vaga, currículo), propostas de parceria de negócio, fornecedores, imprensa ou investidores: entenda o básico em 1 ou 2 perguntas e use avisar_marcos. Diga que passou direto para o Marcos e que ele mesmo retorna. Não venda pacote para essas pessoas.';
     if (this.sendQuote) system += '\n\n# Orçamento\nQuando o cliente pedir orçamento, perguntar quanto fica para a família ou para mais de um pacote, use gerar_orcamento com os pacotes, quantas pessoas em cada um e os adultos. O sistema manda o PDF oficial (número ORC) e o resumo com a entrada e as parcelas; você só comenta em uma frase e conduz para garantir a reserva. Não refaça as contas.';
     if (this.sendPlan) system += '\n\n# Passo a passo do pagamento\nQuando o cliente perguntar como funciona o pagamento, quanto paga em cada etapa, ou logo depois de fechar, use enviar_etapas_pagamento com o pacote e o número de pessoas. O sistema manda o fluxograma com os valores e as datas de cada parcela (contando da data de hoje; sábado e domingo passam para segunda); você só comenta em uma frase e pergunta se ficou alguma dúvida. Não refaça as contas por conta própria.';
@@ -165,6 +174,7 @@ Não prometa desconto nem condição especial.`;
 As mensagens anteriores do lado da empresa foram escritas pelo Marcos ou pela equipe, pessoalmente. Continue de onde a conversa parou: não recomece a apresentação, não repita perguntas já respondidas e não contradiga o que já foi combinado.
 Onde parou e próximo passo: ${conv.continuity}`;
     }
+    if (extraSystem) system += `\n\n${extraSystem}`;
     if (delayed) {
       system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece com a saudação de agora e agradeça por aguardar, por exemplo: "Oi, bom dia! Agradeço por aguardar. Nossa demanda está muito alta e responder um a um ficou um pouco complicado." Nunca peça desculpas. Depois siga a conversa normalmente, respondendo o que ele perguntou.';
     }
@@ -175,6 +185,7 @@ Onde parou e próximo passo: ${conv.continuity}`;
       if (t.function.name === 'gerar_orcamento') return Boolean(this.sendQuote);
       if (t.function.name === 'avisar_marcos') return Boolean(this.notifyOwner);
       if (t.function.name === 'direcionar_para_setor') return Boolean(this.routeSector);
+      if (t.function.name === 'agendar_retorno') return Boolean(this.scheduleReturn);
       if (t.function.name === 'encaminhar_para_especialista') return specialists;
       if (t.function.name === 'enviar_ficha_de_dados') return closing;
       if (t.function.name === 'agendar_visita_escritorio') return visits;
@@ -203,6 +214,7 @@ Onde parou e próximo passo: ${conv.continuity}`;
       onQuote: this.sendQuote ? (args) => this.sendQuote(conv, args, { dryRun }) : null,
       onOwner: this.notifyOwner ? (args) => this.notifyOwner(conv, args, { dryRun }) : null,
       onSector: this.routeSector ? (args) => this.routeSector(conv, args, { dryRun }) : null,
+      onReturn: this.scheduleReturn ? (args) => this.scheduleReturn(conv, args, { dryRun }) : null,
       // Pausa a IA nesta conversa (um humano assume), sem o aviso genérico de transferência.
       pause: (reason) => {
         if (dryRun) return;

@@ -4,7 +4,7 @@
 const MIGRA_PARAGUAI = {
   label: 'Migra Paraguai (assessoria migratória)',
   // Suba este número quando a base mudar: instalações com a versão antiga recebem a nova sozinhas.
-  version: 14,
+  version: 15,
   business: {
     name: 'Migra Paraguai',
     segment: 'assessoria de processos migratórios, regularização documental e abertura de empresas no Paraguai',
@@ -173,7 +173,7 @@ Português do Brasil, mensagens curtas como no WhatsApp: no máximo 2 ou 3 frase
 - Pergunte o critério de decisão: "O que é mais importante para você na hora de escolher: preço, prazo ou segurança?" e argumente em cima disso.
 - "Está caro" (4 passos): 1) reconheça ("entendo, é um investimento importante"); 2) investigue ("caro comparado a quê?"); 3) recapitule o valor com o que ele mesmo disse (o objetivo, a família, o custo de várias viagens e de documento errado); 4) ofereça opções em vez de desconto (começar por um pacote menor, como o Inicial, e evoluir depois).
 - Isole a objeção: "Tirando o valor, tem mais alguma coisa que te impede de começar?"
-- Sem dinheiro agora: respeite. Mostre que para começar é só a entrada e que o resto acompanha as etapas. Se mesmo assim não for o momento, pergunte quando faz sentido e combine o retorno.
+- Sem dinheiro agora: respeite. Mostre que para começar é só a entrada e que o resto acompanha as etapas. Se mesmo assim não for o momento, combine dia e hora exatos para retomar (agendar_retorno). Nunca deixe "no seu tempo, me chama".
 - Prazo longo ("só daqui a 6 meses"): mostre que o processo leva de 90 a 120 dias úteis, então começar antes faz ele estar pronto na data que quer. Se houver condição especial ou reajuste cadastrados, mencione com a data real.
 - Fechamento alternativo: "Prefere começar pelo Ouro ou pelo Prata?". Fechamento por resumo: recapitule o que ele quer e pergunte "faz sentido já garantirmos seu início?". Fechamento condicional: "Se o pagamento ficar dividido nas vindas, a gente já pode garantir a sua reserva?".
 - Princípios de influência: reciprocidade (dê uma informação útil antes de pedir algo), compromisso (pequenos sins), autoridade (mostre domínio das etapas e certidões), afeição (use o nome, interesse genuíno, deixe a pessoa falar de si), prova social e escassez só com fatos cadastrados.
@@ -186,7 +186,7 @@ Português do Brasil, mensagens curtas como no WhatsApp: no máximo 2 ou 3 frase
 - Orçamento: quando pedir orçamento ou o total da família, use gerar_orcamento (PDF oficial com número ORC).
 
 # Limites (inegociáveis)
-Nunca invente urgência, vagas limitadas, promoções, depoimentos, números de clientes ou resultados. Nunca humilhe, envergonhe ou culpe o cliente para ele fechar. Nunca prometa aprovação, prazo exato ou desconto. Nunca pressione quem disse que não pode agora: seja gentil, ofereça retomar depois e respeite o "não". Não faça promessas legais: isto não é orientação jurídica.
+Nunca invente urgência, vagas limitadas, promoções, depoimentos, números de clientes ou resultados. Nunca humilhe, envergonhe ou culpe o cliente para ele fechar. Nunca prometa aprovação, prazo exato ou desconto. Não seja agressivo: se a pessoa disser claramente que não quer, respeite. Se for "agora não", contorne com gentileza e, se continuar, marque dia e hora do retorno com agendar_retorno. Não faça promessas legais: isto não é orientação jurídica.
 
 Faça a peneira com calma. Quando o cliente estiver pronto para fechar, siga o fechamento com a ficha de dados. Você mesma fecha: só passe para o escritório no caso de receio que não passou (veja "Você fecha a venda").`,
     testMessages: [
