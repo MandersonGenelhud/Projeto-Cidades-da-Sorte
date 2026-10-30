@@ -66,3 +66,17 @@ test('backup criptografado: abre com a chave, não abre adulterado nem com outra
   assert.equal(b.file('../db.json'), null, 'não deixa baixar outros arquivos');
   assert.ok(encrypt(Buffer.from('a'), b.key).length > 32);
 });
+
+test('cadastro do vendedor fica aguardando: não entra até o administrador liberar', () => {
+  const store = tempStore();
+  const auth = new Auth({ store, dataDir: store.dataDir });
+  auth.create({ name: 'Marcos', login: 'marcos', password: 'segredo123', role: 'admin' });
+  const v = auth.create({ name: 'Silvane Nunes', login: 'silvane', password: 'Silvane2026', whatsapp: '+55 45 99999-0009', pending: true });
+  assert.equal(v.pending, true);
+  assert.equal(auth.login('silvane', 'Silvane2026'), null, 'não entra antes da liberação');
+  assert.ok(auth.pendingLogin('silvane', 'Silvane2026'), 'recebe o aviso de "aguardando liberação"');
+  assert.equal(auth.pendingLogin('silvane', 'errada'), null, 'senha errada não revela o cadastro');
+  auth.update(v.id, { active: true });
+  assert.equal(auth.login('silvane', 'Silvane2026').id, v.id);
+  assert.equal(auth.get(v.id).pending, undefined);
+});

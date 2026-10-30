@@ -22,6 +22,7 @@
     <nav>
       <div class="nav-group">Vendas</div>
       <button data-tab="sales" data-admin>📈 Vendas</button>
+      <button data-tab="quotes">🧾 Orçamentos</button>
       <button data-tab="leads">🗂️ Prospectos</button>
       <button data-tab="followups">📅 Retornos <span class="nav-badge" id="dueBadge" hidden>0</span></button>
       <button data-tab="payments">💳 Pagamentos</button>
@@ -267,6 +268,46 @@
     </section>
 
     <!-- PROSPECTOS -->
+    <section id="tab-quotes" class="tab">
+      <h1>Orçamentos</h1>
+      <div class="grid2 quote-grid">
+        <form class="panel form" id="quoteForm" autocomplete="off">
+          <h2>🧾 Novo orçamento</h2>
+          <div class="row">
+            <label>Nome do cliente <input name="client" required placeholder="ex.: Luiza Fernandes" /></label>
+            <label>WhatsApp do cliente <input name="phone" placeholder="+55 45 99999-0000" /></label>
+          </div>
+          <div class="row">
+            <label>Data da reserva (início) <input name="start" type="date" required /></label>
+            <label>Adultos no processo <input name="adults" type="number" min="1" max="50" value="1" /></label>
+          </div>
+          <h3>Pacotes</h3>
+          <div id="quoteItems"></div>
+          <button type="button" class="btn small" id="btnQuoteAddItem">➕ Adicionar pacote</button>
+          <h3>Parcelas do saldo</h3>
+          <div class="seg-inline">
+            <label class="check"><input type="radio" name="planMode" value="std" checked /> Padrão Migra: 50% · 30% · 20% (15, 90 e 120 dias)</label>
+            <label class="check"><input type="radio" name="planMode" value="custom" /> Personalizar parcelas combinadas com o cliente</label>
+          </div>
+          <div id="quoteParcels" hidden></div>
+          <p class="hint">A entrada (R$ 1.000 de sinal + R$ 800 por adulto das certidões) é sempre paga na reserva e descontada do total.</p>
+        </form>
+        <div class="panel" id="quotePreviewPanel">
+          <h2>Prévia</h2>
+          <div id="quotePreview"><p class="muted">Escolha o pacote para ver os valores.</p></div>
+          <button type="button" class="btn primary" id="btnQuoteCreate">📄 Gerar orçamento em PDF</button>
+          <div id="quoteResult"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="conv-header">
+          <h2>🗄️ Orçamentos emitidos</h2>
+          <input id="quoteSearch" type="search" placeholder="Buscar por número, cliente ou telefone" />
+        </div>
+        <div class="table-wrap"><table id="quoteTable"></table></div>
+      </div>
+    </section>
+
     <section id="tab-leads" class="tab">
       <div class="page-head">
         <h1>Prospectos</h1>
@@ -490,6 +531,7 @@
       <div class="grid2">
         <div class="panel">
           <h2>Pessoas com acesso</h2>
+          <div id="teamPending" class="team-pending" hidden></div>
           <div id="rotationInfo" class="rotation-info"></div>
           <div id="teamList"></div>
         </div>

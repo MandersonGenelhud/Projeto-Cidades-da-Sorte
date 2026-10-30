@@ -906,8 +906,27 @@ app.get('/brand/logo', (_req, res) => {
 });
 
 // ---- Login (administrador e vendedores) ----
+const require2fa = () => store.settings.security?.require2fa !== false;
 app.get('/api/auth/state', (req, res) => {
-  res.json({ needsSetup: auth.needsSetup, user: publicUser(auth.fromRequest(req)) });
+  const u = auth.fromRequest(req);
+  res.json({ needsSetup: auth.needsSetup, user: publicUser(u), setup2fa: Boolean(u && require2fa() && !u.totpEnabled) });
+});
+// Cadastro do vendedor: fica aguardando a liberação do administrador (não entra antes disso).
+app.post('/api/auth/signup', (req, res) => {
+  if (auth.needsSetup) throw httpError(400, 'Crie primeiro o administrador.');
+  const ip = clientIp(req);
+  const wait = loginGuard.blocked({ login: 'cadastro', ip });
+  if (wait) throw httpError(429, `Muitas tentativas. Espere ${wait} minuto(s).`);
+  loginGuard.fail({ login: `cadastro:${ip}`, ip }); // conta tentativas por IP (evita cadastro em massa)
+  const b = req.body || {};
+  const password = String(b.password || '');
+  if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/\d/.test(password)) throw httpError(400, 'A senha precisa ter pelo menos 8 caracteres, com letras e números.');
+  if (!normalizePhone(b.whatsapp)) throw httpError(400, 'Informe o seu WhatsApp com DDD (e o código do país).');
+  const user = auth.create({ name: b.name, login: b.login, password, whatsapp: b.whatsapp, role: 'seller', pending: true });
+  securityEvent('cadastro_pedido', user, req);
+  notifyAdmins(`🆕 *Pedido de acesso ao sistema*\n👤 ${user.name} · login ${user.login}\n📱 +${user.whatsapp}\n🌐 IP ${ip}\n\nLibere ou recuse no painel, aba *Equipe*. Se não conhece essa pessoa, recuse.`).catch(() => {});
+  notify('users', {});
+  res.json({ ok: true, message: 'Cadastro enviado! Assim que o administrador liberar, você recebe um aviso no WhatsApp e já pode entrar.' });
 });
 app.post('/api/auth/setup', (req, res) => {
   if (!auth.needsSetup) throw httpError(403, 'O administrador já foi criado. Entre com login e senha.');
@@ -928,6 +947,7 @@ app.post('/api/auth/login', async (req, res) => {
   const ip = clientIp(req);
   const wait = loginGuard.blocked({ login, ip });
   if (wait) throw httpError(429, `Muitas tentativas erradas. Por segurança, espere ${wait} minuto(s) e tente de novo.`);
+  if (auth.pendingLogin(login, req.body.password)) throw httpError(403, 'Seu cadastro está aguardando a liberação do administrador. Você recebe um aviso no WhatsApp quando for liberado.');
   const user = auth.login(login, req.body.password);
   if (!user) {
     const locked = loginGuard.fail({ login, ip });
@@ -963,7 +983,8 @@ app.post('/api/auth/login', async (req, res) => {
     store.updateSettings({ crm: { panelUrl: `${req.protocol}://${host}` } });
   }
   store.save();
-  res.set('Set-Cookie', auth.sessionCookie(user, { secure: req.secure })).json(publicUser(user));
+  // Duas etapas obrigatórias: quem ainda não ligou entra só para configurar o app autenticador.
+  res.set('Set-Cookie', auth.sessionCookie(user, { secure: req.secure })).json({ ...publicUser(user), setup2fa: require2fa() && !user.totpEnabled });
 });
 app.post('/api/auth/logout', (_req, res) => {
   res.set('Set-Cookie', auth.clearCookie()).json({ ok: true });
@@ -980,12 +1001,17 @@ const SELLER_ROUTES = [
   ['PATCH', /^\/realty\/developments\/[^/]+\/lots\/[^/]+$/],
   ['POST', /^\/conversations\/[^/]+\/(reply|handoff)$/],
   ['*', /^\/security\/(2fa\/(setup|enable|disable)|logout-all)$/],
+  ['*', /^\/quotes(\/|$)/],
 ];
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth/') || req.path.startsWith('/public/') || req.path.startsWith('/affiliate/')) return next();
   const user = auth.fromRequest(req);
   if (!user) return res.status(401).json({ error: auth.needsSetup ? 'Crie o administrador para começar' : 'Entre com seu login', login: true });
   req.user = user;
+  // Sem a verificação em duas etapas ligada, só dá para configurá-la.
+  if (require2fa() && !user.totpEnabled && !/^\/(me|security\/2fa\/(setup|enable)|brand)$/.test(req.path)) {
+    return res.status(403).json({ error: 'Ligue a verificação em duas etapas para usar o sistema.', setup2fa: true });
+  }
   if (user.role === 'admin') return next();
   const ok = SELLER_ROUTES.some(([method, re]) => (method === '*' || method === req.method) && re.test(req.path));
   if (!ok) return res.status(403).json({ error: 'Esta área é só do administrador' });
@@ -1739,6 +1765,27 @@ app.patch('/api/users/:id', (req, res) => {
   if (line?.phone && req.body.whatsapp !== undefined) lines.update(line.id, { verified: user.whatsapp ? samePhone(user.whatsapp, line.phone) : null });
   res.json(user);
 });
+app.post('/api/users/:id/approve', async (req, res) => {
+  const u = auth.get(req.params.id);
+  if (!u) throw httpError(404, 'Usuário não encontrado');
+  const user = auth.update(u.id, { active: true });
+  securityEvent('cadastro_liberado', req.user, req, u.name);
+  const base = publicBase();
+  if (u.whatsapp && wa.status === 'connected') {
+    await wa.send(u.whatsapp, { text: `✅ Olá, ${u.name.split(' ')[0]}! Seu acesso ao sistema da Migra foi liberado.\n${base ? `Entre em: ${base}\n` : ''}No primeiro acesso, o sistema vai pedir para ligar a verificação em duas etapas (app Google Authenticator).`, typing: false }).catch(() => {});
+  }
+  notify('users', {});
+  res.json(user);
+});
+app.post('/api/users/:id/reject', (req, res) => {
+  const u = auth.get(req.params.id);
+  if (!u) throw httpError(404, 'Usuário não encontrado');
+  if (!u.pending) throw httpError(400, 'Só dá para recusar cadastros que aguardam liberação');
+  auth.remove(u.id);
+  securityEvent('cadastro_recusado', req.user, req, u.name);
+  notify('users', {});
+  res.json({ ok: true });
+});
 app.post('/api/users/:id/transfer', (req, res) => res.json(crm.transfer(req.user, req.params.id, req.body.toId || null)));
 
 // CRM: prospectos
@@ -1878,16 +1925,54 @@ app.get('/orcamento/:id', (req, res) => {
   res.setHeader('Content-Disposition', `inline; filename="${q.number}.pdf"`);
   res.sendFile(quotes.file(q));
 });
-app.get('/api/quotes', (_req, res) => {
-  res.json(quotes.list.slice(-100).reverse().map((q) => ({ id: q.id, number: q.number, client: q.client, total: q.plan.total, items: q.items.map((r) => ({ name: r.name, qty: r.qty })), issued: q.issued, validUntil: q.validUntil, leadId: q.leadId, url: `/orcamento/${q.id}?t=${quotes.token(q.id)}` })));
+// Orçamentos: cada vendedor vê os dele; o administrador vê todos.
+const canSeeQuote = (user, q) => user.role === 'admin' || q.createdBy?.id === user.id;
+const quoteView = (q) => ({
+  id: q.id, number: q.number, client: q.client, phone: q.phone, consultant: q.consultant, total: q.plan.total, entry: q.plan.entry,
+  items: q.items.map((r) => ({ name: r.name, qty: r.qty })), issued: q.issued, validUntil: q.validUntil, leadId: q.leadId,
+  createdBy: q.createdBy?.name || '', createdAt: q.createdAt, custom: Boolean(q.plan.custom),
+  expired: q.validUntil < new Date().toISOString().slice(0, 10),
+  url: `/api/quotes/${q.id}/pdf`, publicUrl: quoteLink(q),
+});
+app.get('/api/quotes', (req, res) => {
+  const term = String(req.query.q || '').toLowerCase().trim();
+  const list = quotes.list.filter((q) => canSeeQuote(req.user, q))
+    .filter((q) => !term || [q.number, q.client, q.phone, q.consultant].some((x) => String(x || '').toLowerCase().includes(term)))
+    .slice(-300).reverse().map(quoteView);
+  res.json(list);
+});
+// Prévia ao vivo (sem número, sem gravar).
+app.post('/api/quotes/preview', (req, res) => {
+  const b = req.body || {};
+  const r = quotes.compute({ items: b.items, adults: b.adults, start: b.start, parcels: b.parcels });
+  res.json({ ...r, text: quotes.message({ number: 'ORC-XXXX-XXXXX', items: r.items, plan: r.plan, validUntil: r.plan.start }).replace(/Válido até .*/, 'Válido por ' + (Number(store.settings.quotes?.validityDays) || 7) + ' dias') });
 });
 app.post('/api/quotes', async (req, res) => {
   const b = req.body || {};
   const lead = b.leadId ? crm.byId(b.leadId) : null;
-  const key = b.send && lead ? (lead.whatsappKey || lead.conversationKey || lead.phone || null) : null;
-  if (b.send && !key) throw httpError(400, 'Escolha um cliente com WhatsApp para enviar');
-  const q = await sendQuote({ convKey: key, lead, items: b.items, adults: b.adults, client: b.client || lead?.name, consultant: req.user?.name?.split(' ')[0], start: b.start });
-  res.json({ number: q.number, total: q.plan.total, sent: Boolean(key), text: quotes.message(q, quoteLink(q)), url: `/orcamento/${q.id}?t=${quotes.token(q.id)}` });
+  if (lead && !crm.canSee(req.user, lead)) throw httpError(403, 'Este cliente é de outro vendedor');
+  // Só o administrador envia pelo WhatsApp principal; o vendedor baixa o PDF e manda do WhatsApp dele.
+  const key = b.send && req.user.role === 'admin' && lead ? (lead.whatsappKey || lead.conversationKey || lead.phone || null) : null;
+  if (b.send && req.user.role === 'admin' && !key) throw httpError(400, 'Escolha um cliente com WhatsApp para enviar');
+  const q = quotes.create({
+    items: b.items, adults: b.adults, client: b.client || lead?.name, phone: b.phone || lead?.phone || '',
+    consultant: req.user.name, leadId: lead?.id || null, convKey: key, start: b.start, parcels: b.parcels,
+    createdBy: { id: req.user.id, name: req.user.name },
+  });
+  if (key) {
+    const text = quotes.message(q, quoteLink(q));
+    await wa.send(key, { text, media: { path: quotes.file(q), mimetype: 'application/pdf', fileName: `${q.number}.pdf` }, typing: false });
+  }
+  if (lead) crm.addNote(req.user, lead.id, `🧾 Orçamento ${q.number} · R$ ${q.plan.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+  securityEvent('orcamento_criado', req.user, req, `${q.number} · ${q.client} · R$ ${q.plan.total}`);
+  res.json({ ...quoteView(q), sent: Boolean(key), text: quotes.message(q, quoteLink(q)) });
+});
+app.get('/api/quotes/:id/pdf', (req, res) => {
+  const q = quotes.list.find((x) => x.id === req.params.id);
+  if (!q || !canSeeQuote(req.user, q) || !fs.existsSync(quotes.file(q))) throw httpError(404, 'Orçamento não encontrado');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="${q.number} - ${q.client.replace(/[^\w À-ú-]/g, '')}.pdf"`);
+  res.sendFile(quotes.file(q));
 });
 // Visitas ao escritório.
 app.get('/api/visits', (_req, res) => res.json([...visits.list].reverse().map((v) => {

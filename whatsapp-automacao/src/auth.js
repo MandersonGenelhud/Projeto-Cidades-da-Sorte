@@ -25,7 +25,7 @@ export function checkPassword(password, stored) {
 const publicUser = (u) => (u ? {
   id: u.id, name: u.name, login: u.login, role: u.role, whatsapp: u.whatsapp || '', active: u.active !== false,
   receivesLeads: u.receivesLeads ?? u.role === 'seller', leadsReceived: u.leadsReceived || 0, lastLeadAt: u.lastLeadAt || null, rotationSeq: u.rotationSeq || 0,
-  twoFactor: Boolean(u.totpEnabled),
+  twoFactor: Boolean(u.totpEnabled), pending: Boolean(u.pending), requestedAt: u.requestedAt || null,
 } : null);
 
 export class Auth {
@@ -57,7 +57,7 @@ export class Auth {
     return this.users.filter((u) => u.active !== false);
   }
 
-  create({ name, login, password, role = 'seller', whatsapp = '', receivesLeads }) {
+  create({ name, login, password, role = 'seller', whatsapp = '', receivesLeads, pending = false }) {
     name = String(name || '').trim();
     login = String(login || '').trim().toLowerCase();
     if (!name) throw Object.assign(new Error('Informe o nome'), { status: 400 });
@@ -72,7 +72,8 @@ export class Auth {
       whatsapp: whatsapp ? normalizePhone(whatsapp) || '' : '',
       passwordHash: hashPassword(password),
       receivesLeads: receivesLeads === undefined ? role !== 'admin' : Boolean(receivesLeads),
-      active: true,
+      active: !pending,
+      ...(pending ? { pending: true, requestedAt: new Date().toISOString() } : {}),
       createdAt: new Date().toISOString(),
     };
     this.users.push(user);
@@ -91,7 +92,10 @@ export class Auth {
     if (patch.name !== undefined) u.name = String(patch.name).trim() || u.name;
     if (patch.whatsapp !== undefined) u.whatsapp = patch.whatsapp ? normalizePhone(patch.whatsapp) || '' : '';
     if (patch.role !== undefined) u.role = patch.role === 'admin' ? 'admin' : 'seller';
-    if (patch.active !== undefined) u.active = Boolean(patch.active);
+    if (patch.active !== undefined) {
+      u.active = Boolean(patch.active);
+      if (u.active) delete u.pending; // liberado pelo administrador
+    }
     if (patch.receivesLeads !== undefined) u.receivesLeads = Boolean(patch.receivesLeads);
     if (patch.password) {
       if (String(patch.password).length < 6) throw Object.assign(new Error('A senha precisa ter pelo menos 6 caracteres'), { status: 400 });
@@ -100,6 +104,18 @@ export class Auth {
     }
     this.store.save();
     return publicUser(u);
+  }
+
+  /** Cadastro aguardando liberação (para avisar a pessoa em vez de dizer "senha errada"). */
+  pendingLogin(login, password) {
+    const u = this.users.find((x) => x.login === String(login || '').trim().toLowerCase());
+    return u?.pending && checkPassword(password, u.passwordHash) ? u : null;
+  }
+
+  remove(id) {
+    const i = this.users.findIndex((u) => u.id === id);
+    if (i >= 0) this.users.splice(i, 1);
+    this.store.save();
   }
 
   login(login, password) {

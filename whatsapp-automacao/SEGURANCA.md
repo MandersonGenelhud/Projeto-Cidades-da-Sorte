@@ -7,7 +7,9 @@ Nenhum sistema é impossível de invadir. O objetivo é tornar a invasão muito 
 | Proteção | Como funciona |
 | --- | --- |
 | Senhas | Guardadas só como hash scrypt com sal, nunca em texto. |
-| Verificação em duas etapas (2FA) | Código de 6 números de um app autenticador (padrão TOTP, RFC 6238). Em Configurações → Segurança. |
+| Verificação em duas etapas (2FA) | **Obrigatória para todos.** No primeiro acesso, o sistema só deixa configurar o app autenticador (código de 6 números, padrão TOTP/RFC 6238). |
+| Cadastro de vendedor | A pessoa se cadastra pelo link, mas só entra depois que o administrador libera na aba Equipe. O pedido avisa os administradores no WhatsApp. Senha com no mínimo 8 caracteres, com letras e números. |
+| Orçamentos | Cada vendedor vê só os próprios orçamentos; o administrador vê todos. A criação fica registrada nos acessos (quem fez, número, cliente, valor). |
 | Limite de tentativas | 5 senhas erradas no mesmo login, ou 20 no mesmo IP, bloqueiam por 15 minutos. Vale também para o portal dos parceiros. O bloqueio avisa os administradores no WhatsApp. |
 | Aviso de acesso novo | Entrada de um IP novo avisa os administradores no WhatsApp. |
 | Sessões | Duram 7 dias e o cookie é assinado (HMAC), HttpOnly e Secure no HTTPS. É possível sair de todos os aparelhos ou derrubar o acesso de todo mundo. Trocar a senha derruba os outros acessos. |

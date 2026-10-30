@@ -38,7 +38,7 @@ async function api(url, { method = 'GET', body, form } = {}) {
   }
   const res = await fetch(url, opts);
   const data = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text();
-  if (res.status === 401 && data?.login) {
+  if ((res.status === 401 && data?.login) || (res.status === 403 && data?.setup2fa)) {
     location.href = '/login.html';
     throw new Error(data.error);
   }

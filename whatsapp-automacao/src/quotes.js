@@ -67,13 +67,17 @@ export class Quotes {
     return `ORC-${year}-${String(n).padStart(5, '0')}`;
   }
 
-  /** items: [{ pacote, quantidade }]; adults: adultos (taxa das certidões). */
-  create({ items, adults, client = '', phone = '', consultant = '', leadId = null, convKey = null, start = todayIso() }) {
+  /**
+   * Calcula sem gravar (prévia ao vivo no painel). items: [{ pacote, quantidade }]; adults: adultos (taxa das certidões);
+   * parcels (opcional): parcelas combinadas com o cliente [{ pct, date }], somando 100% do saldo.
+   */
+  compute({ items, adults, start = todayIso(), parcels = null }) {
     const rows = [];
     for (const it of items || []) {
+      if (!it || !(it.pacote || it.name)) continue;
       const pkg = this.matchPackage(it.pacote || it.name);
       if (!pkg) throw err(400, `Pacote não encontrado: ${it.pacote || it.name}. Pacotes: ${(this.store.settings.crm?.packages || []).map((p) => p.name).join(', ')}`);
-      const qty = Math.max(1, Math.round(Number(it.quantidade ?? it.qty) || 1));
+      const qty = Math.max(1, Math.min(50, Math.round(Number(it.quantidade ?? it.qty) || 1)));
       const same = rows.find((r) => r.name === pkg.name);
       if (same) {
         same.qty += qty;
@@ -81,15 +85,38 @@ export class Quotes {
       } else rows.push({ name: pkg.name, price: Number(pkg.price), qty, total: Number(pkg.price) * qty, ...packageInfo(pkg.name) });
     }
     if (!rows.length) throw err(400, 'Informe ao menos um pacote');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(start))) start = todayIso();
     const people = rows.reduce((s, r) => s + r.qty, 0);
     const total = rows.reduce((s, r) => s + r.total, 0);
     const pay = this.store.settings.payments || {};
+    let steps = pay.plan?.steps?.length ? pay.plan.steps : DEFAULT_STEPS;
+    let custom = false;
+    if (Array.isArray(parcels) && parcels.length) {
+      // Parcelas combinadas pelo vendedor: de 1 a 8, percentuais somando 100% do saldo, datas a partir da reserva.
+      if (parcels.length > 8) throw err(400, 'No máximo 8 parcelas');
+      const sum = parcels.reduce((x, p) => x + Number(p.pct || 0), 0);
+      if (Math.abs(sum - 100) > 0.01) throw err(400, `As parcelas precisam somar 100% do saldo (agora somam ${Math.round(sum * 100) / 100}%)`);
+      steps = parcels.map((p, i) => {
+        const pct = Number(p.pct);
+        if (!(pct > 0)) throw err(400, `A ${i + 1}ª parcela precisa de um percentual maior que zero`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(p.date || '')) || p.date < start) throw err(400, `Data da ${i + 1}ª parcela inválida (a partir da data da reserva)`);
+        const days = Math.round((Date.parse(`${p.date}T12:00:00Z`) - Date.parse(`${start}T12:00:00Z`)) / 86_400_000);
+        return { pct, days, when: `Com ${days} dias`, note: String(p.note || 'Conforme combinado').slice(0, 60) };
+      });
+      custom = true;
+    }
     const plan = paymentPlan({
       total, people, adults: Number(adults) || people, start,
       base: pay.reservation?.base ?? 1000,
       perAdult: pay.reservation?.perAdult ?? 800,
-      steps: pay.plan?.steps?.length ? pay.plan.steps : DEFAULT_STEPS,
+      steps,
     });
+    return { items: rows, plan: { ...plan, custom } };
+  }
+
+  create({ items, adults, client = '', phone = '', consultant = '', leadId = null, convKey = null, start = todayIso(), parcels = null, createdBy = null }) {
+    const { items: rows, plan } = this.compute({ items, adults, start, parcels });
+    start = plan.start;
     const year = Number(start.slice(0, 4));
     const rec = {
       id: crypto.randomBytes(6).toString('hex'),
@@ -103,12 +130,13 @@ export class Quotes {
       validUntil: addDays(start, Number(this.config.validityDays) || 7),
       leadId,
       convKey,
+      createdBy,
       createdAt: new Date().toISOString(),
     };
     fs.mkdirSync(this.dir, { recursive: true });
     fs.writeFileSync(this.file(rec), this.pdf(rec));
     this.list.push(rec);
-    if (this.list.length > 3000) this.list.splice(0, this.list.length - 3000);
+    if (this.list.length > 5000) this.list.splice(0, this.list.length - 5000);
     this.store.save();
     return rec;
   }
@@ -264,7 +292,7 @@ export class Quotes {
     c.text(`${money(p.perAdult * p.adults)} certidões Interpol e Polícia Nacional`, fx + 26, fy + 5, { size: 6.8, color: '#cfe0d7' });
     c.text(`(${money(p.perAdult)} por adulto)`, fx + 26, fy + 14, { size: 6.8, color: '#cfe0d7' });
     fy += 28;
-    const trip = ['1ª vinda ao Paraguai', '2ª vinda ao Paraguai', 'retirada dos documentos'];
+    const trip = p.custom ? [] : ['1ª vinda ao Paraguai', '2ª vinda ao Paraguai', 'retirada dos documentos'];
     p.parcels.forEach((x, k) => row(`${x.label} (${x.pct}%)`, `${x.weekday.replace('-feira', '')}, ${fmtBr(x.date)} · ${trip[k] || x.note}`, x.value));
 
     const lw = fx - M - 14;
@@ -297,19 +325,118 @@ export class Quotes {
     });
     y += boxH + 14;
 
-    // Termos.
-    const terms = `Orçamento válido até ${fmtBr(rec.validUntil)}. Valores por pessoa, conforme a tabela vigente. As datas das parcelas são estimadas a partir da reserva e acompanham as viagens ao Paraguai, confirmadas pela equipe; prazos dependem dos órgãos paraguaios. Esta é uma proposta comercial: a reserva é formalizada com a ficha de dados, o Pix da entrada e o termo da reserva.`;
-    y += c.para(terms, M, y, W - 2 * M, { size: 7.3, color: C.gray, lead: 1.4 });
+    c.para(`Proposta válida até ${fmtBr(rec.validUntil)}. Veja na próxima página como funciona o processo, os documentos para começar e os dados para pagamento.`, M, y, W - 2 * M, { size: 7.5, color: C.gray, lead: 1.4 });
 
-    // Rodapé.
-    const fy0 = PAGE.H - 44;
-    c.rect(0, fy0, W, 44, { fill: C.green });
-    c.text('MIGRA PARAGUAI', M, fy0 + 11, { size: 9, bold: true, color: C.gold, spacing: 1 });
-    c.text(`${company.name || 'Migra Paraguai Assessoria LTDA'}${company.document ? ` · CNPJ ${company.document}` : ''} · Seu projeto no Paraguai começa aqui!`, M, fy0 + 24, { size: 7, color: '#cfe0d7' });
-    const phone = cfg.phone || company.phone;
-    const contact = [phone ? `WhatsApp ${phone}` : '', cfg.email || company.email || '', cfg.instagram || '@migraparaguayassessoria'].filter(Boolean).join(' · ');
-    c.text(contact, R, fy0 + 11, { size: 7.5, color: '#ffffff', align: 'right' });
-    c.text(cfg.address || company.address || 'Santa Rita - Alto Paraná, Paraguai', R, fy0 + 24, { size: 7, color: '#cfe0d7', align: 'right' });
+    // ---------- Página 2: processo, documentos, pagamento, condições e responsáveis ----------
+    c.addPage();
+    c.rect(0, 0, W, 64, { fill: C.green });
+    c.rect(0, 64, W, 2, { fill: C.gold });
+    try {
+      c.image(fs.readFileSync(LOGO), M - 4, 10, 104);
+    } catch {
+      c.text('MIGRA PARAGUAI', M, 24, { size: 14, bold: true, color: '#ffffff' });
+    }
+    c.text(`ORÇAMENTO ${rec.number}`, R, 20, { size: 11, bold: true, color: C.gold, align: 'right', spacing: 0.5 });
+    c.text(`${rec.client.toUpperCase()} · válido até ${fmtBr(rec.validUntil)}`, R, 36, { size: 8, color: '#cfe0d7', align: 'right' });
+    let y2 = 86;
+    c.text('COMO FUNCIONA O SEU PROCESSO', M, y2, { size: 9, bold: true, color: C.green, spacing: 1.2 });
+    y2 += 20;
+    const par = (k) => (p.parcels[k] ? `${p.parcels[k].label}: ${money(p.parcels[k].value)} · ${fmtBr(p.parcels[k].date)}` : '');
+    const timeline = [
+      ['Reserva', 'Ficha de dados pelo celular, Pix da entrada e termo da reserva assinado no celular.', `Entrada: ${money(p.entry)} · ${fmtBr(rec.issued)}`],
+      ['Certidões no Paraguai', 'Emitimos as certidões da Interpol e da Informática da Polícia Nacional (de 7 a 15 dias). Enquanto isso, você organiza os documentos no Brasil com a nossa orientação.', ''],
+      ['1ª vinda ao Paraguai', 'Protocolo oficial do pedido e assinatura dos documentos, com a nossa equipe ao seu lado.', p.custom ? '' : par(0)],
+      ['2ª vinda ao Paraguai', 'Coleta das digitais e últimas etapas, cerca de 60 a 70 dias úteis depois do protocolo.', p.custom ? '' : par(1)],
+      ['Retirada dos documentos', 'A cédula sai em média 20 a 30 dias depois. Com ela, você segue para RUC, empresa e licença, conforme o pacote.', p.custom ? '' : par(2)],
+    ];
+    const tx = M + 40;
+    timeline.forEach(([title, text, money_], k) => {
+      const h = 14 + c.measure(text, W - tx - M - 10, { size: 8.3, lead: 1.35 }) + (money_ ? 13 : 0) + 12;
+      if (k < timeline.length - 1) c.line(M + 13, y2 + 22, M + 13, y2 + h + 2, { color: C.gold, width: 1.2 });
+      c.rect(M + 2, y2, 22, 22, { fill: C.green, radius: 11 });
+      c.text(String(k + 1), M + 13, y2 + 6, { size: 9, bold: true, color: C.gold, align: 'center' });
+      c.text(title, tx, y2 + 1, { size: 10.5, bold: true, color: C.ink });
+      let ty = y2 + 15 + c.para(text, tx, y2 + 15, W - tx - M - 10, { size: 8.3, color: '#3a3a3c', lead: 1.35 });
+      if (money_) c.text(money_, tx, ty + 1, { size: 8, bold: true, color: '#1f7a46' });
+      y2 += h;
+    });
+    if (p.custom) {
+      y2 += c.para(`Parcelas combinadas com você: ${p.parcels.map((x) => `${x.label} ${money(x.value)} em ${fmtBr(x.date)}`).join(' · ')}.`, tx, y2, W - tx - M - 10, { size: 8, bold: true, color: '#1f7a46', lead: 1.35 }) + 6;
+    }
+    c.text('Prazos estimados: dependem dos órgãos paraguaios. As datas das viagens são confirmadas pela nossa equipe.', tx, y2, { size: 7.3, color: C.gray });
+    y2 += 22;
+
+    // Documentos (esquerda) e pagamento (direita).
+    const cw = (W - 2 * M - 14) / 2;
+    const boxY = y2;
+    c.rect(M, boxY, cw, 128, { fill: C.soft, radius: 12 });
+    c.text('DOCUMENTOS PARA COMEÇAR', M + 16, boxY + 16, { size: 7.5, bold: true, color: C.green, spacing: 0.9 });
+    const docs = cfg.docs?.length ? cfg.docs : [
+      'Foto do RG (frente e verso) ou do passaporte',
+      'Foto de meio corpo, bem nítida, fundo claro',
+      'Seus dados na ficha (o link chega no WhatsApp)',
+      'O restante, a equipe orienta passo a passo',
+    ];
+    docs.slice(0, 5).forEach((d, k) => {
+      const yy = boxY + 38 + k * 19;
+      c.rect(M + 16, yy - 1, 10, 10, { stroke: C.green, radius: 2, lineWidth: 1 });
+      c.line(M + 18, yy + 4, M + 20.5, yy + 6.5, { color: '#1f7a46', width: 1.4 });
+      c.line(M + 20.5, yy + 6.5, M + 24.5, yy + 1.5, { color: '#1f7a46', width: 1.4 });
+      c.text(d, M + 33, yy, { size: 8.3, color: C.ink });
+    });
+    const px = M + cw + 14;
+    c.rect(px, boxY, cw, 128, { fill: C.green, radius: 12 });
+    c.text('DADOS PARA PAGAMENTO', px + 16, boxY + 16, { size: 7.5, bold: true, color: C.gold, spacing: 0.9 });
+    const payRows = [
+      ['Forma', 'Pix'],
+      ['Chave Pix (CNPJ)', pay.pixKey || company.document || '—'],
+      ['Favorecido', company.name || 'Migra Paraguai Assessoria LTDA'],
+      ['CNPJ', company.document || '—'],
+    ];
+    payRows.forEach(([k, v], i) => {
+      const yy = boxY + 36 + i * 18;
+      c.text(k, px + 16, yy, { size: 7.5, color: '#9fb8ad' });
+      c.text(v, px + cw - 16, yy, { size: 8.5, bold: true, color: '#ffffff', align: 'right' });
+    });
+    c.para('Pague somente no Pix oficial da empresa, nunca para pessoa física. O recibo chega no seu WhatsApp.', px + 16, boxY + 108, cw - 32, { size: 7, color: '#cfe0d7', lead: 1.3 });
+    y2 = boxY + 128 + 14;
+
+    // Aviso de validade da reserva.
+    c.rect(M, y2, W - 2 * M, 34, { fill: '#FFF8E1', stroke: C.gold, radius: 8, lineWidth: 1 });
+    c.text('IMPORTANTE', M + 14, y2 + 8, { size: 7.5, bold: true, color: '#8a6d00', spacing: 0.8 });
+    c.text('Este orçamento não garante vaga nem reserva. A reserva só é confirmada após o pagamento da entrada e a assinatura do termo de reserva.', M + 14, y2 + 19, { size: 7.8, color: '#5c4a00' });
+    y2 += 48;
+
+    // Condições.
+    c.text('CONDIÇÕES', M, y2, { size: 7.5, bold: true, color: C.green, spacing: 0.9 });
+    y2 += 13;
+    const cond = `Valores por pessoa, conforme a tabela vigente, válidos até ${fmtBr(rec.validUntil)}. A entrada (R$ ${money(p.base).replace('R$ ', '')} de sinal de contratação dos serviços e ${money(p.perAdult)} por adulto das certidões) é descontada do total. Os prazos são estimativas e dependem dos órgãos públicos do Paraguai; a Migra não garante aprovação, que é decisão dos órgãos competentes. Os dados pessoais informados são usados somente para o processo e guardados com segurança. Esta proposta é um documento comercial; as condições finais constam do termo de reserva.`;
+    y2 += c.para(cond, M, y2, W - 2 * M, { size: 7.3, color: C.gray, lead: 1.45 }) + 18;
+
+    // Responsáveis (nomes impressos, sem assinatura desenhada).
+    const sw = (W - 2 * M - 40) / 2;
+    c.line(M, y2 + 22, M + sw, y2 + 22, { color: '#9aa39e', width: 0.8 });
+    c.text(company.name || 'Migra Paraguai Assessoria LTDA', M, y2 + 28, { size: 8.5, bold: true, color: C.ink });
+    c.text(cfg.director || 'Marcos Miguel · Diretor', M, y2 + 40, { size: 7.8, color: C.gray });
+    const sx = M + sw + 40;
+    c.line(sx, y2 + 22, sx + sw, y2 + 22, { color: '#9aa39e', width: 0.8 });
+    c.text(rec.consultant, sx, y2 + 28, { size: 8.5, bold: true, color: C.ink });
+    c.text('Consultor(a) responsável', sx, y2 + 40, { size: 7.8, color: C.gray });
+
+    // Rodapé em todas as páginas.
+    const pages = c.pages;
+    pages.forEach((pageOps, i) => {
+      c.pages = [pageOps];
+      const fy0 = PAGE.H - 44;
+      c.rect(0, fy0, W, 44, { fill: C.green });
+      c.text('MIGRA PARAGUAI', M, fy0 + 11, { size: 9, bold: true, color: C.gold, spacing: 1 });
+      c.text(`${company.name || 'Migra Paraguai Assessoria LTDA'}${company.document ? ` · CNPJ ${company.document}` : ''} · Seu projeto no Paraguai começa aqui!`, M, fy0 + 24, { size: 7, color: '#cfe0d7' });
+      const phone = cfg.phone || company.phone;
+      const contact = [phone ? `WhatsApp ${phone}` : '', cfg.email || company.email || '', cfg.instagram || '@migraparaguayassessoria'].filter(Boolean).join(' · ');
+      c.text(contact, R, fy0 + 11, { size: 7.5, color: '#ffffff', align: 'right' });
+      c.text(`${cfg.address || company.address || 'Santa Rita - Alto Paraná, Paraguai'} · Página ${i + 1} de ${pages.length}`, R, fy0 + 24, { size: 7, color: '#cfe0d7', align: 'right' });
+    });
+    c.pages = pages;
     return c.toBuffer();
   }
 }

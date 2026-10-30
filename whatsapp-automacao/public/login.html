@@ -17,60 +17,114 @@
     .login .brand span { font-size: 30px; }
     .login button { justify-content: center; }
     .err { color: var(--red); font-size: 14px; min-height: 1em; }
+    .ok { color: var(--green); font-size: 14px; }
+    .ok:empty { display: none; }
   </style>
 </head>
 <body>
   <form class="login form" id="form">
     <div class="hero"><img src="/brand/logo" alt="Logo" /><small id="loginName">Migra Hub · Atendimento e vendas</small></div>
     <p id="intro" class="hint">Entre com o seu login e senha.</p>
-    <label id="nameWrap" hidden>Seu nome <input name="name" autocomplete="name" /></label>
-    <label>Login <input name="login" autocomplete="username" required placeholder="ex.: marcos" /></label>
-    <label>Senha <input name="password" type="password" autocomplete="current-password" required minlength="6" /></label>
+    <label id="nameWrap" hidden>Seu nome completo <input name="name" autocomplete="name" /></label>
+    <label id="loginWrap">Login <input name="login" autocomplete="username" required placeholder="ex.: marcos" /></label>
+    <label id="passWrap">Senha <input name="password" type="password" autocomplete="current-password" required minlength="6" /></label>
     <label id="codeWrap" hidden>Código do app autenticador (6 números) <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" /></label>
-    <label id="waWrap" hidden>Seu WhatsApp (para receber avisos de retorno) <input name="whatsapp" placeholder="+595 981 123456" /></label>
+    <label id="waWrap" hidden>Seu WhatsApp com DDD <input name="whatsapp" placeholder="+55 45 99999-0000 ou +595 981 123456" /></label>
+    <div id="setupBox" hidden></div>
     <p class="err" id="err"></p>
+    <p class="ok" id="ok"></p>
     <button class="btn primary" id="btn">Entrar</button>
+    <button type="button" class="btn" id="btnMode" hidden>Sou vendedor e ainda não tenho acesso: criar meu acesso</button>
   </form>
   <script>
     const form = document.getElementById('form');
-    let setup = false;
+    const $ = (id) => document.getElementById(id);
+    let mode = 'login'; // login | setup (1º administrador) | signup (vendedor) | twofa (ligar o app autenticador)
     const back = () => `/${new URLSearchParams(location.search).get('volta') || ''}`;
+    const post = async (url, body) => {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Não foi possível concluir');
+      return data;
+    };
     fetch('/api/brand').then((r) => r.json()).then((b) => {
-      document.getElementById('loginName').textContent = `${b.name || 'Migra Hub'} · ${b.tagline || 'Atendimento e vendas'}`;
+      $('loginName').textContent = `${b.name || 'Migra Hub'} · ${b.tagline || 'Atendimento e vendas'}`;
       document.title = `Entrar · ${b.name || 'Migra Hub'}`;
     }).catch(() => {});
+
+    function setMode(m) {
+      mode = m;
+      const signup = m === 'signup' || m === 'setup';
+      $('nameWrap').hidden = !signup;
+      $('waWrap').hidden = !signup;
+      form.name.required = signup;
+      form.whatsapp.required = m === 'signup';
+      form.password.autocomplete = signup ? 'new-password' : 'current-password';
+      form.password.minLength = m === 'signup' ? 8 : 6;
+      $('loginWrap').hidden = $('passWrap').hidden = m === 'twofa';
+      form.login.required = form.password.required = m !== 'twofa';
+      $('btnMode').hidden = !(m === 'login' || m === 'signup');
+      $('btnMode').textContent = m === 'signup' ? 'Já tenho acesso: entrar' : 'Sou vendedor e ainda não tenho acesso: criar meu acesso';
+      $('btn').textContent = { login: 'Entrar', setup: 'Criar administrador e entrar', signup: 'Enviar meu cadastro', twofa: 'Confirmar e entrar' }[m];
+      $('intro').textContent = {
+        login: 'Entre com o seu login e senha.',
+        setup: 'Primeiro acesso: crie a conta do administrador (o dono da empresa). Depois ele libera os vendedores.',
+        signup: 'Crie o seu acesso. Ele só funciona depois que o administrador liberar. A senha precisa ter pelo menos 8 caracteres, com letras e números.',
+        twofa: 'Para proteger o sistema, todo acesso usa a verificação em duas etapas.',
+      }[m];
+      $('err').textContent = '';
+    }
+
+    async function startTwofa() {
+      setMode('twofa');
+      const r = await fetch('/api/security/2fa/setup').then((x) => x.json());
+      if (r.error) { $('err').textContent = r.error; return; }
+      $('setupBox').hidden = false;
+      $('setupBox').innerHTML = `<ol class="hint"><li>Instale o <b>Google Authenticator</b> (ou Microsoft Authenticator) no celular.</li><li>No app, toque em <b>+</b> e escaneie o QR Code.</li><li>Digite abaixo o código de 6 números que aparece no app.</li></ol>
+        <p style="text-align:center"><img src="${r.qr}" alt="QR Code da verificação em duas etapas" width="200" height="200" /></p>
+        <p class="hint">Sem câmera? Digite esta chave no app: <code>${r.secret}</code></p>`;
+      $('codeWrap').hidden = false;
+      form.code.required = true;
+      form.code.focus();
+    }
+
     fetch('/api/auth/state').then((r) => r.json()).then((s) => {
+      if (s.user && s.setup2fa) return startTwofa();
       if (s.user) return (location.href = back());
-      setup = s.needsSetup;
-      if (setup) {
-        document.getElementById('intro').textContent = 'Primeiro acesso: crie a conta do administrador (o dono da empresa). Depois ele cadastra os vendedores.';
-        document.getElementById('nameWrap').hidden = false;
-        document.getElementById('waWrap').hidden = false;
-        form.name.required = true;
-        form.password.autocomplete = 'new-password';
-        document.getElementById('btn').textContent = 'Criar administrador e entrar';
-      }
+      setMode(s.needsSetup ? 'setup' : 'login');
     });
+    $('btnMode').addEventListener('click', () => setMode(mode === 'signup' ? 'login' : 'signup'));
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      $('err').textContent = '';
       const body = Object.fromEntries(new FormData(form));
-      const res = await fetch(setup ? '/api/auth/setup' : '/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) return (document.getElementById('err').textContent = data.error || 'Não foi possível entrar');
-      if (data.needs2fa) {
-        // Verificação em duas etapas: pede o código do app e envia de novo.
-        document.getElementById('codeWrap').hidden = false;
-        form.code.required = true;
-        form.code.focus();
-        document.getElementById('err').textContent = '';
-        document.getElementById('intro').textContent = 'Digite o código de 6 números que aparece agora no seu app autenticador.';
-        return;
+      try {
+        if (mode === 'twofa') {
+          await post('/api/security/2fa/enable', { code: body.code });
+          return (location.href = back());
+        }
+        if (mode === 'signup') {
+          const r = await post('/api/auth/signup', body);
+          form.reset();
+          setMode('login');
+          $('ok').textContent = r.message;
+          return;
+        }
+        const data = await post(mode === 'setup' ? '/api/auth/setup' : '/api/auth/login', body);
+        if (data.needs2fa) {
+          // Já tem o app autenticador: pede o código.
+          $('codeWrap').hidden = false;
+          form.code.required = true;
+          form.code.focus();
+          $('intro').textContent = 'Digite o código de 6 números que aparece agora no seu app autenticador.';
+          return;
+        }
+        if (data.setup2fa || mode === 'setup') return startTwofa();
+        location.href = back();
+      } catch (err) {
+        $('err').textContent = err.message;
       }
-      location.href = back();
     });
   </script>
 </body>

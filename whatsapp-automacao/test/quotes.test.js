@@ -55,3 +55,18 @@ test('prévia da conversa para o atendente: últimas mensagens dos dois lados', 
   assert.match(p, /^👤 msg 4/);
   assert.match(p, /🤖 msg 13$/);
 });
+
+test('orçamento com parcelas combinadas pelo vendedor: somam 100% do saldo e ficam no PDF', () => {
+  const { quotes } = setup();
+  const q = quotes.create({ items: [{ pacote: 'Ouro', quantidade: 2 }], adults: 2, client: 'João', start: '2026-10-30',
+    parcels: [{ pct: 40, date: '2026-11-16' }, { pct: 30, date: '2026-12-15' }, { pct: 30, date: '2027-01-15' }], createdBy: { id: 'u1', name: 'Silvane Nunes' } });
+  assert.equal(q.plan.custom, true);
+  assert.deepEqual(q.plan.parcels.map((x) => x.value), [9357.6, 7018.2, 7018.2]);
+  assert.equal(q.createdBy.name, 'Silvane Nunes');
+  assert.throws(() => quotes.compute({ items: [{ pacote: 'Ouro', quantidade: 1 }], start: '2026-10-30', parcels: [{ pct: 50, date: '2026-11-16' }] }), /somar 100%/);
+  assert.throws(() => quotes.compute({ items: [{ pacote: 'Ouro', quantidade: 1 }], start: '2026-10-30', parcels: [{ pct: 100, date: '2026-10-01' }] }), /Data da 1ª parcela/);
+  // Prévia não gasta número.
+  const before = quotes.config.nextNumber;
+  quotes.compute({ items: [{ pacote: 'Ouro', quantidade: 1 }], start: '2026-10-30' });
+  assert.equal(quotes.config.nextNumber, before);
+});

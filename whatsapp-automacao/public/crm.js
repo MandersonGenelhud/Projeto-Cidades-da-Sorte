@@ -613,10 +613,15 @@ loaders.team = async () => {
   $('#rotationInfo').innerHTML = inRotation.length
     ? `🔄 <b>Rodízio:</b> ${inRotation.map((u, i) => `${i === 0 ? '<b>➡️ ' : ''}${esc(u.name)}${i === 0 ? ' (próximo)</b>' : ''}`).join(' → ')}`
     : '⚠️ Ninguém no rodízio. Cadastre vendedores com WhatsApp e marque "Entra no rodízio" para a IA poder encaminhar clientes.';
-  $('#teamList').innerHTML = users.map((u) => `
+  const pending = users.filter((u) => u.pending);
+  $('#teamPending').hidden = !pending.length;
+  $('#teamPending').innerHTML = pending.length ? `<h3>🆕 Aguardando liberação (${pending.length})</h3><p class="hint">Libere só quem você conhece. No primeiro acesso, a pessoa liga a verificação em duas etapas.</p>${pending.map((u) => `
+    <div class="item" data-user="${esc(u.id)}"><div class="grow"><b>${esc(u.name)}</b><div class="meta">login: ${esc(u.login)} · WhatsApp ${esc(fmtPhone(u.whatsapp))} · pediu em ${fmtDate(u.requestedAt)}</div></div>
+      <button class="btn small primary" data-act="approve">✅ Liberar</button><button class="btn small danger" data-act="reject">Recusar</button></div>`).join('')}` : '';
+  $('#teamList').innerHTML = users.filter((u) => !u.pending).map((u) => `
     <div class="item ${u.active ? '' : 'disabled'}" data-user="${esc(u.id)}">
       <div class="grow"><b>${esc(u.name)}</b> ${u.role === 'admin' ? '<span class="badge running">Administrador</span>' : '<span class="badge pending">Vendedor</span>'}
-        ${u.active ? '' : '<span class="badge canceled">Inativo</span>'}
+        ${u.active ? '' : '<span class="badge canceled">Inativo</span>'} ${u.twoFactor ? '<span class="badge done">🔐 2 etapas</span>' : '<span class="badge paused">só senha</span>'}
         <div class="meta">login: ${esc(u.login)}${u.whatsapp ? ` · WhatsApp ${esc(fmtPhone(u.whatsapp))}` : ' · sem WhatsApp (fora do rodízio)'}
           · ${u.receivesLeads && u.whatsapp ? `🔄 no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : '⏸️ fora do rodízio'}</div></div>
       ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? '⏸️ Pausar rodízio' : '▶️ Pôr no rodízio'}</button>` : ''}
@@ -1281,3 +1286,133 @@ function onPaymentPaid(d) {
 function onPaymentEvent() {
   if ($('#tab-payments').classList.contains('active')) loaders.payments();
 }
+// Cadastros aguardando liberação (vendedores que se cadastraram pelo link).
+$('#teamPending').addEventListener('click', async (e) => {
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  const id = e.target.closest('[data-user]')?.dataset.user;
+  if (!id || !['approve', 'reject'].includes(act)) return;
+  try {
+    if (act === 'reject' && !confirm('Recusar este cadastro? Ele será apagado.')) return;
+    await api(`/api/users/${id}/${act}`, { method: 'POST' });
+    toast(act === 'approve' ? 'Acesso liberado: a pessoa recebe o aviso no WhatsApp' : 'Cadastro recusado');
+    loaders.team();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+// ---------- ORÇAMENTOS (vendedores e administrador) ----------
+const quoteState = { packages: [], timer: null, last: null };
+const qf = () => $('#quoteForm');
+const todayLocal = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const addDaysIso = (iso, d) => { const x = new Date(`${iso}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + d); return x.toISOString().slice(0, 10); };
+function quoteItemRow(name = '', qty = 1) {
+  const div = document.createElement('div');
+  div.className = 'quote-item';
+  div.innerHTML = `<select data-q="pkg">${quoteState.packages.map((p) => `<option value="${esc(p.name)}"${p.name === name ? ' selected' : ''}>${esc(p.name)} · ${brl2(p.price)}/pessoa</option>`).join('')}</select>
+    <input data-q="qty" type="number" min="1" max="50" value="${qty}" title="Pessoas neste pacote" />
+    <button type="button" class="btn small" data-q="del" title="Remover">✕</button>`;
+  $('#quoteItems').append(div);
+}
+function quoteParcelRows(list) {
+  $('#quoteParcels').innerHTML = `${list.map((p, i) => `<div class="quote-parcel"><b>${i + 1}ª</b>
+      <label class="inline">% do saldo <input data-p="pct" type="number" min="1" max="100" step="0.5" value="${p.pct}" /></label>
+      <input data-p="date" type="date" value="${p.date}" />
+      <button type="button" class="btn small" data-p="del" title="Remover">✕</button></div>`).join('')}
+    <button type="button" class="btn small" id="btnQuoteAddParcel">➕ Adicionar parcela</button>`;
+}
+function quoteBody() {
+  const f = qf();
+  const items = $$('#quoteItems .quote-item').map((r) => ({ pacote: $('[data-q="pkg"]', r).value, quantidade: Number($('[data-q="qty"]', r).value) || 1 }));
+  const custom = f.planMode.value === 'custom';
+  const parcels = custom ? $$('#quoteParcels .quote-parcel').map((r) => ({ pct: Number($('[data-p="pct"]', r).value), date: $('[data-p="date"]', r).value })) : null;
+  return { client: f.client.value.trim(), phone: f.phone.value.trim(), start: f.start.value, adults: Number(f.adults.value) || 1, items, parcels };
+}
+async function quotePreview() {
+  const b = quoteBody();
+  if (!b.items.length) return ($('#quotePreview').innerHTML = '<p class="muted">Adicione um pacote.</p>');
+  try {
+    const r = await api('/api/quotes/preview', { method: 'POST', body: b });
+    quoteState.last = r;
+    const p = r.plan;
+    $('#quotePreview').innerHTML = `<div class="quote-sum"><span class="hint">Investimento total · ${p.people} pessoa(s)</span><span class="big">${brl2(p.total)}</span>
+      <div class="row-x"><span><b>Entrada na reserva</b> · ${diaSemana(p.start)}<div class="hint">${brl2(p.base)} de sinal + ${brl2(p.perAdult)} × ${p.adults} adulto(s) das certidões</div></span><b>${brl2(p.entry)}</b></div>
+      ${p.parcels.map((x) => `<div class="row-x"><span>${esc(x.label)} (${x.pct}%)<div class="hint">${esc(diaSemana(x.date))}${x.moved ? ' · fim de semana, passou para segunda' : ''}</div></span><b>${brl2(x.value)}</b></div>`).join('')}</div>`;
+  } catch (err) {
+    $('#quotePreview').innerHTML = `<p class="err">${esc(err.message)}</p>`;
+  }
+}
+const quotePreviewSoon = () => { clearTimeout(quoteState.timer); quoteState.timer = setTimeout(quotePreview, 350); };
+async function loadQuoteList() {
+  const list = await api(`/api/quotes?q=${encodeURIComponent($('#quoteSearch').value || '')}`);
+  const admin = window.currentUser?.role === 'admin';
+  $('#quoteTable').innerHTML = `<thead><tr><th>Número</th><th>Emissão</th><th>Cliente</th><th>Pacotes</th><th>Total</th>${admin ? '<th>Vendedor</th>' : ''}<th>Validade</th><th></th></tr></thead>
+    <tbody>${list.map((q) => `<tr><td><b>${esc(q.number)}</b></td><td>${esc(q.issued.split('-').reverse().join('/'))}</td>
+      <td>${esc(q.client)}<div class="hint">${q.phone ? esc(fmtPhone(q.phone)) : ''}</div></td>
+      <td class="small">${q.items.map((i) => `${esc(i.name)} × ${i.qty}`).join('<br>')}${q.custom ? '<div class="hint">parcelas personalizadas</div>' : ''}</td>
+      <td><b>${brl2(q.total)}</b></td>${admin ? `<td>${esc(q.createdBy || q.consultant)}</td>` : ''}
+      <td>${q.expired ? '<span class="badge canceled">Vencido</span>' : `<span class="badge done">até ${esc(q.validUntil.split('-').reverse().join('/'))}</span>`}</td>
+      <td><a class="btn small" href="${q.url}" target="_blank" rel="noopener">Abrir PDF</a> <a class="btn small" href="${q.url}?download=1">Baixar</a></td></tr>`).join('') || `<tr><td colspan="${admin ? 8 : 7}" class="muted">Nenhum orçamento ainda.</td></tr>`}</tbody>`;
+}
+loaders.quotes = async () => {
+  if (!quoteState.packages.length) {
+    const meta = await api('/api/crm/stages');
+    quoteState.packages = meta.packages || [];
+  }
+  if (!$('#quoteItems').children.length) {
+    qf().start.value = todayLocal();
+    quoteItemRow(quoteState.packages.find((p) => /ouro/i.test(p.name))?.name || quoteState.packages[0]?.name, 1);
+    quotePreview();
+  }
+  loadQuoteList();
+};
+$('#btnQuoteAddItem').addEventListener('click', () => { quoteItemRow(quoteState.packages[0]?.name, 1); quotePreviewSoon(); });
+$('#quoteItems').addEventListener('click', (e) => {
+  if (e.target.dataset.q === 'del') { e.target.closest('.quote-item').remove(); quotePreviewSoon(); }
+});
+qf().addEventListener('input', quotePreviewSoon);
+qf().addEventListener('change', (e) => {
+  if (e.target.name === 'planMode') {
+    const custom = e.target.value === 'custom';
+    $('#quoteParcels').hidden = !custom;
+    if (custom && !$('#quoteParcels').children.length) {
+      // Começa pelas datas e percentuais do padrão, para o vendedor só ajustar.
+      const p = quoteState.last?.plan;
+      quoteParcelRows(p ? p.parcels.map((x) => ({ pct: x.pct, date: x.date })) : [{ pct: 50, date: addDaysIso(qf().start.value || todayLocal(), 15) }, { pct: 30, date: addDaysIso(qf().start.value || todayLocal(), 90) }, { pct: 20, date: addDaysIso(qf().start.value || todayLocal(), 120) }]);
+    }
+  }
+  quotePreviewSoon();
+});
+qf().addEventListener('submit', (e) => e.preventDefault());
+$('#quoteParcels').addEventListener('click', (e) => {
+  if (e.target.dataset.p === 'del') { e.target.closest('.quote-parcel').remove(); quotePreviewSoon(); }
+  if (e.target.id === 'btnQuoteAddParcel') {
+    const rows = $$('#quoteParcels .quote-parcel').map((r) => ({ pct: Number($('[data-p="pct"]', r).value), date: $('[data-p="date"]', r).value }));
+    const last = rows.at(-1)?.date || qf().start.value || todayLocal();
+    quoteParcelRows([...rows, { pct: 0, date: addDaysIso(last, 30) }]);
+    quotePreviewSoon();
+  }
+});
+$('#btnQuoteCreate').addEventListener('click', async (e) => {
+  const b = quoteBody();
+  if (!b.client) return toast('Informe o nome do cliente', true);
+  e.target.disabled = true;
+  try {
+    const q = await api('/api/quotes', { method: 'POST', body: b });
+    const phone = String(b.phone || '').replace(/\D/g, '');
+    $('#quoteResult').innerHTML = `<div class="quote-result"><b>✅ Orçamento ${esc(q.number)} gerado · ${brl2(q.total)}</b>
+      <div class="row"><a class="btn primary small" href="${q.url}" target="_blank" rel="noopener">Abrir PDF</a><a class="btn small" href="${q.url}?download=1">Baixar PDF</a>
+      <button type="button" class="btn small" id="btnQuoteCopy">Copiar mensagem</button>
+      ${phone ? `<a class="btn small" href="https://wa.me/${phone}?text=${encodeURIComponent(q.text)}" target="_blank" rel="noopener">Abrir WhatsApp do cliente</a>` : ''}</div>
+      <p class="hint">Baixe o PDF e envie junto com a mensagem pelo seu WhatsApp.</p></div>`;
+    $('#btnQuoteCopy').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(q.text); toast('Mensagem copiada'); } catch { prompt('Copie a mensagem:', q.text); }
+    });
+    loadQuoteList();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    e.target.disabled = false;
+  }
+});
+$('#quoteSearch').addEventListener('input', () => { clearTimeout(quoteState.search); quoteState.search = setTimeout(loadQuoteList, 300); });

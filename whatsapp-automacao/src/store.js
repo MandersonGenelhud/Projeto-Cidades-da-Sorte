@@ -126,6 +126,8 @@ const DEFAULT_DATA = {
       instagram: '@migraparaguayassessoria',
       address: '', // vazio = Santa Rita - Alto Paraná, Paraguai
     },
+    // Segurança: duas etapas obrigatórias para todos (administrador e vendedores).
+    security: { require2fa: true, backupDir: '' },
     // Fechamento: ficha de dados → Pix → termo da reserva assinado no celular.
     closing: {
       enabled: true,
