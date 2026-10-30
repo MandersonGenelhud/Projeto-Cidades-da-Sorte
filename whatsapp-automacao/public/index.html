@@ -1,7 +1,9 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
+  <script>try { document.documentElement.dataset.theme = localStorage.getItem('migraTheme') === 'dark' ? 'dark' : 'light'; } catch { document.documentElement.dataset.theme = 'light'; }</script>
   <meta charset="utf-8" />
+  <meta name="theme-color" content="#0e7a5c" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Migra Hub · Atendimento e Vendas</title>
   <link rel="icon" href="img/migra-emblema.png" />
@@ -64,6 +66,7 @@
         <input id="topSearchInput" placeholder="Buscar cliente, telefone ou código MIG…" autocomplete="off" />
       </form>
       <div class="user-menu">
+        <button type="button" class="icon-btn" id="btnTheme" title="Modo noite" aria-label="Alternar modo noite">🌙</button>
         <span class="avatar" id="userAvatar">·</span>
         <span id="userName" class="user-name">…</span>
         <button type="button" class="icon-btn" id="btnSignOut" title="Sair" aria-label="Sair" data-icon="logout"></button>

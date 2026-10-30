@@ -1594,3 +1594,16 @@ $('#btnSignOut').addEventListener('click', async () => {
   }
   showTab(loaders[initial] || initial === 'send' ? initial : admin ? 'sales' : 'leads');
 })();
+
+// Modo claro (padrão) / modo noite, guardado neste aparelho.
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  const b = $('#btnTheme');
+  if (b) {
+    b.textContent = t === 'dark' ? '☀️' : '🌙';
+    b.title = t === 'dark' ? 'Modo claro' : 'Modo noite';
+  }
+  try { localStorage.setItem('migraTheme', t); } catch {}
+}
+applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+$('#btnTheme')?.addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));

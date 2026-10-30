@@ -1316,7 +1316,7 @@ function quoteItemRow(name = '', qty = 1) {
 }
 function quoteParcelRows(list) {
   $('#quoteParcels').innerHTML = `${list.map((p, i) => `<div class="quote-parcel"><b>${i + 1}ª</b>
-      <label class="inline">% do saldo <input data-p="pct" type="number" min="1" max="100" step="0.5" value="${p.pct}" /></label>
+      <label class="inline"><span>% do saldo</span> <input data-p="pct" type="number" min="1" max="100" step="0.5" value="${p.pct}" placeholder="%" aria-label="Percentual do saldo" /></label>
       <input data-p="date" type="date" value="${p.date}" />
       <button type="button" class="btn small" data-p="del" title="Remover">✕</button></div>`).join('')}
     <button type="button" class="btn small" id="btnQuoteAddParcel">➕ Adicionar parcela</button>`;
