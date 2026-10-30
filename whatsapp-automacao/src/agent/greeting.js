@@ -16,3 +16,16 @@ export function fixGreeting(text, now = new Date()) {
     return right;
   });
 }
+
+/**
+ * Tom profissional: troca "beijo/beijinho/bjs" por "abraço" e tira emojis de beijo,
+ * mesmo que a IA escorregue (a mensagem pode ir para alguém casado).
+ */
+export function professionalTone(text) {
+  const keepCase = (m, word) => (m === m.toUpperCase() && m.length > 1 ? word.toUpperCase() : m[0] === m[0].toUpperCase() ? word[0].toUpperCase() + word.slice(1) : word);
+  return String(text)
+    .replace(/\b(beijinhos|beijos|bjss*|bjos)\b/gi, (m) => keepCase(m, 'abraços'))
+    .replace(/\b(beijinho|beijão|beijo|bjo|bj)\b/gi, (m) => keepCase(m, 'abraço'))
+    .replace(/\s*[\u{1F618}\u{1F617}\u{1F619}\u{1F61A}\u{1F48B}]\uFE0F?/gu, '')
+    .replace(/abraço\s+e\s+(um\s+)?abraço/gi, 'abraço');
+}

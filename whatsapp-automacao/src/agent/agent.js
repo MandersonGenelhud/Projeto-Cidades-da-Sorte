@@ -1,5 +1,5 @@
 // Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age.
-import { fixGreeting } from './greeting.js';
+import { fixGreeting, professionalTone } from './greeting.js';
 import { parseJsonObject } from '../crm-ai.js';
 import { buildSystemPrompt, canSchedule } from './prompt.js';
 import { TOOL_DEFINITIONS, runTool } from './tools.js';
@@ -237,7 +237,7 @@ Onde parou e próximo passo: ${conv.continuity}`;
       if (!reply.tool_calls.length) {
         if (!reply.content.trim()) throw new Error('A IA devolveu uma resposta vazia');
         // A saudação segue o horário de agora, nunca o da conversa de ontem.
-        return { text: fixGreeting(reply.content.trim(), this.now()), actions };
+        return { text: professionalTone(fixGreeting(reply.content.trim(), this.now())), actions };
       }
       messages.push({ role: 'assistant', content: reply.content || null, tool_calls: reply.tool_calls, ...(reply._anthropic ? { _anthropic: reply._anthropic } : {}) });
       for (const call of reply.tool_calls) {

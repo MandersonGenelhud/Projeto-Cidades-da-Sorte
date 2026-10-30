@@ -401,3 +401,21 @@ test('saudação pelo horário: 0h–12h59 bom dia, 13h–18h59 boa tarde, 19h�
   const r = await agent.think(conv);
   assert.equal(r.text, 'Bom dia, Carla! Que bom te ver de novo.');
 });
+
+test('tom profissional: nada de beijo (no máximo um abraço), mesmo se a IA escorregar', async () => {
+  const { professionalTone } = await import('../src/agent/greeting.js');
+  assert.equal(professionalTone('Um beijo e um ótimo final de semana!'), 'Um abraço e um ótimo final de semana!');
+  assert.equal(professionalTone('Bjs! 😘'), 'Abraços!');
+  assert.equal(professionalTone('Vi um beija-flor'), 'Vi um beija-flor');
+  const store = tempStore();
+  store.updateSettings({ agent: { enabled: true, audience: 'all', apiKey: 'x' } });
+  let system = '';
+  const llm = { configured: true, chat: async ({ messages }) => { system = messages[0].content; return { content: 'Fica tranquila! Um beijo 😘', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm, now: () => new Date(2026, 9, 30, 10, 0) });
+  const conv = agent.conversation('5521998887777@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Obrigada!');
+  const r = await agent.think(conv);
+  assert.equal(r.text, 'Fica tranquila! Um abraço');
+  assert.match(system, /Nunca mande beijo/);
+  assert.match(system, /no máximo "Um abraço"/);
+});
