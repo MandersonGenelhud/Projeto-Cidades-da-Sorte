@@ -40,13 +40,19 @@ export function extractPending(messages, { now = Date.now(), maxDays = 7 } = {})
 }
 
 export class PendingInbox {
-  constructor({ store, agent, wa, autoReply, notify, delay = [20, 45] }) {
+  constructor({ store, agent, wa, autoReply, notify, delay = [45, 90], careful = true, now = () => new Date() }) {
     this.store = store;
     this.agent = agent;
     this.wa = wa;
     this.autoReply = autoReply;
     this.notify = notify || (() => {});
     this.delay = delay; // segundos entre uma resposta e outra
+    // Modo cuidadoso (só para quem ficou esperando): limite por hora e só em horário comercial,
+    // para o WhatsApp não estranhar um número que de repente responde centenas de conversas.
+    this.careful = careful;
+    this.now = now;
+    this.sentAt = []; // horários das respostas da última hora
+    this.waiting = ''; // por que a fila está esperando (aparece no painel)
     this.queue = [];
     this.running = false;
     this.wakeUp = null;
@@ -70,7 +76,7 @@ export class PendingInbox {
   }
 
   status() {
-    return { count: this.list().length, queue: this.queue.length, running: this.running };
+    return { count: this.list().length, queue: this.queue.length, running: this.running, waiting: this.waiting, perHour: this.#limits().perHour };
   }
 
   /** Histórico do celular: adiciona quem estava esperando (sem apagar o que já existe). */
@@ -195,14 +201,46 @@ export class PendingInbox {
     });
   }
 
+  #limits() {
+    const a = this.store.settings.agent || {};
+    const [from, to] = String(a.pendingHours || '7-21').split('-').map(Number);
+    return { perHour: Math.max(1, Number(a.pendingPerHour) || 30), from: Number.isFinite(from) ? from : 7, to: Number.isFinite(to) ? to : 21 };
+  }
+
+  /** Espera o horário permitido e a vaga dentro do limite por hora. */
+  async #gate() {
+    if (!this.careful) return;
+    for (;;) {
+      if (!this.queue.length) return;
+      const { perHour, from, to } = this.#limits();
+      const now = this.now();
+      const h = now.getHours();
+      if (h < from || h >= to) {
+        this.waiting = `fora do horário (responde das ${from}h às ${to}h)`;
+      } else {
+        this.sentAt = this.sentAt.filter((t) => now.getTime() - t < 3_600_000);
+        if (this.sentAt.length < perHour) {
+          this.waiting = '';
+          return;
+        }
+        this.waiting = `limite de ${perHour} respostas por hora atingido; continua sozinho em alguns minutos`;
+      }
+      this.#changed();
+      await this.#wait(60_000);
+    }
+  }
+
   async #run() {
     this.running = true;
     this.#changed();
     try {
       while (this.queue.length) {
+        await this.#gate();
+        if (!this.queue.length) break;
         const jid = this.queue[0];
         const p = this.items[jid];
         const startedAt = Date.now();
+        this.sentAt.push(startedAt);
         if (p && (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected')) {
           await this.agent.handleIncoming(
             { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true },
@@ -232,6 +270,7 @@ export class PendingInbox {
       }
     } finally {
       this.running = false;
+      this.waiting = '';
       this.wakeUp = null;
       this.#changed();
     }

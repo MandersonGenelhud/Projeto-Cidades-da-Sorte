@@ -1088,7 +1088,7 @@ async function loadPending() {
       <span class="when">${p.queued ? '⏳ na fila' : ago(p.at)}</span>
     </label>`).join('') || '<p class="muted">Ninguém esperando resposta. 🎉</p>';
   $('#pendingStatus').textContent = r.running
-    ? `🤖 Respondendo… ${r.queue} na fila. Pode deixar esta tela aberta ou fechada.`
+    ? `🤖 Respondendo com cuidado (no máximo ${r.perHour || 30} por hora, das 7h às 21h, para proteger o número)… ${r.queue} na fila.${r.waiting ? ` ⏸️ Esperando: ${r.waiting}.` : ''} Pode deixar esta tela aberta ou fechada.`
     : '';
   $('#btnPendingCancel').hidden = !r.running;
 }

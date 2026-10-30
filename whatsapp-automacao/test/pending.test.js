@@ -41,7 +41,7 @@ function setup({ audience = 'all', testNumbers = [] } = {}) {
   const agent = new Agent({ store, llm, calendar: null });
   const wa = new FakeWA();
   const autoReply = new AutoReply({ store, wa, agent });
-  const inbox = new PendingInbox({ store, agent, wa, autoReply, delay: [0, 0] });
+  const inbox = new PendingInbox({ store, agent, wa, autoReply, delay: [0, 0], careful: false });
   wa.send = async (to, payload) => { wa.sent.push({ to, ...payload }); inbox.resolve(to); return { jid: to }; };
   return { store, wa, inbox, prompts };
 }
@@ -93,7 +93,7 @@ test('limite gratuito da IA: a fila pausa e ninguém recebe desculpa genérica',
   const agent = new Agent({ store, llm, calendar: null });
   const wa = new FakeWA();
   const autoReply = new AutoReply({ store, wa, agent });
-  const inbox = new PendingInbox({ store, agent, wa, autoReply, delay: [0, 0] });
+  const inbox = new PendingInbox({ store, agent, wa, autoReply, delay: [0, 0], careful: false });
   wa.send = async (to, payload) => { wa.sent.push({ to, ...payload }); inbox.resolve(to); return { jid: to }; };
   for (const n of ['1', '2', '3']) inbox.onIncoming({ jid: `${n}@s.whatsapp.net`, phone: `55119000000${n}0`, text: 'oi' });
   inbox.enqueue(inbox.list().map((p) => p.jid));
@@ -135,4 +135,28 @@ test('histórico do celular: a IA recebe as 10 mensagens anteriores da conversa 
   assert.equal(conv.messages.at(-1).role, 'assistant');
   assert.deepEqual(inbox.list()[0].texts, ['e aí, como faço para começar?']);
   assert.equal(inbox.list()[0].context, undefined);
+});
+
+test('modo cuidadoso: no máximo N respostas por hora e só no horário permitido', async () => {
+  const { store, wa } = setup();
+  const agent = new Agent({ store, llm: { configured: true, chat: async () => ({ content: 'Oi! Agradeço por aguardar.', tool_calls: [] }) }, calendar: null });
+  const autoReply = new AutoReply({ store, wa, agent });
+  let clock = new Date(2026, 9, 30, 3, 0); // 3h da manhã
+  const inbox = new PendingInbox({ store, agent, wa, autoReply, delay: [0, 0], careful: true, now: () => clock });
+  wa.send = async (to, payload) => { wa.sent.push({ to, ...payload }); inbox.resolve(to); return { jid: to }; };
+  store.updateSettings({ agent: { pendingPerHour: 2, autoAnswerPending: false } });
+  for (const n of [1, 2, 3]) inbox.items[`59598100000${n}@s.whatsapp.net`] = { jid: `59598100000${n}@s.whatsapp.net`, phone: `59598100000${n}`, name: `C${n}`, texts: ['oi'], at: Date.now() - 3600_000, channel: 'whatsapp' };
+  inbox.enqueue(Object.keys(inbox.items));
+  await waitFor(() => /fora do horário/.test(inbox.status().waiting));
+  assert.equal(wa.sent.length, 0, 'de madrugada não responde a fila antiga');
+  inbox.cancel();
+  await waitFor(() => !inbox.running);
+
+  clock = new Date(2026, 9, 30, 10, 0);
+  for (const n of [1, 2, 3]) inbox.items[`59598100000${n}@s.whatsapp.net`] ||= { jid: `59598100000${n}@s.whatsapp.net`, phone: `59598100000${n}`, name: `C${n}`, texts: ['oi'], at: Date.now() - 3600_000, channel: 'whatsapp' };
+  inbox.enqueue(Object.keys(inbox.items));
+  await waitFor(() => /limite de 2 respostas por hora/.test(inbox.status().waiting));
+  assert.equal(wa.sent.length, 2);
+  inbox.cancel();
+  await waitFor(() => !inbox.running);
 });

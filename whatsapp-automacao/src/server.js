@@ -1689,7 +1689,7 @@ app.post('/api/handoffs/digest', (req, res) => {
       }
       store.save();
       notify('digest', { ...digestRun });
-      await sleep(randomBetween(6, 12) * 1000);
+      await sleep(randomBetween(15, 30) * 1000);
     }
     digestRun.running = false;
     store.addLog({ type: 'system', message: `📌 Encaminhamentos reenviados: ${digestRun.done} de ${digestRun.total}${digestRun.failed ? ` (${digestRun.failed} com erro)` : ''}` });

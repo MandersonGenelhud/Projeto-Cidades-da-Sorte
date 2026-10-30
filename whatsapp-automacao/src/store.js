@@ -97,6 +97,8 @@ const DEFAULT_DATA = {
       humanize: { enabled: true, noticeMin: 5, noticeMax: 20 },
       // Conversas sem resposta: considera mensagens dos últimos N dias e responde sozinho.
       pendingMaxDays: 15, // a IA responde sozinha quem esperou até 15 dias
+      pendingPerHour: 30, // modo cuidadoso: no máximo 30 respostas por hora para quem ficou esperando
+      pendingHours: '7-21', // e só das 7h às 21h
       autoAnswerPending: true,
       ...PRESET.agent,
     },

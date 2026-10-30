@@ -182,7 +182,7 @@ $('#btnDigest').addEventListener('click', async () => {
     const lines = r.groups.map((g) => `• ${g.name}${g.phone ? ` (+${g.phone})` : ' (SEM WHATSAPP: não recebe)'}: ${g.count} cliente(s)`).join('\n');
     if (!confirm(`Enviar o resumo de ${r.count} cliente(s), uma mensagem por cliente, com o que já foi conversado e como começar?\n\n${lines}\n\nOs vendedores precisam estar com o WhatsApp cadastrado na aba Equipe. Clientes sem vendedor vão para o WhatsApp do Marcos.`)) return;
     await api('/api/handoffs/digest', { method: 'POST', body: { days: 30 } });
-    toast('Envio começou: uma mensagem a cada 6 a 12 segundos');
+    toast('Envio começou: uma mensagem a cada 15 a 30 segundos');
     digestProgress();
   } catch (err) {
     toast(err.message, true);
