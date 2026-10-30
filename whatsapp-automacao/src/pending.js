@@ -87,6 +87,8 @@ export class PendingInbox {
     if (added) {
       this.store.addLog({ type: 'system', message: `📥 ${added} conversa(s) sem resposta encontrada(s) no histórico do ${label}` });
       this.#changed();
+      // Quem estava esperando do histórico já passou do tempo: entra direto na fila.
+      setTimeout(() => this.autoAnswer({ minAgeMs: 0 }), 5000).unref?.();
     }
     return added;
   }
@@ -143,6 +145,22 @@ export class PendingInbox {
     this.#changed();
     if (!this.running) this.#run().catch((err) => this.store.addLog({ type: 'error', message: `Fila de pendentes: ${err.message}` }));
     return { queued: allowed.length, blocked: blocked.length };
+  }
+
+  /**
+   * Responde sozinho os clientes esperando (dos últimos 7 dias), um de cada vez.
+   * Só pega quem está esperando há alguns minutos, para não atropelar a resposta normal.
+   */
+  autoAnswer({ minAgeMs = 3 * 60_000, now = Date.now() } = {}) {
+    if (this.store.settings.agent?.autoAnswerPending === false || !this.agent.active) return { queued: 0, blocked: 0 };
+    const maxAge = Number(this.store.settings.agent?.pendingMaxDays || 7) * 86_400_000;
+    const jids = Object.values(this.items)
+      .filter((p) => !this.queue.includes(p.jid) && now - p.at >= minAgeMs && now - p.at <= maxAge && !(p.phone && this.store.isBlacklisted(p.phone)))
+      .map((p) => p.jid);
+    if (!jids.length) return { queued: 0, blocked: 0 };
+    const r = this.enqueue(jids);
+    if (r.queued) this.store.addLog({ type: 'system', message: `🤖 Respondendo sozinho ${r.queued} cliente(s) que estavam esperando resposta` });
+    return r;
   }
 
   cancel() {

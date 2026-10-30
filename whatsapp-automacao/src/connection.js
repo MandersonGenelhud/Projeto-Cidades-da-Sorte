@@ -14,6 +14,7 @@ export class ConnectionManager extends EventEmitter {
     if (lines) {
       lines.on('message', (msg) => this.emit('message', msg));
       lines.on('ownerMessage', (msg) => this.emit('ownerMessage', msg));
+      lines.on('history', (msgs) => this.emit('history', msgs));
       lines.on('status', (state) => this.emit('lineStatus', state));
       lines.on('log', (entry) => this.emit('log', entry));
     }

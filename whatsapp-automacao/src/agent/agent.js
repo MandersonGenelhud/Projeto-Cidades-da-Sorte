@@ -18,6 +18,8 @@ export class Agent {
     this.requestVisit = null; // (conversa, args, { dryRun }) => pedido de visita ao escritório (avisa o Marcos)
     this.visitInfo = null; // (conversa) => regras da visita e pedidos já feitos por este cliente
     this.sendPlan = null; // (conversa, args, { dryRun }) => envia o passo a passo do pagamento
+    this.sendQuote = null; // (conversa, args, { dryRun }) => gera e envia o orçamento ORC (PDF + resumo)
+    this.notifyOwner = null; // (conversa, args, { dryRun }) => contratação/parcerias direto para o Marcos
     this.closeHandoff = null; // (conversa, args, { dryRun }) => passa o fechamento ao Marcos/vendedor com o resumo
     this.claimPaid = claimPaid || null; // (conversa, args) => cliente disse que pagou
     this.routeSpecialist = routeSpecialist || null; // (conversa, args, { dryRun }) => passa para o especialista do assunto
@@ -108,7 +110,7 @@ export class Agent {
     const channel = String(conv.key).startsWith('ig:') ? 'Instagram' : 'WhatsApp';
     const note = this.channelNote ? this.channelNote(conv) : '';
     // No WhatsApp de um vendedor o cliente já é dele: nada de rodízio.
-    const routing = Boolean(this.routeLead) && settings.crm?.routing?.enabled !== false && !note;
+    const routing = Boolean(this.routeLead) && settings.crm?.routing?.enabled !== false && !note && !this.closeHandoff;
     const closing = Boolean(this.sendForm) && settings.closing?.enabled !== false;
     let system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name, channel, routing, closing });
     if (note) system += `\n\n# Este WhatsApp\n${note}`;
@@ -135,13 +137,16 @@ Tem cliente que prefere conhecer o escritório e fechar pessoalmente, ou quer ma
 3. Use agendar_visita_escritorio. Diga que passou o pedido ao Marcos e que ele confirma o dia e o horário por aqui. Nunca confirme data ou horário por conta própria.${info ? `\n${info}` : ''}`;
     }
     if (this.closeHandoff) {
-      system += `\n\n# Antes de fechar: dúvidas e a última objeção
-Muita gente prefere fechar com o Marcos ou com um vendedor. Deixe tudo pronto para eles só finalizarem:
+      system += `\n\n# Você fecha a venda (não passe para vendedor)
+Quem conduz até o fim é você: tira as dúvidas, contorna as objeções com os gatilhos e as técnicas, manda o orçamento, a ficha, o Pix e o termo. NÃO passe o cliente para um vendedor por causa de preço, dúvida, documento, prazo, família ou "vou pensar": isso você resolve aqui.
 1. Tire TODAS as dúvidas. Quando parecer que acabou, pergunte: "Ficou alguma dúvida sobre o processo, os valores ou os documentos?"
 2. Com tudo claro, pergunte com leveza: "Tem mais alguma coisa que ainda impede você de começar com a gente?"
-3. Se aparecer algo, descubra exatamente o que é (dinheiro agora, prazo, confiança, família, documentos…) e tente contornar com as técnicas e os fatos da base, uma ou duas vezes, sem pressionar.
-4. Resolveu? Siga o fechamento normal (ficha de dados). Não resolveu, ou ele prefere fechar com uma pessoa? Use passar_fechamento_para_humano com o resumo, as dúvidas já esclarecidas, a objeção e o que você já disse, e uma sugestão de solução. Diga ao cliente que o Marcos (ou o consultor) vai finalizar com ele por aqui em instantes. Não prometa desconto nem condição especial: quem decide é a pessoa que vai fechar.`;
+3. Apareceu algo? Descubra exatamente o que é (dinheiro agora, prazo, confiança, família, documentos…) e contorne com os fatos da base, a história do Marcos e a prova social, sem pressionar. Depois volte ao fechamento (ficha de dados).
+4. Só se, depois disso, ele ainda tiver receio de fechar pela conversa ou insistir em falar com uma pessoa: use passar_fechamento_para_humano (com o interesse real, a situação atual, a dica de técnica de fechamento e a sugestão para finalizar) e diga exatamente: "Estou enviando seu contato tudo certinho para um atendente dentro do escritório para continuar seu atendimento. Qualquer coisa, fale aqui comigo." Você continua disponível: se ele escrever de novo, responda normalmente.
+Não prometa desconto nem condição especial.`;
     }
+    if (this.notifyOwner) system += '\n\n# Assuntos do Marcos\nQuem quer trabalhar na Migra (contratação, vaga, currículo), propostas de parceria de negócio, fornecedores, imprensa ou investidores: entenda o básico em 1 ou 2 perguntas e use avisar_marcos. Diga que passou direto para o Marcos e que ele mesmo retorna. Não venda pacote para essas pessoas.';
+    if (this.sendQuote) system += '\n\n# Orçamento\nQuando o cliente pedir orçamento, perguntar quanto fica para a família ou para mais de um pacote, use gerar_orcamento com os pacotes, quantas pessoas em cada um e os adultos. O sistema manda o PDF oficial (número ORC) e o resumo com a entrada e as parcelas; você só comenta em uma frase e conduz para garantir a reserva. Não refaça as contas.';
     if (this.sendPlan) system += '\n\n# Passo a passo do pagamento\nQuando o cliente perguntar como funciona o pagamento, quanto paga em cada etapa, ou logo depois de fechar, use enviar_etapas_pagamento com o pacote e o número de pessoas. O sistema manda o fluxograma com os valores e as datas de cada parcela (contando da data de hoje; sábado e domingo passam para segunda); você só comenta em uma frase e pergunta se ficou alguma dúvida. Não refaça as contas por conta própria.';
     if (pix && !closing) system += `\n\n# Pagamento da reserva por Pix\nQuando o cliente decidir fechar, peça o nome completo e o CPF de quem vai pagar e use gerar_pix com o número de adultos. O sistema envia o QR Code e o código copia e cola em mensagens separadas, logo antes da sua resposta: diga o valor, que o código está na mensagem anterior para copiar e colar no app do banco, e que o recibo em nome da empresa chega aqui assim que o pagamento for confirmado. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que o pagamento foi confirmado por conta própria.`;
     if (delayed) {
@@ -149,7 +154,10 @@ Muita gente prefere fechar com o Marcos ou com um vendedor. Deixe tudo pronto pa
     }
     // Sem agenda, o agente só pode transferir para a equipe.
     const tools = TOOL_DEFINITIONS.filter((t) => {
+      // Com o fechamento pela IA, ninguém é mandado para vendedor: o último recurso é passar_fechamento_para_humano.
       if (t.function.name === 'encaminhar_para_vendedor') return routing;
+      if (t.function.name === 'gerar_orcamento') return Boolean(this.sendQuote);
+      if (t.function.name === 'avisar_marcos') return Boolean(this.notifyOwner);
       if (t.function.name === 'encaminhar_para_especialista') return specialists;
       if (t.function.name === 'enviar_ficha_de_dados') return closing;
       if (t.function.name === 'agendar_visita_escritorio') return visits;
@@ -174,6 +182,8 @@ Muita gente prefere fechar com o Marcos ou com um vendedor. Deixe tudo pronto pa
       onVisit: this.requestVisit ? (args) => this.requestVisit(conv, args, { dryRun }) : null,
       onPlan: this.sendPlan ? (args) => this.sendPlan(conv, args, { dryRun }) : null,
       onCloseHandoff: this.closeHandoff ? (args) => this.closeHandoff(conv, args, { dryRun }) : null,
+      onQuote: this.sendQuote ? (args) => this.sendQuote(conv, args, { dryRun }) : null,
+      onOwner: this.notifyOwner ? (args) => this.notifyOwner(conv, args, { dryRun }) : null,
       // Pausa a IA nesta conversa (um humano assume), sem o aviso genérico de transferência.
       pause: (reason) => {
         if (dryRun) return;

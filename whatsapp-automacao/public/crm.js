@@ -587,6 +587,12 @@ loaders.team = async () => {
   f.routingEnabled.checked = c.routing?.enabled !== false;
   f.routingCriteria.value = c.routing?.criteria || '';
   f.panelUrl.value = c.panelUrl || '';
+  f.ownerPhone.value = c.ownerPhone ? `+${c.ownerPhone}` : '';
+  const qs = settings.quotes || {};
+  f.quoteNext.value = qs.nextNumber || 1;
+  f.quoteDays.value = qs.validityDays || 7;
+  f.quotePhone.value = qs.phone || '';
+  f.quoteEmail.value = qs.email || '';
   f.fxUSD.value = c.fx?.USD ?? 5.5;
   f.fxPYG.value = c.fx?.PYG ?? 0.0007;
   f.specialists.value = (c.specialists || []).map((s) => [s.topic, s.name, s.whatsapp ? `+${s.whatsapp}` : ''].join(' = ')).join('\n');
@@ -660,8 +666,10 @@ $('#formCrmSettings').addEventListener('submit', withBusy($('#formCrmSettings'),
         .filter(([topic, name]) => topic && name)
         .map(([topic, name, whatsapp = '']) => ({ topic, name, whatsapp: whatsapp.replace(/\D/g, '') })),
       panelUrl: f.panelUrl.value.trim(),
+      ownerPhone: f.ownerPhone.value.replace(/\D/g, ''),
       fx: { USD: Number(f.fxUSD.value) || 1, PYG: Number(f.fxPYG.value) || 0 },
-    } },
+    },
+    quotes: { nextNumber: Number(f.quoteNext.value) || 1, validityDays: Number(f.quoteDays.value) || 7, phone: f.quotePhone.value.trim(), email: f.quoteEmail.value.trim() } },
   });
   crmState.stages = [];
   toast('Regras do CRM salvas');
@@ -831,6 +839,7 @@ async function openCalc(lead = null) {
   f.start.value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   $('#calcFor').textContent = lead ? `Cliente: ${lead.name || lead.code}` : 'Monte o orçamento para explicar ao cliente quanto fica a entrada, as parcelas e as datas.';
   $('#calcSend').hidden = !lead?.id;
+  $('#calcQuoteSend').hidden = !lead?.id;
   if (!$('#calcDialog').open) $('#calcDialog').showModal();
   runCalc();
 }
@@ -842,7 +851,7 @@ async function runCalc() {
     const p = r.plan;
     calc.text = r.text;
     $('#calcResult').innerHTML = `
-      <div class="calc-total"><div><span>Valor total</span><b>${brl2(p.total)}</b><small>${brl2(r.price)} × ${p.people} pessoa(s)</small></div><div><span>Entrada na assinatura</span><b>${brl2(p.entry)}</b><small>R$ 1.000 + R$ 800 × ${p.adults} adulto(s) · ${diaSemana(p.start)}</small></div></div>
+      <div class="calc-total"><div><span>Valor total</span><b>${brl2(p.total)}</b><small>${brl2(r.price)} × ${p.people} pessoa(s)</small></div><div><span>Entrada na assinatura</span><b>${brl2(p.entry)}</b><small>${brl2(p.base)} de sinal + ${brl2(p.perAdult)} × ${p.adults} adulto(s) das certidões (Interpol e Polícia Nacional) · ${diaSemana(p.start)}</small></div></div>
       <ol class="calc-steps">${p.parcels.map((x, i) => `<li><span class="calc-dot">${i === p.parcels.length - 1 ? '🪪' : '✈️'}</span><div><b>${brl2(x.value)}</b> · ${esc(x.label)} (${x.pct}% do saldo)<div class="hint">${esc(diaSemana(x.date))} · ${esc(x.when.toLowerCase())} · ${esc(x.note)}${x.moved ? ' · <b>caiu no fim de semana, passou para segunda</b>' : ''}</div></div></li>`).join('')}</ol>
       <p class="hint">Saldo depois da entrada: ${brl2(p.balance)}. As datas das viagens e da retirada são confirmadas pela equipe.</p>`;
   } catch (err) {
@@ -867,6 +876,22 @@ $('#calcSend').addEventListener('click', async () => {
     toast(err.message, true);
   }
 });
+async function makeQuote(send) {
+  const f = $('#calcForm');
+  const client = calc.lead ? calc.lead.name : prompt('Nome do cliente para o orçamento:', '');
+  if (client === null) return;
+  if (send && !confirm('Gerar o orçamento e enviar ao cliente no WhatsApp (PDF + resumo)?')) return;
+  try {
+    const r = await api('/api/quotes', { method: 'POST', body: { send, leadId: calc.lead?.id || null, client, items: [{ pacote: f.packageName.value, quantidade: Number(f.people.value) }], adults: Number(f.adults.value), start: f.start.value } });
+    calc.text = r.text;
+    toast(send ? `Orçamento ${r.number} enviado ao cliente` : `Orçamento ${r.number} gerado`);
+    if (!send) window.open(r.url, '_blank');
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+$('#calcQuote').addEventListener('click', () => makeQuote(false));
+$('#calcQuoteSend').addEventListener('click', () => makeQuote(true));
 $('#btnLeadPlan').addEventListener('click', () => crmState.current?.id && openCalc(crmState.current));
 
 // ---------- VISITAS AO ESCRITÓRIO ----------

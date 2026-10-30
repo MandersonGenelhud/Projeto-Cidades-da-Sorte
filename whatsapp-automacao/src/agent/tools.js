@@ -56,7 +56,7 @@ export const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'encaminhar_para_vendedor',
-      description: 'Use quando a peneira mostrar que o cliente está pronto para conversar com um consultor (cliente quente) ou quando ele pedir para fechar/falar com um consultor. O sistema escolhe o vendedor da vez, envia o resumo para ele e devolve o link do WhatsApp do vendedor para você mandar ao cliente. Preencha só com o que o cliente realmente disse; não invente.',
+      description: 'Só quando o cliente INSISTIR em falar com uma pessoa ou continuar com receio depois de você tentar de tudo: você mesma fecha a venda. O sistema escolhe o vendedor da vez, envia o resumo para ele e devolve o link do WhatsApp do vendedor para você mandar ao cliente. Preencha só com o que o cliente realmente disse; não invente.',
       parameters: {
         type: 'object',
         properties: {
@@ -71,6 +71,10 @@ export const TOOL_DEFINITIONS = [
           objecoes: { type: 'string', description: 'Dúvidas ou objeções que ainda restam' },
           telefone: { type: 'string', description: 'WhatsApp do cliente, se ele informou' },
           dados_formalizacao: { type: 'string', description: 'Dados que o cliente passou para formalizar a negociação (nome completo, CPF, e-mail, data de nascimento, cidade), exatamente como ele escreveu' },
+          interesse_real: { type: 'string', description: 'O que ele realmente quer conquistar (o motivo por trás: família, segurança, impostos, empreender…)' },
+          situacao_atual: { type: 'string', description: 'Como está a vida dele hoje (trabalho, família, dinheiro, prazo), pelo que ele contou' },
+          dica_de_fechamento: { type: 'string', description: 'Qual técnica de fechamento usar com este cliente e por quê (ex.: fechamento por resumo, alternativo, prova social, história do Marcos)' },
+          sugestao: { type: 'string', description: 'Sugestão concreta para o atendente finalizar a venda' },
         },
         required: ['resumo', 'temperatura'],
       },
@@ -94,22 +98,67 @@ export const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'passar_fechamento_para_humano',
-      description: 'Passa o cliente para o Marcos ou um vendedor FINALIZAR a negociação, com tudo mastigado. Use quando: (1) o cliente prefere fechar com uma pessoa; ou (2) você descobriu a última objeção que impede o fechamento, tentou contornar e não resolveu. O humano recebe o resumo completo no WhatsApp e a IA para de responder este cliente.',
+      description: 'ÚLTIMO recurso. Você mesma fecha a venda: tire as dúvidas, contorne as objeções, mande orçamento e ficha. Use isto SÓ quando, depois de tentar (história do Marcos, prova social, segurança do termo e do recibo), o cliente ainda tiver receio de fechar pela conversa ou insistir em falar com uma pessoa. O atendente do escritório recebe a prévia da conversa e as dicas de fechamento; você continua disponível para o cliente.',
       parameters: {
         type: 'object',
         properties: {
-          resumo: { type: 'string', description: 'Quem é o cliente e o que ele quer, em até 3 frases' },
-          pacote: { type: 'string', description: 'Pacote ou serviço escolhido' },
+          resumo: { type: 'string', description: 'Sobre o cliente: quem é e o que quer, em até 3 frases' },
+          interesse_real: { type: 'string', description: 'O interesse real dele (o motivo por trás: família, segurança, impostos, empreender…)' },
+          situacao_atual: { type: 'string', description: 'A situação atual dele (trabalho, família, dinheiro, prazo), pelo que ele contou' },
+          pacote: { type: 'string', description: 'Pacote ou serviço de interesse' },
           pessoas: { type: 'number', description: 'Quantas pessoas no processo' },
           duvidas_esclarecidas: { type: 'string', description: 'As dúvidas que ele tinha e que você já respondeu' },
-          objecao: { type: 'string', description: 'A última coisa que ainda impede o fechamento, nas palavras do cliente (vazio se ele só prefere fechar com uma pessoa)' },
-          o_que_ja_foi_dito: { type: 'string', description: 'Como você tentou contornar a objeção e como ele reagiu' },
-          sugestao: { type: 'string', description: 'Sua sugestão de solução para o humano apresentar e fechar' },
+          objecao: { type: 'string', description: 'O receio que ainda impede, nas palavras do cliente' },
+          o_que_ja_foi_dito: { type: 'string', description: 'Como você tentou contornar e como ele reagiu' },
+          dica_de_fechamento: { type: 'string', description: 'A técnica de fechamento que mais combina com este cliente e por quê' },
+          sugestao: { type: 'string', description: 'Sugestão concreta para o atendente finalizar a venda' },
           moradia: { type: 'string', description: 'Plano de moradia no Paraguai, se ele disse (alugar, comprar terreno e construir, comprar imóvel)' },
-          prefere: { type: 'string', enum: ['Marcos', 'vendedor', 'tanto faz'], description: 'Com quem ele prefere fechar' },
           temperatura: { type: 'string', enum: ['quente', 'morno', 'frio'] },
         },
         required: ['resumo'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'gerar_orcamento',
+      description: 'Gera o orçamento oficial da Migra (número ORC, PDF com a marca e o resumo no WhatsApp: serviços, total, entrada e parcelas com datas) e envia ao cliente. Use quando ele pedir orçamento, perguntar quanto fica para a família ou para mais de um pacote. O sistema calcula tudo pela tabela; não faça contas por conta própria.',
+      parameters: {
+        type: 'object',
+        properties: {
+          itens: {
+            type: 'array',
+            description: 'Pacotes e quantas pessoas em cada um',
+            items: {
+              type: 'object',
+              properties: {
+                pacote: { type: 'string', description: 'Inicial, Prata, Ouro, Empresa Unipersonal, Empresa EAS, Empresa S.A. ou Estudantil' },
+                quantidade: { type: 'number', description: 'Quantas pessoas nesse pacote' },
+              },
+              required: ['pacote', 'quantidade'],
+            },
+          },
+          adultos: { type: 'number', description: 'Quantos adultos no total (a taxa das certidões é por adulto)' },
+          nome: { type: 'string', description: 'Nome do cliente para o orçamento' },
+        },
+        required: ['itens'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'avisar_marcos',
+      description: 'Para assuntos que não são venda de pacote e vão direto para o Marcos: quem quer trabalhar na Migra (contratação, currículo, vaga), propostas de parceria de negócio, fornecedores, imprensa ou investidores. Avisa o Marcos no WhatsApp dele com o resumo.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assunto: { type: 'string', enum: ['contratação', 'parceria de negócio', 'fornecedor', 'imprensa', 'outro'] },
+          resumo: { type: 'string', description: 'O que a pessoa quer, em até 3 frases' },
+          nome: { type: 'string', description: 'Nome da pessoa ou da empresa' },
+        },
+        required: ['assunto', 'resumo'],
       },
     },
   },
@@ -256,9 +305,19 @@ export async function runTool(name, args, ctx) {
           ctx.onHandoff?.(`Fechamento com humano: ${args.objecao || args.resumo || ''}`);
           return { ok: true, mensagem: 'Equipe avisada. Diga que um consultor vai finalizar com ele em instantes.' };
         }
-        const r = await ctx.onCloseHandoff(args);
-        if (r?.ok) ctx.pause?.(`Fechamento com ${r.quem || 'a equipe'}${args.objecao ? `: ${args.objecao}` : ''}`);
-        return r;
+        // A IA continua disponível: o atendente do escritório recebe tudo e entra junto.
+        return await ctx.onCloseHandoff(args);
+      }
+      case 'gerar_orcamento': {
+        if (!ctx.onQuote) return { erro: 'Orçamento indisponível. Use enviar_etapas_pagamento.' };
+        return await ctx.onQuote(args);
+      }
+      case 'avisar_marcos': {
+        if (!ctx.onOwner) {
+          ctx.onHandoff?.(`Para o Marcos (${args.assunto}): ${args.resumo}`);
+          return { ok: true, mensagem: 'Aviso enviado. Diga que passou o assunto para o Marcos.' };
+        }
+        return await ctx.onOwner(args);
       }
       case 'agendar_visita_escritorio': {
         if (!ctx.onVisit) return { erro: 'Agendamento de visita indisponível. Use transferir_para_humano.' };

@@ -136,3 +136,108 @@ export function documentPdf(blocks, { footer = '' } = {}) {
   parts.push(Buffer.from(`${xref}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${pos}\n%%EOF\n`, 'latin1'));
   return Buffer.concat(parts);
 }
+
+/**
+ * Página desenhada à mão (orçamento): retângulos com cantos arredondados, cores,
+ * texto com quebra de linha e imagens JPEG. Coordenadas em pontos, a partir do topo.
+ */
+export class PdfCanvas {
+  constructor() {
+    this.pages = [[]];
+    this.images = [];
+  }
+
+  get ops() {
+    return this.pages.at(-1);
+  }
+
+  addPage() {
+    this.pages.push([]);
+  }
+
+  static rgb(hex) {
+    const n = parseInt(String(hex).replace('#', ''), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => (v / 255).toFixed(3)).join(' ');
+  }
+
+  rect(x, y, w, h, { fill = null, stroke = null, radius = 0, lineWidth = 0.8 } = {}) {
+    const Y = PAGE_H - y - h;
+    const r = Math.min(radius, w / 2, h / 2);
+    const k = 0.5523 * r;
+    const path = r
+      ? [`${x + r} ${Y} m`, `${x + w - r} ${Y} l`, `${x + w - r + k} ${Y} ${x + w} ${Y + r - k} ${x + w} ${Y + r} c`, `${x + w} ${Y + h - r} l`,
+        `${x + w} ${Y + h - r + k} ${x + w - r + k} ${Y + h} ${x + w - r} ${Y + h} c`, `${x + r} ${Y + h} l`, `${x + r - k} ${Y + h} ${x} ${Y + h - r + k} ${x} ${Y + h - r} c`,
+        `${x} ${Y + r} l`, `${x} ${Y + r - k} ${x + r - k} ${Y} ${x + r} ${Y} c`, 'h'].join(' ')
+      : `${x} ${Y} ${w} ${h} re`;
+    const paint = fill && stroke ? 'B' : fill ? 'f' : 'S';
+    this.ops.push(`q ${fill ? `${PdfCanvas.rgb(fill)} rg` : ''} ${stroke ? `${PdfCanvas.rgb(stroke)} RG ${lineWidth} w` : ''} ${path} ${paint} Q`);
+  }
+
+  line(x1, y1, x2, y2, { color = '#dddddd', width = 0.6 } = {}) {
+    this.ops.push(`q ${PdfCanvas.rgb(color)} RG ${width} w ${x1} ${PAGE_H - y1} m ${x2} ${PAGE_H - y2} l S Q`);
+  }
+
+  /** Escreve uma linha; align: left | right | center (x é a borda correspondente). */
+  text(str, x, y, { size = 10, bold = false, color = '#1d1d1f', align = 'left', spacing = 0 } = {}) {
+    const w = textWidth(str, size, bold) + spacing * String(str).length;
+    const X = align === 'right' ? x - w : align === 'center' ? x - w / 2 : x;
+    this.ops.push(`BT ${PdfCanvas.rgb(color)} rg /${bold ? 'F2' : 'F1'} ${size} Tf ${spacing} Tc 1 0 0 1 ${X.toFixed(1)} ${(PAGE_H - y - size).toFixed(1)} Tm (${pdfStr(str)}) Tj ET`);
+    return w;
+  }
+
+  /** Texto com quebra de linha; devolve a altura usada. */
+  para(str, x, y, maxW, { size = 10, bold = false, color = '#1d1d1f', lead = 1.35 } = {}) {
+    const lines = wrapLine(str, size, bold, maxW);
+    lines.forEach((l, i) => this.text(l, x, y + i * size * lead, { size, bold, color }));
+    return lines.length * size * lead;
+  }
+
+  width(str, { size = 10, bold = false, spacing = 0 } = {}) {
+    return textWidth(str, size, bold) + spacing * String(str).length;
+  }
+
+  measure(str, maxW, { size = 10, bold = false, lead = 1.35 } = {}) {
+    return wrapLine(str, size, bold, maxW).length * size * lead;
+  }
+
+  image(jpeg, x, y, w) {
+    const dim = jpegSize(jpeg);
+    if (!dim) return 0;
+    const h = (dim.height / dim.width) * w;
+    const n = this.images.push({ data: jpeg, ...dim });
+    this.ops.push(`q ${w.toFixed(1)} 0 0 ${h.toFixed(1)} ${x} ${(PAGE_H - y - h).toFixed(1)} cm /Im${n} Do Q`);
+    return h;
+  }
+
+  toBuffer() {
+    const objs = [];
+    const add = (body) => objs.push(body) && objs.length;
+    add('<< /Type /Catalog /Pages 2 0 R >>');
+    add(null);
+    add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+    const imgIds = this.images.map((im) => add({ head: `<< /Type /XObject /Subtype /Image /Width ${im.width} /Height ${im.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.data.length} >>`, data: im.data }));
+    const xobj = imgIds.length ? `/XObject << ${imgIds.map((id, i) => `/Im${i + 1} ${id} 0 R`).join(' ')} >>` : '';
+    const pageIds = this.pages.map((ops) => {
+      const stream = Buffer.from(ops.join('\n'), 'latin1');
+      const content = add({ head: `<< /Length ${stream.length} >>`, data: stream });
+      return add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> ${xobj} >> /Contents ${content} 0 R >>`);
+    });
+    objs[1] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;
+    const parts = [Buffer.from('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n', 'latin1')];
+    const offsets = [];
+    let pos = parts[0].length;
+    objs.forEach((obj, i) => {
+      offsets.push(pos);
+      const body = typeof obj === 'string'
+        ? Buffer.from(`${i + 1} 0 obj\n${obj}\nendobj\n`, 'latin1')
+        : Buffer.concat([Buffer.from(`${i + 1} 0 obj\n${obj.head}\nstream\n`, 'latin1'), obj.data, Buffer.from('\nendstream\nendobj\n', 'latin1')]);
+      parts.push(body);
+      pos += body.length;
+    });
+    const xref = [`xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`, ...offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`)].join('');
+    parts.push(Buffer.from(`${xref}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${pos}\n%%EOF\n`, 'latin1'));
+    return Buffer.concat(parts);
+  }
+}
+export const PAGE = { W: PAGE_W, H: PAGE_H };

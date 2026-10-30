@@ -509,6 +509,16 @@
           <label>Cotação do guarani (R$ por Gs. 1) <input type="number" step="0.00001" min="0" name="fxPYG" /></label>
         </div>
         <label>Endereço do painel na internet (vai no aviso ao vendedor) <input name="panelUrl" placeholder="https://painel.suaempresa.com" /></label>
+        <label>WhatsApp do Marcos (contratação, parcerias e assuntos de negócio chegam direto nele) <input name="ownerPhone" placeholder="+55 45 99999-0000" /></label>
+        <h3>🧾 Orçamentos</h3>
+        <div class="row">
+          <label>Próximo número (ORC-ano-número) <input type="number" min="1" name="quoteNext" /></label>
+          <label>Validade (dias) <input type="number" min="1" max="90" name="quoteDays" /></label>
+        </div>
+        <div class="row">
+          <label>WhatsApp no rodapé do PDF <input name="quotePhone" placeholder="+595 9xx xxx xxx" /></label>
+          <label>E-mail no rodapé do PDF <input name="quoteEmail" type="email" placeholder="contato@..." /></label>
+        </div>
         <label class="check"><input type="checkbox" name="autoCreate" /> Criar prospecto automaticamente para quem manda mensagem</label>
         <label class="check"><input type="checkbox" name="aiExtract" /> IA lê as conversas e preenche o prospecto (nome, pacote, pessoas, data de retorno)</label>
         <label class="check"><input type="checkbox" name="notifyFollowUps" /> Avisar o vendedor no WhatsApp no dia do retorno</label>
@@ -708,9 +718,10 @@
         <div class="conv-header">
           <div>
             <h2>📥 Clientes esperando resposta <span class="badge pending" id="pendingCount">0</span></h2>
-            <p class="hint">Quem mandou mensagem e ainda não teve resposta (inclui o histórico dos últimos 7 dias, que o celular envia ao conectar). O agente responde um por vez, com um intervalo entre as respostas, começando com um pedido de desculpas pela demora.</p>
+            <p class="hint">Quem mandou mensagem e ainda não teve resposta nos últimos 7 dias (inclui o histórico que o celular envia ao conectar, no número principal e nos WhatsApps dos vendedores). Com a IA ligada, ela responde sozinha, um por vez, com intervalo entre as respostas e começando com um pedido de desculpas pela demora.</p>
           </div>
           <div class="row">
+            <button class="btn small primary" id="btnPendingEveryone">🤖 Responder todos agora</button>
             <button class="btn small" id="btnPendingAll">☑️ Marcar todos</button>
             <button class="btn small primary" id="btnPendingReply">🤖 Agente responder marcados</button>
             <button class="btn small" id="btnPendingDismiss">🙈 Ignorar marcados</button>
@@ -1256,8 +1267,13 @@
     <div id="calcResult"></div>
     <div class="row">
       <button type="button" class="btn" id="calcCopy">Copiar mensagem</button>
-      <button type="button" class="btn primary" id="calcSend" hidden>Enviar ao cliente no WhatsApp</button>
+      <button type="button" class="btn primary" id="calcSend" hidden>Enviar etapas no WhatsApp</button>
     </div>
+    <div class="row">
+      <button type="button" class="btn" id="calcQuote">🧾 Gerar orçamento (PDF)</button>
+      <button type="button" class="btn primary" id="calcQuoteSend" hidden>🧾 Enviar orçamento ao cliente</button>
+    </div>
+    <p class="hint">O orçamento sai com o número ORC da sequência da Migra, a marca, a entrada explicada e as parcelas com as datas.</p>
   </dialog>
 
   <script src="ui.js"></script>

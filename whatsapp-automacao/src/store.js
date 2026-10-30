@@ -43,6 +43,7 @@ const DEFAULT_DATA = {
       autoAssign: 'qualified', // qualified (rodízio depois da peneira da IA) | roundrobin (na 1ª mensagem) | none
       routing: { enabled: true, criteria: PRESET.crm?.routing?.criteria || '' },
       panelUrl: '', // endereço do painel na internet, para o link da ficha no aviso ao vendedor
+      ownerPhone: '', // WhatsApp do Marcos: contratação, parcerias e assuntos de negócio vão direto para ele
       codePrefix: 'MIG',
       fx: { USD: 5.5, PYG: 0.0007 }, // cotação usada só para somar vendas em R$ nos painéis
       // Assuntos que vão direto para um especialista (ex.: terrenos → Robson).
@@ -94,8 +95,9 @@ const DEFAULT_DATA = {
       pauseOnOwnerReply: true,
       // Ritmo humano: espera para "ver", ler e digitar; divide a resposta em mensagens curtas.
       humanize: { enabled: true, noticeMin: 5, noticeMax: 20 },
-      // Conversas sem resposta: considera mensagens dos últimos N dias.
+      // Conversas sem resposta: considera mensagens dos últimos N dias e responde sozinho.
       pendingMaxDays: 7,
+      autoAnswerPending: true,
       ...PRESET.agent,
     },
     // Visitas ao escritório (o Marcos confirma pelo painel).
@@ -105,6 +107,16 @@ const DEFAULT_DATA = {
       hours: '', // dias e horários em que o Marcos costuma receber
       notifyPhone: '', // WhatsApp que recebe os pedidos (vazio = administradores)
       bring: '', // o que o cliente deve trazer (vazio = texto padrão)
+    },
+    // Orçamentos ORC-AAAA-NNNNN (PDF + mensagem). nextNumber continua a numeração que a Migra já usa.
+    quotes: {
+      nextNumber: 9767,
+      validityDays: 7,
+      consultant: '', // nome no orçamento quando não há vendedor dono da conversa
+      phone: '', // WhatsApp no rodapé do PDF (vazio = telefone da empresa em Pagamentos)
+      email: '',
+      instagram: '@migraparaguayassessoria',
+      address: '', // vazio = Santa Rita - Alto Paraná, Paraguai
     },
     // Fechamento: ficha de dados → Pix → termo da reserva assinado no celular.
     closing: {

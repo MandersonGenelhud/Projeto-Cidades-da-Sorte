@@ -142,6 +142,8 @@ export class LineManager extends EventEmitter {
     client.on('status', (state) => this.emit('status', { id, ...state }));
     client.on('message', (msg) => this.emit('message', wrap(msg)));
     client.on('ownerMessage', (msg) => this.emit('ownerMessage', wrap(msg)));
+    // Histórico do celular do vendedor: clientes que ficaram sem resposta neste número.
+    client.on('history', (msgs) => this.emit('history', msgs.map(wrap)));
     client.on('log', (entry) => this.emit('log', { ...entry, message: `[${line().label}] ${entry.message}` }));
   }
 

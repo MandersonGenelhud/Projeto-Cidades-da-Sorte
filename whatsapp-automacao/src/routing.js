@@ -6,6 +6,15 @@ const money = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { maximumFract
 const TEMP = { quente: '🔥 Quente', morno: '🌤️ Morno', frio: '❄️ Frio' };
 const MONEY = { sim: 'Tem o valor para começar', parcial: 'Tem parte do valor', nao: 'Ainda não tem o valor', nao_informou: 'Não informou' };
 
+/** Prévia das últimas mensagens da conversa (cliente e atendimento), para quem vai continuar. */
+export function chatPreview(conv, n = 10) {
+  return (conv?.messages || [])
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .slice(-n)
+    .map((m) => `${m.role === 'user' ? '👤' : '🤖'} ${m.content.replace(/\s+/g, ' ').slice(0, 180)}`)
+    .join('\n');
+}
+
 export class LeadRouter {
   constructor({ store, crm, sendWhatsApp, canSendWhatsApp }) {
     this.store = store;
@@ -31,10 +40,10 @@ export class LeadRouter {
   }
 
   /** Mensagem que o vendedor recebe no WhatsApp dele. */
-  sellerMessage(lead, conv) {
+  sellerMessage(lead, conv, tips = {}) {
     const q = lead.qualification || {};
     const contact = lead.phone ? `+${lead.phone}` : lead.instagram ? `@${lead.instagram} (Instagram)` : 'pelo link';
-    const lastClient = (conv?.messages || []).filter((m) => m.role === 'user').slice(-4).map((m) => `• ${m.content.replace(/\s+/g, ' ').slice(0, 160)}`).join('\n');
+    const preview = chatPreview(conv, 10);
     const link = this.panelLink(lead);
     return [
       `🔔 *Novo cliente para você* — ${lead.code}`,
@@ -46,7 +55,11 @@ export class LeadRouter {
       q.objections ? `⚠️ Dúvidas/objeções: ${q.objections}` : '',
       lead.contractData ? `🧾 Dados para formalizar: ${lead.contractData}` : '',
       lead.aiSummary ? `📝 ${lead.aiSummary}` : '',
-      lastClient ? `\nÚltimas mensagens do cliente:\n${lastClient}` : '',
+      tips.interesse_real ? `🎯 Interesse real: ${tips.interesse_real}` : '',
+      tips.situacao_atual ? `📍 Situação atual: ${tips.situacao_atual}` : '',
+      tips.dica_de_fechamento ? `🧠 Técnica de fechamento: ${tips.dica_de_fechamento}` : '',
+      tips.sugestao ? `🏁 Sugestão para finalizar: ${tips.sugestao}` : '',
+      preview ? `\n💬 Prévia da conversa:\n${preview}` : '',
       `\nO cliente vai te chamar no WhatsApp com o código *${lead.code}*.`,
       link ? `Ficha completa e conversa: ${link}` : 'Veja a ficha completa no painel (Prospectos → buscar pelo código).',
     ].filter(Boolean).join('\n');
@@ -119,7 +132,7 @@ export class LeadRouter {
     conv.routedTo = seller.id;
     this.store.save();
 
-    const text = this.sellerMessage(lead, conv);
+    const text = this.sellerMessage(lead, conv, args);
     let warned = false;
     if (this.canSendWhatsApp()) {
       try {

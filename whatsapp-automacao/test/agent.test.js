@@ -347,7 +347,7 @@ test('visita ao escritório e etapas de pagamento: ferramentas e ressalva de vir
   assert.match(seen[0].system, /Carro OU Moto/);
 });
 
-test('fechamento com humano: dúvidas, última objeção e resumo mastigado; a IA para de responder', async () => {
+test('a IA fecha a venda: só passa ao escritório com receio, sem parar de responder; contratação vai ao Marcos', async () => {
   const store = tempStore();
   store.updateSettings(presetSettings('migra-paraguai'));
   store.updateSettings({ agent: { enabled: true, audience: 'all' } });
@@ -360,14 +360,21 @@ test('fechamento com humano: dúvidas, última objeção e resumo mastigado; a I
   const agent = new Agent({ store, llm, now: () => NOW });
   const briefs = [];
   agent.closeHandoff = async (conv, args) => { briefs.push(args); return { ok: true, quem: 'Marcos' }; };
+  agent.routeLead = async () => ({ ok: true });
+  agent.sendQuote = async () => ({ ok: true });
+  agent.notifyOwner = async () => ({ ok: true });
   const conv = agent.conversation('5511999990000@s.whatsapp.net');
   conv.phone = '5511999990000';
   agent.remember(conv, 'user', 'Gostei, mas prefiro fechar com o Marcos. Só recebo dia 10.');
   const r = await agent.think(conv);
   assert.match(r.text, /Marcos vai finalizar/);
   assert.equal(briefs[0].objecao, 'só recebe o salário dia 10');
-  assert.equal(conv.handoff, true, 'a IA para de responder: o humano assume');
+  assert.notEqual(conv.handoff, true, 'a IA continua disponível para o cliente');
   assert.ok(seen[0].tools.includes('passar_fechamento_para_humano'));
+  assert.ok(!seen[0].tools.includes('encaminhar_para_vendedor'), 'nada de mandar para vendedor');
+  assert.match(seen[0].system, /atendente dentro do escritório para continuar seu atendimento/);
+  assert.match(seen[0].system, /avisar_marcos/);
+  assert.ok(seen[0].tools.includes('avisar_marcos') && seen[0].tools.includes('gerar_orcamento'));
   assert.match(seen[0].system, /Tem mais alguma coisa que ainda impede você de começar/);
   assert.match(seen[0].system, /Migra School/);
   assert.match(seen[0].system, /alugar no começo ou já comprar um terreno e construir/);

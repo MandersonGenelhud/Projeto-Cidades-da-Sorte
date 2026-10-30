@@ -19,7 +19,7 @@ import { CampaignRunner } from './campaigns.js';
 import { AutoReply } from './autoreply.js';
 import { Scheduler } from './scheduler.js';
 import { PendingInbox, extractPending } from './pending.js';
-import { LeadRouter } from './routing.js';
+import { LeadRouter, chatPreview } from './routing.js';
 import { buildRanking, currentMonth } from './ranking.js';
 import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
@@ -31,6 +31,7 @@ import { Closing, DEFAULT_TERM } from './closing.js';
 import { humanizeConfig, splitIntoBubbles } from './humanize.js';
 import { Visits } from './visits.js';
 import { PayPlans, planMessage } from './payplan.js';
+import { Quotes } from './quotes.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
 import { Crm, STAGES } from './crm.js';
@@ -244,52 +245,115 @@ closing.onSigned = async (f) => {
   await sendPaymentPlan({ convKey: f.convKey, lead, packageName: lead?.interest || f.data.objetivo, people: Math.max(Number(lead?.people) || 1, Number(f.data.adultos) || 1), adults: f.data.adultos });
 };
 
-// Fechamento com humano: a IA tira as dúvidas, descobre a última objeção e passa tudo mastigado.
-agent.closeHandoff = async (conv, args, { dryRun } = {}) => {
-  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, quem: args.prefere === 'vendedor' ? 'o consultor' : 'o Marcos', instrucao: 'Simulação: no atendimento real o resumo vai para o WhatsApp de quem vai fechar. Diga que ele vai finalizar com o cliente por aqui em instantes.' };
+// Orçamentos ORC-AAAA-NNNNN: PDF com a marca + mensagem no formato da equipe.
+const quotes = new Quotes({ store, dataDir: DATA_DIR, secret: auth.secret, matchPackage: (n) => crm.matchPackage(n) });
+const quoteLink = (q) => (publicBase() ? `${publicBase()}/orcamento/${q.id}?t=${quotes.token(q.id)}` : '');
+async function sendQuote({ convKey, lead, items, adults, client, consultant, start }) {
+  const q = quotes.create({ items, adults, ...(/^\d{4}-\d{2}-\d{2}$/.test(String(start || '')) ? { start } : {}), client: client || lead?.name || '', phone: lead?.phone || '', consultant, leadId: lead?.id || null, convKey });
+  const text = quotes.message(q, quoteLink(q));
+  if (convKey) {
+    const ig = String(convKey).startsWith('ig:');
+    await wa.send(convKey, ig ? { text, typing: false } : { text, media: { path: quotes.file(q), mimetype: 'application/pdf', fileName: `${q.number}.pdf` }, typing: false });
+    const conv = agent.conversation(convKey, { create: false });
+    if (conv) agent.remember(conv, 'assistant', text);
+  }
+  if (lead) {
+    const main = q.items[0];
+    const patch = { value: q.plan.total, people: q.plan.people, ...(main ? { interest: main.name } : {}) };
+    if (['novo', 'em_contato'].includes(lead.stage)) patch.stage = 'proposta';
+    crm.update({ name: 'IA', role: 'admin' }, lead.id, patch);
+    crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `🧾 Orçamento ${q.number}: ${q.items.map((r) => `${r.name} × ${r.qty}`).join(', ')} · total R$ ${q.plan.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+  }
+  notify('crm', { id: lead?.id });
+  return q;
+}
+agent.sendQuote = async (conv, args, { dryRun } = {}) => {
+  const items = Array.isArray(args.itens) && args.itens.length ? args.itens : [{ pacote: args.pacote, quantidade: args.pessoas || 1 }];
+  if (dryRun || String(conv.key).startsWith('sim:')) {
+    const preview = new Quotes({ store: { settings: { ...store.settings, quotes: { ...store.settings.quotes } }, data: { quotes: [] }, save() {} }, dataDir: path.join(DATA_DIR, 'tmp'), secret: auth.secret, matchPackage: (n) => crm.matchPackage(n) });
+    try {
+      const q = preview.create({ items, adults: args.adultos, client: args.nome || conv.name });
+      return { ok: true, simulacao: true, enviado: preview.message(q), instrucao: 'O orçamento (PDF + resumo) já foi enviado logo acima. Comente em uma frase curta e conduza para garantir a reserva.' };
+    } catch (e) {
+      return { erro: e.message };
+    }
+  }
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
     || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
-  // Quem fecha: o dono do WhatsApp da conversa (vendedor) > o responsável pelo cliente > o Marcos.
+  const parsed = parseLineKey(conv.key);
+  const owner = parsed ? auth.get(lines.get(parsed.id)?.ownerId) : (lead?.ownerId ? auth.get(lead.ownerId) : null);
+  try {
+    const q = await sendQuote({ convKey: conv.key, lead, items, adults: args.adultos, client: args.nome, consultant: owner?.name?.split(' ')[0] });
+    return { ok: true, numero: q.number, total: q.plan.total, instrucao: 'O orçamento (PDF + resumo com entrada e parcelas) já foi enviado logo acima. Comente em uma frase curta e conduza para garantir a reserva (ficha de dados). Não repita os valores.' };
+  } catch (e) {
+    return { erro: e.message };
+  }
+};
+
+// Quando o cliente sente receio mesmo depois de tudo, um atendente do escritório continua (a IA segue disponível).
+agent.closeHandoff = async (conv, args, { dryRun } = {}) => {
+  const say = 'Estou enviando seu contato tudo certinho para um atendente dentro do escritório para continuar seu atendimento. Qualquer coisa, fale aqui comigo.';
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real o resumo vai para o atendente. Diga ao cliente exatamente: "${say}"` };
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
+    || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+  // Quem continua: o dono do WhatsApp da conversa (vendedor) > o responsável pelo cliente > o atendente da vez > o Marcos.
   const parsed = parseLineKey(conv.key);
   const lineOwner = parsed ? auth.get(lines.get(parsed.id)?.ownerId) : null;
   const leadOwner = lead?.ownerId ? auth.get(lead.ownerId) : null;
-  const closer = lineOwner || (args.prefere === 'Marcos' ? null : leadOwner);
+  let closer = lineOwner || leadOwner;
+  if (!closer && lead && store.settings.crm?.routing?.enabled !== false) closer = crm.routeLead(lead, { reason: 'receio do cliente: atendente do escritório continua' }) || null;
   const brief = {
     resumo: String(args.resumo || '').trim(), pacote: args.pacote || lead?.interest || '', pessoas: args.pessoas || lead?.people || 1,
-    duvidas: args.duvidas_esclarecidas || '', objecao: args.objecao || '', tentativas: args.o_que_ja_foi_dito || '', sugestao: args.sugestao || '',
-    moradia: args.moradia || '', prefere: args.prefere || '', temperatura: args.temperatura || '', at: new Date().toISOString(),
+    interesse: args.interesse_real || '', situacao: args.situacao_atual || '', duvidas: args.duvidas_esclarecidas || '', objecao: args.objecao || '',
+    tentativas: args.o_que_ja_foi_dito || '', dica: args.dica_de_fechamento || '', sugestao: args.sugestao || '',
+    moradia: args.moradia || '', temperatura: args.temperatura || '', at: new Date().toISOString(),
   };
   const who = lead?.name || conv.name || (conv.phone ? `+${conv.phone}` : 'Cliente');
+  const preview = chatPreview(conv, 10);
   const text = [
-    '🤝 *Cliente pronto para fechar com você*',
+    '🤝 *Cliente para você continuar o atendimento*',
     `👤 ${who}${conv.phone ? ` · +${conv.phone}` : ''}${lead?.code ? ` · ${lead.code}` : ''}`,
     brief.pacote ? `📦 ${brief.pacote} · ${brief.pessoas} pessoa(s)` : '',
     brief.temperatura ? `🌡️ ${brief.temperatura}` : '',
-    `\n📝 ${brief.resumo}`,
-    brief.duvidas ? `\n✅ *Dúvidas já esclarecidas:* ${brief.duvidas}` : '',
-    brief.objecao ? `\n🚧 *O que ainda impede:* ${brief.objecao}` : '\n🙋 Ele prefere fechar com uma pessoa.',
+    `\n📝 *Sobre o cliente:* ${brief.resumo}`,
+    brief.interesse ? `🎯 *Interesse real:* ${brief.interesse}` : '',
+    brief.situacao ? `📍 *Situação atual:* ${brief.situacao}` : '',
+    brief.duvidas ? `✅ *Dúvidas já esclarecidas:* ${brief.duvidas}` : '',
+    brief.objecao ? `🚧 *O receio dele:* ${brief.objecao}` : '',
     brief.tentativas ? `💬 *O que a IA já disse:* ${brief.tentativas}` : '',
-    brief.sugestao ? `💡 *Sugestão para fechar:* ${brief.sugestao}` : '',
+    brief.dica ? `\n🧠 *Técnica de fechamento:* ${brief.dica}` : '',
+    brief.sugestao ? `🏁 *Sugestão para finalizar:* ${brief.sugestao}` : '',
     brief.moradia ? `🏠 Moradia: ${brief.moradia} (oportunidade para a Migra Imobiliária)` : '',
-    `\nA IA parou de responder este cliente. Continue a conversa${parsed ? ' no seu WhatsApp' : ''}${conv.phone ? `: https://wa.me/${conv.phone}` : ' pelo painel (Conversas)'}`,
+    preview ? `\n💬 *Prévia da conversa:*\n${preview}` : '',
+    `\nA IA continua disponível para o cliente. Chame ele${conv.phone ? `: https://wa.me/${conv.phone}` : ' pelo painel (Conversas)'}`,
   ].filter(Boolean).join('\n');
   if (lead) {
     lead.closingBrief = brief;
     if (['novo', 'em_contato'].includes(lead.stage)) crm.update({ name: 'IA', role: 'admin' }, lead.id, { stage: 'proposta' });
     crm.addNote({ name: 'IA', role: 'admin' }, lead.id, text.replace(/\*/g, ''));
   }
-  let quem = 'o Marcos';
-  if (closer?.whatsapp && wa.status === 'connected') {
-    await wa.send(closer.whatsapp, { text, typing: false }).catch(() => {});
-    quem = closer.name.split(' ')[0];
-  } else {
-    await notifyAdmins(text);
-    const extra = normalizePhone(store.settings.agent?.handoffNotifyPhone);
-    if (extra && wa.status === 'connected') await wa.send(extra, { text, typing: false }).catch(() => {});
-    if (closer) quem = closer.name.split(' ')[0];
-  }
+  if (closer?.whatsapp && wa.status === 'connected') await wa.send(closer.whatsapp, { text, typing: false }).catch(() => {});
+  else await notifyAdmins(text);
   notify('crm', { id: lead?.id });
-  return { ok: true, quem, instrucao: `Diga ao cliente, em uma frase calorosa, que ${quem} vai finalizar com ele por aqui em instantes. Não prometa desconto nem condição especial.` };
+  return { ok: true, quem: closer?.name?.split(' ')[0] || 'o escritório', instrucao: `Diga ao cliente exatamente: "${say}" Depois continue disponível: se ele voltar a escrever, responda normalmente.` };
+};
+
+// Contratação, parcerias e assuntos de negócio vão direto para o WhatsApp do Marcos.
+agent.notifyOwner = async (conv, args, { dryRun } = {}) => {
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: 'Simulação: no atendimento real o aviso vai para o WhatsApp do Marcos. Diga que passou o assunto direto para o Marcos e que ele retorna.' };
+  const who = args.nome || conv.name || (conv.phone ? `+${conv.phone}` : conv.username ? `@${conv.username}` : 'Contato');
+  const preview = chatPreview(conv, 6);
+  const text = [
+    `📌 *Assunto para o Marcos: ${args.assunto || 'outro'}*`,
+    `👤 ${who}${conv.phone ? ` · https://wa.me/${conv.phone}` : ''}`,
+    `📝 ${args.resumo || ''}`,
+    preview ? `\n💬 *Prévia da conversa:*\n${preview}` : '',
+  ].filter(Boolean).join('\n');
+  const owner = normalizePhone(store.settings.crm?.ownerPhone);
+  if (owner && wa.status === 'connected') await wa.send(owner, { text, typing: false }).catch(() => {});
+  else await notifyAdmins(text);
+  store.addLog({ type: 'system', message: `📌 ${who}: ${args.assunto} → Marcos` });
+  return { ok: true, instrucao: 'Diga, em uma frase, que passou o assunto direto para o Marcos e que ele mesmo retorna. Continue disponível.' };
 };
 
 // Visitas ao escritório: a atendente registra, o Marcos confirma pelo painel.
@@ -450,6 +514,8 @@ wa.on('ownerMessage', (msg) => {
   agent.ownerReplied({ key: msg.jid, phone: msg.phone, text: msg.text });
 });
 wa.on('history', (msgs) => pending.ingestHistory(msgs));
+// A cada 5 minutos, responde quem ficou esperando (agente fora do ar, erro da IA, mensagem perdida).
+setInterval(() => pending.autoAnswer(), 5 * 60_000).unref();
 wa.on('sent', ({ to, jid }) => {
   pending.resolve(jid);
   pending.resolve(to);
@@ -543,7 +609,7 @@ app.post('/webhook', (req, res) => {
 if (PANEL_PASSWORD) {
   const expected = Buffer.from(`${PANEL_USER}:${PANEL_PASSWORD}`);
   // Páginas públicas (site de imóveis, portal do indicador, recibos) ficam fora da senha extra.
-  const PUBLIC = /^\/(imoveis|parceiros|r\/|recibo\/|ficha\/|termo\/|etapas\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
+  const PUBLIC = /^\/(imoveis|parceiros|r\/|recibo\/|ficha\/|termo\/|etapas\/|orcamento\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
   app.use((req, res, next) => {
     if (PUBLIC.test(req.path)) return next();
     const [scheme, encoded] = (req.headers.authorization || '').split(' ');
@@ -1161,6 +1227,8 @@ app.post('/api/agent/enable', (req, res) => {
   const patch = { enabled: req.body.enabled !== false };
   if (req.body.audience === 'all') patch.audience = 'all';
   store.updateSettings({ agent: patch });
+  // Ligou a IA: já começa a responder quem estava esperando.
+  setTimeout(() => pending.autoAnswer({ minAgeMs: 0 }), 2000);
   res.json(agentStatus());
 });
 // Testa a chave e o modelo da IA na hora, mostrando o erro exato.
@@ -1522,6 +1590,25 @@ app.post('/api/leads/:id/payplan', async (req, res) => {
   const r = await sendPaymentPlan({ convKey: req.body.send ? key : null, lead, packageName: req.body.packageName || lead.interest, people: req.body.people || lead.people, adults: req.body.adults });
   if (r.erro) throw httpError(400, r.erro);
   res.json({ text: r.text });
+});
+// Orçamentos: público (PDF pelo link) e pelo painel.
+app.get('/orcamento/:id', (req, res) => {
+  const q = quotes.get(req.params.id, req.query.t);
+  if (!q || !fs.existsSync(quotes.file(q))) return res.status(404).send('Orçamento não encontrado');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${q.number}.pdf"`);
+  res.sendFile(quotes.file(q));
+});
+app.get('/api/quotes', (_req, res) => {
+  res.json(quotes.list.slice(-100).reverse().map((q) => ({ id: q.id, number: q.number, client: q.client, total: q.plan.total, items: q.items.map((r) => ({ name: r.name, qty: r.qty })), issued: q.issued, validUntil: q.validUntil, leadId: q.leadId, url: `/orcamento/${q.id}?t=${quotes.token(q.id)}` })));
+});
+app.post('/api/quotes', async (req, res) => {
+  const b = req.body || {};
+  const lead = b.leadId ? crm.byId(b.leadId) : null;
+  const key = b.send && lead ? (lead.whatsappKey || lead.conversationKey || lead.phone || null) : null;
+  if (b.send && !key) throw httpError(400, 'Escolha um cliente com WhatsApp para enviar');
+  const q = await sendQuote({ convKey: key, lead, items: b.items, adults: b.adults, client: b.client || lead?.name, consultant: req.user?.name?.split(' ')[0], start: b.start });
+  res.json({ number: q.number, total: q.plan.total, sent: Boolean(key), text: quotes.message(q, quoteLink(q)), url: `/orcamento/${q.id}?t=${quotes.token(q.id)}` });
 });
 // Visitas ao escritório.
 app.get('/api/visits', (_req, res) => res.json([...visits.list].reverse().map((v) => ({ ...v, leadCode: v.leadId ? crm.byId(v.leadId)?.code || '' : '' }))));

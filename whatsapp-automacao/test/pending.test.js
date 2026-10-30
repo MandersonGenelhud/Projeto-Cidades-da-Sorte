@@ -102,3 +102,18 @@ test('limite gratuito da IA: a fila pausa e ninguém recebe desculpa genérica',
   assert.equal(inbox.list().length, 2); // os outros continuam esperando
   assert.ok(store.data.logs.some((l) => /fila de clientes esperando foi pausada/.test(l.message)));
 });
+
+test('responde sozinho quem ficou esperando, até 7 dias, sem atropelar quem acabou de escrever', async () => {
+  const { store, wa, inbox } = setup();
+  const now = Date.now();
+  inbox.items['a@s.whatsapp.net'] = { jid: 'a@s.whatsapp.net', phone: '595981111111', name: 'A', texts: ['oi'], at: now - 10 * 60000, channel: 'whatsapp' };
+  inbox.items['b@s.whatsapp.net'] = { jid: 'b@s.whatsapp.net', phone: '595982222222', name: 'B', texts: ['oi'], at: now - 30000, channel: 'whatsapp' }; // acabou de escrever
+  inbox.items['c@s.whatsapp.net'] = { jid: 'c@s.whatsapp.net', phone: '595983333333', name: 'C', texts: ['oi'], at: now - 8 * 86_400_000, channel: 'whatsapp' }; // mais de 7 dias
+  store.updateSettings({ agent: { autoAnswerPending: false } });
+  assert.deepEqual(inbox.autoAnswer(), { queued: 0, blocked: 0 });
+  store.updateSettings({ agent: { autoAnswerPending: true } });
+  const r = inbox.autoAnswer();
+  assert.equal(r.queued, 1);
+  await waitFor(() => !inbox.running && wa.sent.length === 1);
+  assert.equal(wa.sent[0].to, 'a@s.whatsapp.net');
+});

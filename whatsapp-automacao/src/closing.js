@@ -232,7 +232,10 @@ export class Closing {
     const canPix = this.payments && pay.enabled !== false && Boolean(pay.pixKey || pay.mercadopago?.accessToken) && this.payments.reservationAmount(1) > 0;
     if (canPix) {
       const amount = this.payments.reservationAmount(Number(f.data.adultos) || 1);
-      await this.#say(f, `Agora, para garantir a sua reserva, segue o Pix de ${money(amount)} 👇`);
+      const base = Number(pay.reservation?.base ?? 1000);
+      const perAdult = Number(pay.reservation?.perAdult ?? 800);
+      const adults = Number(f.data.adultos) || 1;
+      await this.#say(f, `Agora, para garantir a sua reserva, segue o Pix de ${money(amount)} 👇\n• ${money(base)}: sinal de contratação dos serviços\n• ${money(perAdult * adults)} (${money(perAdult)} × ${adults} adulto${adults > 1 ? 's' : ''}): certidões da Interpol e da Informática da Polícia Nacional do Paraguai, sem as quais não conseguimos iniciar o processo migratório`);
       const p = await this.payments.create({
         convKey: f.convKey,
         leadId: f.leadId,

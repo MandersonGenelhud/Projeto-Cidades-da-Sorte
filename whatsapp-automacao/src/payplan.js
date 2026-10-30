@@ -32,13 +32,15 @@ const cents = (v) => Math.round(Number(v || 0) * 100) / 100;
 export const money = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /**
- * price: valor do pacote por pessoa; people: pessoas no processo; adults: adultos (taxa das certidões).
+ * price: valor do pacote por pessoa; people: pessoas no processo; adults: adultos (taxa das certidões);
+ * total: valor fechado (quando o orçamento mistura pacotes), no lugar de price × people.
  * Devolve { total, entry, balance, parcels: [{ label, pct, value, when, note }] }. As parcelas somam o saldo exato.
  */
-export function paymentPlan({ price, people = 1, adults = people, base = 1000, perAdult = 800, steps = DEFAULT_STEPS, start = todayIso() }) {
+export function paymentPlan({ price, people = 1, adults = people, base = 1000, perAdult = 800, steps = DEFAULT_STEPS, start = todayIso(), total: fixedTotal = null }) {
   const p = Math.max(1, Math.round(Number(people) || 1));
-  const a = Math.max(1, Math.min(p, Math.round(Number(adults) || p)));
-  const total = cents(Number(price) * p);
+  // Com total fixo (orçamento com pacotes diferentes), os adultos não ficam presos ao número de pessoas.
+  const a = Math.max(1, fixedTotal != null ? Math.round(Number(adults) || p) : Math.min(p, Math.round(Number(adults) || p)));
+  const total = cents(fixedTotal != null ? fixedTotal : Number(price) * p);
   const entry = cents(Number(base) + Number(perAdult) * a);
   const balance = cents(Math.max(0, total - entry));
   let rest = balance;
@@ -50,7 +52,7 @@ export function paymentPlan({ price, people = 1, adults = people, base = 1000, p
     return { label: `${i + 1}ª parcela`, pct: Number(s.pct), value, days, when: s.when || `Com ${days} dias`, note: s.note, date: due.date, weekday: due.weekday, moved: due.moved };
   });
   const st = dueDate(start, 0);
-  return { total, entry, balance, people: p, adults: a, start, startWeekday: WEEKDAYS[new Date(`${start}T12:00:00Z`).getUTCDay()], startMoved: st.moved, parcels };
+  return { total, entry, base: cents(base), perAdult: cents(perAdult), balance, people: p, adults: a, start, startWeekday: WEEKDAYS[new Date(`${start}T12:00:00Z`).getUTCDay()], startMoved: st.moved, parcels };
 }
 
 /** Mensagem de WhatsApp com o passo a passo (fluxograma em texto). */
@@ -58,7 +60,7 @@ export function planMessage(plan, { packageName = '', link = '' } = {}) {
   const lines = [
     `📋 *Seu pagamento, passo a passo*${packageName ? `\n${packageName} · ${plan.people} pessoa${plan.people > 1 ? 's' : ''}` : ''}`,
     '',
-    `✍️ *Na assinatura do termo${plan.start ? ` · ${plan.startWeekday.replace('-feira', '')}, ${fmtBr(plan.start)}` : ''}*\nEntrada: ${money(plan.entry)}`,
+    `✍️ *Na assinatura do termo${plan.start ? ` · ${plan.startWeekday.replace('-feira', '')}, ${fmtBr(plan.start)}` : ''}*\nEntrada: ${money(plan.entry)}${plan.base !== undefined ? `\n• ${money(plan.base)}: sinal de contratação dos serviços\n• ${money(plan.perAdult * plan.adults)} (${money(plan.perAdult)} × ${plan.adults} adulto${plan.adults > 1 ? 's' : ''}): certidões da Interpol e da Informática da Polícia Nacional do Paraguai, sem as quais não conseguimos iniciar o processo` : ''}`,
     ...plan.parcels.flatMap((x, i) => ['⬇️', `${i === plan.parcels.length - 1 ? '🪪' : '✈️'} *${x.date ? `${dayLabel(x)} · ` : ''}${x.when.toLowerCase()}*\n${x.label}: ${money(x.value)}\n${x.note}`]),
     '',
     `💰 *Valor total: ${money(plan.total)}*`,

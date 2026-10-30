@@ -44,7 +44,7 @@
           <h1>Seu pagamento, passo a passo</h1>
           <div class="chips"><span>${esc(d.packageName)}</span><span>${p.people} pessoa${p.people > 1 ? 's' : ''}</span>${p.adults !== p.people ? `<span>${p.adults} adulto${p.adults > 1 ? 's' : ''}</span>` : ''}</div>
           <div class="plan">
-            <div class="step first"><div class="dot">✍️</div><div><div class="when">Na assinatura do termo${p.start ? ` · ${dia(p.start)}` : ''}</div><div class="val">${brl(p.entry)}</div><div class="note">Entrada: garante a sua reserva e as certidões. Já é descontada do total.</div></div></div>
+            <div class="step first"><div class="dot">✍️</div><div><div class="when">Na assinatura do termo${p.start ? ` · ${dia(p.start)}` : ''}</div><div class="val">${brl(p.entry)}</div><div class="note">${p.base !== undefined ? `${brl(p.base)} de sinal de contratação dos serviços + ${brl(p.perAdult * p.adults)} (${brl(p.perAdult)} por adulto) das certidões da Interpol e da Informática da Polícia Nacional do Paraguai, sem as quais não conseguimos iniciar o processo. ` : ''}Já é descontada do total.</div></div></div>
             ${p.parcels.map((x, i) => `<div class="step"><div class="dot">${icon(i)}</div><div><div class="when">${x.date ? `${dia(x.date)} · ` : ''}${esc(x.when)}</div><div class="val">${brl(x.value)}</div><div class="note">${esc(x.label)} (${x.pct}% do saldo) · ${esc(x.note)}</div></div></div>`).join('')}
           </div>
           <div class="total"><span>Valor total</span><b>${brl(p.total)}</b></div>

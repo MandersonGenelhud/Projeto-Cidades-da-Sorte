@@ -1097,6 +1097,17 @@ $('#btnPendingAll').addEventListener('click', () => {
   const all = boxes.every((c) => c.checked);
   boxes.forEach((c) => (c.checked = !all));
 });
+$('#btnPendingEveryone').addEventListener('click', async () => {
+  try {
+    const r = await api('/api/pending/reply', { method: 'POST', body: { all: true } });
+    let msg = `${r.queued} cliente(s) na fila: a IA responde um por vez`;
+    if (r.blocked) msg += `. ${r.blocked} não podem ser respondidos agora (modo de teste ou Instagram com mais de 24h)`;
+    toast(msg, Boolean(r.blocked && !r.queued));
+    loadPending();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 $('#btnPendingReply').addEventListener('click', async () => {
   const jids = markedPending();
   if (!jids.length) return toast('Marque os clientes que o agente deve responder');

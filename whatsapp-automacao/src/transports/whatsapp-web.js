@@ -86,7 +86,8 @@ export class WhatsAppClient extends EventEmitter {
       logger: this.logger,
       browser: Browsers.macOS('Desktop'),
       markOnlineOnConnect: false,
-      syncFullHistory: false,
+      // Pede ao celular o histórico completo: dele saem os clientes que ficaram sem resposta (até 7 dias).
+      syncFullHistory: true,
     });
     this.sock = sock;
 

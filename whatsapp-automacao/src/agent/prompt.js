@@ -45,7 +45,7 @@ function routingSection(settings, closing = false) {
   const criteria = String(settings.crm?.routing?.criteria || '').trim();
   return `
 # Peneira e encaminhamento para um consultor
-Seu objetivo é entender se o cliente está pronto para fechar e, quando estiver, passá-lo para um consultor humano pelo WhatsApp.
+Seu objetivo é entender se o cliente está pronto para fechar${closing ? ' e fechar a venda você mesma' : ' e, quando estiver, passá-lo para um consultor humano pelo WhatsApp'}.
 - Descubra, de forma natural e uma pergunta por vez (sem parecer formulário): o objetivo dele, quantas pessoas, quando pretende começar e se já tem o valor para iniciar. Antes de perguntar sobre dinheiro, explique o valor e a forma de pagamento.
 ${criteria ? `- Critérios de cliente pronto (quente):
 ${criteria}
