@@ -1002,6 +1002,7 @@ const SELLER_ROUTES = [
   ['GET', /^\/realty\//],
   ['PATCH', /^\/realty\/developments\/[^/]+\/lots\/[^/]+$/],
   ['POST', /^\/conversations\/[^/]+\/(reply|handoff)$/],
+  ['*', /^\/conversations\/[^/]+\/closing(\/[a-z]+)?$/],
   ['*', /^\/security\/(2fa\/(setup|enable|disable)|logout-all)$/],
   ['*', /^\/quotes(\/|$)/],
   ['POST', /^\/closing\/link$/],
@@ -2066,6 +2067,86 @@ app.get('/api/quotes/:id/contract.pdf', (req, res) => {
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="Contrato CT-${q.number.replace(/^ORC-/, '')}.pdf"`);
   res.sendFile(contractFile(q));
+});
+// ---------- Fechamento pela conversa: cada etapa num botão (sai do WhatsApp da própria conversa) ----------
+function closingContext(user, key) {
+  if (!canSeeConv(user, key)) throw httpError(403, 'Esta conversa é de outro vendedor');
+  const conv = agent.conversation(key, { create: false });
+  if (!conv) throw httpError(404, 'Conversa não encontrada');
+  const lead = crm.findForConversation({ key, phone: conv.phone, username: conv.username })
+    || crm.ensureFromConversation({ key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+  const form = (lead && closing.forLead(lead.id)) || closing.forConversation(key) || null;
+  const quote = quotes.list.filter((q) => q.convKey === key || (lead && q.leadId === lead.id) || (conv.phone && q.phone && samePhone(q.phone, conv.phone))).at(-1) || null;
+  const pay = (store.data.payments || []).filter((x) => x.convKey === key || (lead && x.leadId === lead.id)).at(-1) || null;
+  return { conv, lead, form, quote, pay };
+}
+const sayTo = async (conv, text, media) => {
+  await wa.send(conv.key, { text, ...(media && !String(conv.key).startsWith('ig:') ? { media } : {}), typing: false });
+  agent.remember(conv, 'assistant', media ? `${text} [arquivo enviado]` : text);
+};
+app.get('/api/conversations/:key/closing', (req, res) => {
+  const { form, quote, pay } = closingContext(req.user, req.params.key);
+  res.json({
+    quote: quote ? { number: quote.number, total: quote.plan.total } : null,
+    ficha: form ? form.status : null,
+    pix: pay ? pay.status : null,
+    contract: Boolean(quote?.contract),
+    term: form?.term?.status || null,
+    paid: pay?.status === 'paid',
+    admin: req.user.role === 'admin',
+  });
+});
+app.post('/api/conversations/:key/closing/:action', async (req, res) => {
+  const { conv, lead, form, quote, pay } = closingContext(req.user, req.params.key);
+  const act = req.params.action;
+  const first = (conv.name || lead?.name || '').split(' ')[0];
+  const filled = form?.status === 'preenchida' ? form.data : null;
+  if (act === 'quote') {
+    if (!quote) throw httpError(400, 'Ainda não há orçamento para este cliente. Faça na aba Orçamentos com o WhatsApp dele.');
+    await sayTo(conv, quotes.message(quote, quoteLink(quote)), { path: quotes.file(quote), mimetype: 'application/pdf', fileName: `${quote.number}.pdf` });
+  } else if (act === 'ficha') {
+    if (!publicBase()) throw httpError(400, 'O sistema ainda não tem endereço na internet (aba Conexões → criar endereço, ou a VPS).');
+    const f = closing.createForm({ convKey: conv.key, lead, servico: quote ? quote.items.map((r) => `${r.name} × ${r.qty}`).join(', ') : '' });
+    await sayTo(conv, fichaMessage(first, closing.formUrl(f)));
+  } else if (act === 'contract') {
+    if (!quote) throw httpError(400, 'Faça primeiro o orçamento deste cliente (aba Orçamentos).');
+    const client = filled ? pickClient(filled) : quote.contract?.client;
+    if (!client?.nome) throw httpError(400, 'O cliente ainda não preencheu a ficha. Envie a ficha, ou gere o contrato na aba Orçamentos colando os dados dele.');
+    fs.mkdirSync(contractDir, { recursive: true });
+    fs.writeFileSync(contractFile(quote), contractPdf({ client, quote, cfg: store.settings.contract || {} }));
+    quote.contract = { client, at: new Date().toISOString(), by: req.user.name };
+    store.save();
+    const ct = `CT-${quote.number.replace(/^ORC-/, '')}`;
+    await sayTo(conv, `📄 ${first ? `${first}, s` : 'S'}egue o seu contrato de prestação de serviços (${ct}), já com os seus dados e as condições do orçamento ${quote.number}. Ele passa a valer após a confirmação do pagamento da entrada. Qualquer dúvida, me chama aqui.`, { path: contractFile(quote), mimetype: 'application/pdf', fileName: `Contrato ${ct}.pdf` });
+    securityEvent('contrato_gerado', req.user, req, `${ct} · ${client.nome}`);
+  } else if (act === 'pix') {
+    const c = store.settings.payments || {};
+    if (c.enabled === false || !(c.pixKey || c.mercadopago?.accessToken)) throw httpError(400, 'O Pix não está configurado (Configurações → Pagamentos).');
+    const adults = Number(filled?.adultos) || quote?.plan?.adults || lead?.people || 1;
+    const p = await payments.create({ convKey: conv.key, leadId: lead?.id || null, amount: payments.reservationAmount(adults), description: `${c.reservation?.description || 'reserva'} - ${adults} adulto(s)`, payerName: filled?.nome || '', payerDoc: filled?.cpf || '', by: req.user.name });
+    if (form) { form.paymentId = p.id; store.save(); }
+    await payments.sendCharge(p);
+    agent.remember(conv, 'assistant', `[Pix de ${p.amount} enviado: QR Code e código copia e cola]`);
+  } else if (act === 'term') {
+    if (!filled) throw httpError(400, 'O termo usa os dados da ficha: o cliente precisa preencher a ficha antes.');
+    await closing.sendTerm(form);
+  } else if (act === 'plan') {
+    const pkg = quote?.items?.[0]?.name || lead?.interest;
+    const r = await sendPaymentPlan({ convKey: conv.key, lead, packageName: pkg, people: quote?.plan?.people || lead?.people || 1, adults: quote?.plan?.adults });
+    if (r.erro) throw httpError(400, r.erro);
+  } else if (act === 'paid') {
+    if (!pay || pay.status === 'paid') throw httpError(400, pay ? 'Este Pix já está confirmado e o recibo já foi enviado.' : 'Ainda não há Pix gerado para este cliente.');
+    if (req.user.role === 'admin') {
+      await payments.confirm(pay.id, { by: req.user.name, userId: req.user.id }); // manda o recibo ao cliente
+    } else {
+      await notifyAdmins(`💰 *${req.user.name} informa que o cliente pagou*\n👤 ${conv.name || lead?.name || ''} · +${conv.phone || ''}\nPix de R$ ${pay.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\nConfira o extrato e confirme em *Pagamentos*: o recibo sai sozinho para o cliente.`);
+      if (lead) crm.addNote(req.user, lead.id, '💰 Vendedor informou que o cliente pagou o Pix (aguardando confirmação do administrador)');
+    }
+  } else {
+    throw httpError(400, 'Ação desconhecida');
+  }
+  notify('crm', { id: lead?.id });
+  res.json({ ok: true });
 });
 app.get('/api/quotes/:id/pdf', (req, res) => {
   const q = quotes.list.find((x) => x.id === req.params.id);

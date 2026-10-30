@@ -1246,6 +1246,7 @@ async function openConversation(key) {
       <button class="btn small" id="btnHandoff">${c.handoff ? '🤖 Devolver para o robô' : '🙋 Assumir conversa'}</button>
       <button class="btn small danger" id="btnConvClear" title="Apagar memória" data-admin>🗑️</button>
     </div>`;
+  renderClosingBar(key).catch(() => {});
   $('#convChat').innerHTML = c.messages.map((m) => chatBubble(m.role, m.content, m.at)).join('');
   $('#formConvReply').hidden = false;
   scrollDown($('#convChat'));
@@ -1607,3 +1608,41 @@ function applyTheme(t) {
 }
 applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 $('#btnTheme')?.addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+
+// ---------- Fechamento na conversa: um botão por etapa, com o que já foi feito ----------
+const CLOSE_STEPS = [
+  { act: 'quote', label: 'Orçamento', icon: '🧾', done: (s) => Boolean(s.quote), info: (s) => s.quote?.number || 'faça na aba Orçamentos', confirm: 'Enviar o orçamento (PDF) para o cliente?' },
+  { act: 'ficha', label: 'Ficha de dados', icon: '📝', done: (s) => s.ficha === 'preenchida', info: (s) => (s.ficha === 'preenchida' ? 'preenchida' : s.ficha ? 'enviada, aguardando' : 'não enviada'), confirm: 'Enviar o link da ficha para o cliente preencher?' },
+  { act: 'pix', label: 'Pix da entrada', icon: '💳', done: (s) => Boolean(s.pix), info: (s) => (s.paid ? 'pago' : s.pix ? 'enviado' : 'não enviado'), confirm: 'Gerar e enviar o Pix da entrada para o cliente?' },
+  { act: 'contract', label: 'Contrato', icon: '📄', done: (s) => s.contract, info: (s) => (s.contract ? 'enviado' : 'usa a ficha + orçamento'), confirm: 'Gerar o contrato com os dados do cliente e enviar o PDF para ele?' },
+  { act: 'term', label: 'Termo p/ assinar', icon: '✍️', done: (s) => s.term === 'assinado', info: (s) => (s.term === 'assinado' ? 'assinado' : s.term ? 'enviado' : 'após a ficha'), confirm: 'Enviar o termo da reserva para o cliente assinar no celular?' },
+  { act: 'paid', label: 'Pagou → recibo', icon: '✅', done: (s) => s.paid, info: (s) => (s.paid ? 'recibo enviado' : s.admin ? 'confirma e manda o recibo' : 'avisa o Marcos'), confirm: 'O cliente pagou? Confirme no extrato antes.' },
+  { act: 'plan', label: 'Etapas de pagamento', icon: '📋', done: () => false, info: () => 'datas e valores', confirm: 'Enviar o passo a passo do pagamento?' },
+];
+async function renderClosingBar(key) {
+  let bar = $('#convClosing');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'convClosing';
+    bar.className = 'close-bar';
+    $('#convHeader').after(bar);
+  }
+  const s = await api(`/api/conversations/${encodeURIComponent(key)}/closing`);
+  bar.innerHTML = `<span class="close-title">Fechamento</span>${CLOSE_STEPS.map((st) => `<button type="button" class="close-step ${st.done(s) ? 'done' : ''}" data-close="${st.act}" title="${esc(st.confirm)}">
+      <span class="ci">${st.done(s) ? '✓' : st.icon}</span><span><b>${st.label}</b><small>${esc(st.info(s))}</small></span></button>`).join('')}`;
+  bar.onclick = async (e) => {
+    const b = e.target.closest('[data-close]');
+    if (!b) return;
+    const st = CLOSE_STEPS.find((x) => x.act === b.dataset.close);
+    if (!confirm(st.confirm)) return;
+    b.disabled = true;
+    try {
+      await api(`/api/conversations/${encodeURIComponent(key)}/closing/${st.act}`, { method: 'POST' });
+      toast(`${st.label}: enviado`);
+      openConversation(key);
+    } catch (err) {
+      toast(err.message, true);
+      b.disabled = false;
+    }
+  };
+}

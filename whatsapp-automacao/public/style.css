@@ -968,3 +968,17 @@ tbody tr:hover td { background: color-mix(in srgb, var(--blue) 6%, transparent);
 .contract-paste summary { cursor: pointer; font-weight: 600; }
 .contract-paste textarea { width: 100%; margin: 10px 0 8px; }
 @media (max-width: 640px) { .contract-form { grid-template-columns: 1fr 1fr; } .contract-form .wide { grid-column: 1 / -1; } }
+.close-bar { display: flex; gap: 8px; align-items: stretch; overflow-x: auto; padding: 10px 2px 12px; margin-bottom: 6px; border-bottom: 1px solid var(--border); scrollbar-width: thin; }
+.close-title { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); align-self: center; padding-right: 4px; flex: none; }
+.close-step { flex: none; display: flex; gap: 8px; align-items: center; text-align: left; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--field); color: var(--text); cursor: pointer; font: inherit; transition: border-color .15s, background .15s, transform .1s; }
+.close-step:hover { border-color: var(--blue); background: var(--panel-solid); }
+.close-step:active { transform: scale(.98); }
+.close-step:disabled { opacity: .5; cursor: wait; }
+.close-step b { display: block; font-size: 13px; }
+.close-step small { display: block; font-size: 11.5px; color: var(--muted); }
+.close-step .ci { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--green-soft); font-size: 14px; flex: none; }
+.close-step.done { border-color: color-mix(in srgb, var(--green) 45%, transparent); }
+.close-step.done .ci { background: var(--green); color: #fff; font-weight: 700; }
+.conv-layout > * { min-width: 0; }
+.close-bar { max-width: 100%; }
+@media (min-width: 901px) { .close-bar { flex-wrap: wrap; overflow-x: visible; } }
