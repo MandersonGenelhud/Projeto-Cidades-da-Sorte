@@ -107,9 +107,9 @@ export class WhatsAppClient extends EventEmitter {
       auth: state,
       version,
       logger: this.logger,
-      browser: Browsers.macOS('Desktop'),
+      browser: (this.currentBrowser = this.#browser(state.creds?.registered)),
       markOnlineOnConnect: false,
-      // Pede ao celular o histórico completo: dele saem os clientes que ficaram sem resposta (até 7 dias).
+      // Pede ao celular o histórico completo: dele saem os clientes que ficaram sem resposta.
       syncFullHistory: true,
     });
     this.sock = sock;
@@ -126,6 +126,7 @@ export class WhatsAppClient extends EventEmitter {
       if (connection === 'open') {
         this.failures = 0;
         this.lastError = null;
+        this.#saveBrowser();
         const id = sock.user?.id;
         this.#setStatus('connected', {
           qr: null,
@@ -139,6 +140,8 @@ export class WhatsAppClient extends EventEmitter {
         // 515 = o WhatsApp pede para reiniciar logo depois de ler o QR Code (normal).
         const normal = code === DisconnectReason.restartRequired;
         if (!normal && !wasUp) this.failures++;
+        // 428 antes do QR Code: o WhatsApp recusou a identificação. Depois de 3 tentativas, usa a que sempre gera QR.
+        if (code === 428 && !wasUp && !state.creds?.registered && this.failures >= 3) this.fallback = true;
         this.lastError = normal ? null : describeClose(code, lastDisconnect?.error?.message);
         this.#setStatus('disconnected', { qr: null, me: null });
         if (this.lastError && !loggedOut) this.emit('log', { type: 'error', message: `WhatsApp: ${this.lastError}` });
@@ -194,6 +197,29 @@ export class WhatsAppClient extends EventEmitter {
   #parseIncoming(msg) {
     if (!msg.message || msg.key.fromMe) return null;
     return normalizeMessage(msg);
+  }
+
+  /**
+   * Como o sistema se apresenta ao WhatsApp. Sessões já conectadas mantêm a identificação com que foram pareadas;
+   * pareamentos novos usam Windows Desktop (o macOS Desktop passou a ser recusado com 428 antes do QR Code).
+   */
+  #browser(registered) {
+    if (registered) {
+      try {
+        const saved = JSON.parse(fs.readFileSync(path.join(this.authDir, 'browser.json'), 'utf8'));
+        if (Array.isArray(saved) && saved.length === 3) return saved;
+      } catch { /* sessão antiga, pareada como macOS Desktop */ }
+      return Browsers.macOS('Desktop');
+    }
+    // Plano B: identificação de navegador (sempre gera QR; o celular manda menos histórico).
+    return this.fallback ? Browsers.windows('Chrome') : Browsers.windows('Desktop');
+  }
+
+  #saveBrowser() {
+    try {
+      const file = path.join(this.authDir, 'browser.json');
+      if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify(this.currentBrowser));
+    } catch { /* não é essencial */ }
   }
 
   #clearAuth() {

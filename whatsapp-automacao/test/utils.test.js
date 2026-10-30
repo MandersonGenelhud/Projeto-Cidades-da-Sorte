@@ -50,3 +50,16 @@ test('queda do WhatsApp explicada em português no painel', async () => {
   assert.match(describeClose(440), /outro computador ou a VPS/);
   assert.match(describeClose(999, 'xyz'), /conexão caiu \(código 999\): xyz/);
 });
+
+test('correção da biblioteca do WhatsApp: troca a identificação WIN32 aposentada por WIN_HYBRID', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { patchBaileys } = await import('../src/patch-baileys.js');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pb-')), 'validate-connection.js');
+  fs.writeFileSync(file, "const PLATFORM_MAP = {\n    'Mac OS': proto.ClientPayload.WebInfo.WebSubPlatform.DARWIN,\n    Windows: proto.ClientPayload.WebInfo.WebSubPlatform.WIN32\n};");
+  assert.equal(patchBaileys(file), true);
+  assert.match(fs.readFileSync(file, 'utf8'), /Windows: proto\.ClientPayload\.WebInfo\.WebSubPlatform\.WIN_HYBRID/);
+  assert.equal(patchBaileys(file), true, 'rodar de novo não estraga');
+  assert.equal(patchBaileys(path.join(os.tmpdir(), 'nao-existe.js')), false);
+});

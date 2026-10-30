@@ -2,6 +2,7 @@
 // Fuso do negócio: agenda, horários e "hoje" do agente usam este fuso.
 process.env.TZ ||= 'America/Sao_Paulo';
 
+import './patch-baileys.js'; // antes da biblioteca do WhatsApp carregar
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';

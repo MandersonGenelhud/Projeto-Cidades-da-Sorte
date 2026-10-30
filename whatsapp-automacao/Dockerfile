@@ -6,6 +6,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY src ./src
 COPY public ./public
+RUN node src/patch-baileys.js
 RUN mkdir -p /app/data && chown -R node:node /app/data
 VOLUME ["/app/data"]
 EXPOSE 3000
