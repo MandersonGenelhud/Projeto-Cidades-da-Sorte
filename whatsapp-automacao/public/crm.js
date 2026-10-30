@@ -168,6 +168,26 @@ function renderHandoffs() {
     </tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum cliente com vendedor neste período.</td></tr>'}</tbody>`;
 }
 $('#handoffFilter').addEventListener('change', renderHandoffs);
+// Cada cliente que a IA passou para um humano: resumo no WhatsApp do vendedor dele ou do próprio Marcos.
+async function digestProgress() {
+  const r = await api('/api/handoffs/digest').catch(() => null);
+  if (!r) return;
+  $('#digestStatus').textContent = r.running ? `📤 Enviando resumos: ${r.done} de ${r.total}${r.failed ? ` (${r.failed} com erro)` : ''}… pode deixar esta tela.` : r.total ? `✅ Último envio: ${r.done} de ${r.total} resumos enviados.` : '';
+  if (r.running) setTimeout(digestProgress, 5000);
+}
+$('#btnDigest').addEventListener('click', async () => {
+  try {
+    const r = await api('/api/handoffs/digest?days=30');
+    if (!r.count) return toast('Nenhum cliente encaminhado esperando resumo nos últimos 30 dias');
+    const lines = r.groups.map((g) => `• ${g.name}${g.phone ? ` (+${g.phone})` : ' (SEM WHATSAPP: não recebe)'}: ${g.count} cliente(s)`).join('\n');
+    if (!confirm(`Enviar o resumo de ${r.count} cliente(s), uma mensagem por cliente, com o que já foi conversado e como começar?\n\n${lines}\n\nOs vendedores precisam estar com o WhatsApp cadastrado na aba Equipe. Clientes sem vendedor vão para o WhatsApp do Marcos.`)) return;
+    await api('/api/handoffs/digest', { method: 'POST', body: { days: 30 } });
+    toast('Envio começou: uma mensagem a cada 6 a 12 segundos');
+    digestProgress();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 $('#handoffTable').addEventListener('click', (e) => {
   const id = e.target.closest('tr[data-lead]')?.dataset.lead;
   if (id) openLead(id);

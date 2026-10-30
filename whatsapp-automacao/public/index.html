@@ -244,6 +244,8 @@
             <h2>📋 Acompanhamento dos clientes com os vendedores</h2>
             <p class="hint">Quem pegou cada cliente, quando, em que pé está, o que está travando, por que não fechou e quando é o retorno. Clique numa linha para ver a conversa e o histórico.</p>
           </div>
+          <div class="row">
+          <button type="button" class="btn primary small" id="btnDigest">📤 Reenviar encaminhados (vendedores e Marcos)</button>
           <select id="handoffFilter">
             <option value="">Todos</option>
             <option value="open">Em aberto</option>
@@ -251,7 +253,9 @@
             <option value="ganho">Fechados</option>
             <option value="perdido">Perdidos</option>
           </select>
+          </div>
         </div>
+        <p class="hint" id="digestStatus"></p>
         <div class="table-wrap"><table id="handoffTable" class="clickable"></table></div>
       </div>
       <div class="grid2">

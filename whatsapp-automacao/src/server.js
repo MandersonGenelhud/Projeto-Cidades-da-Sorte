@@ -33,6 +33,7 @@ import { humanizeConfig, splitIntoBubbles } from './humanize.js';
 import { Visits } from './visits.js';
 import { PayPlans, planMessage } from './payplan.js';
 import { Quotes } from './quotes.js';
+import { collectHandoffs, digestMessage } from './digest.js';
 import { Updater, RESTART_EXIT_CODE } from './updater.js';
 import { Auth, publicUser } from './auth.js';
 import { Crm, STAGES } from './crm.js';
@@ -42,7 +43,7 @@ import { createCalendar, toDateStr } from './agent/calendar.js';
 import { Agent, STRESS_TESTS } from './agent/agent.js';
 import { buildSystemPrompt } from './agent/prompt.js';
 import { PRESETS, presetSettings } from './agent/presets.js';
-import { csvToContacts, normalizePhone, renderTemplate, samePhone, uid } from './utils.js';
+import { csvToContacts, normalizePhone, randomBetween, renderTemplate, samePhone, sleep, uid } from './utils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(ROOT, 'data'));
@@ -1645,6 +1646,56 @@ app.post('/api/leads/:id/payplan', async (req, res) => {
   const r = await sendPaymentPlan({ convKey: req.body.send ? key : null, lead, packageName: req.body.packageName || lead.interest, people: req.body.people || lead.people, adults: req.body.adults });
   if (r.erro) throw httpError(400, r.erro);
   res.json({ text: r.text });
+});
+// Reenvio dos encaminhamentos: cada cliente que a IA passou para um humano vai, com resumo,
+// para o vendedor responsável ou para o WhatsApp do próprio Marcos (um por mensagem, com intervalo).
+const digestRun = { running: false, total: 0, done: 0, failed: 0 };
+const marcosPhone = () => normalizePhone(store.settings.crm?.ownerPhone) || wa.getState?.().me?.phone || '';
+function digestPlan(q) {
+  const items = collectHandoffs({ store, crm, auth, maxDays: Number(q.days) || 30, includeSent: q.all === '1' || q.all === true });
+  return items.map((it) => ({ ...it, toPhone: it.to.kind === 'vendedor' ? it.to.user.whatsapp : marcosPhone(), toName: it.to.kind === 'vendedor' ? it.to.user.name : 'Marcos (WhatsApp dele)' }));
+}
+app.get('/api/handoffs/digest', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  const plan = digestPlan(req.query);
+  const groups = {};
+  for (const it of plan) (groups[it.toName] ||= { name: it.toName, phone: it.toPhone, count: 0, clients: [] }).count++, groups[it.toName].clients.push(it.name || (it.phone ? `+${it.phone}` : 'Cliente'));
+  res.json({ ...digestRun, count: plan.length, marcosPhone: marcosPhone(), groups: Object.values(groups) });
+});
+app.post('/api/handoffs/digest', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  if (wa.status !== 'connected') throw httpError(400, 'Conecte o WhatsApp primeiro (aba Conexões)');
+  if (digestRun.running) throw httpError(409, 'O envio já está em andamento');
+  const plan = digestPlan(req.body || {}).filter((it) => it.toPhone);
+  if (!plan.length) throw httpError(400, 'Nenhum cliente encaminhado para reenviar (ou falta o WhatsApp do Marcos em Prospectos → Regras)');
+  Object.assign(digestRun, { running: true, total: plan.length, done: 0, failed: 0 });
+  const counter = {};
+  const totals = {};
+  for (const it of plan) totals[it.toPhone] = (totals[it.toPhone] || 0) + 1;
+  (async () => {
+    for (const it of plan) {
+      counter[it.toPhone] = (counter[it.toPhone] || 0) + 1;
+      const quote = quotes.list.filter((q) => q.convKey === it.key || (it.lead && q.leadId === it.lead.id)).at(-1) || null;
+      const text = digestMessage(it, { index: counter[it.toPhone], total: totals[it.toPhone], senderName: it.to.kind === 'vendedor' ? it.to.user.name : 'Marcos', quote });
+      try {
+        await wa.send(it.toPhone, { text, typing: false });
+        if (quote && fs.existsSync(quotes.file(quote))) await wa.send(it.toPhone, { text: '', media: { path: quotes.file(quote), mimetype: 'application/pdf', fileName: `${quote.number}.pdf` }, typing: false });
+        it.conv.digestSentAt = new Date().toISOString();
+        if (it.lead) crm.addNote({ name: 'Sistema', role: 'admin' }, it.lead.id, `📌 Resumo reenviado para ${it.toName}`);
+        digestRun.done++;
+      } catch (e) {
+        digestRun.failed++;
+        store.addLog({ type: 'error', message: `Reenvio do encaminhamento (${it.name || it.phone}): ${e.message}` });
+      }
+      store.save();
+      notify('digest', { ...digestRun });
+      await sleep(randomBetween(6, 12) * 1000);
+    }
+    digestRun.running = false;
+    store.addLog({ type: 'system', message: `📌 Encaminhamentos reenviados: ${digestRun.done} de ${digestRun.total}${digestRun.failed ? ` (${digestRun.failed} com erro)` : ''}` });
+    notify('digest', { ...digestRun });
+  })();
+  res.json({ ...digestRun });
 });
 // Orçamentos: público (PDF pelo link) e pelo painel.
 app.get('/orcamento/:id', (req, res) => {
