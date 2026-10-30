@@ -96,7 +96,7 @@ const DEFAULT_DATA = {
       // Ritmo humano: espera para "ver", ler e digitar; divide a resposta em mensagens curtas.
       humanize: { enabled: true, noticeMin: 5, noticeMax: 20 },
       // Conversas sem resposta: considera mensagens dos últimos N dias e responde sozinho.
-      pendingMaxDays: 7,
+      pendingMaxDays: 15, // a IA responde sozinha quem esperou até 15 dias
       autoAnswerPending: true,
       ...PRESET.agent,
     },
@@ -188,6 +188,13 @@ export class Store extends EventEmitter {
     if (upgrade) {
       this.data.settings = deepMerge(this.data.settings, upgrade.patch);
       this.upgradedPreset = upgrade.id;
+      this.flush();
+    }
+    // Instalações antigas vinham com 7 dias: passa para 15 uma vez (depois vale o que o Marcos escolher).
+    const a = this.data.settings.agent;
+    if (a && !a.pendingDays15) {
+      if (Number(a.pendingMaxDays || 7) < 15) a.pendingMaxDays = 15;
+      a.pendingDays15 = true;
       this.flush();
     }
   }

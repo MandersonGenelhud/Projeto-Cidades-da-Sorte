@@ -1378,7 +1378,7 @@ app.delete('/api/conversations/:key', (req, res) => {
 // Conversas sem resposta
 app.get('/api/pending', (req, res) => {
   const items = pending.list().filter((p) => canSeeConv(req.user, p.jid)).map((p) => ({ ...p, channelLabel: convLabel(p.jid) }));
-  res.json({ ...pending.status(), count: items.length, items, maxDays: Number(store.settings.agent?.pendingMaxDays || 7) });
+  res.json({ ...pending.status(), count: items.length, items, maxDays: Number(store.settings.agent?.pendingMaxDays || 15) });
 });
 
 // Migra Imóveis (administração)

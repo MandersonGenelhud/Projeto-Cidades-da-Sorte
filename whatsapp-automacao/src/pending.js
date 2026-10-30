@@ -75,7 +75,7 @@ export class PendingInbox {
 
   /** Histórico do celular: adiciona quem estava esperando (sem apagar o que já existe). */
   // Guarda até 30 dias; quem a IA responde sozinha segue o prazo escolhido no painel (7, 15 ou 30 dias).
-  ingestHistory(messages, { maxDays = Math.max(30, Number(this.store.settings.agent.pendingMaxDays || 7)), label = 'WhatsApp' } = {}) {
+  ingestHistory(messages, { maxDays = Math.max(30, Number(this.store.settings.agent.pendingMaxDays || 15)), label = 'WhatsApp' } = {}) {
     let added = 0;
     for (const p of extractPending(messages, { maxDays })) {
       const current = this.items[p.jid];
@@ -172,7 +172,7 @@ export class PendingInbox {
    */
   autoAnswer({ minAgeMs = 3 * 60_000, now = Date.now() } = {}) {
     if (this.store.settings.agent?.autoAnswerPending === false || !this.agent.active) return { queued: 0, blocked: 0 };
-    const maxAge = Number(this.store.settings.agent?.pendingMaxDays || 7) * 86_400_000;
+    const maxAge = Number(this.store.settings.agent?.pendingMaxDays || 15) * 86_400_000;
     const jids = Object.values(this.items)
       .filter((p) => !this.queue.includes(p.jid) && now - p.at >= minAgeMs && now - p.at <= maxAge && !(p.phone && this.store.isBlacklisted(p.phone)))
       .map((p) => p.jid);

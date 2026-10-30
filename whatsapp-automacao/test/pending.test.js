@@ -103,19 +103,21 @@ test('limite gratuito da IA: a fila pausa e ninguém recebe desculpa genérica',
   assert.ok(store.data.logs.some((l) => /fila de clientes esperando foi pausada/.test(l.message)));
 });
 
-test('responde sozinho quem ficou esperando, até 7 dias, sem atropelar quem acabou de escrever', async () => {
+test('responde sozinho quem ficou esperando, até 15 dias (padrão), sem atropelar quem acabou de escrever', async () => {
   const { store, wa, inbox } = setup();
   const now = Date.now();
   inbox.items['a@s.whatsapp.net'] = { jid: 'a@s.whatsapp.net', phone: '595981111111', name: 'A', texts: ['oi'], at: now - 10 * 60000, channel: 'whatsapp' };
   inbox.items['b@s.whatsapp.net'] = { jid: 'b@s.whatsapp.net', phone: '595982222222', name: 'B', texts: ['oi'], at: now - 30000, channel: 'whatsapp' }; // acabou de escrever
-  inbox.items['c@s.whatsapp.net'] = { jid: 'c@s.whatsapp.net', phone: '595983333333', name: 'C', texts: ['oi'], at: now - 8 * 86_400_000, channel: 'whatsapp' }; // mais de 7 dias
+  inbox.items['c@s.whatsapp.net'] = { jid: 'c@s.whatsapp.net', phone: '595983333333', name: 'C', texts: ['oi'], at: now - 16 * 86_400_000, channel: 'whatsapp' }; // mais de 15 dias
+  inbox.items['d@s.whatsapp.net'] = { jid: 'd@s.whatsapp.net', phone: '595984444444', name: 'D', texts: ['oi'], at: now - 12 * 86_400_000, channel: 'whatsapp' }; // 12 dias: entra
   store.updateSettings({ agent: { autoAnswerPending: false } });
   assert.deepEqual(inbox.autoAnswer(), { queued: 0, blocked: 0 });
   store.updateSettings({ agent: { autoAnswerPending: true } });
   const r = inbox.autoAnswer();
-  assert.equal(r.queued, 1);
-  await waitFor(() => !inbox.running && wa.sent.length === 1);
-  assert.equal(wa.sent[0].to, 'a@s.whatsapp.net');
+  assert.equal(store.settings.agent.pendingMaxDays, 15);
+  assert.equal(r.queued, 2);
+  await waitFor(() => !inbox.running && wa.sent.length === 2);
+  assert.deepEqual(wa.sent.map((m) => m.to).sort(), ['a@s.whatsapp.net', 'd@s.whatsapp.net']);
 });
 
 test('histórico do celular: a IA recebe as 10 mensagens anteriores da conversa como contexto', async () => {
