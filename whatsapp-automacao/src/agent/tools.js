@@ -192,14 +192,14 @@ export const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'reservar_mentoria',
-      description: 'Reserva a mentoria de 1 hora com o Marcos Miguel. O cliente escolhe online ou presencial e a forma de pagamento (Pix ou cartão). Quem JÁ É CLIENTE da Migra não paga (o sistema confere). Para os demais, o pagamento vem antes do agendamento: o Pix é gerado e enviado na hora; no cartão a equipe manda o link. Depois de pago, o Marcos confirma dia e horário.',
+      description: 'Reserva a mentoria de 1 hora com o Marcos Miguel. O cliente escolhe online ou presencial e a forma de pagamento (Pix ou cartão). Quem JÁ É CLIENTE da Migra não paga (o sistema confere). Para os demais, o pagamento vem antes do agendamento: o Pix é gerado e enviado na hora; no cartão a equipe manda o link. Depois de pago, a assessoria do Marcos escolhe o dia e o horário (dentro do prazo do cliente) e confirma com ele.',
       parameters: {
         type: 'object',
         properties: {
           formato: { type: 'string', enum: ['online', 'presencial'], description: 'Como o cliente quer a mentoria' },
           pagamento: { type: 'string', enum: ['pix', 'cartao'], description: 'Forma de pagamento escolhida (ignorada para quem já é cliente)' },
           assunto: { type: 'string', description: 'O que ele quer conversar com o Marcos, em até 2 frases' },
-          disponibilidade: { type: 'string', description: 'Dias e períodos em que ele pode' },
+          prazo_para_agendar: { type: 'string', description: 'Até que dia a mentoria precisa ser agendada (o prazo do cliente). NÃO é dia e horário: quem escolhe é a equipe do Marcos' },
           nome: { type: 'string', description: 'Nome completo de quem vai pagar (para o recibo)' },
           cpf: { type: 'string', description: 'CPF de quem vai pagar (só se for Pix)' },
         },
