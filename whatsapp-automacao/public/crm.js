@@ -1267,7 +1267,7 @@ loaders.payments = async () => {
       <td><b>${esc(p.payerName || p.leadName || '—')}</b>${p.leadCode ? ` <span class="lead-code">${esc(p.leadCode)}</span>` : ''}</td>
       <td><b>${brl(p.amount)}</b></td>
       <td class="small">${esc(p.description)}</td>
-      <td>${PAY_STATUS[p.status] || p.status}${p.status === 'pending' && p.claimedAt ? '<br><span class="status-warn small">🔔 cliente disse que pagou</span>' : ''}${p.status === 'paid' ? `<br><span class="hint">${fmtDate(p.paidAt)} · ${esc(p.confirmedBy || '')}</span>` : ''}</td>
+      <td>${PAY_STATUS[p.status] || p.status}${p.status === 'pending' && p.claimedAt ? '<br><span class="status-warn small">🔔 cliente disse que pagou</span>' : ''}${p.status === 'paid' ? `<br><span class="hint">${fmtDate(p.paidAt)} · ${esc(p.confirmedBy || '')}</span>` : ''}${p.receipt ? `<br><span class="hint">${p.receipt.auto ? '🔎 Lido do comprovante' : '📎 Comprovante recebido'} · <a href="/api/payments/${esc(p.id)}/proof" target="_blank" rel="noopener">ver arquivo</a></span>` : ''}${p.status === 'pending' && p.receiptReview ? `<br><span class="status-warn small">⚠️ conferir: ${esc(p.receiptReview.problems.join('; '))}</span>` : ''}</td>
       <td>${esc(p.ownerName || '—')}</td>
       <td class="row">
         ${p.status === 'pending' ? `<a class="btn small" href="/api/payments/${esc(p.id)}/qr" target="_blank" rel="noopener">QR</a>

@@ -50,6 +50,7 @@ export function normalizeMessage(msg, lidToPn = new Map()) {
     // Foto (ex.: comprovante de Pix): a Nina baixa e lê quando vem de um administrador do Caixa.
     hasImage: Boolean(m.imageMessage),
     imageMime: m.imageMessage?.mimetype || '',
+    documentMime: m.documentMessage?.mimetype || '',
     timestamp: Number(msg.messageTimestamp) * 1000 || Date.now(),
   };
   // Mensagem original, para baixar a mídia. Não enumerável: não vai para JSON, painel nem logs.

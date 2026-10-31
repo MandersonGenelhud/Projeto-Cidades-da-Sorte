@@ -109,10 +109,13 @@ export class Payments {
   async sendCharge(p) {
     if (!p.convKey) return;
     const ig = String(p.convKey).startsWith('ig:');
+    // Pix comum (sem confirmação automática do banco): o comprovante enviado na conversa é lido e dá a baixa.
+    const ask = p.provider !== 'mercadopago' && this.config.autoReceipt !== false
+      ? '\n\nDepois de pagar, me envie o comprovante aqui na conversa (foto, print ou PDF): eu abro, confiro e confirmo o seu pagamento na hora. 🧾' : '';
     if (!ig) {
-      await this.sendTo(p.convKey, { text: `QR Code do Pix · ${money(p.amount)} · ${p.description}`, media: { path: this.qrPath(p), mimetype: 'image/png', fileName: 'pix.png' } });
+      await this.sendTo(p.convKey, { text: `QR Code do Pix · ${money(p.amount)} · ${p.description}${ask}`, media: { path: this.qrPath(p), mimetype: 'image/png', fileName: 'pix.png' } });
     }
-    await this.sendTo(p.convKey, { text: p.brcode });
+    await this.sendTo(p.convKey, { text: ig ? `${p.brcode}${ask}` : p.brcode });
   }
 
   /** Pagamento confirmado: fecha a venda, gera e envia o recibo e avisa o dono. */
@@ -161,6 +164,7 @@ export class Payments {
       q.temperature ? `🌡️ Peneira: ${q.temperature}${q.start ? ` · quer iniciar ${q.start}` : ''}` : '',
       lead?.aiSummary ? `📝 ${lead.aiSummary}` : '',
       `🧾 Recibo nº ${String(p.receiptNo).padStart(4, '0')} ${p.receiptSentAt ? 'enviado ao cliente' : 'gerado'} · confirmado por ${by}`,
+      p.receipt?.auto ? `🔎 Confirmado pela LEITURA DO COMPROVANTE enviado pelo cliente (transação ${p.receipt.ref}), não pelo extrato. Dê uma conferida no banco; o comprovante está guardado no painel.` : '',
     ].filter(Boolean).join('\n');
     await this.notifyAdmins(notice).catch((e) => this.store.addLog({ type: 'error', message: `Aviso de pagamento: ${e.message}` }));
     this.store.addLog({ type: 'system', message: `💰 Pix confirmado: ${money(p.amount)} de ${p.payerName || lead?.name || 'cliente'} (por ${by})` });

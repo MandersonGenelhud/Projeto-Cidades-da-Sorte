@@ -26,6 +26,7 @@ import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
 import { makeContractFlow, contractReady } from './autocontract.js';
 import { Learnings } from './learnings.js';
+import { ReceiptReader } from './receipts.js';
 import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, toCsv as cashToCsv } from './cash.js';
 import { Nina } from './assistant.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
@@ -740,7 +741,7 @@ agent.claimPaid = async (conv, args, { dryRun } = {}) => {
   if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true };
   const r = await payments.clientClaimsPaid(conv.key, args.observacao || '');
   return r.ok
-    ? { ...r, instrucao: r.automatico ? 'A confirmação é automática e chega em alguns minutos, junto com o recibo.' : 'A equipe foi avisada para conferir. Diga que, assim que confirmar, o recibo chega aqui.' }
+    ? { ...r, instrucao: r.automatico ? 'A confirmação é automática e chega em alguns minutos, junto com o recibo.' : 'Peça que o cliente envie o COMPROVANTE do pagamento (foto, print ou PDF) aqui na conversa: você abre o arquivo, confere e confirma na hora, e o recibo chega em seguida. A equipe também foi avisada para conferir.' }
     : r;
 };
 
@@ -938,6 +939,14 @@ wa.on('message', (msg) => {
     nina.handle(msg).catch((err) => store.addLog({ type: 'error', message: `Nina: ${err.message}` }));
     return;
   }
+  // Cliente com Pix em aberto mandou foto/PDF: se for o comprovante, a IA lê, confere e dá baixa; se não for, segue o atendimento.
+  if (receipts.wants(msg)) {
+    receipts.handle(msg).then((done) => done || routeIncoming(msg)).catch((err) => { store.addLog({ type: 'error', message: `Comprovante: ${err.message}` }); routeIncoming(msg); });
+    return;
+  }
+  routeIncoming(msg);
+});
+function routeIncoming(msg) {
   pending.onIncoming(msg);
   if (!msg.isGroup) {
     try {
@@ -954,7 +963,7 @@ wa.on('message', (msg) => {
   }
   notify('message', msg);
   autoReply.handle(msg).catch((err) => store.addLog({ type: 'error', message: err.message }));
-});
+}
 
 store.on('log', (log) => notify('log', log));
 
@@ -2170,6 +2179,13 @@ app.get('/api/payments/:id/qr', (req, res) => {
   if (!p || !canSeePayment(req.user, p)) throw httpError(404, 'Cobrança não encontrada');
   res.sendFile(payments.qrPath(p));
 });
+app.get('/api/payments/:id/proof', (req, res) => {
+  const p = payments.get(req.params.id);
+  if (!p || !canSeePayment(req.user, p)) throw httpError(404, 'Cobrança não encontrada');
+  const file = ['jpg', 'png', 'pdf'].map((e) => path.join(payments.dir, `comprovante-${p.id}.${e}`)).find((f) => fs.existsSync(f));
+  if (!file) throw httpError(404, 'Sem comprovante guardado');
+  res.sendFile(file);
+});
 app.get('/api/payments/:id/receipt', (req, res) => {
   const p = payments.get(req.params.id);
   if (!p || p.status !== 'paid' || !canSeePayment(req.user, p)) throw httpError(404, 'Recibo não encontrado');
@@ -2834,6 +2850,15 @@ const nina = new Nina({
   downloadAudio: (m) => wa.downloadAudio(m),
   audit: (text) => securityEvent('caixa_nina', 'Nina', null, text),
   log: (l) => store.addLog(l),
+});
+const receipts = new ReceiptReader({
+  store, payments, llm,
+  download: (m) => wa.downloadAudio(m),
+  send: (jid, payload) => wa.send(jid, payload),
+  notifyAdmins: (text) => notifyAdmins(text),
+  remember: (key, text) => { const conv = agent.conversation(key, { create: false }); if (conv) agent.remember(conv, 'assistant', text); },
+  audit: (text) => securityEvent('pagamento_comprovante', 'IA', null, text),
+  getConfig: agentConfig,
 });
 app.use('/api/cash', (req, res, next) => {
   if (!cash.canAccess(req.user)) return res.status(403).json({ error: 'O caixa é restrito: só os administradores liberados veem.' });
