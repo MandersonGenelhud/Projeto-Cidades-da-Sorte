@@ -230,3 +230,11 @@ test('Instagram: conversas que esfriaram (a última mensagem foi nossa) entram p
   assert.equal(r[0].context.at(-1).role, 'assistant');
   assert.equal(r[0].at, h(52));
 });
+
+test('foto ou documento sem legenda chega como aviso para a atendente (foto do RG, meio corpo)', () => {
+  const base = (message) => ({ key: { remoteJid: '5511999990000@s.whatsapp.net', id: 'A1', fromMe: false }, message, messageTimestamp: 1700000000, pushName: 'Ana' });
+  assert.equal(normalizeMessage(base({ imageMessage: { mimetype: 'image/jpeg' } })).text, '[foto enviada]');
+  assert.equal(normalizeMessage(base({ imageMessage: { caption: 'meu RG' } })).text, 'meu RG', 'com legenda vale a legenda');
+  assert.equal(normalizeMessage(base({ documentMessage: { fileName: 'rg.pdf' } })).text, '[documento enviado]');
+  assert.equal(normalizeMessage(base({ conversation: 'oi' })).text, 'oi');
+});

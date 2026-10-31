@@ -24,7 +24,7 @@ import { LeadRouter, chatPreview } from './routing.js';
 import { buildRanking, currentMonth } from './ranking.js';
 import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
-import { makeContractFlow } from './autocontract.js';
+import { makeContractFlow, contractReady } from './autocontract.js';
 import { Learnings } from './learnings.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
@@ -662,7 +662,7 @@ agent.closingStatus = (conv) => {
   const p = f.paymentId ? payments.get(f.paymentId) : null;
   return [
     f.status === 'preenchida' ? `Ficha de dados: PREENCHIDA (${f.data.nome}, CPF ${f.data.cpf}).` : 'Ficha de dados: enviada, AINDA NÃO preenchida. Se o cliente disser que preencheu, peça para conferir se clicou em "Enviar meus dados" no final; se precisar, reenvie o mesmo link: ' + closing.formUrl(f),
-    p ? `Pix da reserva: ${p.status === 'paid' ? 'PAGO e confirmado (recibo enviado)' : `enviado (R$ ${p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}), aguardando pagamento`}.` : f.status === 'preenchida' ? 'Pix da reserva: ainda não enviado pelo sistema (a equipe envia os dados de pagamento).' : '',
+    p ? `Pix da reserva: ${p.status === 'paid' ? 'PAGO e confirmado (recibo enviado)' : `enviado (R$ ${p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}), aguardando pagamento`}.` : f.viaContract ? 'Contrato enviado para assinar. O Pix da reserva sai sozinho assim que ele assinar: NÃO mande Pix antes e lembre-o de assinar o contrato.' : f.status === 'preenchida' ? 'Pix da reserva: ainda não enviado pelo sistema (a equipe envia os dados de pagamento).' : '',
     f.term ? `Termo da reserva: ${f.term.status === 'assinado' ? 'ASSINADO' : `enviado para assinar (link: ${closing.termUrl(f)})`}.` : '',
   ].filter(Boolean).join('\n');
 };
@@ -2397,10 +2397,18 @@ closing.onFilled = async (f) => {
   await wa.send(f.convKey, String(f.convKey).startsWith('ig:') ? { text: `${text} ${quoteLink(q)}`, typing: false } : { text, media: { path: quotes.file(q), mimetype: 'application/pdf', fileName: `${q.number}.pdf` }, typing: false });
   const conv = agent.conversation(f.convKey, { create: false });
   if (conv) agent.remember(conv, 'assistant', `${text} [PDF do orçamento enviado]`);
-  // O cliente tinha pedido o contrato: com a ficha preenchida, ele sai sozinho.
-  if (f.contractRequested || lead?.contractRequested) {
-    await sendContractTo({ convKey: f.convKey, lead, quote: q, client: pickClient(f.data) }).catch((e) => store.addLog({ type: 'error', message: `Contrato automático: ${e.message}` }));
+  // Ordem do Marcos: orçamento → documentos → formulário → contrato → Pix por último.
+  // Com a ficha preenchida, o contrato sai sozinho para assinar pelo celular; o Pix vai depois da assinatura.
+  const client = pickClient(f.data);
+  if ((store.settings.closing?.contractFirst !== false || f.contractRequested || lead?.contractRequested) && publicBase() && contractReady(client)) {
+    try {
+      await sendContractTo({ convKey: f.convKey, lead, quote: q, client });
+      return { contractSent: true };
+    } catch (e) {
+      store.addLog({ type: 'error', message: `Contrato automático: ${e.message}` });
+    }
   }
+  return null;
 };
 // Orçamentos: cada vendedor vê os dele; o administrador vê todos.
 const canSeeQuote = (user, q) => user.role === 'admin' || q.createdBy?.id === user.id;
@@ -2604,6 +2612,11 @@ app.post('/api/public/contrato/:id/assinar', async (req, res) => {
     await wa.send(key, String(key).startsWith('ig:') ? { text, typing: false } : { text, media, typing: false }).catch(() => {});
     const conv = agent.conversation(key, { create: false });
     if (conv) agent.remember(conv, 'assistant', `${text} [PDF do contrato assinado]`);
+  }
+  // Pix por último: assim que o cliente assina o contrato, vai o Pix da reserva.
+  const form = (q.leadId && closing.forLead(q.leadId)) || (q.convKey && closing.forConversation(q.convKey)) || null;
+  if (form?.viaContract && !form.paymentId) {
+    await closing.sendReservationPix(form, { intro: 'Agora o último passo: para garantir a sua reserva' }).catch((e) => store.addLog({ type: 'error', message: `Pix depois do contrato: ${e.message}` }));
   }
   const notice = `✍️ *Contrato assinado pelo cliente*\n👤 ${c.client.nome}${c.client.cpf ? ` · CPF ${c.client.cpf}` : ''}\n📄 ${ct} · R$ ${q.plan.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n🕒 ${new Date(signedAt).toLocaleString('pt-BR')}\nO PDF assinado está no painel (Orçamentos → Contrato).`;
   const seller = q.createdBy?.id ? auth.get(q.createdBy.id) : null;

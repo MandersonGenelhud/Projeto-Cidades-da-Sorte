@@ -46,7 +46,8 @@ test('atendente: fechamento por escolha (Pix, cartão ou dinheiro), sem aceitar 
   const conv = agent.conversation('5511999990000@s.whatsapp.net');
   agent.remember(conv, 'user', 'Vou deixar para depois');
   await agent.think(conv);
-  assert.match(system, /A sua reserva fica R\$ 1\.000,00 \+ R\$ 800,00 por adulto \(com 2 adultos, R\$ 2\.600,00\)\. Você prefere fazer no Pix, no cartão de crédito ou à vista em dinheiro aqui no escritório/);
+  assert.match(system, /A sua reserva fica R\$ 1\.000,00 \+ R\$ 800,00 por adulto \(com 2 adultos, R\$ 2\.600,00\)\. Para garantir a sua reserva e já darmos entrada na emissão das suas certidões, você prefere fazer a entrada no Pix ou no cartão\?/);
+  assert.match(system, /se fosse para você fechar conosco, você pretende pagar à vista ou parcelado no cartão de crédito\? À vista no Pix ou parcelado no cartão\?/);
   assert.match(system, /levar_para_whatsapp/);
   assert.match(system, /NUNCA pergunte algo que possa ser respondido com "não"/);
   assert.match(system, /Só depois de duas tentativas/);

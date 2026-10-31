@@ -140,6 +140,7 @@ const DEFAULT_DATA = {
     // Fechamento: ficha de dados → Pix → termo da reserva assinado no celular.
     closing: {
       enabled: true,
+      contractFirst: true, // depois da ficha vai o contrato para assinar; o Pix da reserva só depois da assinatura (ordem do Marcos)
       termAfter: 'pix', // pix (logo depois do Pix) | payment (depois do pagamento confirmado)
       termTemplate: '', // vazio = modelo padrão
       sellerIfNoPix: true, // recebeu orçamento/ficha e não pagou a entrada: vai para o vendedor com o PDF

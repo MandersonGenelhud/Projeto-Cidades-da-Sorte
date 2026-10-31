@@ -131,3 +131,40 @@ test('termo só depois do pagamento, quando configurado assim', async () => {
 test('PDF: lê o tamanho do JPEG da assinatura', () => {
   assert.deepEqual(jpegSize(Buffer.from(SIG.split(',')[1], 'base64')), { width: 1, height: 1 });
 });
+
+test('ordem do Marcos: depois da ficha vai o contrato; o Pix só sai depois da assinatura e o termo é dispensado', async () => {
+  const { Closing } = await import('../src/closing.js');
+  const { tempStore: ts } = await import('./helpers.js');
+  const store = ts();
+  store.updateSettings({ payments: { enabled: true, pixKey: '12345678000190', reservation: { base: 1000, perAdult: 800 } }, closing: { enabled: true } });
+  const said = [];
+  const created = [];
+  const payments = {
+    reservationAmount: (n) => 1000 + 800 * n,
+    create: async (x) => { const p = { id: 'p1', ...x }; created.push(p); return p; },
+    sendCharge: async () => said.push('[qr]'),
+    get: () => null,
+  };
+  const closing = new Closing({ store, crm: { leads: [], notify() {}, addNote() {} }, payments, sendTo: async (_k, { text }) => said.push(text), remember() {}, notifyAdmins: async () => {}, notify() {}, secret: 's', dataDir: store.dataDir, baseUrl: () => 'https://x.test' });
+  const f = { id: 'f1', convKey: 'k', leadId: null, status: 'preenchida', data: { nome: 'Luiza Souza', cpf: '529.982.247-25', adultos: '2', whatsapp: '5545988887777' } };
+  closing.list.push(f);
+  // Contrato enviado: nada de Pix agora.
+  closing.onFilled = async () => ({ contractSent: true });
+  await closing.afterForm(f);
+  assert.equal(f.viaContract, true);
+  assert.equal(created.length, 0, 'nenhum Pix antes da assinatura');
+  assert.equal(f.term, undefined, 'e o termo da reserva é dispensado');
+  // Assinou: o servidor chama o Pix (uma vez só).
+  await closing.sendReservationPix(f, { intro: 'Agora o último passo: para garantir a sua reserva' });
+  await closing.sendReservationPix(f);
+  assert.equal(created.length, 1);
+  assert.equal(created[0].amount, 2600);
+  assert.ok(said.some((t) => /Agora o último passo: para garantir a sua reserva, segue o Pix de R\$ 2\.600,00/.test(t)));
+  assert.ok(said.some((t) => /Se preferir pagar no cartão de crédito/.test(t)));
+  // Sem contrato possível (sem endereço público ou sem orçamento): segue o caminho antigo, com o Pix logo.
+  const g = { id: 'f2', convKey: 'k2', leadId: null, status: 'preenchida', data: { nome: 'João Pereira', cpf: '529.982.247-25', adultos: '1', whatsapp: '5545988880000' } };
+  closing.list.push(g);
+  closing.onFilled = async () => null;
+  await closing.afterForm(g);
+  assert.equal(created.length, 2, 'fallback: Pix logo depois da ficha');
+});

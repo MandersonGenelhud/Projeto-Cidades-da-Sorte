@@ -30,6 +30,8 @@ export function normalizeMessage(msg, lidToPn = new Map()) {
     m.videoMessage?.caption ||
     m.buttonsResponseMessage?.selectedDisplayText ||
     m.listResponseMessage?.title ||
+    // Foto ou documento sem legenda (ex.: foto do RG): a atendente precisa saber que chegou.
+    (m.imageMessage ? '[foto enviada]' : m.documentMessage ? '[documento enviado]' : '') ||
     '';
   // Em contas com LID o número real vem em remoteJidAlt (ou no mapeamento LID → número).
   const pnJid = [msg.key.remoteJidAlt, lidToPn.get(jid), jid].find((j) => j && j.endsWith('@s.whatsapp.net'));

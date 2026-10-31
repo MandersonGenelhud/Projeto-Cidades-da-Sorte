@@ -224,12 +224,9 @@ export class Closing {
     }
   }
 
-  /** Depois da ficha: agradece, manda o Pix da reserva e o termo (se for depois do Pix). */
-  async afterForm(f) {
-    const first = f.data.nome.split(' ')[0];
-    await this.#say(f, `Recebi seus dados, ${first}! ✅ Já ficam guardados aqui para darmos entrada no seu processo.`);
-    // Orçamento refeito com o nome completo da ficha (quando já existe um pacote combinado).
-    if (this.onFilled) await this.onFilled(f).catch((e) => this.store.addLog({ type: 'error', message: `Orçamento depois da ficha: ${e.message}` }));
+  /** Manda o Pix da reserva (QR Code e copia e cola). Devolve false quando o Pix automático não está configurado. */
+  async sendReservationPix(f, { intro = 'Agora, para garantir a sua reserva' } = {}) {
+    if (f.paymentId) return true; // já enviado
     const pay = this.store.settings.payments || {};
     const canPix = this.payments && pay.enabled !== false && Boolean(pay.pixKey || pay.mercadopago?.accessToken) && this.payments.reservationAmount(1) > 0;
     if (canPix) {
@@ -237,7 +234,7 @@ export class Closing {
       const base = Number(pay.reservation?.base ?? 1000);
       const perAdult = Number(pay.reservation?.perAdult ?? 800);
       const adults = Number(f.data.adultos) || 1;
-      await this.#say(f, `Agora, para garantir a sua reserva, segue o Pix de ${money(amount)} 👇\n• ${money(base)}: sinal de contratação dos serviços\n• ${money(perAdult * adults)} (${money(perAdult)} × ${adults} adulto${adults > 1 ? 's' : ''}): certidões da Interpol e da Informática da Polícia Nacional do Paraguai, sem as quais não conseguimos iniciar o processo migratório`);
+      await this.#say(f, `${intro}, segue o Pix de ${money(amount)} 👇\n• ${money(base)}: sinal de contratação dos serviços\n• ${money(perAdult * adults)} (${money(perAdult)} × ${adults} adulto${adults > 1 ? 's' : ''}): certidões da Interpol e da Informática da Polícia Nacional do Paraguai, sem as quais não conseguimos iniciar o processo migratório`);
       const p = await this.payments.create({
         convKey: f.convKey,
         leadId: f.leadId,
@@ -252,11 +249,28 @@ export class Closing {
       await this.payments.sendCharge(p);
       this.remember(f.convKey, `[Pix de ${money(amount)} enviado: QR Code e código copia e cola]`);
       const bank = String(pay.bankInfo || '').trim();
-      await this.#say(f, `É só copiar o código acima e colar no app do seu banco, na opção Pix copia e cola.${bank ? `\n\nSe preferir, os dados da conta:\n${bank}` : ''}\n\nAssim que pagar, me manda o comprovante por aqui.`);
+      await this.#say(f, `É só copiar o código acima e colar no app do seu banco, na opção Pix copia e cola.${bank ? `\n\nSe preferir, os dados da conta:\n${bank}` : ''}\n\nSe preferir pagar no cartão de crédito, é só me avisar por aqui. Assim que pagar, me manda o comprovante.`);
     } else {
       await this.#say(f, 'Em instantes eu te envio os dados para o pagamento da reserva.');
       await this.notifyAdmins(`📝 *Ficha preenchida*\n👤 ${f.data.nome} · ${f.data.whatsapp}\nO Pix automático não está configurado: envie os dados de pagamento da reserva para o cliente.`).catch(() => {});
     }
+    return canPix;
+  }
+
+  /** Depois da ficha: agradece, manda o Pix da reserva e o termo (se for depois do Pix). */
+  async afterForm(f) {
+    const first = f.data.nome.split(' ')[0];
+    await this.#say(f, `Recebi seus dados, ${first}! ✅ Já ficam guardados aqui para darmos entrada no seu processo.`);
+    // Orçamento refeito com o nome completo da ficha (quando já existe um pacote combinado).
+    const filled = this.onFilled ? await this.onFilled(f).catch((e) => { this.store.addLog({ type: 'error', message: `Orçamento depois da ficha: ${e.message}` }); return null; }) : null;
+    if (filled?.contractSent) {
+      // Ordem do Marcos: orçamento → documentos → formulário → contrato → Pix por último. O Pix sai depois da assinatura.
+      f.viaContract = true;
+      this.store.save();
+      await this.notifyAdmins(`📝 *Ficha de dados preenchida*\n👤 ${f.data.nome} · CPF ${f.data.cpf}\n📍 ${f.data.cidade}/${f.data.uf} · ${f.data.adultos} adulto(s)\n✍️ Contrato enviado para assinar; o Pix da reserva sai depois da assinatura.`).catch(() => {});
+      return;
+    }
+    const canPix = await this.sendReservationPix(f);
     if (this.config.termAfter !== 'payment') await this.sendTerm(f);
     await this.notifyAdmins(`📝 *Ficha de dados preenchida*\n👤 ${f.data.nome} · CPF ${f.data.cpf}\n📍 ${f.data.cidade}/${f.data.uf} · ${f.data.adultos} adulto(s)\n${canPix ? '💳 Pix da reserva enviado' : '⚠️ Enviar o pagamento manualmente'}${this.config.termAfter !== 'payment' ? ' · termo enviado para assinatura' : ''}`).catch(() => {});
   }
@@ -264,7 +278,7 @@ export class Closing {
   /** Pagamento confirmado: se o termo vai depois do pagamento, envia agora. */
   async onPaid(p) {
     const f = this.list.find((x) => x.paymentId === p.id) || (p.leadId && this.forLead(p.leadId));
-    if (!f || f.status !== 'preenchida' || f.term) return;
+    if (!f || f.status !== 'preenchida' || f.term || f.viaContract) return; // com contrato assinado, o termo é dispensado
     if (this.config.termAfter === 'payment') await this.sendTerm(f);
   }
 

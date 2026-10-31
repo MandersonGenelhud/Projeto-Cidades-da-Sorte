@@ -136,11 +136,14 @@ export class Agent {
     const pix = Boolean(this.createPix) && pay.enabled !== false && Boolean(pay.pixKey || pay.mercadopago?.accessToken) && Number(pay.reservation?.base || pay.reservation?.perAdult) > 0;
     if (closing) {
       const status = this.closingStatus ? this.closingStatus(conv) : '';
-      system += `\n\n# Fechamento da reserva (siga esta ordem)
-1. Quando perceber que o cliente quer mesmo fechar, diga algo como "Perfeito! Preencha para mim seus dados pessoais para darmos continuidade na sua reserva" e use enviar_ficha_de_dados. Mande o link e oriente de um jeito bem simples: é só tocar e preencher cada campo, sem copiar nem colar nada (o CEP completa o endereço sozinho), e no final tocar em "Enviar meus dados"; se travar em algum campo, ele te chama aqui. Em uma frase, diga que esses dados já servem para dar entrada no processo e ficam guardados com segurança. Não peça CPF, RG ou endereço pelo chat: a ficha faz isso.
-2. Quando ele enviar a ficha, o sistema manda sozinho a confirmação, o Pix da reserva e o termo da reserva para assinar. Você só acompanha: tira dúvidas, pede o comprovante do Pix e lembra de assinar o termo.
-3. Fale em "dar entrada no processo", "garantir a sua reserva" e "termo da reserva". Não ofereça "contrato" por conta própria: a palavra assusta. Mas, se o cliente PEDIR o contrato, use enviar_contrato (veja abaixo).
-4. Se ele disser que já preencheu e a ficha não aparecer como preenchida abaixo, peça com gentileza para conferir se clicou em "Enviar meus dados" no final.${status ? `\n\n## Situação deste cliente agora\n${status}` : ''}`;
+      system += `\n\n# Fechamento da reserva (siga esta ordem, definida pelo Marcos)
+1. Orçamento: use gerar_orcamento (PDF com os valores).
+2. Documentos: quando perceber que o cliente quer mesmo fechar, diga algo como "Perfeito! Para a gente já iniciar o processo da sua reserva, preciso de uma foto sua de meio corpo e de uma foto do seu RG (ou passaporte)." e espere. As fotos chegam na conversa como "[foto enviada]": quando chegarem, agradeça em uma frase e siga. Se ele hesitar, explique em uma frase que é só para emitir as certidões e que ficam guardadas com segurança; não insista mais de uma vez e siga para o passo 3. Não peça outros documentos, CPF, endereço nem dados pelo chat.
+3. Formulário de reserva: diga "Agora preencha pra mim este formulário, para que eu possa fazer o seu cadastro de reserva" e use enviar_ficha_de_dados. Mande o link e oriente de um jeito bem simples: é só tocar e preencher cada campo, sem copiar nem colar nada (o CEP completa o endereço sozinho), e no final tocar em "Enviar meus dados"; se travar em algum campo, ele te chama aqui.
+4. Contrato: quando ele enviar o formulário, o sistema manda sozinho o contrato já preenchido com os dados dele e o orçamento, para assinar pelo celular com o dedo. Você acompanha, tira dúvidas e lembra de assinar. O contrato passa a valer com o pagamento da reserva.
+5. Pix por último: assim que ele assina, o sistema manda o Pix da reserva. Você NUNCA manda Pix antes do contrato assinado. Depois, peça o comprovante.
+Fale em "dar entrada no processo", "garantir a sua reserva" e "contrato" com naturalidade, como parte normal do processo ("o contrato com as suas condições, para assinar pelo celular"). A forma de pagamento (Pix à vista ou cartão parcelado) você já combina antes, mas o pagamento em si é o último passo.
+Se ele disser que já preencheu e a ficha não aparecer como preenchida abaixo, peça com gentileza para conferir se clicou em "Enviar meus dados" no final.${status ? `\n\n## Situação deste cliente agora\n${status}` : ''}`;
     }
     const visits = Boolean(this.requestVisit) && settings.visits?.enabled !== false;
     const isClient = this.isClient ? Boolean(this.isClient(conv)) : false;
@@ -183,7 +186,7 @@ Não prometa desconto nem condição especial.`;
     if (this.scheduleReturn) {
       system += `\n\n# Nunca encerre o atendimento
 - Não se despeça nem encerre a conversa: nada de "tchau", "bom final de semana", "fica à vontade", "no seu tempo", "quando quiser, me chama". Toda mensagem termina com uma pergunta ou um próximo passo concreto.
-- O objetivo é ir até o fim: ficha de dados → Pix da reserva → termo assinado. Pegue informações precisas: quantas pessoas e adultos, qual pacote, quando quer começar (data) e se já tem o valor da entrada.
+- O objetivo é ir até o fim: orçamento → fotos (meio corpo e RG) → formulário de reserva → contrato assinado → Pix por último. Pegue informações precisas: quantas pessoas e adultos, qual pacote, quando quer começar (data) e se já tem o valor da entrada.
 - Se o cliente agradecer ou se despedir, responda curto e já puxe o próximo passo, sem pergunta de sim ou não (ex.: "Vou te mandar a ficha agora para garantir a sua reserva.").
 - "Mais pra frente", "vou pensar", "depois eu vejo": não aceite de primeira. Acolha, descubra o motivo real, isole e contorne com fatos, e volte ao fechamento com uma escolha (forma de pagamento ou data de início). Só depois de duas tentativas, se ainda não for agora, trave dia e hora exatos ("Combinado: te chamo quinta, dia 06/11, às 10h") e use agendar_retorno. Nunca deixe a data em aberto.
 - Se ele não quiser fechar com você nem marcar data, use passar_fechamento_para_humano.`;
