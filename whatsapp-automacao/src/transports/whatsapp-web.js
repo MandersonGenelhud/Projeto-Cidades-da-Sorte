@@ -105,6 +105,12 @@ export class WhatsAppClient extends EventEmitter {
 
   async start() {
     this.stopping = false;
+    // Só uma conexão por número: encerra a anterior (se houver) e, se outra chamada de start() começar enquanto esta
+    // espera, só a última cria o socket. Duas conexões com o mesmo número derrubam uma à outra sem parar.
+    const myStart = (this.startSeq = (this.startSeq || 0) + 1);
+    const prev = this.sock;
+    this.sock = null;
+    try { prev?.end(undefined); } catch { /* ignora */ }
     this.#setStatus('connecting', { qr: null });
     const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
     // Versão atual do WhatsApp Web (com versão velha o WhatsApp recusa e o QR Code não aparece).
@@ -118,6 +124,8 @@ export class WhatsAppClient extends EventEmitter {
       version = b?.version || a?.version; // sem internet para consultar: usa a embutida
     }
 
+    if (myStart !== this.startSeq) return; // outra chamada de start() passou na frente: só a última cria o socket
+    if (this.stopping) { this.#setStatus('disconnected', { qr: null }); return; }
     const sock = makeWASocket({
       auth: state,
       version,
