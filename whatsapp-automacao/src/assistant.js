@@ -190,8 +190,8 @@ export class Nina {
     const { text, file = null } = typeof answer === 'string' ? { text: answer } : answer;
     if (asVoice && this.tts?.ready && this.config.voiceReply !== false) {
       try {
-        const spoken = speakable(text).replace(/[^\p{L}\p{N}\s.,!?;:-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 550);
-        const { buffer, mimetype } = await this.tts.speak(spoken, this.config.voice || 'pf_dora');
+        const spoken = speakable(text).replace(/[^\p{L}\p{N}\s.,!?;:-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 700);
+        const { buffer, mimetype } = await this.tts.speak(spoken, this.config.voice || 'Laomedeia', this.config.voiceStyle || undefined);
         await this.send(msg.jid, { text: '', media: { buffer, mimetype, ptt: true }, typing: false });
       } catch (e) {
         this.log({ type: 'error', message: `Nina (voz): ${e.message}` });

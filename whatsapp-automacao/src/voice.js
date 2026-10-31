@@ -143,3 +143,78 @@ export class FallbackStt {
     return (this.primary.ready ? this.primary : this.secondary).transcribe(buffer, mimetype);
   }
 }
+
+// ---------- Voz do Gemini (animada) ----------
+export const GEMINI_VOICES = { Laomedeia: 'animada', Sadachbia: 'viva', Leda: 'jovem', Zephyr: 'brilhante', Aoede: 'leve', Autonoe: 'brilhante', Sulafat: 'calorosa' };
+export const DEFAULT_VOICE_STYLE = 'empolgada, animada e simpática, com energia e um sorriso na voz, falando em português do Brasil de forma natural, como uma secretária que adora ajudar';
+
+/** Localiza o ffmpeg: FFMPEG_PATH, o que vem com o sistema (ffmpeg-static) ou o do computador. */
+async function ffmpegPath() {
+  if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH;
+  try { return (await import('ffmpeg-static')).default || 'ffmpeg'; } catch { return 'ffmpeg'; }
+}
+
+/** Áudio (WAV/PCM) → OGG/Opus, o formato de mensagem de voz do WhatsApp. */
+export async function toOpus(input, { ffmpeg = null } = {}) {
+  const { spawn } = await import('node:child_process');
+  const bin = ffmpeg || (await ffmpegPath());
+  return new Promise((resolve, reject) => {
+    const p = spawn(bin, ['-loglevel', 'error', '-i', 'pipe:0', '-ac', '1', '-c:a', 'libopus', '-b:a', '48k', '-application', 'audio', '-f', 'ogg', 'pipe:1']);
+    const out = [];
+    const errs = [];
+    p.stdout.on('data', (d) => out.push(d));
+    p.stderr.on('data', (d) => errs.push(d));
+    p.on('error', (e) => reject(new Error(`ffmpeg indisponível: ${e.message}`)));
+    p.on('close', (code) => (code === 0 && out.length ? resolve(Buffer.concat(out)) : reject(new Error(Buffer.concat(errs).toString().slice(0, 200) || 'ffmpeg falhou'))));
+    p.stdin.on('error', () => {});
+    p.stdin.end(input);
+  });
+}
+
+/** Texto → fala com as vozes do Gemini (aceitam pedir o tom: "empolgada", "calma"…). O texto da resposta vai ao Google. */
+export class GeminiTts {
+  constructor({ getConfig, fetchImpl = globalThis.fetch, timeoutMs = 60_000, convert = toOpus }) {
+    Object.assign(this, { getConfig, fetchImpl, timeoutMs, convert });
+  }
+
+  get ready() {
+    const c = this.getConfig();
+    return c.provider === 'gemini' && Boolean(c.apiKey);
+  }
+
+  async speak(text, voice = 'Laomedeia', style = DEFAULT_VOICE_STYLE) {
+    const { apiKey } = this.getConfig();
+    const base = process.env.GEMINI_NATIVE_URL || 'https://generativelanguage.googleapis.com/v1beta';
+    const model = process.env.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts';
+    const body = JSON.stringify({
+      model,
+      input: [{ type: 'user_input', content: [{ type: 'text', text, annotations: [{ type: 'speech_metadata', style: String(style || DEFAULT_VOICE_STYLE).slice(0, 300) }] }] }],
+      response_format: { type: 'audio' },
+      generation_config: { speech_config: [{ voice: GEMINI_VOICES[voice] ? voice : 'Laomedeia' }] },
+    });
+    const res = await withTimeout(this.fetchImpl, `${base}/interactions`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey }, body }, this.timeoutMs);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`Voz do Gemini falhou (HTTP ${res.status})`);
+    const audio = (data.steps || []).flatMap((s) => (s.type === 'model_output' ? s.content || [] : [])).filter((c) => c.type === 'audio').at(-1);
+    if (!audio?.data) throw new Error('O Gemini não devolveu áudio');
+    return { buffer: await this.convert(Buffer.from(audio.data, 'base64')), mimetype: 'audio/ogg; codecs=opus' };
+  }
+}
+
+/** Escolhe a voz pelo nome: nomes do Gemini usam o Gemini; os do Kokoro (pf_dora…) usam o serviço local. Sem um, cai no outro. */
+export class ChoiceTts {
+  constructor({ gemini, local }) {
+    Object.assign(this, { gemini, local });
+  }
+
+  get ready() {
+    return this.gemini.ready || this.local.ready;
+  }
+
+  speak(text, voice, style) {
+    const wantsGemini = Boolean(GEMINI_VOICES[voice]);
+    if (wantsGemini && this.gemini.ready) return this.gemini.speak(text, voice, style);
+    if (this.local.ready) return this.local.speak(text, wantsGemini ? undefined : voice);
+    return this.gemini.speak(text, wantsGemini ? voice : undefined, style);
+  }
+}

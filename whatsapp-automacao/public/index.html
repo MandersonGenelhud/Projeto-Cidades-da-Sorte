@@ -553,7 +553,8 @@
           <div class="grid2 tight">
             <label>Nome para chamar <input name="wakeWord" maxlength="20" /></label>
             <label>Número só da Nina (opcional) <select name="lineId"><option value="">Usar o número principal</option></select></label>
-            <label>Voz da resposta <select name="voice"><option value="pf_dora">Feminina (Dora)</option><option value="pm_alex">Masculina (Alex)</option><option value="pm_santa">Masculina (Santa)</option></select></label>
+            <label>Voz da resposta <select name="voice"><optgroup label="Voz do Gemini (animada, precisa do provedor Gemini)"><option value="Laomedeia">Feminina animada (Laomedeia)</option><option value="Sadachbia">Feminina viva (Sadachbia)</option><option value="Leda">Feminina jovem (Leda)</option><option value="Zephyr">Feminina brilhante (Zephyr)</option><option value="Aoede">Feminina leve (Aoede)</option><option value="Sulafat">Feminina calorosa (Sulafat)</option></optgroup><optgroup label="Voz local da VPS"><option value="pf_dora">Feminina (Dora)</option><option value="pm_alex">Masculina (Alex)</option><option value="pm_santa">Masculina (Santa)</option></optgroup></select></label>
+            <label>Jeito de falar <input name="voiceStyle" placeholder="vazio = empolgada, animada e simpática" maxlength="300" /></label>
             <label class="check"><input type="checkbox" name="voiceReply" /> Responder falando quando ele mandar áudio</label>
           </div>
           <p class="hint" id="ninaVoice"></p>

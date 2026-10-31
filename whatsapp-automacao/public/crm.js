@@ -1897,7 +1897,8 @@ async function loadNina() {
   const f = $('#formNina');
   f.enabled.checked = n.enabled !== false;
   f.wakeWord.value = n.wakeWord || 'nina';
-  f.voice.value = n.voice || 'pf_dora';
+  f.voice.value = n.voice || 'Laomedeia';
+  f.voiceStyle.value = n.voiceStyle || '';
   f.voiceReply.checked = n.voiceReply !== false;
   f.lineId.innerHTML = `<option value="">Usar o número principal</option>${n.lines.map((l) => `<option value="${esc(l.id)}">${esc(l.label)}</option>`).join('')}`;
   f.lineId.value = n.lineId || '';
@@ -1908,7 +1909,7 @@ async function loadNina() {
 }
 $('#formNina').addEventListener('submit', withBusy($('#formNina'), async (ev) => {
   const f = ev.target;
-  await api('/api/cash/assistant', { method: 'PUT', body: { enabled: f.enabled.checked, wakeWord: f.wakeWord.value, voice: f.voice.value, voiceReply: f.voiceReply.checked, lineId: f.lineId.value } });
+  await api('/api/cash/assistant', { method: 'PUT', body: { enabled: f.enabled.checked, wakeWord: f.wakeWord.value, voice: f.voice.value, voiceStyle: f.voiceStyle.value, voiceReply: f.voiceReply.checked, lineId: f.lineId.value } });
   toast('Nina salva');
   loadNina();
 }));

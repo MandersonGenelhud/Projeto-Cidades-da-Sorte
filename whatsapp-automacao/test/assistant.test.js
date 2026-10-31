@@ -111,7 +111,7 @@ test('Nina com IA: entende números falados e categoria; texto malicioso não ex
 
 test('Nina por voz: baixa o áudio, transcreve, registra e responde falando (e escrevendo)', async () => {
   const stt = { ready: true, transcribe: async (buf) => { assert.equal(String(buf), 'audio'); return 'Nina, gastei 30 reais de gasolina'; } };
-  const tts = { ready: true, speak: async (t, voice) => { assert.match(t, /Registrei/); assert.equal(voice, 'pf_dora'); return { buffer: Buffer.from('ogg'), mimetype: 'audio/ogg; codecs=opus' }; } };
+  const tts = { ready: true, speak: async (t, voice) => { assert.match(t, /Registrei/); assert.equal(voice, 'Laomedeia'); return { buffer: Buffer.from('ogg'), mimetype: 'audio/ogg; codecs=opus' }; } };
   const { nina, sent, cash } = setup({ stt, tts });
   assert.equal(await nina.handle(text('', { hasAudio: true })), true);
   assert.equal(cash.entries({})[0].amount, 30);
@@ -288,4 +288,35 @@ test('sem o serviço de voz, a Nina ouve áudio pelo Gemini (mesma chave do Agen
   assert.equal(calls[0].init.headers['x-goog-api-key'], 'k');
   assert.equal(cash.entries({})[0].amount, 50, 'o áudio virou lançamento');
   assert.match(sent.at(-1).text, /Registrei: saída/);
+});
+
+test('voz animada do Gemini: pede o tom empolgado, usa a voz escolhida e entrega OGG/Opus; sem ela, cai no serviço local', async () => {
+  const { GeminiTts, ChoiceTts, HttpTts, DEFAULT_VOICE_STYLE } = await import('../src/voice.js');
+  const calls = [];
+  const fetchImpl = async (url, init) => { calls.push({ url, init }); return { ok: true, json: async () => ({ steps: [{ type: 'model_output', content: [{ type: 'audio', data: Buffer.from('wav').toString('base64') }] }] }) }; };
+  const gem = new GeminiTts({ getConfig: () => ({ provider: 'gemini', apiKey: 'k' }), fetchImpl, convert: async (b) => Buffer.concat([Buffer.from('ogg:'), b]) });
+  const tts = new ChoiceTts({ gemini: gem, local: new HttpTts({ url: '' }) });
+  const { nina, sent } = setup({ tts, stt: { ready: true, transcribe: async () => 'Nina, gastei 50 reais com gasolina' } });
+  nina.store.updateSettings({ assistant: { voice: 'Laomedeia', voiceReply: true } });
+  await nina.handle({ ...text('', { hasAudio: true }) });
+  const body = JSON.parse(calls[0].init.body);
+  assert.match(calls[0].url, /\/interactions$/);
+  assert.equal(body.model, 'gemini-3.8-flash-tts');
+  assert.equal(body.generation_config.speech_config[0].voice, 'Laomedeia');
+  assert.equal(body.input[0].content[0].annotations[0].style, DEFAULT_VOICE_STYLE);
+  assert.match(body.input[0].content[0].text, /cinquenta reais/, 'valores lidos por extenso');
+  const voice = sent.find((m) => m.media?.ptt);
+  assert.equal(voice.media.buffer.toString(), 'ogg:wav');
+  assert.equal(voice.media.mimetype, 'audio/ogg; codecs=opus');
+  assert.equal(sent.at(-1).text.includes('Registrei'), true, 'o texto vai junto');
+  assert.equal(new ChoiceTts({ gemini: new GeminiTts({ getConfig: () => ({ provider: 'openrouter', apiKey: 'k' }) }), local: new HttpTts({ url: '' }) }).ready, false);
+});
+
+test('toOpus converte áudio de verdade para OGG/Opus com o ffmpeg', async () => {
+  const { toOpus } = await import('../src/voice.js');
+  const { spawnSync } = await import('node:child_process');
+  const sine = spawnSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=0.5', '-f', 'wav', 'pipe:1'], { maxBuffer: 1e7 });
+  if (sine.status !== 0) return; // sem ffmpeg neste computador: a conversão é testada onde ele existe
+  const ogg = await toOpus(sine.stdout, { ffmpeg: 'ffmpeg' });
+  assert.equal(ogg.subarray(0, 4).toString(), 'OggS');
 });

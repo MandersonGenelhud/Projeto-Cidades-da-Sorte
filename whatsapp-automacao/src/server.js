@@ -28,7 +28,7 @@ import { makeContractFlow, contractReady } from './autocontract.js';
 import { Learnings } from './learnings.js';
 import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, toCsv as cashToCsv } from './cash.js';
 import { Nina } from './assistant.js';
-import { HttpStt, HttpTts, GeminiStt, FallbackStt } from './voice.js';
+import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Affiliates } from './affiliates.js';
@@ -2790,7 +2790,7 @@ const cash = new Cash({ store, auth, payments, sales, affiliates });
 const nina = new Nina({
   store, auth, cash, llm,
   stt: new FallbackStt(new HttpStt({ url: process.env.STT_URL }), new GeminiStt({ getConfig: agentConfig })),
-  tts: new HttpTts({ url: process.env.TTS_URL }),
+  tts: new ChoiceTts({ gemini: new GeminiTts({ getConfig: agentConfig }), local: new HttpTts({ url: process.env.TTS_URL }) }),
   send: (jid, payload) => wa.send(jid, payload),
   downloadAudio: (m) => wa.downloadAudio(m),
   audit: (text) => securityEvent('caixa_nina', 'Nina', null, text),
@@ -2841,6 +2841,7 @@ app.get('/api/cash/assistant', (_req, res) => res.json({
   ...store.settings.assistant,
   sttReady: nina.stt.ready,
   ttsReady: nina.tts.ready,
+  geminiVoices: GEMINI_VOICES,
   lines: lines.list().map((l) => ({ id: l.id, label: l.label })),
 }));
 app.put('/api/cash/assistant', (req, res) => {
@@ -2851,7 +2852,8 @@ app.put('/api/cash/assistant', (req, res) => {
     enabled: Boolean(b.enabled),
     wakeWord: String(b.wakeWord || 'nina').trim().slice(0, 20) || 'nina',
     voiceReply: Boolean(b.voiceReply),
-    voice: ['pf_dora', 'pm_alex', 'pm_santa'].includes(b.voice) ? b.voice : 'pf_dora',
+    voice: ['pf_dora', 'pm_alex', 'pm_santa'].includes(b.voice) || GEMINI_VOICES[b.voice] ? b.voice : 'Laomedeia',
+    voiceStyle: String(b.voiceStyle || '').trim().slice(0, 300),
     lineId,
   } });
   securityEvent('caixa_nina_ajustes', req.user, req, b.enabled ? 'ligada' : 'desligada');

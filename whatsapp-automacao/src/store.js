@@ -140,7 +140,7 @@ const DEFAULT_DATA = {
     // Controle de caixa (só administradores liberados): categorias das despesas e quem pode ver (vazio = todos os administradores).
     cash: { categories: [], allowedUserIds: [] },
     // Nina: secretária financeira por WhatsApp (texto e áudio). lineId = número só dela (vazio = o número principal, chamando "Nina").
-    assistant: { enabled: true, wakeWord: 'nina', voiceReply: true, voice: 'pf_dora', lineId: '' },
+    assistant: { enabled: true, wakeWord: 'nina', voiceReply: true, voice: 'Laomedeia', voiceStyle: '', lineId: '' },
     // Fechamento: ficha de dados → Pix → termo da reserva assinado no celular.
     closing: {
       enabled: true,
