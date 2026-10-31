@@ -104,6 +104,7 @@ test('mentoria com o Marcos (US$ 250/h): a atendente oferece só para quem insis
   assert.match(system, /JÁ É CLIENTE da Migra não paga/);
   assert.match(system, /pagamento vem ANTES do agendamento, no Pix ou no cartão/);
   assert.match(system, /Nunca confirme data ou horário/);
+  assert.match(system, /assessoria do Marcos confirma por aqui se aquele dia e horário estão livres na agenda dele/);
   assert.match(system, /Não prometa lucro/);
   store.updateSettings({ crm: { mentoring: { enabled: false } } });
   await agent.think(conv);

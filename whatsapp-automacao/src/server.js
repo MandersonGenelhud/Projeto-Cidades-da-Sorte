@@ -274,7 +274,7 @@ payments.onPaid = (p) => {
     const lead = p.leadId ? crm.byId(p.leadId) : null;
     tellMarcos(mentoringNotice(lead, { ...p.mentoring, nome: p.mentoring?.nome || p.payerName }, { phone: lead?.phone || '' }, `PAGA (R$ ${p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}): agendar`)).catch(() => {});
     const conv = p.convKey ? agent.conversation(p.convKey, { create: false }) : null;
-    const text = 'Pagamento confirmado! ✅ O Marcos já recebeu o seu pedido de mentoria e vai confirmar por aqui o dia e o horário.';
+    const text = 'Pagamento confirmado! ✅ A assessoria do Marcos já recebeu o seu pedido de mentoria e vai confirmar por aqui se o dia e o horário que você preferiu estão livres na agenda dele.';
     if (p.convKey) wa.send(p.convKey, { text, typing: false }).then(() => conv && agent.remember(conv, 'assistant', text)).catch(() => {});
     return;
   }
@@ -531,7 +531,7 @@ const mentoringNotice = (lead, args, conv, extra) => [
   args.assunto ? `📝 ${args.assunto}` : '',
   args.disponibilidade ? `📅 Disponibilidade: ${args.disponibilidade}` : '',
   lead?.code ? `🔖 ${lead.code}` : '',
-  '\nConfirme o dia e o horário com o cliente por aqui.',
+  '\nConfirme com o cliente, por aqui, se esse dia e horário estão livres na agenda do Marcos (se não, combine outro).',
 ].filter(Boolean).join('\n');
 const tellMarcos = async (text) => {
   const owner = normalizePhone(store.settings.crm?.ownerPhone);
@@ -549,12 +549,12 @@ agent.bookMentoring = async (conv, args = {}, { dryRun } = {}) => {
   if (isClientOfMigra(lead)) {
     await tellMarcos(mentoringNotice(lead, args, conv, 'cliente da Migra (sem cobrança)'));
     if (lead) crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `🎓 Mentoria com o Marcos pedida (${args.formato || 'online'}), sem cobrança por já ser cliente`);
-    return { ok: true, cliente: true, instrucao: 'Este cliente já é da Migra, então a mentoria não tem cobrança. Diga isso com carinho ("como você já é nosso cliente, não tem custo"), que passou o pedido para o Marcos e que ele confirma o dia e o horário por aqui. Nunca confirme data ou horário.' };
+    return { ok: true, cliente: true, instrucao: 'Este cliente já é da Migra, então a mentoria não tem cobrança. Diga isso com carinho ("como você já é nosso cliente, não tem custo"), que passou o pedido para a assessoria do Marcos, que confirma por aqui se o dia e o horário que ele prefere estão livres na agenda. Nunca confirme data ou horário.' };
   }
   if (args.pagamento === 'cartao') {
     await tellMarcos(mentoringNotice(lead, args, conv, `PAGAMENTO NO CARTÃO (${usd}): enviar o link e, depois de pago, agendar`));
     if (lead) crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `🎓 Mentoria com o Marcos pedida (${args.formato || 'online'}), pagamento no cartão: aguardando o link da equipe`);
-    return { ok: true, cartao: true, instrucao: `Diga que a equipe vai enviar o link do cartão por aqui em instantes (mentoria de 1 hora, ${usd}) e que, depois do pagamento, o Marcos confirma o dia e o horário. Não invente link.` };
+    return { ok: true, cartao: true, instrucao: `Diga que a equipe vai enviar o link do cartão por aqui em instantes (mentoria de 1 hora, ${usd}) e que, depois do pagamento, a assessoria do Marcos confirma se o dia e o horário que ele prefere estão livres na agenda. Não invente link.` };
   }
   try {
     const p = await payments.create({ convKey: conv.key, leadId: lead?.id || null, amount: brl, description: `Mentoria com Marcos Miguel (${m.minutes || 60} min, ${args.formato === 'presencial' ? 'presencial' : 'online'})`, payerName: args.nome, payerDoc: args.cpf, by: 'IA' });
@@ -562,7 +562,7 @@ agent.bookMentoring = async (conv, args = {}, { dryRun } = {}) => {
     p.mentoring = { formato: args.formato === 'presencial' ? 'presencial' : 'online', assunto: String(args.assunto || '').slice(0, 300), disponibilidade: String(args.disponibilidade || '').slice(0, 200), nome: args.nome || '' };
     store.save();
     await payments.sendCharge(p);
-    return { ok: true, valor: money, instrucao: `O QR Code e o Pix copia e cola já foram enviados logo acima (${money}, equivalente a ${usd}). Explique que é só copiar o código no app do banco; assim que o pagamento for confirmado, o recibo chega aqui e o Marcos confirma o dia e o horário da mentoria. Nunca confirme data ou horário.` };
+    return { ok: true, valor: money, instrucao: `O QR Code e o Pix copia e cola já foram enviados logo acima (${money}, equivalente a ${usd}). Explique que é só copiar o código no app do banco; assim que o pagamento for confirmado, o recibo chega aqui e a assessoria do Marcos confirma se o dia e o horário que ele prefere estão livres na agenda. Nunca confirme data ou horário.` };
   } catch (e) {
     return { erro: `${e.message}. Use avisar_marcos com assunto "mentoria" para a equipe cobrar.` };
   }
