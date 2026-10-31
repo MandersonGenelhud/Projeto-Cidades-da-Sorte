@@ -270,3 +270,22 @@ test('sem a IA configurada ou com imagem que não é comprovante, a Nina não la
   assert.match(b.sent.at(-1).text, /Não consegui ler um comprovante/);
   assert.equal(b.cash.entries({}).length, 0);
 });
+
+test('sem o serviço de voz, a Nina ouve áudio pelo Gemini (mesma chave do Agente IA) e responde por texto', async () => {
+  const { GeminiStt, FallbackStt, HttpStt } = await import('../src/voice.js');
+  const calls = [];
+  const fetchImpl = async (url, init) => { calls.push({ url, init }); return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'Nina, gastei 50 reais com gasolina' }] } }] }) }; };
+  const cfg = { provider: 'gemini', apiKey: 'k', model: 'gemini-x' };
+  const gem = new GeminiStt({ getConfig: () => cfg, fetchImpl });
+  assert.equal(new GeminiStt({ getConfig: () => ({ provider: 'openrouter', apiKey: 'k' }) }).ready, false, 'só com Gemini');
+  const stt = new FallbackStt(new HttpStt({ url: '' }), gem);
+  assert.equal(stt.ready, true);
+  const { nina, sent, cash } = setup({ stt });
+  const r = await nina.handle({ ...text('', { hasAudio: true }) });
+  assert.equal(r, true);
+  assert.match(calls[0].url, /models\/gemini-x:generateContent/);
+  assert.equal(JSON.parse(calls[0].init.body).contents[0].parts[1].inline_data.mime_type, 'audio/ogg');
+  assert.equal(calls[0].init.headers['x-goog-api-key'], 'k');
+  assert.equal(cash.entries({})[0].amount, 50, 'o áudio virou lançamento');
+  assert.match(sent.at(-1).text, /Registrei: saída/);
+});

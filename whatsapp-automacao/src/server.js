@@ -28,7 +28,7 @@ import { makeContractFlow, contractReady } from './autocontract.js';
 import { Learnings } from './learnings.js';
 import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, toCsv as cashToCsv } from './cash.js';
 import { Nina } from './assistant.js';
-import { HttpStt, HttpTts } from './voice.js';
+import { HttpStt, HttpTts, GeminiStt, FallbackStt } from './voice.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Affiliates } from './affiliates.js';
@@ -2789,7 +2789,7 @@ app.post('/api/sales/:id/cancel', (req, res) => {
 const cash = new Cash({ store, auth, payments, sales, affiliates });
 const nina = new Nina({
   store, auth, cash, llm,
-  stt: new HttpStt({ url: process.env.STT_URL }),
+  stt: new FallbackStt(new HttpStt({ url: process.env.STT_URL }), new GeminiStt({ getConfig: agentConfig })),
   tts: new HttpTts({ url: process.env.TTS_URL }),
   send: (jid, payload) => wa.send(jid, payload),
   downloadAudio: (m) => wa.downloadAudio(m),
