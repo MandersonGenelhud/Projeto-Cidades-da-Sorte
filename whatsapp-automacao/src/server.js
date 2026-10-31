@@ -562,7 +562,7 @@ agent.bookMentoring = async (conv, args = {}, { dryRun } = {}) => {
     p.mentoring = { formato: args.formato === 'presencial' ? 'presencial' : 'online', assunto: String(args.assunto || '').slice(0, 300), prazo_para_agendar: String(args.prazo_para_agendar || '').slice(0, 200), nome: args.nome || '' };
     store.save();
     await payments.sendCharge(p);
-    return { ok: true, valor: money, instrucao: `O QR Code e o Pix copia e cola já foram enviados logo acima (${money}, equivalente a ${usd}). Explique que é só copiar o código no app do banco; assim que o pagamento for confirmado, o recibo chega aqui e a assessoria do Marcos escolhe o dia e o horário na agenda dele e confirma com ele se serve. Nunca confirme nem sugira data ou horário.` };
+    return { ok: true, valor: money, instrucao: `O QR Code e o Pix copia e cola já foram enviados logo acima (${money}). Diga que a mentoria é US$ 250 e que o Pix, por ser do Brasil, é pago em reais pela cotação do dia (o valor aparece no QR Code; se o cliente perguntar quanto é, diga o valor em reais sem esconder). Explique que é só copiar o código no app do banco; assim que o pagamento for confirmado, o recibo chega aqui e a assessoria do Marcos escolhe o dia e o horário na agenda dele e confirma com ele se serve. Nunca confirme nem sugira data ou horário.` };
   } catch (e) {
     return { erro: `${e.message}. Use avisar_marcos com assunto "mentoria" para a equipe cobrar.` };
   }
