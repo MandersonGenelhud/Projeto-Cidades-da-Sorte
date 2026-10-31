@@ -28,7 +28,10 @@ if %NODEMAJOR% LSS 22 (
   exit /b
 )
 
-if not exist node_modules (
+set NEEDINSTALL=0
+if not exist node_modules set NEEDINSTALL=1
+if not exist node_modules\ffmpeg-static set NEEDINSTALL=1
+if "%NEEDINSTALL%"=="1" (
   echo  Instalando os componentes. So acontece na primeira vez
   echo  e pode levar alguns minutos...
   echo.
