@@ -247,6 +247,8 @@ async function notifyAdmins(text) {
   if (extra) phones.add(extra);
   for (const phone of phones) await wa.send(phone, { text, typing: false }).catch(() => {});
 }
+// Na VPS o endereço fixo (PUBLIC_URL) sempre vale: os dados vindos do computador carregam o endereço provisório antigo.
+if (process.env.PUBLIC_URL) store.updateSettings({ crm: { panelUrl: String(process.env.PUBLIC_URL).replace(/\/+$/, '') } });
 const publicBase = () => String(store.settings.crm?.panelUrl || process.env.PUBLIC_URL || '').replace(/\/+$/, '');
 
 // Pix no fechamento: cobra, confirma, fecha a venda, manda recibo e avisa o dono.
