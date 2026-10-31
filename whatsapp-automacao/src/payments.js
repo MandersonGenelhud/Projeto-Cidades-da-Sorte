@@ -152,7 +152,7 @@ export class Payments {
     const owner = lead?.ownerId ? this.crm.ownerName(lead.ownerId) : '';
     const q = lead?.qualification || {};
     const notice = [
-      p.purpose === 'mentoria' ? '🎓 *Mentoria paga! Pix confirmado*' : '💰 *Venda fechada! Pix confirmado*',
+      p.purpose === 'mentoria' ? '🎓 *Mentoria paga! Pix confirmado*' : p.purpose === 'visita' ? '💳 *Taxa de assessoria presencial paga* (estornar se fechar)' : '💰 *Venda fechada! Pix confirmado*',
       `👤 ${p.payerName || lead?.name || 'Cliente'}${lead?.phone ? ` · +${lead.phone}` : lead?.instagram ? ` · @${lead.instagram}` : ''}`,
       `💵 ${money(p.amount)} · ${p.description}`,
       lead?.interest ? `📦 ${lead.interest}${lead.people > 1 ? ` · ${lead.people} pessoas` : ''}${lead.value ? ` · total ${money(lead.value)}` : ''}` : '',

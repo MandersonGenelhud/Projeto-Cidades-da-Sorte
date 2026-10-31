@@ -293,8 +293,25 @@ payments.onPaid = (p) => {
     if (p.convKey) wa.send(p.convKey, { text, typing: false }).then(() => conv && agent.remember(conv, 'assistant', text)).catch(() => {});
     return;
   }
+  if (p.purpose === 'visita') {
+    // Taxa do atendimento presencial: agora a equipe do escritório confirma o dia e o horário.
+    visits.feePaid(p.visitId, p).catch((e) => store.addLog({ type: 'error', message: `Taxa da visita: ${e.message}` }));
+    const text = 'Pagamento confirmado! ✅ Sua reserva está garantida. A equipe do escritório já recebeu o seu pedido e vai confirmar o dia e o horário por aqui. Lembrando: se você fechar com a Migra, essa taxa é estornada.';
+    const conv = p.convKey ? agent.conversation(p.convKey, { create: false }) : null;
+    if (p.convKey) wa.send(p.convKey, { text, typing: false }).then(() => conv && agent.remember(conv, 'assistant', text)).catch(() => {});
+    return;
+  }
   closing.onPaid(p);
   setTimeout(() => salesOnPaid(p), 0); // a venda nasce com a entrada já recebida
+  // Fechou com a Migra: a taxa de assessoria presencial paga antes precisa ser estornada.
+  setTimeout(() => {
+    for (const v of visits.refundsDue()) {
+      if (v.leadId !== p.leadId || v.refundNoticeAt) continue;
+      v.refundNoticeAt = new Date().toISOString();
+      store.save();
+      notifyAdmins(`💸 *Estornar a taxa de assessoria presencial*\n👤 ${v.name || 'Cliente'}${v.phone ? ` · +${v.phone}` : ''} fechou com a Migra.\nDevolva ${Number(v.feeAmount || visits.fee).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por Pix e marque como estornado na aba Visitas.`).catch(() => {});
+    }
+  }, 0);
 };
 agent.sendForm = async (conv, args, { dryRun } = {}) => {
   if (dryRun || String(conv.key).startsWith('sim:')) {
@@ -649,7 +666,7 @@ const visitDesk = () => resolvePeople(store.settings.visits?.people, auth.users)
 const visitDeskName = () => visitDesk().map((p) => p.name.split(' ')[0]).join(' ou ') || 'a equipe do escritório';
 const isVisitDesk = (user) => Boolean(user?.whatsapp) && visitDesk().some((p) => samePhone(p.whatsapp, user.whatsapp));
 agent.requestVisit = async (conv, args, { dryRun } = {}) => {
-  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real ${visitDeskName()} recebe o pedido no WhatsApp. Diga que passou o pedido para a equipe do escritório, que confirma o dia e o horário por aqui.` };
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real, quem não é cliente recebe o Pix da taxa de reserva e, depois de pago, ${visitDeskName()} confirma o dia e o horário por aqui. Cliente da Migra não paga.` };
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
     || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
   // Quem quer falar direto com o Marcos não é visita: é a mentoria paga.
@@ -657,6 +674,25 @@ agent.requestVisit = async (conv, args, { dryRun } = {}) => {
   if (m.enabled !== false && Number(m.price) > 0 && /marcos|mentoria|direto com o dono|falar com o dono/i.test(`${args.assunto || ''} ${args.observacoes || ''} ${args.preparado || ''}`)) {
     const price = `${m.currency === 'BRL' ? 'R$' : 'US$'} ${Number(m.price).toLocaleString('pt-BR')}`;
     return { erro: `Não registre visita: quem quer falar direto com o Marcos Miguel contrata a mentoria de ${m.minutes || 60} minutos por ${Number(m.price)} ${m.currency === 'BRL' ? 'reais' : 'dólares americanos'} (${price}), online ou presencial, gratuita para quem já é cliente da Migra. Explique isso com naturalidade, dê a escolha entre seguir com a equipe ou reservar a mentoria e, se ele quiser, use reservar_mentoria. Se na verdade ele só quer conhecer o escritório com a equipe, tente de novo sem citar o Marcos.` };
+  }
+  // Taxa de reserva (R$ 125) paga ANTES de agendar; estornada se o cliente fechar. Quem já é cliente não paga.
+  if (visits.fee > 0 && !isClientOfMigra(lead)) {
+    const open = visits.forConversation(conv.key).find((v) => v.status === 'aguardando_taxa');
+    const fee = visits.fee;
+    const feeText = `R$ ${fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    if (open) return { ok: true, jaPedido: true, instrucao: `Este cliente já pediu a visita e o Pix da taxa de ${feeText} já foi enviado: aguardando o pagamento. NÃO gere outro Pix. Lembre com gentileza que, assim que o pagamento cair, a equipe confirma o dia e o horário.` };
+    const v = await visits.request({ convKey: conv.key, lead, phone: conv.phone, feePending: true, ...args });
+    try {
+      const p = await payments.create({ convKey: conv.key, leadId: lead?.id || null, amount: fee, description: 'Taxa de assessoria presencial (reserva de horário) · estornada se fechar com a Migra', payerName: args.nome, by: 'IA' });
+      p.purpose = 'visita';
+      p.visitId = v.id;
+      v.feePaymentId = p.id;
+      store.save();
+      await payments.sendCharge(p);
+    } catch (e) {
+      return { erro: `Não consegui gerar o Pix agora (${e.message}). Diga que a equipe envia o Pix da taxa em instantes e use transferir_para_humano.` };
+    }
+    return { ok: true, valor: feeText, instrucao: `O QR Code e o Pix copia e cola da taxa de reserva (${feeText}) já foram enviados logo acima. Explique em poucas frases: essa taxa reserva o horário na agenda da equipe de assessoria (que está muito concorrida) para atender só pessoas sérias e comprometidas; se ele fechar com a Migra, o valor é estornado, e se não fechar, ele terá tido uma assessoria presencial. Assim que o pagamento for confirmado, a equipe confirma o dia e o horário por aqui. Nunca confirme data ou horário por conta própria. Lembre o que trazer: ${store.settings.visits?.bring || DEFAULT_BRING}` };
   }
   await visits.request({ convKey: conv.key, lead, phone: conv.phone, ...args });
   return { ok: true, instrucao: `Pedido registrado: ${visitDeskName()}, da equipe do escritório, já recebeu. Diga que a equipe confirma o dia e o horário por aqui. Em seguida, em uma mensagem curta, lembre do que trazer: ${store.settings.visits?.bring || DEFAULT_BRING}` };
@@ -670,7 +706,7 @@ agent.visitInfo = (conv) => {
     c.address ? `Endereço do escritório: ${c.address}.` : 'O escritório fica em Santa Rita, Alto Paraná; o endereço exato vai junto com a confirmação.',
     `O que trazer (lembre o cliente exatamente disto): ${c.bring || DEFAULT_BRING}`,
     isClientOfMigra(crm.findForConversation({ key: conv.key, phone: conv.phone })) ? 'ESTE CLIENTE JÁ É CLIENTE DA MIGRA (reserva paga): a visita ao escritório NÃO tem taxa para ele. Não fale em taxa.' : '',
-    !isClientOfMigra(crm.findForConversation({ key: conv.key, phone: conv.phone })) && Number(c.consultFee ?? 150) > 0 ? `Taxa da consultoria presencial: R$ ${Number(c.consultFee ?? 150).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, só para quem não fechar nenhum pacote; quem fecha fica isento (já incluída no contrato).` : 'A visita não tem taxa.',
+    !isClientOfMigra(crm.findForConversation({ key: conv.key, phone: conv.phone })) && visits.fee > 0 ? `Taxa de reserva do atendimento presencial: R$ ${visits.fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, paga ANTES pelo Pix (a ferramenta gera o Pix quando o cliente topar). Quem fecha com a Migra tem o valor ESTORNADO. Quem já é cliente não paga.` : 'A visita não tem taxa.',
     ...mine.map((v) => v.status === 'confirmada' ? `Este cliente JÁ TEM visita confirmada: ${v.date.split('-').reverse().join('/')} às ${v.time}.` : `Este cliente já pediu visita (${v.preferred || 'sem data'}); aguardando a equipe confirmar. Não registre outro pedido.`),
   ].filter(Boolean).join('\n');
 };
@@ -2923,7 +2959,7 @@ app.get('/api/quotes/:id/pdf', (req, res) => {
 // Visitas ao escritório.
 app.get('/api/visits', (_req, res) => res.json([...visits.list].reverse().map((v) => {
   const lead = v.leadId ? crm.byId(v.leadId) : null;
-  return { ...v, leadCode: lead?.code || '', ownerName: lead?.ownerId ? auth.get(lead.ownerId)?.name || '' : '' };
+  return { ...v, refundDue: visits.refundsDue().some((x) => x.id === v.id), leadCode: lead?.code || '', ownerName: lead?.ownerId ? auth.get(lead.ownerId)?.name || '' : '' };
 })));
 // Passa o pedido de visita para um vendedor: vira o responsável e recebe o resumo no WhatsApp (enviado do número conectado).
 app.post('/api/visits/:id/forward', async (req, res) => {
@@ -2961,6 +2997,27 @@ app.post('/api/visits/:id/forward', async (req, res) => {
   store.save();
   notify('visits', { id: v.id });
   res.json({ ok: true, seller: seller.name });
+});
+// Aviso da nova taxa para quem já pediu visita: o administrador confere a lista e a mensagem, e confirma o envio.
+app.get('/api/visits/fee-notice', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  const t = visits.noticeTargets();
+  res.json({ fee: visits.fee, run: visits.noticeRun || null, count: t.length, sample: t[0] ? visits.noticeText(t[0]) : '', targets: t.map((v) => ({ id: v.id, name: v.name, phone: v.phone, status: v.status })) });
+});
+app.post('/api/visits/fee-notice/send', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  if (wa.status !== 'connected') throw httpError(400, 'Conecte o WhatsApp primeiro (aba Conexões)');
+  const ids = Array.isArray(req.body?.ids) && req.body.ids.length ? req.body.ids.map(String) : null;
+  if (!visits.noticeTargets().some((v) => !ids || ids.includes(v.id))) throw httpError(400, 'Ninguém para avisar');
+  securityEvent('visitas_aviso_taxa', req.user, req, `${ids ? ids.length : 'todos'} destinatário(s)`);
+  visits.sendNotices(ids, { by: req.user.name }).catch((e) => store.addLog({ type: 'error', message: `Aviso da taxa: ${e.message}` }));
+  res.json({ ok: true });
+});
+app.post('/api/visits/:id/refunded', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  const v = visits.markRefunded(req.params.id, { by: req.user.name, note: req.body?.note });
+  if (cash.canAccess(req.user) && req.body?.cash) cash.add(req.user, { kind: 'saida', amount: v.feeAmount || visits.fee, description: `Estorno da taxa de assessoria presencial · ${v.name || 'cliente'}`, category: 'Outros', payee: v.name || '', date: new Date().toISOString().slice(0, 10) });
+  res.json(v);
 });
 app.post('/api/visits/:id/confirm', async (req, res) => res.json(await visits.confirm(req.params.id, { ...req.body, by: req.user.name })));
 app.post('/api/visits/:id/reschedule', async (req, res) => res.json(await visits.reschedule(req.params.id, req.body)));

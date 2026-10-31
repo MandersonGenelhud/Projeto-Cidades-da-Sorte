@@ -120,7 +120,7 @@ const DEFAULT_DATA = {
       hours: '', // dias e horários em que o Marcos costuma receber
       notifyPhone: '', // WhatsApp que recebe os pedidos (vazio = administradores)
       bring: '', // o que o cliente deve trazer (vazio = texto padrão)
-      consultFee: 150, // taxa da consultoria presencial (isenta para quem fecha um pacote); 0 = sem taxa
+      consultFee: 125, // taxa de reserva do atendimento presencial: paga antes (Pix), estornada se o cliente fechar; 0 = sem taxa
       people: [], // quem cuida das visitas (Nome = WhatsApp, ou só o nome de quem está na Equipe)
     },
     // Orçamentos ORC-AAAA-NNNNN (PDF + mensagem). nextNumber continua a numeração que a Migra já usa.
@@ -220,6 +220,13 @@ export class Store extends EventEmitter {
     if (lots && !lots.people?.length && !crmS.sectorsSeeded) {
       lots.people = (crmS.specialists || []).filter((x) => /terren|lote|im[oó]ve/i.test(x.topic) && x.name && x.whatsapp).map((x) => ({ name: x.name, whatsapp: x.whatsapp }));
       crmS.sectorsSeeded = true;
+      this.flush();
+    }
+    // Nov/2026: a taxa do atendimento presencial passa de R$ 150 (cobrada depois, só de quem não fechava) para R$ 125 paga antes e estornada ao fechar.
+    const vs = this.data.settings.visits;
+    if (vs && !vs.fee125) {
+      if (Number(vs.consultFee) === 150 || vs.consultFee === undefined) vs.consultFee = 125;
+      vs.fee125 = true;
       this.flush();
     }
     // Nova divisão da equipe (Nov/2026): nada de vendas nem visitas para o Marcos.

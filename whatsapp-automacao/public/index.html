@@ -611,7 +611,8 @@
     <!-- VISITAS AO ESCRITÓRIO -->
     <section id="tab-visits" class="tab">
       <div class="page-head"><h1>🏢 Visitas ao escritório</h1></div>
-      <p class="hint">Quando um cliente quer conhecer o escritório, a atendente faz a ressalva de vir preparado (documentos apostilados, valor da entrada e taxa da consultoria para quem não fechar), registra o pedido e avisa quem cuida das visitas no WhatsApp. Aqui se confirma o dia e o horário: o cliente recebe a confirmação na hora.</p>
+      <p class="hint">Quando um cliente quer conhecer o escritório, a atendente faz a ressalva de vir preparado (documentos apostilados e valor da entrada) e explica a <b>taxa de reserva</b>: o cliente paga o Pix antes, e o valor é <b>estornado se ele fechar com a Migra</b> (cliente da Migra não paga). Só depois do pagamento quem cuida das visitas é avisado, e aqui se confirma o dia e o horário: o cliente recebe a confirmação na hora.</p>
+      <div class="panel" id="visitFeeNotice" data-admin hidden></div>
       <div class="table-wrap"><table id="visitTable"></table></div>
       <form id="formVisits" class="panel form" data-admin>
         <h2>Como o escritório recebe</h2>
@@ -624,7 +625,7 @@
         </div>
         <label>Dias e horários em que costuma receber <input name="hours" placeholder="ex.: segunda a sexta, das 9h às 17h" /></label>
         <label>O que o cliente deve trazer <textarea name="bring" rows="2" placeholder="documentos para iniciar (RG ou passaporte e foto) e o valor da entrada"></textarea></label>
-        <label>Taxa da consultoria presencial (R$), cobrada só de quem não fechar; quem fecha fica isento. 0 = sem taxa <input name="consultFee" type="number" min="0" step="1" /></label>
+        <label>Taxa de reserva do atendimento presencial (R$): paga antes pelo Pix e estornada se o cliente fechar. 0 = sem taxa <input name="consultFee" type="number" min="0" step="1" /></label>
         <button class="btn primary">Salvar</button>
       </form>
     </section>

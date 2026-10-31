@@ -966,7 +966,7 @@ $('#calcQuoteSend').addEventListener('click', () => makeQuote(true));
 $('#btnLeadPlan').addEventListener('click', () => crmState.current?.id && openCalc(crmState.current));
 
 // ---------- VISITAS AO ESCRITÓRIO ----------
-const VISIT_STATUS = { pendente: '<span class="badge paused">⏳ Aguardando você</span>', confirmada: '<span class="badge done">✅ Confirmada</span>', remarcar: '<span class="badge pending">🔁 Remarcando</span>', cancelada: '<span class="badge canceled">Cancelada</span>', realizada: '<span class="badge running">Realizada</span>' };
+const VISIT_STATUS = { aguardando_taxa: '<span class="badge pending">💳 Aguardando a taxa</span>', pendente: '<span class="badge paused">⏳ Aguardando você</span>', confirmada: '<span class="badge done">✅ Confirmada</span>', remarcar: '<span class="badge pending">🔁 Remarcando</span>', cancelada: '<span class="badge canceled">Cancelada</span>', realizada: '<span class="badge running">Realizada</span>' };
 loaders.visits = async () => {
   const [list, settings, users] = await Promise.all([api('/api/visits'), api('/api/settings').catch(() => ({})), api('/api/users').catch(() => [])]);
   // Todo vendedor ativo da aba Equipe aparece aqui; quem está sem WhatsApp aparece apagado (não tem como receber).
@@ -980,9 +980,9 @@ loaders.visits = async () => {
         ${v.status !== 'cancelada' && sellerOptions ? `<div class="visit-actions"><select data-f="seller"><option value="">Escolha o vendedor…</option>${sellerOptions}</select><button class="btn small" data-act="forward">📤 Passar para o vendedor</button></div>` : ''}</td>
       <td>${esc(v.preferred || '—')}${v.period ? `<div class="hint">${esc(v.period)}</div>` : ''}</td>
       <td>${esc(v.subject || '—')}</td><td class="small">${esc(v.prepared || '—')}</td>
-      <td>${VISIT_STATUS[v.status] || esc(v.status)}${v.status === 'confirmada' ? `<div class="hint">${esc(v.date.split('-').reverse().join('/'))} às ${esc(v.time)}</div>` : ''}</td>
+      <td>${VISIT_STATUS[v.status] || esc(v.status)}${v.feePaidAt ? `<div class="hint">💳 Taxa paga (${cashMoney(v.feeAmount || 125)})${v.refundedAt ? ' · ✅ estornada' : ''}</div>` : ''}${v.refundDue ? '<div class="status-warn">💸 Fechou com a Migra: estornar a taxa</div>' : ''}${v.status === 'confirmada' ? `<div class="hint">${esc(v.date.split('-').reverse().join('/'))} às ${esc(v.time)}</div>` : ''}</td>
       <td>${['pendente', 'remarcar'].includes(v.status) ? `<div class="visit-actions"><input type="date" data-f="date" min="${today}" /><input type="time" data-f="time" step="900" /><button class="btn small primary" data-act="confirm">Confirmar</button><button class="btn small" data-act="reschedule">Propor outro dia</button><button class="btn small danger" data-act="cancel">Recusar</button></div>`
-        : v.status === 'confirmada' ? '<button class="btn small" data-act="done">Marcar como realizada</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum pedido de visita ainda.</td></tr>'}</tbody>`;
+        : v.status === 'confirmada' ? '<button class="btn small" data-act="done">Marcar como realizada</button>' : ''}${v.refundDue ? '<button class="btn small primary" data-act="refunded">💸 Marcar como estornada</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum pedido de visita ainda.</td></tr>'}</tbody>`;
   const pend = list.filter((v) => v.status === 'pendente').length;
   $('#visitBadge').hidden = !pend;
   $('#visitBadge').textContent = pend;
@@ -990,9 +990,37 @@ loaders.visits = async () => {
   const f = $('#formVisits');
   f.enabled.checked = c.enabled !== false;
   for (const k of ['address', 'notifyPhone', 'hours', 'bring']) f[k].value = c[k] || '';
-  f.consultFee.value = c.consultFee ?? 150;
+  f.consultFee.value = c.consultFee ?? 125;
+  renderFeeNotice().catch(() => {});
   f.people.value = (c.people || []).map((p) => `${p.name}${p.whatsapp ? ` = +${p.whatsapp}` : ''}`).join('\n');
 };
+async function renderFeeNotice() {
+  const box = $('#visitFeeNotice');
+  if (!box || !isAdmin()) return;
+  const d = await api('/api/visits/fee-notice');
+  const run = d.run;
+  box.hidden = !(d.count || run);
+  if (box.hidden) return;
+  box.innerHTML = `<h2>📣 Avisar quem já pediu visita sobre a taxa de ${cashMoney(d.fee)}</h2>
+    ${run?.running ? `<p><b>Enviando…</b> ${run.sent} de ${run.total} enviados${run.failed ? ` · ${run.failed} falharam` : ''} (uma pessoa por vez, com intervalo).</p>` : run ? `<p class="hint">Último envio: ${run.sent} enviados${run.failed ? `, ${run.failed} falharam` : ''}.</p>` : ''}
+    ${d.count ? `<p><b>${d.count}</b> pessoa(s) ainda não foram avisadas: ${d.targets.slice(0, 12).map((t) => esc(t.name || fmtPhone(t.phone))).join(', ')}${d.count > 12 ? '…' : ''}. Quem já é cliente da Migra ou já pagou a taxa não recebe.</p>
+      <details><summary>Ver a mensagem que cada pessoa recebe</summary><pre class="notice-sample">${esc(d.sample)}</pre></details>
+      <p class="hint">Sai pelo WhatsApp principal da Migra (nunca pelo celular pessoal do Marcos), uma pessoa por vez, com 7 a 13 segundos entre cada uma, e cada pessoa recebe uma única vez. Quem responder que quer seguir recebe o Pix da taxa da atendente.</p>
+      <button class="btn primary" id="btnFeeNoticeSend" ${run?.running ? 'disabled' : ''}>📤 Enviar o aviso para ${d.count} pessoa(s)</button>` : ''}`;
+  if (run?.running) setTimeout(() => $('#tab-visits').classList.contains('active') && renderFeeNotice().catch(() => {}), 5000);
+}
+document.addEventListener('click', async (e) => {
+  if (e.target.id !== 'btnFeeNoticeSend') return;
+  const d = await api('/api/visits/fee-notice');
+  if (!confirm(`Enviar o aviso da taxa de ${cashMoney(d.fee)} para ${d.count} pessoa(s)? Cada uma recebe uma única mensagem, uma de cada vez.`)) return;
+  try {
+    await api('/api/visits/fee-notice/send', { method: 'POST', body: {} });
+    toast('Enviando… acompanhe aqui na aba Visitas.');
+    setTimeout(() => renderFeeNotice().catch(() => {}), 1500);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 $('#visitTable').addEventListener('click', async (e) => {
   const act = e.target.closest('button[data-act]')?.dataset.act;
   const row = e.target.closest('[data-visit]');
@@ -1022,6 +1050,10 @@ $('#visitTable').addEventListener('click', async (e) => {
       if (!confirm(`Passar este cliente para ${name}? Ele(a) vira o responsável e recebe o resumo no WhatsApp, enviado pelo número conectado.`)) return;
       await api(`/api/visits/${id}/forward`, { method: 'POST', body: { ownerId: sel.value } });
       toast(`Enviado para ${name}`);
+    } else if (act === 'refunded') {
+      if (!confirm('Já devolveu a taxa por Pix para esta pessoa?')) return;
+      await api(`/api/visits/${id}/refunded`, { method: 'POST', body: { cash: window.confirm('Lançar a devolução como saída no Caixa também?') } });
+      toast('Marcada como estornada');
     } else if (act === 'done') {
       await api(`/api/visits/${id}/done`, { method: 'POST' });
     }
