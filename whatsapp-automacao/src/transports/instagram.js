@@ -196,9 +196,11 @@ export class InstagramClient extends EventEmitter {
 
   /**
    * Conversas recentes do Direct (para responder quem chamou antes do sistema ligar).
+   * Vêm todas as pastas: Principal, Geral e Pedidos (pedidos parados há mais de 30 dias a Meta não devolve).
+   * Os "pedidos ocultos" (filtro de palavras do Instagram) só chegam se o filtro for desligado no app.
    * Devolve mensagens no formato interno, com fromMe, como o histórico do WhatsApp.
    */
-  async recentMessages({ maxConversations = 50 } = {}) {
+  async recentMessages({ maxConversations = 150 } = {}) {
     if (this.status !== 'connected') throw new Error('Instagram não está conectado');
     const myId = this.me.id;
     const fields = 'participants,updated_time,messages.limit(10){id,message,from,created_time}';
