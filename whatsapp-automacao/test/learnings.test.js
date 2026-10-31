@@ -99,7 +99,8 @@ test('mentoria com o Marcos (US$ 250/h): a atendente oferece só para quem insis
   agent.remember(conv, 'user', 'Quero falar direto com o Marcos');
   await agent.think(conv);
   assert.match(system, /60 minutos por US\$ 250/);
-  assert.match(system, /não converta para reais por conta própria/);
+  assert.match(system, /não converta para reais por conta própria|Não converta para reais por conta própria/);
+  assert.match(system, /250 dólares americanos \(US\$ 250\) a hora/);
   assert.match(system, /investimentos no Paraguai/);
   assert.match(system, /online ou presencial/);
   assert.match(system, /JÁ É CLIENTE da Migra não paga/);
