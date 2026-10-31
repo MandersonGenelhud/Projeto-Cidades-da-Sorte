@@ -212,3 +212,19 @@ test('visita ao escritório e mentoria com o Marcos são separadas, e quem já �
   assert.match(system, /ESTE CLIENTE JÁ É CLIENTE: não fale de taxa nem de valor, é sem custo/);
   assert.match(system, /este cliente já é cliente da Migra: NÃO fale de taxa/);
 });
+
+test('mentoria com o Marcos nunca é estornada; só a taxa da visita volta se o cliente fechar', async () => {
+  const { Agent } = await import('../src/agent/agent.js');
+  const store = tempStore();
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  let system = '';
+  const llm = { configured: true, chat: async ({ messages }) => { system = messages[0].content; return { content: 'Oi!', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm });
+  agent.notifyOwner = async () => ({ ok: true });
+  agent.requestVisit = async () => ({ ok: true });
+  const conv = agent.conversation('5511999990000@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Oi');
+  await agent.think(conv);
+  assert.match(system, /NÃO é devolvido nem estornado em nenhum caso/);
+  assert.match(system, /nunca diga que o valor da mentoria é devolvido/);
+});
