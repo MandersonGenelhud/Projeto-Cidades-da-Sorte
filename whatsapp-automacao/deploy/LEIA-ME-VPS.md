@@ -24,6 +24,17 @@ Se o repositório for privado e o `curl` não baixar, copie o conteúdo do arqui
 
 O script mostra uma **chave pública**: copie e cadastre em GitHub → repositório → Settings → **Deploy keys** → Add deploy key (sem marcar "Allow write access"). Depois aperte ENTER.
 
+## 3b. Sem esperar o domínio (endereço provisório com HTTPS)
+Se o domínio ainda não estiver aparecendo na internet, instale com um endereço que já funciona sozinho a partir do IP (serviço gratuito sslip.io):
+```
+bash instalar-vps.sh 187-41-108-131.sslip.io
+```
+Depois que `app.migraparaguai.tech` passar a funcionar (`nslookup app.migraparaguai.tech 8.8.8.8` mostrando o IP), troque com:
+```
+bash /opt/migra/app/whatsapp-automacao/deploy/trocar-dominio.sh app.migraparaguai.tech
+```
+Se o Instagram já estiver ligado, cole o novo endereço do webhook na Meta.
+
 ## 4. Trazer os dados do computador (contratos, vendas, WhatsApp)
 1. **Feche o Migra Hub no computador** (a janela preta).
 2. No PowerShell do computador, na pasta do sistema:
