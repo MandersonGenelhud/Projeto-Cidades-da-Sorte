@@ -58,6 +58,13 @@ export function normalizeMessage(msg, lidToPn = new Map()) {
   return out;
 }
 
+/** A conversa é do próprio número conectado (consigo mesmo)? Compara sem o sufixo do aparelho (":12"). */
+export function isSelfChat(remoteJid, me) {
+  const bare = (j) => String(j || '').replace(/:\d+(?=@)/, '');
+  const jid = bare(remoteJid);
+  return Boolean(jid) && [me?.id, me?.lid].filter(Boolean).some((x) => bare(x) === jid);
+}
+
 /** Motivo da queda em português, para o painel. */
 export function describeClose(code, message = '') {
   const known = {
@@ -219,6 +226,19 @@ export class WhatsAppClient extends EventEmitter {
       }
       if (type !== 'notify') return;
       for (const msg of messages) {
+        // Conversa do dono consigo mesmo ("Você"/"Mensagem para mim"): é onde ele fala com a Nina.
+        if (msg.key.fromMe && isSelfChat(msg.key.remoteJid, sock.user)) {
+          if (this.sentIds.has(msg.key.id)) continue; // as respostas da própria Nina não voltam como pedido
+          const parsed = normalizeMessage(msg);
+          if (parsed && !parsed.isGroup) {
+            parsed.fromMe = false;
+            parsed.selfChat = true;
+            parsed.phone = jidToPhone(sock.user.id);
+            parsed.name = '';
+            this.emit('message', parsed);
+          }
+          continue;
+        }
         if (msg.key.fromMe) {
           // Mensagem que o dono mandou pelo celular (as deste sistema não chegam como "notify").
           if (this.sentIds.has(msg.key.id)) continue;

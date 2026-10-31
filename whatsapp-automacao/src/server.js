@@ -939,6 +939,8 @@ wa.on('message', (msg) => {
     nina.handle(msg).catch((err) => store.addLog({ type: 'error', message: `Nina: ${err.message}` }));
     return;
   }
+  // Conversa do dono consigo mesmo: só a Nina atende (chamada pelo nome ou por áudio). O resto é anotação dele, nunca vai para a atendente.
+  if (msg.selfChat) return;
   // Cliente com Pix em aberto mandou foto/PDF: se for o comprovante, a IA lê, confere e dá baixa; se não for, segue o atendimento.
   if (receipts.wants(msg)) {
     receipts.handle(msg).then((done) => done || routeIncoming(msg)).catch((err) => { store.addLog({ type: 'error', message: `Comprovante: ${err.message}` }); routeIncoming(msg); });

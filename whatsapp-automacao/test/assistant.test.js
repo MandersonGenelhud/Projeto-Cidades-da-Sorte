@@ -330,3 +330,25 @@ test('voz: se o serviço local falhar (ainda baixando o modelo), o Gemini assume
   assert.equal((await new ChoiceTts({ gemini: good, local: bad }).speak('oi', 'pf_dora')).mimetype, 'audio/ogg', 'voz local falhou: usa a do Gemini');
   assert.equal((await new ChoiceTts({ gemini: bad, local: good }).speak('oi', 'Laomedeia')).mimetype, 'audio/ogg', 'Gemini falhou: usa a local');
 });
+
+test('conversa do Marcos consigo mesmo: reconhece o próprio número, e a Nina responde em voz no mesmo chat', async () => {
+  const { isSelfChat } = await import('../src/transports/whatsapp-web.js');
+  const me = { id: '595987101567:12@s.whatsapp.net', lid: '123456789:12@lid' };
+  assert.equal(isSelfChat('595987101567@s.whatsapp.net', me), true, 'sem o sufixo do aparelho');
+  assert.equal(isSelfChat('123456789@lid', me), true);
+  assert.equal(isSelfChat('5511900000000@s.whatsapp.net', me), false, 'conversa com outra pessoa');
+  assert.equal(isSelfChat('', me), false);
+  assert.equal(isSelfChat('120363@g.us', me), false);
+  const tts = { ready: true, speak: async (t) => ({ buffer: Buffer.from(`voz:${t.slice(0, 8)}`), mimetype: 'audio/ogg; codecs=opus' }) };
+  const stt = { ready: true, transcribe: async () => 'Nina, gastei 80 reais com gasolina' };
+  const { nina, sent, cash } = setup({ stt, tts });
+  const self = { jid: '595987101567@s.whatsapp.net', phone: '595987101567', text: '', hasAudio: true, selfChat: true, fromMe: false };
+  assert.notEqual(nina.wants(self), null);
+  await nina.handle(self);
+  assert.equal(cash.entries({})[0].amount, 80);
+  const voice = sent.find((m) => m.media?.ptt);
+  assert.equal(voice.jid, '595987101567@s.whatsapp.net', 'a resposta falada volta para o próprio chat dele');
+  assert.ok(sent.at(-1).text.includes('Registrei'));
+  // Anotação dele sem chamar a Nina: ela não se mete.
+  assert.equal(nina.wants({ ...self, hasAudio: false, text: 'comprar pão' }), null);
+});
