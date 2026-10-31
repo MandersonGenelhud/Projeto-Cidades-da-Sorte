@@ -1,0 +1,48 @@
+# Relatório do Migra Hub (o que foi feito e onde clicar)
+
+Atualizado em 31/10/2026. Tudo abaixo está no sistema depois de **Atualizar agora**.
+
+## 1. Caixa e Nina (secretária financeira do Marcos)
+- **Caixa** (menu Vendas → Caixa): entradas e saídas, por moeda (R$, US$, Gs.), com separação **Empresa / Pessoal / Dízimo**, filtros, histórico e botão **Baixar planilha**.
+- **Nina** (WhatsApp do Marcos, conversa "Você"): ele manda áudio ou texto começando com "Nina…".
+  - Registrar: "Nina, gastei 50 reais com gasolina".
+  - Consultar: "Nina, quanto gastei com gasolina esse mês?".
+  - Planilha: "Nina, me manda a planilha".
+  - Dízimo: "Nina, quanto devo de dízimo?".
+  - Corrigir: depois de registrar, responder "pessoal", "empresa" ou "dízimo".
+  - Comprovante: foto com a legenda "Nina" (ela lê e pergunta antes de lançar).
+  - Responde em **voz animada** (Gemini) quando ele fala por áudio.
+- **Testar sem WhatsApp:** Caixa → ⚙️ Categorias… → 🧪 Testar a Nina agora.
+
+## 2. Equipe e áreas
+- **Equipe**: cada pessoa tem os botões 🛂 Documentação · 🏡 Terrenos · 🚗 Veículos. Define quem recebe cada tipo de cliente (IA, Nina, Instagram e indicações de parceiros).
+- **WhatsApp de cada vendedor** (na própria Equipe e em Conexões): QR Code, liga/desliga a IA e o **nome da atendente** de cada número (não pode ser "Nina").
+- **Corretor, terreno e parceria imobiliária** vão para Gabriel e Diego, nunca para o Marcos. Um único aviso por cliente (sem repetir).
+
+## 3. Visitas e pagamentos
+- **Visita presencial com a assessoria**: taxa de reserva de **R$ 150**, paga antes por Pix, **estornada se o cliente fechar**. Cliente da Migra não paga.
+- **Mentoria com o Marcos**: **US$ 250 (dólares americanos), nunca estornada**.
+- **Aba Visitas → "Avisar quem já pediu visita"**: você confere a lista e a mensagem e clica em Enviar (uma pessoa por vez, uma única vez cada).
+- **Comprovante de Pix**: o cliente manda a foto na conversa, a IA lê e dá baixa só se tudo conferir (valor, recebedor, data, transação única, até R$ 5.000). Qualquer dúvida vai para você conferir no extrato.
+
+## 4. VPS e HTTPS (em andamento)
+- VPS: Hostinger KVM 4, IP **187.41.108.131**. Domínio: **migraparaguai.tech** (endereço `app.migraparaguai.tech`).
+- Falta: criar o registro A `app` → 187.41.108.131, entrar na VPS (`ssh root@187.41.108.131`) e rodar a instalação (`deploy/instalar-vps.sh`).
+- Depois: migrar os dados do computador (`deploy/migrar-dados.sh`), ligar o Instagram com `https://app.migraparaguai.tech/webhook/instagram`.
+- Atualizar na VPS: `bash deploy/atualizar-vps.sh`. Backup diário automático.
+- Passo a passo completo: `deploy/LEIA-ME-VPS.md`.
+
+## 5. Pendências suas
+1. DNS: registro A `app` → 187.41.108.131 e conferir com `nslookup app.migraparaguai.tech`.
+2. Entrar na VPS e me avisar para eu passar o comando de instalação.
+3. Total do acordo entre você e o Marcos (R$ 15.000?) e as datas dos dois Pix de R$ 1.000, para lançar no Caixa.
+4. Trocar o nome da atendente de clientes (hoje "Nina") por outro, para não confundir com a secretária.
+5. Desconectar qualquer outra ferramenta ligada ao Instagram antes de ligar a nossa.
+
+## 6. Regras de segurança
+- Nunca mandar senha, códigos, chaves ou tokens por chat. Colar só no painel.
+- `data/` (banco, chaves, sessão do WhatsApp, backups) nunca vai para o Git.
+- Detalhes em `SEGURANCA.md`.
+
+## 7. Onde está o código
+- Repositório MandersonGenelhud/Projeto-Cidades-da-Sorte, branch `claude/whatsapp-automation-tool-247je5`, pasta `whatsapp-automacao/`.
