@@ -91,7 +91,7 @@ test('nova divisão da equipe: setores só com o nome usam o WhatsApp da Equipe 
   assert.ok(fs.existsSync(store.file));
 });
 
-test('quem quer trabalhar na Migra vai para o Gabriel; parceria de negócio continua com o Marcos', async () => {
+test('quem quer trabalhar na Migra vai para o Gabriel; parceria imobiliária vai para Gabriel e Diego, outras parcerias com o Marcos', async () => {
   const { Agent } = await import('../src/agent/agent.js');
   const store = tempStore();
   store.updateSettings(presetSettings('migra-paraguai'));
@@ -105,5 +105,19 @@ test('quem quer trabalhar na Migra vai para o Gabriel; parceria de negócio cont
   agent.remember(conv, 'user', 'Tenho interesse em trabalhar no Paraguai com vocês');
   await agent.think(conv);
   assert.match(system, /assunto "contratação": o contato vai para o Gabriel/);
-  assert.match(system, /parceria de negócio, fornecedores, imprensa ou investidores: use avisar_marcos/);
+  assert.match(system, /Outras parcerias de negócio, fornecedores, imprensa ou investidores: use avisar_marcos/);
+  assert.match(system, /Parceria com corretor, imobiliária, terreno ou loteamento NÃO vai para o Marcos/);
+});
+
+test('corretor/parceria imobiliária nunca vai para o Marcos nem para os administradores: segue para o setor de loteamentos', async () => {
+  const { Sectors } = await import('../src/sectors.js');
+  const store = tempStore();
+  store.updateSettings({ crm: { sectors: { loteamentos: { people: [] } } } });
+  const adminMsgs = [];
+  const crm = { findForConversation: () => null, ensureFromConversation: () => null, update() {}, addNote() {} };
+  const sectors = new Sectors({ store, crm, auth: { users: [] }, send: async () => {}, notifyAdmins: async (t) => adminMsgs.push(t) });
+  const r = await sectors.route({ key: '5511942969570@s.whatsapp.net', phone: '5511942969570', name: 'Carrera' }, { setor: 'loteamentos', resumo: 'corretor quer parceria' });
+  assert.equal(r.ok, true);
+  assert.equal(adminMsgs.length, 0, 'sem Gabriel/Diego cadastrados, ninguém da diretoria recebe');
+  assert.ok(store.data.logs.some((l) => /ninguém com WhatsApp cadastrado/.test(l.message)));
 });

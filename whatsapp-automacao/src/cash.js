@@ -13,8 +13,14 @@ export const CURRENCIES = ['BRL', 'USD', 'PYG'];
 export const METHODS = ['Pix', 'Cartão de crédito', 'Cartão de débito', 'Dinheiro', 'Transferência', 'Boleto', 'Outro'];
 export const DEFAULT_CATEGORIES = [
   'Salários e comissões', 'Aluguel e contas do escritório', 'Marketing e anúncios', 'Impostos e taxas', 'Fornecedores e serviços',
-  'Documentos, cartório e certidões', 'Viagens e hospedagem', 'Software e sistemas', 'Retirada de sócio', 'Outros',
+  'Documentos, cartório e certidões', 'Viagens e hospedagem', 'Software e sistemas', 'Retirada de sócio',
+  'Combustível', 'Alimentação', 'Saúde', 'Casa e família', 'Lazer e compras', 'Dízimo e ofertas', 'Outros',
 ];
+// De quem é o dinheiro: separa o que é da empresa, o pessoal e o dízimo (a mesma planilha, filtrada).
+export const SCOPES = ['empresa', 'pessoal', 'dizimo'];
+export const SCOPE_LABELS = { empresa: 'Empresa', pessoal: 'Pessoal', dizimo: 'Dízimo' };
+export const TITHE_PCT = 10;
+const flat = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const AUTO_IN = 'Recebimento de clientes';
 const AUTO_COMMISSION = 'Comissões pagas';
 
@@ -45,6 +51,13 @@ export class Cash {
     return !Array.isArray(allowed) || !allowed.length || allowed.includes(user.id);
   }
 
+  #scope(v) {
+    const x = flat(v).trim();
+    if (!x) return 'empresa';
+    if (!SCOPES.includes(x)) throw err(400, 'Escolha: empresa, pessoal ou dízimo');
+    return x;
+  }
+
   #log(e, user, text) {
     e.history.push({ at: new Date().toISOString(), by: user?.name || 'Sistema', text });
   }
@@ -70,6 +83,7 @@ export class Cash {
       account: clean(input.account ?? base.account, 80), // de que conta/quem pagou (ex.: Marcos, empresa)
       payee: clean(input.payee ?? base.payee, 120), // para quem foi (ou de quem veio)
       notes: clean(input.notes ?? base.notes, 400),
+      scope: this.#scope(input.scope ?? base.scope),
     };
   }
 
@@ -112,7 +126,7 @@ export class Cash {
     for (const p of this.payments?.list || []) {
       if (p.status !== 'paid' || !p.paidAt) continue;
       out.push({ id: `pay:${p.id}`, source: 'sistema', kind: 'entrada', date: p.paidAt.slice(0, 10), amount: round(p.amount), currency: 'BRL', category: AUTO_IN,
-        description: `${p.description || 'Pix'}${p.payerName ? ` · ${p.payerName}` : ''}`, method: 'Pix', account: '', payee: p.payerName || '', status: 'pago', notes: '' });
+        description: `${p.description || 'Pix'}${p.payerName ? ` · ${p.payerName}` : ''}`, method: 'Pix', account: '', payee: p.payerName || '', status: 'pago', notes: '', scope: 'empresa' });
     }
     for (const s of this.sales?.list || []) {
       if (s.status === 'cancelada') continue;
@@ -120,32 +134,33 @@ export class Cash {
         // A entrada confirmada por Pix já aparece como pagamento acima.
         if (x.status !== 'pago' || !x.paidAt || String(x.confirmedBy || '').startsWith('Sistema')) return;
         out.push({ id: `parc:${s.id}:${i}`, source: 'sistema', kind: 'entrada', date: x.paidAt, amount: round(x.value), currency: 'BRL', category: AUTO_IN,
-          description: `${s.number} · ${x.label} · ${s.client?.nome || ''}`, method: x.method || '', account: '', payee: s.client?.nome || '', status: 'pago', notes: '' });
+          description: `${s.number} · ${x.label} · ${s.client?.nome || ''}`, method: x.method || '', account: '', payee: s.client?.nome || '', status: 'pago', notes: '', scope: 'empresa' });
       });
       const c = s.commission;
       if (c?.status === 'paga' && c.paidAt && c.value > 0) {
         out.push({ id: `com:${s.id}`, source: 'sistema', kind: 'saida', date: c.paidAt, amount: round(c.value), currency: 'BRL', category: AUTO_COMMISSION,
-          description: `Comissão de ${s.sellerName || 'vendedor'} · ${s.number}`, method: '', account: '', payee: s.sellerName || '', status: 'pago', notes: '' });
+          description: `Comissão de ${s.sellerName || 'vendedor'} · ${s.number}`, method: '', account: '', payee: s.sellerName || '', status: 'pago', notes: '', scope: 'empresa' });
       }
     }
     for (const c of this.affiliates?.data?.commissions || []) {
       if (c.status !== 'paga' || !c.paidAt || !(c.amount > 0)) continue;
       out.push({ id: `aff:${c.id}`, source: 'sistema', kind: 'saida', date: c.paidAt.slice(0, 10), amount: round(c.amount), currency: c.currency || 'BRL', category: AUTO_COMMISSION,
-        description: `Comissão de parceiro · ${c.clientName || ''}`, method: '', account: '', payee: this.affiliates?.get?.(c.affId)?.name || '', status: 'pago', notes: '' });
+        description: `Comissão de parceiro · ${c.clientName || ''}`, method: '', account: '', payee: this.affiliates?.get?.(c.affId)?.name || '', status: 'pago', notes: '', scope: 'empresa' });
     }
     return out;
   }
 
   /** Lançamentos (manuais + automáticos) do período, do mais recente para o mais antigo. */
-  entries({ from = '', to = '', kind = '', category = '', q = '', status = '' } = {}) {
-    const term = clean(q, 80).toLowerCase();
-    const manual = this.list.filter((e) => !e.deleted).map((e) => ({ ...e, source: 'manual' }));
+  entries({ from = '', to = '', kind = '', category = '', q = '', status = '', scope = '' } = {}) {
+    const term = flat(clean(q, 80));
+    const manual = this.list.filter((e) => !e.deleted).map((e) => ({ ...e, scope: e.scope || 'empresa', source: 'manual' }));
     return [...manual, ...this.automatic()]
       .filter((e) => (!from || e.date >= from) && (!to || e.date <= to))
       .filter((e) => !kind || e.kind === kind)
       .filter((e) => !category || e.category === category)
       .filter((e) => !status || e.status === status)
-      .filter((e) => !term || [e.description, e.payee, e.category, e.account, e.method].some((x) => String(x || '').toLowerCase().includes(term)))
+      .filter((e) => !scope || e.scope === scope)
+      .filter((e) => !term || [e.description, e.payee, e.category, e.account, e.method].some((x) => flat(x).includes(term)))
       .sort((a, b) => b.date.localeCompare(a.date) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   }
 
@@ -153,6 +168,7 @@ export class Cash {
   summary(entries) {
     const byCur = {};
     const cat = {};
+    const byScope = {}; // escopo → moeda → { entradas, saidas } (só o que já foi pago)
     for (const e of entries) {
       const c = (byCur[e.currency] ||= { entradas: 0, saidas: 0, aPagar: 0, aReceber: 0 });
       if (e.status === 'a_pagar') {
@@ -160,8 +176,10 @@ export class Cash {
         else c.aReceber = round(c.aReceber + e.amount);
         continue;
       }
-      if (e.kind === 'entrada') c.entradas = round(c.entradas + e.amount);
+      const sc = ((byScope[e.scope || 'empresa'] ||= {})[e.currency] ||= { entradas: 0, saidas: 0 });
+      if (e.kind === 'entrada') { c.entradas = round(c.entradas + e.amount); sc.entradas = round(sc.entradas + e.amount); }
       else {
+        sc.saidas = round(sc.saidas + e.amount);
         c.saidas = round(c.saidas + e.amount);
         const k = `${e.currency}|${e.category}`;
         cat[k] = round((cat[k] || 0) + e.amount);
@@ -170,6 +188,42 @@ export class Cash {
     for (const c of Object.values(byCur)) c.saldo = round(c.entradas - c.saidas);
     const spending = Object.entries(cat).map(([k, total]) => { const [currency, category] = k.split('|'); return { currency, category, total }; })
       .sort((a, b) => b.total - a.total);
-    return { byCurrency: byCur, spending };
+    return { byCurrency: byCur, spending, byScope };
   }
+
+  /**
+   * Dízimo do período: 10% da renda pessoal menos o dízimo já registrado como saída.
+   * Renda pessoal = entradas marcadas como "pessoal" + "Retirada de sócio" (o que saiu da empresa para o bolso).
+   * O que entra da empresa (clientes) NÃO conta. É só uma ajuda de conta; a decisão é da pessoa.
+   */
+  tithe(entries) {
+    const out = {};
+    for (const e of entries) {
+      if (e.status === 'a_pagar') continue;
+      const c = (out[e.currency] ||= { renda: 0, devido: 0, pago: 0, falta: 0 });
+      if (e.kind === 'entrada' ? e.scope === 'pessoal' : e.category === 'Retirada de sócio') c.renda = round(c.renda + e.amount);
+      else if (e.kind === 'saida' && e.scope === 'dizimo') c.pago = round(c.pago + e.amount);
+    }
+    for (const c of Object.values(out)) {
+      c.devido = round((c.renda * TITHE_PCT) / 100);
+      c.falta = round(Math.max(0, c.devido - c.pago));
+    }
+    return out;
+  }
+}
+
+/** Planilha em CSV (separador ";" e BOM: abre direto no Excel e no Google Planilhas em português). */
+export function toCsv(entries) {
+  const cell = (v) => {
+    let x = String(v ?? '');
+    if (/^[=+\-@\t\r]/.test(x)) x = `'${x}`; // evita fórmula maliciosa ao abrir no Excel
+    return /[";\n\r]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x;
+  };
+  const head = ['Data', 'Tipo', 'Escopo', 'Categoria', 'Descrição', 'Valor', 'Moeda', 'Situação', 'Vencimento', 'Forma', 'Quem pagou', 'Para quem / de quem', 'Observações', 'Origem'];
+  const rows = [...entries].sort((a, b) => a.date.localeCompare(b.date)).map((e) => [
+    e.date.split('-').reverse().join('/'), e.kind === 'entrada' ? 'Entrada' : 'Saída', SCOPE_LABELS[e.scope] || 'Empresa', e.category, e.description,
+    String(e.amount).replace('.', ','), e.currency, e.status === 'a_pagar' ? (e.kind === 'saida' ? 'A pagar' : 'A receber') : 'Pago',
+    e.dueDate ? e.dueDate.split('-').reverse().join('/') : '', e.method, e.account, e.payee, e.notes, e.source === 'sistema' ? 'Automático' : e.via === 'nina' ? 'Nina' : 'Manual',
+  ]);
+  return `\ufeff${[head, ...rows].map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`;
 }

@@ -106,7 +106,10 @@ export class Sectors {
       this.store.save();
     }
     if (person && this.canSend()) await this.send(person.whatsapp, text).catch(() => {});
-    else await this.notifyAdmins(`${text}\n\n⚠️ O setor "${label}" ainda não tem atendente cadastrado (Prospectos → Regras → Setores).`).catch(() => {});
+    else if (id === 'loteamentos') {
+      // Terreno, corretor e parceria imobiliária nunca vão para o Marcos nem para os administradores: ficam no CRM até o Gabriel e o Diego terem WhatsApp cadastrado.
+      this.store.addLog({ type: 'error', message: `⚠️ ${label}: ninguém com WhatsApp cadastrado (Gabriel e Diego em Prospectos → Regras → Setores ou na Equipe). O contato ficou só no CRM.` });
+    } else await this.notifyAdmins(`${text}\n\n⚠️ O setor "${label}" ainda não tem atendente cadastrado (Prospectos → Regras → Setores).`).catch(() => {});
     this.store.addLog({ type: 'system', message: `🏷️ ${who} direcionado para ${person?.name || 'o Marcos'} (${label})` });
     return { ok: true, setor: label, instrucao: say };
   }

@@ -259,7 +259,7 @@ function renderLeads() {
         <td>${esc(l.stageLabel)}</td><td>${esc(l.interest || '—')}${l.people > 1 ? ` ×${l.people}` : ''}</td>
         <td>${l.value ? money(l.stage === 'ganho' ? l.closedValue : l.value) : '—'}</td>
         <td>${l.followUpAt && l.due ? `<span class="lead-due ${l.due}">${DUE_LABEL[l.due]} ${dateBR(l.followUpAt)}</span>` : '—'}</td>
-        <td>${esc(l.ownerName || 'Disponível')}</td><td>${fmtDate(l.updatedAt)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum prospecto encontrado.</td></tr>'}</tbody>`;
+        <td>${esc(l.ownerName || 'Disponível')}</td><td>${fmtDate(l.updatedAt)}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum prospecto encontrado.</td></tr>'}</tbody>`;
   }
   $('#leadBoard').hidden = crmState.view !== 'board';
   $('#leadList').hidden = crmState.view !== 'list';
@@ -980,7 +980,7 @@ loaders.visits = async () => {
       <td>${esc(v.subject || '—')}</td><td class="small">${esc(v.prepared || '—')}</td>
       <td>${VISIT_STATUS[v.status] || esc(v.status)}${v.status === 'confirmada' ? `<div class="hint">${esc(v.date.split('-').reverse().join('/'))} às ${esc(v.time)}</div>` : ''}</td>
       <td>${['pendente', 'remarcar'].includes(v.status) ? `<div class="visit-actions"><input type="date" data-f="date" min="${today}" /><input type="time" data-f="time" step="900" /><button class="btn small primary" data-act="confirm">Confirmar</button><button class="btn small" data-act="reschedule">Propor outro dia</button><button class="btn small danger" data-act="cancel">Recusar</button></div>`
-        : v.status === 'confirmada' ? '<button class="btn small" data-act="done">Marcar como realizada</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum pedido de visita ainda.</td></tr>'}</tbody>`;
+        : v.status === 'confirmada' ? '<button class="btn small" data-act="done">Marcar como realizada</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum pedido de visita ainda.</td></tr>'}</tbody>`;
   const pend = list.filter((v) => v.status === 'pendente').length;
   $('#visitBadge').hidden = !pend;
   $('#visitBadge').textContent = pend;
@@ -1239,7 +1239,7 @@ loaders.payments = async () => {
           <button class="btn small danger" data-act="cancel">Cancelar</button>` : ''}
         ${p.status === 'paid' ? `<a class="btn small" href="/api/payments/${esc(p.id)}/receipt" target="_blank" rel="noopener">🧾 Recibo nº ${String(p.receiptNo).padStart(4, '0')}</a>` : ''}
       </td>
-    </tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum Pix gerado ainda.</td></tr>'}</tbody>`;
+    </tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum Pix gerado ainda.</td></tr>'}</tbody>`;
   $('#btnNotifyPerm').hidden = !('Notification' in window) || Notification.permission === 'granted';
 };
 $('#payTable').addEventListener('click', async (e) => {
@@ -1781,12 +1781,14 @@ function cashQuery() {
   const p = new URLSearchParams({ period: $('#cashPeriod').value });
   if ($('#cashKind').value) p.set('kind', $('#cashKind').value);
   if ($('#cashCategory').value) p.set('category', $('#cashCategory').value);
+  if ($('#cashScope').value) p.set('scope', $('#cashScope').value);
   if ($('#cashSearch').value.trim()) p.set('q', $('#cashSearch').value.trim());
   return p.toString();
 }
 loaders.cash = async () => {
   const d = await api(`/api/cash?${cashQuery()}`);
   cashState.data = d;
+  $('#btnCashExport').href = `/api/cash/export.csv?${cashQuery()}`;
   const curSel = $('#cashCategory').value;
   $('#cashCategory').innerHTML = `<option value="">Todas as categorias</option>${d.categories.map((c) => `<option>${esc(c)}</option>`).join('')}<option>Recebimento de clientes</option><option>Comissões pagas</option>`;
   $('#cashCategory').value = curSel;
@@ -1806,23 +1808,26 @@ loaders.cash = async () => {
         <div class="card kpi"><div class="kpi-head"><span class="label">Saldo do período</span></div><div class="value">${cashMoney(s.saldo, c)}</div></div>
         <div class="card kpi"><div class="kpi-head"><span class="label">A pagar</span></div><div class="value">${cashMoney(s.aPagar, c)}</div>${s.aReceber ? `<div class="sub">a receber ${cashMoney(s.aReceber, c)}</div>` : ''}</div>
       </div>
+      ${Object.keys(d.summary.byScope || {}).length > 1 || (d.summary.byScope?.pessoal || d.summary.byScope?.dizimo) ? `<p class="hint">Saídas por tipo: ${Object.entries(d.summary.byScope).map(([sc, cur]) => `<b>${esc(d.scopes[sc] || sc)}</b> ${cashMoney(cur[c]?.saidas || 0, c)}`).join(' · ')}</p>` : ''}
+      ${d.tithe?.[c]?.renda ? `<p class="hint">🙏 Dízimo (${10}% da renda pessoal + retiradas de sócio): devido ${cashMoney(d.tithe[c].devido, c)} · já dado ${cashMoney(d.tithe[c].pago, c)} · ${d.tithe[c].falta > 0 ? `falta ${cashMoney(d.tithe[c].falta, c)}` : 'em dia ✅'}</p>` : ''}
       ${spend.length ? `<h3>Para onde está indo o dinheiro</h3>${spend.map((x) => `<div class="cash-row"><span style="min-width:200px">${esc(x.category)}</span><div class="progress grow"><span style="width:${Math.max(4, Math.round((x.total / top) * 100))}%"></span></div><b>${cashMoney(x.total, c)}</b></div>`).join('')}` : '<p class="hint">Nenhuma saída neste período.</p>'}
     </div>`;
   }).join('');
-  $('#cashTable').innerHTML = `<thead><tr><th>Data</th><th>O que foi</th><th>Categoria</th><th>Quem / como</th><th>Valor</th><th>Situação</th><th></th></tr></thead><tbody>${d.entries.map((e) => `<tr data-cash-id="${esc(e.id)}">
+  $('#cashTable').innerHTML = `<thead><tr><th>Data</th><th>O que foi</th><th>Categoria</th><th>De quem</th><th>Quem / como</th><th>Valor</th><th>Situação</th><th></th></tr></thead><tbody>${d.entries.map((e) => `<tr data-cash-id="${esc(e.id)}">
       <td>${dBr(e.date)}</td>
       <td><b>${esc(e.description)}</b>${e.payee ? `<div class="hint">${esc(e.payee)}</div>` : ''}</td>
       <td>${esc(e.category)} ${e.source === 'sistema' ? '<span class="badge done">automático</span>' : ''}</td>
+      <td>${esc(d.scopes[e.scope] || 'Empresa')}</td>
       <td>${esc([e.account, e.method].filter(Boolean).join(' · ') || '—')}</td>
       <td style="color:${e.kind === 'entrada' ? '#17803d' : '#b42318'};font-weight:600;white-space:nowrap">${e.kind === 'entrada' ? '+' : '−'} ${cashMoney(e.amount, e.currency)}</td>
       <td>${e.status === 'a_pagar' ? `<span class="badge paused">${e.kind === 'saida' ? 'a pagar' : 'a receber'}${e.dueDate ? ` até ${dBr(e.dueDate)}` : ''}</span>` : '<span class="badge done">pago</span>'}</td>
-      <td class="row">${e.source === 'manual' ? `${e.status === 'a_pagar' ? '<button class="btn small primary" data-act="paid">Pago</button>' : ''}<button class="btn small" data-act="edit">✏️</button><button class="btn small" data-act="history" title="Histórico">🕘</button><button class="btn small danger" data-act="delete">🗑️</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum lançamento neste período.</td></tr>'}</tbody>`;
+      <td class="row">${e.source === 'manual' ? `${e.status === 'a_pagar' ? '<button class="btn small primary" data-act="paid">Pago</button>' : ''}<button class="btn small" data-act="edit">✏️</button><button class="btn small" data-act="history" title="Histórico">🕘</button><button class="btn small danger" data-act="delete">🗑️</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum lançamento neste período.</td></tr>'}</tbody>`;
   const cf = $('#formCashConfig');
   cf.categories.value = (settingsCache?.cash?.categories?.length ? settingsCache.cash.categories : d.categories).join('\n');
   loadNina().catch(() => {});
   $('#cashViewers').innerHTML = d.admins.map((a) => `<label class="check"><input type="checkbox" data-viewer="${esc(a.id)}" ${d.allowedUserIds.includes(a.id) ? 'checked' : ''} ${a.id === d.me.id ? '' : ''} /> ${esc(a.name)}${a.id === d.me.id ? ' (você)' : ''}</label>`).join('');
 };
-for (const sel of ['#cashPeriod', '#cashKind', '#cashCategory']) $(sel).addEventListener('change', () => loaders.cash());
+for (const sel of ['#cashPeriod', '#cashKind', '#cashCategory', '#cashScope']) $(sel).addEventListener('change', () => loaders.cash());
 $('#cashSearch').addEventListener('input', () => { clearTimeout(cashState.t); cashState.t = setTimeout(() => loaders.cash(), 300); });
 function openCashForm(e = null) {
   cashState.editing = e?.id || null;
@@ -1833,6 +1838,7 @@ function openCashForm(e = null) {
   f.date.value = e?.date || new Date().toISOString().slice(0, 10);
   f.amount.value = e?.amount ?? '';
   f.currency.value = e?.currency || 'BRL';
+  f.scope.value = e?.scope || 'empresa';
   f.description.value = e?.description || '';
   if (e?.category && ![...f.category.options].some((o) => o.value === e.category)) f.category.add(new Option(e.category, e.category));
   f.category.value = e?.category || f.category.options[0]?.value || '';

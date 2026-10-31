@@ -502,6 +502,7 @@
         <h1>💰 Caixa</h1>
         <div class="row">
           <select id="cashPeriod"><option value="month">Este mês</option><option value="last">Mês passado</option><option value="30">Últimos 30 dias</option><option value="year">Este ano</option><option value="all">Tudo</option></select>
+          <a class="btn" id="btnCashExport" href="#" title="Planilha que abre no Excel e no Google Planilhas">📥 Baixar planilha</a>
           <button type="button" class="btn primary" id="btnCashNew">➕ Novo lançamento</button>
         </div>
       </div>
@@ -512,6 +513,7 @@
         <div class="grid2 tight">
           <label>Tipo <select name="kind"><option value="saida">Saída (paguei)</option><option value="entrada">Entrada (recebi)</option></select></label>
           <label>Data <input type="date" name="date" required /></label>
+          <label>De quem é <select name="scope"><option value="empresa">Empresa</option><option value="pessoal">Pessoal</option><option value="dizimo">Dízimo</option></select></label>
           <label>Valor <input type="number" name="amount" min="0" step="0.01" required /></label>
           <label>Moeda <select name="currency"><option value="BRL">R$ (reais)</option><option value="USD">US$ (dólares)</option><option value="PYG">Gs. (guaranis)</option></select></label>
         </div>
@@ -530,6 +532,7 @@
       <div class="panel">
         <div class="row conv-filter">
           <select id="cashKind"><option value="">Entradas e saídas</option><option value="entrada">Só entradas</option><option value="saida">Só saídas</option></select>
+          <select id="cashScope"><option value="">Empresa, pessoal e dízimo</option><option value="empresa">Só empresa</option><option value="pessoal">Só pessoal</option><option value="dizimo">Só dízimo</option></select>
           <select id="cashCategory"></select>
           <input id="cashSearch" placeholder="Buscar (descrição, pessoa, conta)" class="grow" />
         </div>

@@ -347,6 +347,9 @@ export class WhatsAppClient extends EventEmitter {
     if (media?.buffer && String(media.mimetype || '').startsWith('audio/')) {
       // Mensagem de voz já em memória (resposta falada da Nina).
       content = { audio: media.buffer, mimetype: media.mimetype, ptt: media.ptt !== false };
+    } else if (media?.buffer && media.fileName) {
+      // Documento já em memória (ex.: a planilha do caixa que a Nina manda).
+      content = { document: media.buffer, mimetype: media.mimetype || 'application/octet-stream', fileName: media.fileName, caption: text || undefined };
     } else if (media?.path) {
       const buffer = fs.readFileSync(media.path);
       const mimetype = media.mimetype || 'application/octet-stream';

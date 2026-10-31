@@ -55,9 +55,9 @@ test('Nina registra saída por texto, confirma e desfaz', async () => {
   const { nina, sent, cash, audits } = setup();
   assert.equal(await nina.handle(text('Nina, gastei R$ 5 com café')), true);
   const [e] = cash.entries({});
-  assert.deepEqual([e.kind, e.amount, e.currency, e.date, e.description, e.category, e.account], ['saida', 5, 'BRL', '2026-11-03', 'Café', 'Viagens e hospedagem', 'Marcos Miguel']);
+  assert.deepEqual([e.kind, e.amount, e.currency, e.date, e.description, e.category, e.account], ['saida', 5, 'BRL', '2026-11-03', 'Café', 'Alimentação', 'Marcos Miguel']);
   assert.match(e.notes, /Registrado pela Nina/);
-  assert.match(sent[0].text, /✅ Registrei: saída de R\$ 5,00 · Viagens e hospedagem · "Café".*responda DESFAZER/s);
+  assert.match(sent[0].text, /✅ Registrei: saída de R\$ 5,00 · Alimentação · "Café".*responda DESFAZER/s);
   assert.equal(audits.length, 1);
   await nina.handle(text('Nina, desfaz'));
   assert.equal(cash.entries({}).length, 0);
@@ -92,7 +92,7 @@ test('Nina: resumo do caixa e frase que ela não entende', async () => {
   await nina.handle(text('Do cliente Paulo'));
   await nina.handle(text('Nina, quanto gastei este mês?'));
   const r = sent.at(-1).text;
-  assert.match(r, /Este mês: R\$ 500,00 de entradas, R\$ 100,00 de saídas, saldo R\$ 400,00/);
+  assert.match(r, /Neste mês: R\$ 500,00 de entradas, R\$ 100,00 de saídas, saldo R\$ 400,00/);
   await nina.handle(text('Nina, qual a capital do Paraguai?'));
   assert.match(sent.at(-1).text, /Não entendi/);
 });
@@ -168,4 +168,71 @@ test('mensagem de áudio do WhatsApp: marca hasAudio e guarda a original sem vaz
   assert.ok(m._raw, 'a original fica disponível para baixar a mídia');
   assert.equal(JSON.stringify(m).includes('audioMessage'), false, 'mas não vai para o painel nem para os logs');
   assert.equal(normalizeMessage({ ...base, message: { conversation: 'oi' } }).hasAudio, false);
+});
+
+test('Nina: gasolina é combustível da empresa, "é pessoal" corrige, e a consulta separa empresa de pessoal', async () => {
+  const { nina, sent, cash } = setup();
+  await nina.handle(text('Nina, gastei 50 reais com gasolina'));
+  let [e] = cash.entries({});
+  assert.deepEqual([e.category, e.scope], ['Combustível', 'empresa']);
+  assert.match(sent[0].text, /Classificado como Empresa \(se não for, responda PESSOAL ou DÍZIMO\)/);
+  // Logo depois, "pessoal" dispensa chamar a Nina pelo nome.
+  assert.notEqual(nina.wants(text('pessoal')), null);
+  assert.equal(nina.wants(text('bom dia, tudo bem?')), null, 'conversa normal não é engolida');
+  await nina.handle(text('pessoal'));
+  [e] = cash.entries({});
+  assert.equal(e.scope, 'pessoal');
+  assert.match(sent.at(-1).text, /agora está como Pessoal/);
+  await nina.handle(text('Nina, gastei 100 reais de gasolina da empresa'));
+  await nina.handle(text('Nina, gastei 30 reais com mercado'));
+  assert.equal(cash.entries({ q: 'mercado' })[0].scope, 'pessoal', 'comida cai como pessoal sem precisar dizer');
+  await nina.handle(text('Nina, verifique quanto eu gastei com gasolina esse mês'));
+  const r = sent.at(-1).text;
+  assert.match(r, /Neste mês, saiu R\$ 150,00 em "gasolina" \(2 lançamentos\)/);
+  assert.match(r, /Separado: Empresa R\$ 100,00; Pessoal R\$ 50,00/);
+  await nina.handle(text('Nina, quanto gastei no pessoal este mês?'));
+  assert.match(sent.at(-1).text, /saiu R\$ 80,00 em "pessoal"/);
+  await nina.handle(text('Nina, quanto gastei com cimento este mês?'));
+  assert.match(sent.at(-1).text, /não achei nenhum lançamento/);
+});
+
+test('Nina: dízimo dito vira escopo dízimo e o cálculo usa só renda pessoal e retirada de sócio', async () => {
+  const { nina, sent, cash, marcos } = setup();
+  await nina.handle(text('Nina, paguei 100 reais de dízimo'));
+  assert.equal(cash.entries({})[0].scope, 'dizimo');
+  cash.add(marcos, { kind: 'entrada', amount: 5000, description: 'Cliente', date: '2026-11-02' }); // da empresa: não conta
+  cash.add(marcos, { kind: 'entrada', amount: 3000, description: 'Salário', scope: 'pessoal', date: '2026-11-02' });
+  cash.add(marcos, { kind: 'saida', amount: 2000, description: 'Retirada', category: 'Retirada de sócio', date: '2026-11-02' });
+  await nina.handle(text('Nina, quanto devo de dízimo?'));
+  assert.match(sent.at(-1).text, /Renda R\$ 5\.000,00 → 10% = R\$ 500,00; já deu R\$ 100,00; falta R\$ 400,00/);
+  await nina.handle(text('Nina, quanto gastei de dízimo este ano?'));
+  assert.match(sent.at(-1).text, /saiu R\$ 100,00 em "dízimo"|saiu R\$ 100,00 em "dizimo"/);
+});
+
+test('Nina: manda a planilha como documento; só do escopo pedido; nada para quem não tem acesso', async () => {
+  const { nina, sent, cash, marcos } = setup();
+  await nina.handle(text('Nina, gastei 50 reais com gasolina'));
+  cash.add(marcos, { kind: 'saida', amount: 20, description: '=HYPERLINK("http://x")', scope: 'pessoal', date: '2026-11-03' });
+  await nina.handle(text('Nina, me manda a planilha completa'));
+  const doc = sent.at(-1);
+  assert.equal(doc.media.mimetype, 'text/csv');
+  assert.match(doc.media.fileName, /^caixa-tudo\.csv$/);
+  const csv = doc.media.buffer.toString('utf8');
+  assert.ok(csv.startsWith('﻿Data;Tipo;Escopo'), 'BOM + cabeçalho em português, separado por ponto e vírgula');
+  assert.match(csv, /03\/11\/2026;Saída;Empresa;Combustível;Gasolina;50;BRL;Pago/);
+  assert.match(csv, /'=HYPERLINK/, 'fórmula neutralizada para o Excel não executar');
+  await nina.handle(text('Nina, planilha só pessoal'));
+  const only = sent.at(-1).media.buffer.toString('utf8');
+  assert.ok(only.includes('Pessoal') && !only.includes('Gasolina'));
+  const outro = { ...text('Nina, me manda a planilha'), phone: '5545999990001' };
+  assert.equal(await nina.handle(outro), false, 'vendedor nunca recebe');
+});
+
+test('voz natural: valores, datas e porcentagens são lidos por extenso', async () => {
+  const { speakable, numberToWords } = await import('../src/voice.js');
+  assert.equal(numberToWords(1500), 'mil e quinhentos');
+  assert.equal(numberToWords(101), 'cento e um');
+  assert.equal(numberToWords(2001), 'dois mil e um');
+  assert.equal(speakable('Registrei R$ 50,00 em 03/11 (10%)'), 'Registrei cinquenta reais em três de novembro (dez por cento)');
+  assert.equal(speakable('US$ 250 e R$ 1.375,50'), 'duzentos e cinquenta dólares e mil trezentos e setenta e cinco reais e cinquenta centavos');
 });

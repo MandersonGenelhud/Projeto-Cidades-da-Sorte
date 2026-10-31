@@ -23,7 +23,10 @@ KOKORO_BASE = os.environ.get(
     "KOKORO_BASE_URL",
     "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0",
 )
-KOKORO_MODEL = os.environ.get("KOKORO_MODEL_FILE", "kokoro-v1.0.int8.onnx")  # versão compacta (~88 MB)
+# Modelo completo (~310 MB): voz mais limpa e natural que a versão compacta int8 (~88 MB, KOKORO_MODEL_FILE=kokoro-v1.0.int8.onnx).
+KOKORO_MODEL = os.environ.get("KOKORO_MODEL_FILE", "kokoro-v1.0.onnx")
+SPEED = float(os.environ.get("VOICE_SPEED", "0.96"))  # um pouco mais calma que o padrão: soa menos apressada
+PAUSE_S = 0.28  # respiro entre as frases
 KOKORO_VOICES = "voices-v1.0.bin"
 VOICES = {"pf_dora", "pm_alex", "pm_santa"}  # português do Brasil
 MAX_AUDIO = 12 * 1024 * 1024
@@ -73,7 +76,7 @@ def to_opus(samples, sample_rate):
 
     pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype("<i2").tobytes()
     proc = subprocess.run(
-        ["ffmpeg", "-loglevel", "error", "-f", "s16le", "-ar", str(sample_rate), "-ac", "1", "-i", "pipe:0", "-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg", "pipe:1"],
+        ["ffmpeg", "-loglevel", "error", "-f", "s16le", "-ar", str(sample_rate), "-ac", "1", "-i", "pipe:0", "-c:a", "libopus", "-b:a", "48k", "-application", "audio", "-f", "ogg", "pipe:1"],
         input=pcm,
         capture_output=True,
         timeout=60,
@@ -92,8 +95,18 @@ def _transcribe(data, language):
 
 
 def _speak(text, voice):
-    samples, rate = kokoro().create(text, voice=voice, speed=1.0, lang="pt-br")
-    return to_opus(samples, rate)
+    import re
+
+    import numpy as np
+
+    # Frase por frase, com um pequeno respiro entre elas: o ritmo fica de conversa, não de leitura corrida.
+    parts = [p.strip() for p in re.split(r"(?<=[.!?:;])\s+|\n+", text) if p.strip()] or [text]
+    chunks, rate = [], 24000
+    for part in parts:
+        samples, rate = kokoro().create(part, voice=voice, speed=SPEED, lang="pt-br")
+        chunks.append(samples)
+        chunks.append(np.zeros(int(rate * PAUSE_S), dtype=samples.dtype))
+    return to_opus(np.concatenate(chunks[:-1]), rate)
 
 
 class Speak(BaseModel):

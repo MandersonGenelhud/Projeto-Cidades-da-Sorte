@@ -129,3 +129,21 @@ test('caixa: vendedor nunca vê; administrador fora da lista também não; quem 
   const types = (Array.isArray(log) ? log : log.events || []).map((e) => e.type);
   for (const k of ['caixa_lancamento', 'caixa_acesso', 'caixa_apagado']) assert.ok(types.includes(k), `registro de acessos tem ${k}`);
 });
+
+test('caixa: escopo empresa/pessoal/dízimo separa os totais e a busca ignora acento', async () => {
+  const { toCsv } = await import('../src/cash.js');
+  const store = tempStore();
+  const cash = new Cash({ store, auth: null });
+  assert.throws(() => cash.add(admin, { kind: 'saida', amount: 1, description: 'x', scope: 'outro' }), /empresa, pessoal ou dízimo/);
+  cash.add(admin, { kind: 'saida', amount: 100, description: 'Combustível do carro', category: 'Combustível', date: '2026-11-03' });
+  cash.add(admin, { kind: 'saida', amount: 40, description: 'Farmácia', scope: 'pessoal', date: '2026-11-03' });
+  cash.add(admin, { kind: 'saida', amount: 60, description: 'Dízimo', scope: 'Dízimo', date: '2026-11-03' });
+  assert.equal(cash.entries({ q: 'combustivel' }).length, 1, 'sem acento acha com acento');
+  assert.deepEqual(cash.entries({ scope: 'pessoal' }).map((e) => e.description), ['Farmácia']);
+  const s = cash.summary(cash.entries({}));
+  assert.deepEqual([s.byScope.empresa.BRL.saidas, s.byScope.pessoal.BRL.saidas, s.byScope.dizimo.BRL.saidas, s.byCurrency.BRL.saidas], [100, 40, 60, 200]);
+  assert.match(toCsv(cash.entries({})), /Escopo;Categoria/);
+  // Lançamento antigo, sem escopo, conta como empresa.
+  store.data.cash.push({ id: 'old', kind: 'saida', amount: 5, currency: 'BRL', date: '2026-11-01', description: 'Antigo', category: 'Outros', status: 'pago', history: [] });
+  assert.equal(cash.entries({ scope: 'empresa' }).some((e) => e.id === 'old'), true);
+});

@@ -46,3 +46,51 @@ export class HttpTts {
     return { buffer: Buffer.from(await res.arrayBuffer()), mimetype: 'audio/ogg; codecs=opus' };
   }
 }
+
+// ---------- Texto para falar: números, dinheiro e datas por extenso (a voz fica natural, não "robótica") ----------
+const UN = ['zero', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+const DEZ = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+const CEN = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+const below1000 = (n) => {
+  if (n === 100) return 'cem';
+  const c = Math.floor(n / 100);
+  const r = n % 100;
+  const rest = r < 20 ? (r ? UN[r] : '') : `${DEZ[Math.floor(r / 10)]}${r % 10 ? ` e ${UN[r % 10]}` : ''}`;
+  return [CEN[c], rest].filter(Boolean).join(' e ');
+};
+/** 1500 → "mil e quinhentos". Vai até os bilhões. */
+export function numberToWords(n) {
+  n = Math.floor(Math.abs(Number(n) || 0));
+  if (n < 1000) return n === 0 ? 'zero' : below1000(n);
+  const scales = [[1e9, 'bilhão', 'bilhões'], [1e6, 'milhão', 'milhões'], [1e3, 'mil', 'mil']];
+  const parts = [];
+  let left = n;
+  for (const [v, one, many] of scales) {
+    const q = Math.floor(left / v);
+    left %= v;
+    if (!q) continue;
+    parts.push(v === 1e3 && q === 1 ? 'mil' : `${below1000(q)} ${q === 1 ? one : many}`);
+  }
+  if (left) parts.push(below1000(left));
+  // "mil e quinhentos", "dois mil e cem"; entre milhares e centenas redondas ou dezenas usa "e".
+  return parts.reduce((acc, p, i) => (i === 0 ? p : `${acc}${left && i === parts.length - 1 && (left < 100 || left % 100 === 0) ? ' e ' : ' '}${p}`), '');
+}
+const CUR_WORDS = { 'R$': ['real', 'reais', 'centavo', 'centavos'], 'US$': ['dólar', 'dólares', 'centavo', 'centavos'], 'Gs.': ['guarani', 'guaranis', 'centavo', 'centavos'] };
+const MONTH_NAMES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+/** Prepara a resposta escrita para ser falada: "R$ 1.500,50" vira "mil e quinhentos reais e cinquenta centavos". */
+export function speakable(text) {
+  return String(text || '')
+    .replace(/(R\$|US\$|Gs\.)\s*(\d{1,3}(?:\.\d{3})*|\d+)(?:,(\d{1,2}))?/g, (_m, cur, whole, cents) => {
+      const n = Number(whole.replace(/\./g, ''));
+      const [one, many, cOne, cMany] = CUR_WORDS[cur];
+      const main = `${numberToWords(n)} ${n === 1 ? one : many}`;
+      const c = cents ? Number(cents.padEnd(2, '0')) : 0;
+      return c ? `${main} e ${numberToWords(c)} ${c === 1 ? cOne : cMany}` : main;
+    })
+    .replace(/\b(\d{1,2})\/(\d{1,2})(?:\/\d{2,4})?\b/g, (m, d, mo) => (Number(mo) >= 1 && Number(mo) <= 12 && Number(d) >= 1 && Number(d) <= 31 ? `${numberToWords(Number(d))} de ${MONTH_NAMES[Number(mo) - 1]}` : m))
+    .replace(/\b(\d+)%/g, (_m, n) => `${numberToWords(Number(n))} por cento`)
+    .replace(/\b\d{1,9}\b/g, (n) => numberToWords(Number(n)))
+    .replace(/[•·]/g, ',')
+    .replace(/\s+/g, ' ')
+    .trim();
+}

@@ -26,7 +26,7 @@ import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
 import { makeContractFlow, contractReady } from './autocontract.js';
 import { Learnings } from './learnings.js';
-import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES } from './cash.js';
+import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, toCsv as cashToCsv } from './cash.js';
 import { Nina } from './assistant.js';
 import { HttpStt, HttpTts } from './voice.js';
 import { Payments } from './payments.js';
@@ -583,7 +583,12 @@ agent.bookMentoring = async (conv, args = {}, { dryRun } = {}) => {
 };
 /** Quem recebe quem quer trabalhar na Migra (Prospectos → Regras): só o nome de quem está na Equipe, ou "Nome = WhatsApp". */
 const jobsContact = () => resolvePeople(store.settings.crm?.jobsContact || [], auth.users)[0] || null;
+// Corretor, terreno, loteamento e parceria imobiliária: direto para o Gabriel e o Diego (setor Loteamentos). O Marcos não recebe.
+const REAL_ESTATE_TOPIC = /corretor|creci|imobili|terren|loteament|\blote\b|\blotes\b|im[oó]ve(?:l|is)/i;
 agent.notifyOwner = async (conv, args, { dryRun } = {}) => {
+  if (['parceria de negócio', 'outro'].includes(args.assunto) && REAL_ESTATE_TOPIC.test(`${args.resumo || ''} ${args.nome || ''}`)) {
+    return sectors.route(conv, { setor: 'loteamentos', resumo: args.resumo || 'Parceria imobiliária', nome: args.nome }, { dryRun });
+  }
   // Quem quer trabalhar na Migra vai direto para o Gabriel (não para o Marcos).
   const hr = args.assunto === 'contratação' ? jobsContact() : null;
   const to = hr ? hr.name.split(' ')[0] : 'Marcos';
@@ -2799,18 +2804,29 @@ const cashRange = (period) => {
 };
 app.get('/api/cash', (req, res) => {
   const { from, to } = req.query.from || req.query.to ? { from: String(req.query.from || ''), to: String(req.query.to || '') } : cashRange(String(req.query.period || 'month'));
-  const entries = cash.entries({ from, to, kind: req.query.kind, category: req.query.category, q: req.query.q, status: req.query.status });
+  const entries = cash.entries({ from, to, kind: req.query.kind, category: req.query.category, q: req.query.q, status: req.query.status, scope: String(req.query.scope || '') });
   res.json({
     from, to, count: entries.length,
     entries: entries.slice(0, 500),
     summary: cash.summary(entries),
     categories: cash.categories,
+    scopes: CASH_SCOPE_LABELS,
+    tithe: cash.tithe(entries),
     methods: CASH_METHODS,
     currencies: CASH_CURRENCIES,
     admins: auth.users.filter((u) => u.role === 'admin' && u.active !== false).map((u) => ({ id: u.id, name: u.name })),
     allowedUserIds: store.settings.cash?.allowedUserIds || [],
     me: { id: req.user.id, name: req.user.name },
   });
+});
+// Planilha (CSV) do período e filtros atuais: abre no Excel e no Google Planilhas. Fica no registro de acessos.
+app.get('/api/cash/export.csv', (req, res) => {
+  const { from, to } = req.query.from || req.query.to ? { from: String(req.query.from || ''), to: String(req.query.to || '') } : cashRange(String(req.query.period || 'month'));
+  const entries = cash.entries({ from, to, kind: req.query.kind, category: req.query.category, q: req.query.q, status: req.query.status, scope: String(req.query.scope || '') });
+  securityEvent('caixa_exportado', req.user, req, `${entries.length} lançamentos · ${req.query.period || 'month'}${req.query.scope ? ` · ${req.query.scope}` : ''}`);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="caixa-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(cashToCsv(entries));
 });
 // Nina: ajustes e estado da voz (só quem vê o caixa).
 app.get('/api/cash/assistant', (_req, res) => res.json({
