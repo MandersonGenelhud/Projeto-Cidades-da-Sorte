@@ -32,14 +32,14 @@ import { Affiliates } from './affiliates.js';
 import { LineManager, lineKey, matchSeller, parseLineKey } from './lines.js';
 import { Closing, DEFAULT_TERM } from './closing.js';
 import { humanizeConfig, splitIntoBubbles } from './humanize.js';
-import { Visits } from './visits.js';
+import { Visits, DEFAULT_BRING } from './visits.js';
 import { PayPlans, planMessage } from './payplan.js';
 import { Quotes } from './quotes.js';
 import { Sales } from './sales.js';
 import { contractPdf } from './contract.js';
 import { parseJsonObject } from './crm-ai.js';
 import { collectHandoffs, digestMessage } from './digest.js';
-import { Sectors } from './sectors.js';
+import { Sectors, resolvePeople, isOwner } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
 import { Backups } from './backup.js';
 import { AutoFollowUps } from './followups.js';
@@ -401,8 +401,10 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
   const parsed = parseLineKey(convKey);
   const lineOwner = parsed ? auth.get(lines.get(parsed.id)?.ownerId) : null;
   const leadOwner = lead?.ownerId ? auth.get(lead.ownerId) : null;
-  let closer = lineOwner || leadOwner;
-  // Sem dono: os atendentes do setor de documentação (painel); depois, o rodízio de vendedores.
+  const ownerPhone = store.settings.crm?.ownerPhone;
+  // Fechamento da migração: o dono do WhatsApp da conversa; senão, os atendentes do setor de
+  // documentação (Camila e Fran); o Marcos não recebe mais vendas.
+  let closer = lineOwner && !isOwner(lineOwner, ownerPhone) ? lineOwner : null;
   if (!closer) {
     const p = sectors.next('documentacao');
     if (p) {
@@ -410,6 +412,7 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
       if (p.id && lead) crm.update({ name: 'IA', role: 'admin' }, lead.id, { ownerId: p.id });
     }
   }
+  if (!closer && leadOwner && !isOwner(leadOwner, ownerPhone)) closer = leadOwner;
   if (!closer && lead && store.settings.crm?.routing?.enabled !== false) closer = crm.routeLead(lead, { reason: reason || 'atendente do escritório continua' }) || null;
   // Orçamento: o último desta conversa; sem orçamento, monta um com o pacote de interesse.
   let quote = quotes.list.filter((q) => q.convKey === convKey || (lead && q.leadId === lead.id)).at(-1) || null;
@@ -529,28 +532,40 @@ const visits = new Visits({
     const conv = agent.conversation(key, { create: false });
     if (conv) agent.remember(conv, 'assistant', text);
   },
+  // Pedido de visita: vai para quem cuida das visitas (Silvani), um de cada vez se houver mais de um.
   notifyOwner: async (text) => {
+    if (wa.status !== 'connected') return;
+    const desk = visitDesk();
+    if (desk.length) {
+      store.data.visitSeq = (store.data.visitSeq || 0) + 1;
+      return wa.send(desk[store.data.visitSeq % desk.length].whatsapp, { text, typing: false });
+    }
     const phone = normalizePhone(store.settings.visits?.notifyPhone);
-    if (phone && wa.status === 'connected') return wa.send(phone, { text, typing: false });
+    if (phone) return wa.send(phone, { text, typing: false });
     return notifyAdmins(text);
   },
 });
+/** Quem cuida das visitas ao escritório (Visitas → responsáveis). */
+const visitDesk = () => resolvePeople(store.settings.visits?.people, auth.users);
+const visitDeskName = () => visitDesk().map((p) => p.name.split(' ')[0]).join(' ou ') || 'a equipe do escritório';
+const isVisitDesk = (user) => Boolean(user?.whatsapp) && visitDesk().some((p) => samePhone(p.whatsapp, user.whatsapp));
 agent.requestVisit = async (conv, args, { dryRun } = {}) => {
-  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: 'Simulação: no atendimento real o Marcos recebe o pedido no WhatsApp. Diga que passou ao Marcos e que ele confirma o dia e o horário por aqui.' };
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real ${visitDeskName()} recebe o pedido no WhatsApp. Diga que passou o pedido para a equipe do escritório, que confirma o dia e o horário por aqui.` };
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
     || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
   await visits.request({ convKey: conv.key, lead, phone: conv.phone, ...args });
-  return { ok: true, instrucao: 'Pedido registrado e o Marcos foi avisado. Diga que ele confirma o dia e o horário por aqui e reforce, em uma frase, para vir com os documentos e o valor da entrada.' };
+  return { ok: true, instrucao: `Pedido registrado: ${visitDeskName()}, da equipe do escritório, já recebeu. Diga que a equipe confirma o dia e o horário por aqui. Em seguida, em uma mensagem curta, lembre do que trazer: ${store.settings.visits?.bring || DEFAULT_BRING}` };
 };
 agent.visitInfo = (conv) => {
   const c = store.settings.visits || {};
   const mine = visits.forConversation(conv.key);
   return [
-    c.hours ? `Dias e horários em que o Marcos costuma receber: ${c.hours}.` : '',
+    `Quem cuida das visitas e confirma o dia e o horário: ${visitDeskName()} (equipe do escritório). Não diga que é o Marcos.`,
+    c.hours ? `Dias e horários em que o escritório recebe: ${c.hours}.` : '',
     c.address ? `Endereço do escritório: ${c.address}.` : 'O escritório fica em Santa Rita, Alto Paraná; o endereço exato vai junto com a confirmação.',
-    `O que trazer: ${c.bring || 'documentos para iniciar (RG frente e verso ou passaporte e uma foto de meio corpo) e o valor da entrada'}.`,
+    `O que trazer (lembre o cliente exatamente disto): ${c.bring || DEFAULT_BRING}`,
     Number(c.consultFee ?? 150) > 0 ? `Taxa da consultoria presencial: R$ ${Number(c.consultFee ?? 150).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, só para quem não fechar nenhum pacote; quem fecha fica isento (já incluída no contrato).` : 'A visita não tem taxa.',
-    ...mine.map((v) => v.status === 'confirmada' ? `Este cliente JÁ TEM visita confirmada: ${v.date.split('-').reverse().join('/')} às ${v.time}.` : `Este cliente já pediu visita (${v.preferred || 'sem data'}); aguardando o Marcos confirmar. Não registre outro pedido.`),
+    ...mine.map((v) => v.status === 'confirmada' ? `Este cliente JÁ TEM visita confirmada: ${v.date.split('-').reverse().join('/')} às ${v.time}.` : `Este cliente já pediu visita (${v.preferred || 'sem data'}); aguardando a equipe confirmar. Não registre outro pedido.`),
   ].filter(Boolean).join('\n');
 };
 
@@ -1128,7 +1143,7 @@ app.get('/brand/logo', (_req, res) => {
 const require2fa = () => store.settings.security?.require2fa !== false;
 app.get('/api/auth/state', (req, res) => {
   const u = auth.fromRequest(req);
-  res.json({ needsSetup: auth.needsSetup, user: publicUser(u), setup2fa: Boolean(u && require2fa() && !u.totpEnabled) });
+  res.json({ needsSetup: auth.needsSetup, user: u ? { ...publicUser(u), visitDesk: isVisitDesk(u) } : null, setup2fa: Boolean(u && require2fa() && !u.totpEnabled) });
 });
 // Cadastro do vendedor: fica aguardando a liberação do administrador (não entra antes disso).
 app.post('/api/auth/signup', (req, res) => {
@@ -1240,6 +1255,8 @@ app.use('/api', (req, res, next) => {
     return res.status(403).json({ error: 'Ligue a verificação em duas etapas para usar o sistema.', setup2fa: true });
   }
   if (user.role === 'admin') return next();
+  // Quem cuida das visitas (Silvani) confirma, remarca e cancela pela aba Visitas.
+  if (/^\/visits(\/[a-f0-9]+\/(confirm|reschedule|cancel|done))?$/.test(req.path) && isVisitDesk(user)) return next();
   const ok = SELLER_ROUTES.some(([method, re]) => (method === '*' || method === req.method) && re.test(req.path));
   if (!ok) return res.status(403).json({ error: 'Esta área é só do administrador' });
   if (req.method === 'DELETE' && !req.path.startsWith('/leads')) return res.status(403).json({ error: 'Esta área é só do administrador' });
@@ -2166,7 +2183,14 @@ const digestRun = { running: false, total: 0, done: 0, failed: 0 };
 const marcosPhone = () => normalizePhone(store.settings.crm?.ownerPhone) || wa.getState?.().me?.phone || '';
 function digestPlan(q) {
   const items = collectHandoffs({ store, crm, auth, maxDays: Number(q.days) || 30, includeSent: q.all === '1' || q.all === true });
-  return items.map((it) => ({ ...it, toPhone: it.to.kind === 'vendedor' ? it.to.user.whatsapp : marcosPhone(), toName: it.to.kind === 'vendedor' ? it.to.user.name : 'Marcos (WhatsApp dele)' }));
+  // Sem vendedor: vai para os atendentes da migração (Camila e Fran), alternando; o Marcos só se não houver ninguém.
+  const team = sectors.people('documentacao');
+  let i = 0;
+  return items.map((it) => {
+    if (it.to.kind === 'vendedor' && !isOwner(it.to.user, store.settings.crm?.ownerPhone)) return { ...it, toPhone: it.to.user.whatsapp, toName: it.to.user.name, senderName: it.to.user.name };
+    const p = team.length ? team[i++ % team.length] : null;
+    return p ? { ...it, toPhone: p.whatsapp, toName: p.name, senderName: p.name } : { ...it, toPhone: marcosPhone(), toName: 'Marcos (WhatsApp dele)', senderName: 'Marcos' };
+  });
 }
 app.get('/api/handoffs/digest', (req, res) => {
   if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
@@ -2189,7 +2213,7 @@ app.post('/api/handoffs/digest', (req, res) => {
     for (const it of plan) {
       counter[it.toPhone] = (counter[it.toPhone] || 0) + 1;
       const quote = quotes.list.filter((q) => q.convKey === it.key || (it.lead && q.leadId === it.lead.id)).at(-1) || null;
-      const text = digestMessage(it, { index: counter[it.toPhone], total: totals[it.toPhone], senderName: it.to.kind === 'vendedor' ? it.to.user.name : 'Marcos', quote });
+      const text = digestMessage(it, { index: counter[it.toPhone], total: totals[it.toPhone], senderName: it.senderName || 'Marcos', quote });
       try {
         await wa.send(it.toPhone, { text, typing: false });
         if (quote && fs.existsSync(quotes.file(quote))) await wa.send(it.toPhone, { text: '', media: { path: quotes.file(quote), mimetype: 'application/pdf', fileName: `${quote.number}.pdf` }, typing: false });
@@ -2658,7 +2682,7 @@ app.post('/api/visits/:id/forward', async (req, res) => {
     v.prepared ? `💼 Vem preparado: ${v.prepared}` : '',
     lead?.aiSummary ? `📝 ${lead.aiSummary}` : '',
     preview ? `\n💬 *Prévia da conversa:*\n${preview}` : '',
-    `\n✍️ *Como começar:*\nOi${first(v.name) ? `, ${first(v.name)}` : ''}! Aqui é ${first(seller.name)}, da Migra Paraguai. O Marcos me passou o seu pedido de visita ao escritório${v.subject ? ` para ${v.subject.toLowerCase()}` : ''}. Vou cuidar do seu atendimento: qual dia fica melhor para você vir?`,
+    `\n✍️ *Como começar:*\nOi${first(v.name) ? `, ${first(v.name)}` : ''}! Aqui é ${first(seller.name)}, da Migra Paraguai. A equipe me passou o seu pedido de visita ao escritório${v.subject ? ` para ${v.subject.toLowerCase()}` : ''}. Vou cuidar do seu atendimento: qual dia fica melhor para você vir?`,
   ].filter(Boolean).join('\n');
   await wa.send(seller.whatsapp, { text, typing: false });
   Object.assign(v, { forwardedTo: seller.name, forwardedAt: new Date().toISOString() });

@@ -143,11 +143,12 @@ export class Agent {
     if (visits) {
       const info = this.visitInfo ? this.visitInfo(conv) : '';
       system += `\n\n# Visita ao escritório da Migra (aqui no Paraguai)
-Tem cliente que prefere conhecer o escritório e fechar pessoalmente, ou quer marcar algo com o Marcos. Quando isso aparecer:
+Tem cliente que prefere conhecer o escritório e fechar pessoalmente, ou pede para falar com o Marcos. O atendimento presencial é com a equipe do escritório (não prometa encontro com o Marcos). Quando isso aparecer:
 1. Acolha a ideia e faça a ressalva, com carinho e em mensagem curta: se vier até a gente, já venha preparado para iniciar o processo, com os documentos e o valor da entrada. Assim não perde tempo nem precisa voltar depois. O Marcos se preocupa muito com isso: são milhares de pessoas chegando, e ele quer aproveitar bem o tempo do cliente e o dele.${fee ? `
    Avise também, com naturalidade: a visita é uma consultoria presencial com taxa de R$ ${fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, cobrada só se ele não fechar nenhum pacote. Fechando com a Migra, fica isento: a consultoria já está incluída no contrato. Use isso a favor do fechamento ("o ideal é já vir para fechar, aí a consultoria sai sem custo").` : ''}
 2. Pergunte o dia e o período que prefere e quantas pessoas vêm.
-3. Use agendar_visita_escritorio. Diga que passou o pedido ao Marcos e que ele confirma o dia e o horário por aqui. Nunca confirme data ou horário por conta própria.${info ? `\n${info}` : ''}`;
+3. Use agendar_visita_escritorio. Diga que passou o pedido para a equipe do escritório e que ela confirma o dia e o horário por aqui. Nunca confirme data ou horário por conta própria.
+4. Lembre o que trazer, exatamente como está em "O que trazer" (documentos apostilados e o permiso na entrada do Paraguai).${info ? `\n${info}` : ''}`;
     }
     if (this.closeHandoff) {
       system += `\n\n# Você fecha a venda (não passe para vendedor)

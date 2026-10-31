@@ -1606,6 +1606,8 @@ $('#btnSignOut').addEventListener('click', async () => {
   window.currentUser = state.user;
   const admin = state.user.role === 'admin';
   document.body.classList.toggle('seller', !admin);
+  // Quem cuida das visitas (ex.: Silvani) vê a aba Visitas mesmo sem ser administrador.
+  if (state.user.visitDesk) $$('[data-visitdesk]').forEach((el) => el.removeAttribute('data-admin'));
   $('#userName').textContent = state.user.name;
   $('#userAvatar').textContent = state.user.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
   $('#userAvatar').title = admin ? 'Administrador' : 'Vendedor';

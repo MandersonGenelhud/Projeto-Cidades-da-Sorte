@@ -29,7 +29,7 @@
       <button data-tab="leads">🗂️ Prospectos</button>
       <button data-tab="followups">📅 Retornos <span class="nav-badge" id="dueBadge" hidden>0</span></button>
       <button data-tab="payments">💳 Pagamentos</button>
-      <button data-tab="visits" data-admin>🏢 Visitas <span class="nav-badge" id="visitBadge" hidden>0</span></button>
+      <button data-tab="visits" data-admin data-visitdesk>🏢 Visitas <span class="nav-badge" id="visitBadge" hidden>0</span></button>
       <button data-tab="ranking">🏆 Ranking</button>
       <button data-tab="conversations">💬 Conversas</button>
       <button data-tab="lines">📱 Meu WhatsApp</button>
@@ -535,10 +535,12 @@
     <!-- VISITAS AO ESCRITÓRIO -->
     <section id="tab-visits" class="tab">
       <div class="page-head"><h1>🏢 Visitas ao escritório</h1></div>
-      <p class="hint">Quando um cliente quer conhecer o escritório ou marcar algo com o Marcos, a atendente faz a ressalva de vir preparado (documentos e valor da entrada), registra o pedido e avisa o Marcos no WhatsApp. Aqui você confirma o dia e o horário: o cliente recebe a confirmação na hora.</p>
+      <p class="hint">Quando um cliente quer conhecer o escritório, a atendente faz a ressalva de vir preparado (documentos apostilados, valor da entrada e taxa da consultoria para quem não fechar), registra o pedido e avisa quem cuida das visitas no WhatsApp. Aqui se confirma o dia e o horário: o cliente recebe a confirmação na hora.</p>
       <div class="table-wrap"><table id="visitTable"></table></div>
-      <form id="formVisits" class="panel form">
-        <h2>Como o Marcos recebe</h2>
+      <form id="formVisits" class="panel form" data-admin>
+        <h2>Como o escritório recebe</h2>
+        <label>Quem cuida das visitas e confirma (um por linha: <b>Nome = WhatsApp</b>, ou só o nome de quem está na Equipe). Essa pessoa também vê esta aba.
+          <textarea name="people" rows="2" placeholder="Silvani"></textarea></label>
         <label class="check"><input type="checkbox" name="enabled" /> A atendente pode registrar pedidos de visita</label>
         <div class="grid2 tight">
           <label>Endereço do escritório (vai na confirmação) <input name="address" placeholder="Rua…, Santa Rita, Alto Paraná" /></label>
@@ -651,7 +653,7 @@
           <textarea name="routingCriteria" rows="5"></textarea>
         </label>
         <h3>🏢 Setores e atendentes</h3>
-        <p class="hint">Coloque os atendentes de cada setor, um por linha: <b>Nome = WhatsApp</b>. A IA direciona o cliente pelo assunto e o atendente recebe o resumo no WhatsApp para entrar em contato. Com mais de um atendente, vai um de cada vez. Setor sem ninguém: o aviso vai para o Marcos.</p>
+        <p class="hint">Coloque os atendentes de cada setor, um por linha: <b>Nome = WhatsApp</b>. A IA direciona o cliente pelo assunto e o atendente recebe o resumo no WhatsApp para entrar em contato. Pode escrever só o nome de quem está na Equipe (o WhatsApp vem do cadastro). Com mais de um atendente, vai um de cada vez. Quem a IA passa para um humano no fechamento vai para o setor de documentação e migração. Setor sem ninguém: o aviso vai para os administradores.</p>
         <label>🏡 Loteamentos e terrenos (Migra Imobiliária)
           <textarea name="sectorLoteamentos" rows="2" placeholder="Robson = +595 981 000000"></textarea>
         </label>

@@ -116,6 +116,7 @@ const DEFAULT_DATA = {
       notifyPhone: '', // WhatsApp que recebe os pedidos (vazio = administradores)
       bring: '', // o que o cliente deve trazer (vazio = texto padrão)
       consultFee: 150, // taxa da consultoria presencial (isenta para quem fecha um pacote); 0 = sem taxa
+      people: [], // quem cuida das visitas (Nome = WhatsApp, ou só o nome de quem está na Equipe)
     },
     // Orçamentos ORC-AAAA-NNNNN (PDF + mensagem). nextNumber continua a numeração que a Migra já usa.
     quotes: {
@@ -209,6 +210,22 @@ export class Store extends EventEmitter {
     if (lots && !lots.people?.length && !crmS.sectorsSeeded) {
       lots.people = (crmS.specialists || []).filter((x) => /terren|lote|im[oó]ve/i.test(x.topic) && x.name && x.whatsapp).map((x) => ({ name: x.name, whatsapp: x.whatsapp }));
       crmS.sectorsSeeded = true;
+      this.flush();
+    }
+    // Nova divisão da equipe (Nov/2026): nada de vendas nem visitas para o Marcos.
+    // Visitas → Silvani; migração → Camila e Fran; veículos → Eliezer; imobiliária → Gabriel e Diego.
+    // Só os nomes: o WhatsApp vem do cadastro de cada um na Equipe. Aplica uma vez (depois vale o painel).
+    if (crmS && !crmS.teamRouting2026) {
+      const people = (...names) => names.map((name) => ({ name, whatsapp: '' }));
+      crmS.sectors ||= {};
+      crmS.sectors.loteamentos = { ...(crmS.sectors.loteamentos || {}), people: people('Gabriel', 'Diego') };
+      crmS.sectors.documentacao = { ...(crmS.sectors.documentacao || {}), people: people('Camila', 'Fran') };
+      crmS.sectors.veiculos = { ...(crmS.sectors.veiculos || {}), people: people('Eliezer') };
+      this.data.settings.visits = { ...(this.data.settings.visits || {}), people: people('Silvani') };
+      for (const u of this.data.users || []) {
+        if (/^marcos\b/i.test(String(u.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) Object.assign(u, { receivesLeads: false, receivesAffiliateLeads: false });
+      }
+      crmS.teamRouting2026 = true;
       this.flush();
     }
     // Instalações antigas vinham com 7 dias: passa para 15 uma vez (depois vale o que o Marcos escolher).

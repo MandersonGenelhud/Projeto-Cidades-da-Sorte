@@ -1,13 +1,14 @@
-// Visitas ao escritório da Migra no Paraguai (atendimento pessoal com o Marcos).
-// A atendente registra o pedido e avisa o Marcos; quem confirma dia e horário é ele,
-// pelo painel, e o cliente recebe a confirmação no WhatsApp.
+// Visitas ao escritório da Migra no Paraguai (consultoria presencial com a equipe).
+// A atendente registra o pedido e avisa quem cuida das visitas (Silvani); quem confirma dia e
+// horário é essa pessoa, pelo painel, e o cliente recebe a confirmação no WhatsApp.
 import crypto from 'node:crypto';
 
 const err = (status, message) => Object.assign(new Error(message), { status });
 const clean = (s, max = 300) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 const fmtDate = (d) => (d ? d.split('-').reverse().join('/') : '');
 
-export const DEFAULT_BRING = 'documentos para iniciar o processo (RG frente e verso ou passaporte e uma foto de meio corpo, bem reconhecível) e o valor da entrada para já começar';
+// Lista do Marcos para quem vem ao escritório (áudio de 30/10/2026).
+export const DEFAULT_BRING = 'o seu RG; a certidão de nascimento, de casamento ou de divórcio apostilada; a certidão negativa da Polícia Federal apostilada; e o valor da entrada para já começar. E não se esqueça de tirar o permiso (a entrada na Migração) quando entrar no Paraguai.';
 
 export class Visits {
   /** notifyOwner(text) avisa o Marcos; sendTo(convKey, payload) fala com o cliente; remember(convKey, text) guarda na memória da atendente. */
@@ -91,7 +92,7 @@ export class Visits {
       `📅 ${fmtDate(date)} às ${time}`,
       c.address ? `📍 ${c.address}` : '',
       v.ownerNote ? `\n${v.ownerNote}` : '',
-      `\nLembre de vir preparado(a) para já iniciar: ${c.bring || DEFAULT_BRING}. Assim você aproveita a viagem e não precisa voltar depois.`,
+      `\n📋 Lembre de vir preparado(a) para já iniciar: ${String(c.bring || DEFAULT_BRING).replace(/\.$/, '')}.\nAssim você aproveita a viagem e não precisa voltar depois.`,
       Number(c.consultFee ?? 150) > 0 ? `\n💡 A consultoria presencial tem a taxa de R$ ${Number(c.consultFee ?? 150).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, cobrada só se você não fechar nenhum pacote. Fechando com a Migra, você fica isento: ela já está incluída no contrato.` : '',
     ].filter(Boolean).join('\n'));
     if (v.leadId) this.crm.addNote({ name: by, role: 'admin' }, v.leadId, `🏢 Visita confirmada para ${fmtDate(date)} às ${time}`);

@@ -243,7 +243,7 @@ export const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'agendar_visita_escritorio',
-      description: 'Registra o pedido de visita ao escritório da Migra aqui no Paraguai (ou de um encontro com o Marcos) e avisa o Marcos, que confirma o dia e o horário com o cliente. Use só depois de fazer a ressalva de vir preparado (documentos e valor para iniciar) e de saber a preferência de dia.',
+      description: 'Registra o pedido de visita ao escritório da Migra aqui no Paraguai (consultoria presencial com a equipe) e avisa quem cuida das visitas, que confirma o dia e o horário com o cliente. Use só depois de fazer a ressalva de vir preparado (documentos e valor para iniciar) e de saber a preferência de dia.',
       parameters: {
         type: 'object',
         properties: {

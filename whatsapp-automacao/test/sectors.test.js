@@ -53,3 +53,40 @@ test('setores no prompt: Migra Imobiliária resolve por aqui e a IA direciona', 
   assert.match(seen[0].system, /Migra Imobiliária é a responsável pelos investimentos e pela venda dos lotes/);
   assert.match(seen[0].system, /Para um melhor atendimento, vou direcionar você para o correspondente referente ao seu interesse/);
 });
+
+test('nova divisão da equipe: setores só com o nome usam o WhatsApp da Equipe e o Marcos não recebe vendas', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { Store } = await import('../src/store.js');
+  const { resolvePeople, isOwner } = await import('../src/sectors.js');
+  // Instalação existente (antes da mudança): Marcos no rodízio e setores vazios.
+  const store = tempStore();
+  const auth = new Auth({ store, dataDir: store.dataDir });
+  const marcos = auth.create({ name: 'Marcos Miguel', login: 'marcos', password: 'segredo123', role: 'admin', whatsapp: '595981000000', receivesLeads: true });
+  auth.create({ name: 'Camila Souza', login: 'camila', password: 'segredo123', role: 'seller', whatsapp: '5545999990001' });
+  auth.create({ name: 'Silvani Nunes', login: 'silvani', password: 'segredo123', role: 'seller', whatsapp: '5545999990002' });
+  auth.create({ name: 'Gabriel', login: 'gabriel', password: 'segredo123', role: 'seller', whatsapp: '5545999990003' });
+  store.data.settings.crm.teamRouting2026 = false;
+  store.flush();
+  // Ao reabrir, a divisão nova é aplicada uma vez.
+  const again = new Store(path.dirname(store.file));
+  const s = again.data.settings;
+  assert.deepEqual(s.crm.sectors.documentacao.people.map((p) => p.name), ['Camila', 'Fran']);
+  assert.deepEqual(s.crm.sectors.loteamentos.people.map((p) => p.name), ['Gabriel', 'Diego']);
+  assert.deepEqual(s.crm.sectors.veiculos.people.map((p) => p.name), ['Eliezer']);
+  assert.deepEqual(s.visits.people.map((p) => p.name), ['Silvani']);
+  assert.equal(again.data.users.find((u) => u.id === marcos.id).receivesLeads, false, 'Marcos sai do rodízio');
+  // Só quem está na Equipe com WhatsApp entra (Fran e Diego ainda não estão cadastrados).
+  const users = again.data.users;
+  assert.deepEqual(resolvePeople(s.crm.sectors.documentacao.people, users), [{ name: 'Camila', whatsapp: '5545999990001' }]);
+  assert.deepEqual(resolvePeople(s.visits.people, users), [{ name: 'Silvani', whatsapp: '5545999990002' }]);
+  assert.equal(resolvePeople([{ name: 'Fran', whatsapp: '5545999990009' }], users)[0].whatsapp, '5545999990009', 'com número escrito, vale o número');
+  assert.equal(isOwner({ name: 'Marcos Miguel' }), true);
+  assert.equal(isOwner({ name: 'Camila', whatsapp: '595981000000' }, '+595 981 000000'), true, 'pelo WhatsApp do dono');
+  assert.equal(isOwner({ name: 'Camila Souza', whatsapp: '5545999990001' }, '+595 981 000000'), false);
+  // Mexeu no painel depois: não volta a sobrescrever.
+  again.updateSettings({ crm: { sectors: { veiculos: { people: [{ name: 'Outro', whatsapp: '5545999990005' }] } } } });
+  again.flush();
+  assert.equal(new Store(path.dirname(store.file)).data.settings.crm.sectors.veiculos.people[0].name, 'Outro');
+  assert.ok(fs.existsSync(store.file));
+});

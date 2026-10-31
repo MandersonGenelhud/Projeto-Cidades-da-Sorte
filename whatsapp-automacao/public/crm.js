@@ -652,7 +652,7 @@ loaders.team = async () => {
   f.fxPYG.value = c.fx?.PYG ?? 0.0007;
   f.specialists.value = (c.specialists || []).map((s) => [s.topic, s.name, s.whatsapp ? `+${s.whatsapp}` : ''].join(' = ')).join('\n');
   const sec = c.sectors || {};
-  const people = (id) => (sec[id]?.people || []).map((p) => `${p.name} = ${p.whatsapp ? `+${p.whatsapp}` : ''}`).join('\n');
+  const people = (id) => (sec[id]?.people || []).map((p) => `${p.name}${p.whatsapp ? ` = +${p.whatsapp}` : ''}`).join('\n');
   f.sectorLoteamentos.value = people('loteamentos');
   f.sectorDocumentacao.value = people('documentacao');
   f.sectorVeiculos.value = people('veiculos');
@@ -964,7 +964,7 @@ $('#btnLeadPlan').addEventListener('click', () => crmState.current?.id && openCa
 // ---------- VISITAS AO ESCRITÓRIO ----------
 const VISIT_STATUS = { pendente: '<span class="badge paused">⏳ Aguardando você</span>', confirmada: '<span class="badge done">✅ Confirmada</span>', remarcar: '<span class="badge pending">🔁 Remarcando</span>', cancelada: '<span class="badge canceled">Cancelada</span>', realizada: '<span class="badge running">Realizada</span>' };
 loaders.visits = async () => {
-  const [list, settings, users] = await Promise.all([api('/api/visits'), api('/api/settings'), api('/api/users').catch(() => [])]);
+  const [list, settings, users] = await Promise.all([api('/api/visits'), api('/api/settings').catch(() => ({})), api('/api/users').catch(() => [])]);
   // Todo vendedor ativo da aba Equipe aparece aqui; quem está sem WhatsApp aparece apagado (não tem como receber).
   const sellers = (Array.isArray(users) ? users : users.users || []).filter((u) => u.active !== false).sort((a, b) => a.name.localeCompare(b.name));
   const sellerOptions = sellers.map((u) => `<option value="${esc(u.id)}"${u.whatsapp ? '' : ' disabled'}>${esc(u.name)}${u.role === 'admin' ? ' (administrador)' : ''}${u.whatsapp ? '' : ' (sem WhatsApp)'}</option>`).join('');
@@ -987,6 +987,7 @@ loaders.visits = async () => {
   f.enabled.checked = c.enabled !== false;
   for (const k of ['address', 'notifyPhone', 'hours', 'bring']) f[k].value = c[k] || '';
   f.consultFee.value = c.consultFee ?? 150;
+  f.people.value = (c.people || []).map((p) => `${p.name}${p.whatsapp ? ` = +${p.whatsapp}` : ''}`).join('\n');
 };
 $('#visitTable').addEventListener('click', async (e) => {
   const act = e.target.closest('button[data-act]')?.dataset.act;
@@ -1027,7 +1028,8 @@ $('#visitTable').addEventListener('click', async (e) => {
 });
 $('#formVisits').addEventListener('submit', withBusy($('#formVisits'), async (e) => {
   const f = e.target;
-  await api('/api/settings', { method: 'PUT', body: { visits: { enabled: f.enabled.checked, address: f.address.value.trim(), notifyPhone: f.notifyPhone.value.trim(), hours: f.hours.value.trim(), bring: f.bring.value.trim(), consultFee: Number(f.consultFee.value || 0) } } });
+  await api('/api/settings', { method: 'PUT', body: { visits: { enabled: f.enabled.checked, address: f.address.value.trim(), notifyPhone: f.notifyPhone.value.trim(), hours: f.hours.value.trim(), bring: f.bring.value.trim(), consultFee: Number(f.consultFee.value || 0),
+    people: f.people.value.split('\n').map((l) => l.split(/[=:]/).map((x) => x.trim())).filter(([n]) => n).map(([name, w = '']) => ({ name, whatsapp: w.replace(/\D/g, '') })) } } });
   toast('Salvo');
   loaders.visits();
 }));

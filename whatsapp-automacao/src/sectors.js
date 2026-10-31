@@ -19,6 +19,28 @@ export const SECTORS = {
   },
 };
 
+const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+/**
+ * Atendente cadastrado só com o nome (sem WhatsApp): usa o WhatsApp de quem tem esse nome na Equipe.
+ * Quem não tem WhatsApp em lugar nenhum fica de fora até ser cadastrado.
+ */
+export function resolvePeople(list, users = []) {
+  return (list || []).map((p) => {
+    if (p?.whatsapp || !p?.name) return p;
+    const n = norm(p.name);
+    const u = users.find((x) => x.active !== false && !x.pending && x.whatsapp && (norm(x.name) === n || norm(x.name).startsWith(`${n} `)));
+    return u ? { name: p.name, whatsapp: u.whatsapp } : p;
+  }).filter((p) => p?.name && p.whatsapp);
+}
+
+/** É o Marcos? (WhatsApp do dono em Prospectos → Regras, ou o nome na Equipe). Ele não recebe mais vendas nem visitas. */
+export function isOwner(user, ownerPhone = '') {
+  if (!user) return false;
+  if (ownerPhone && user.whatsapp && samePhone(user.whatsapp, normalizePhone(ownerPhone) || '')) return true;
+  return /^marcos\b/.test(norm(user.name));
+}
+
 /** "Nome = WhatsApp" por linha → [{ name, whatsapp }]. */
 export function parsePeople(text) {
   return String(text || '').split('\n').map((line) => line.split(/[=:]/).map((x) => x.trim()))
@@ -38,7 +60,7 @@ export class Sectors {
   }
 
   people(id) {
-    return (this.config[id]?.people || []).filter((p) => p.name && p.whatsapp);
+    return resolvePeople(this.config[id]?.people, this.auth?.users);
   }
 
   /** Próximo atendente do setor (rodízio). Devolve { name, whatsapp, id } (id = usuário do painel com o mesmo WhatsApp). */
