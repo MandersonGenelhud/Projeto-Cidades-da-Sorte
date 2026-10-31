@@ -79,6 +79,7 @@ const DEFAULT_DATA = {
       appSecret: '',
       graphVersion: 'v25.0',
       // Perfis do Grupo Migra: a atendente não responde (menções em story e recados entre as contas).
+      manualDays: 30, // até quantos dias atrás a IA prepara respostas e retomadas para a equipe enviar pelo app
       ignoreUsers: ['migraimobiliaria', 'migra_motors', 'migracontabilidade', 'migraparaguai.londrina'],
     },
     connection: {

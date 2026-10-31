@@ -199,6 +199,8 @@
             <label>Token de verificação (você inventa) <input name="verifyToken" placeholder="minha-senha-instagram" /></label>
             <label>Chave secreta do app do Instagram <input name="appSecret" autocomplete="off" /></label>
           </div>
+          <label>Retomar conversas de até quantos dias atrás (a IA escreve a mensagem e a equipe envia pelo app; pedidos com mais de 30 dias a Meta não entrega)
+            <select name="manualDays"><option value="7">7 dias</option><option value="15">15 dias</option><option value="30">30 dias</option><option value="45">45 dias</option><option value="60">60 dias</option></select></label>
           <label>Perfis que a atendente NÃO responde (um por linha, ex.: as contas do Grupo Migra) <textarea name="ignoreUsers" rows="3"></textarea></label>
           <label>URL do webhook do Instagram (cole na Meta) <input id="igWebhookUrl" readonly /></label>
           <label>URL da Política de Privacidade (cole na Meta) <input id="igPrivacyUrl" readonly /></label>

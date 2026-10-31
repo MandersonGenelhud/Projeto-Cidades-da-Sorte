@@ -710,7 +710,7 @@ async function syncInstagram() {
   const dayAgo = Date.now() - 86_400_000;
   // De 1 a 15 dias: a Meta não deixa o robô responder (regra das 24h). A IA escreve a resposta
   // e a equipe envia pelo app do Instagram, no quadro de Conversas.
-  const manualDays = Number(store.settings.instagram?.manualDays) || 15;
+  const manualDays = Math.min(60, Number(store.settings.instagram?.manualDays) || 30);
   let drafts = 0;
   for (const p of extractPending(msgs, { maxDays: Math.max(30, manualDays) })) {
     if (p.at >= dayAgo) continue;
