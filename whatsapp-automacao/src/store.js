@@ -45,6 +45,7 @@ const DEFAULT_DATA = {
       panelUrl: '', // endereço do painel na internet, para o link da ficha no aviso ao vendedor
       ownerPhone: '', // WhatsApp do Marcos: parcerias e assuntos de negócio vão direto para ele
       jobsContact: [{ name: 'Gabriel', whatsapp: '' }], // quem quer trabalhar na Migra (só o nome = WhatsApp da Equipe)
+      mentoring: { enabled: true, price: 250, currency: 'USD', minutes: 60 }, // mentoria com o Marcos Miguel (único atendimento direto com ele)
       codePrefix: 'MIG',
       fx: { USD: 5.5, PYG: 0.0007 }, // cotação usada só para somar vendas em R$ nos painéis
       // Assuntos que vão direto para um especialista (ex.: terrenos → Robson).

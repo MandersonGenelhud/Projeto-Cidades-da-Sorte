@@ -85,3 +85,23 @@ test('Instagram: a ferramenta de levar para o WhatsApp só aparece no Direct', a
   await agent.think(wa);
   assert.ok(!seen.at(-1).includes('levar_para_whatsapp'), 'no WhatsApp a ferramenta não aparece');
 });
+
+test('mentoria com o Marcos (US$ 250/h): a atendente oferece só para quem insiste e registra para ele confirmar', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  let system = '';
+  const llm = { configured: true, chat: async ({ messages }) => { system = messages[0].content; return { content: 'Ok', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm, now: () => new Date(2026, 9, 26, 9, 5) });
+  agent.notifyOwner = async () => ({ ok: true });
+  const conv = agent.conversation('5511999990000@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Quero falar direto com o Marcos');
+  await agent.think(conv);
+  assert.match(system, /60 minutos por US\$ 250/);
+  assert.match(system, /investimentos no Paraguai/);
+  assert.match(system, /Nunca confirme data, horário ou forma de pagamento/);
+  assert.match(system, /Não prometa lucro/);
+  store.updateSettings({ crm: { mentoring: { enabled: false } } });
+  await agent.think(conv);
+  assert.doesNotMatch(system, /Mentoria com o Marcos Miguel/);
+});

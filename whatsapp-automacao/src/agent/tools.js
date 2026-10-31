@@ -227,11 +227,11 @@ export const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'avisar_marcos',
-      description: 'Para assuntos que não são venda de pacote: quem quer trabalhar na Migra (contratação, currículo, vaga: vai para o Gabriel, da equipe), propostas de parceria de negócio, fornecedores, imprensa ou investidores (vão para o Marcos). Avisa no WhatsApp com o resumo.',
+      description: 'Para assuntos que não são venda de pacote: quem quer trabalhar na Migra (contratação, currículo, vaga: vai para o Gabriel, da equipe), propostas de parceria de negócio, fornecedores, imprensa ou investidores (vão para o Marcos); e quem quer a mentoria paga com o Marcos (assunto "mentoria"). Avisa no WhatsApp com o resumo.',
       parameters: {
         type: 'object',
         properties: {
-          assunto: { type: 'string', enum: ['contratação', 'parceria de negócio', 'fornecedor', 'imprensa', 'outro'] },
+          assunto: { type: 'string', enum: ['contratação', 'parceria de negócio', 'fornecedor', 'imprensa', 'mentoria', 'outro'] },
           resumo: { type: 'string', description: 'O que a pessoa quer, em até 3 frases' },
           nome: { type: 'string', description: 'Nome da pessoa ou da empresa' },
         },

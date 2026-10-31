@@ -185,6 +185,15 @@ Não prometa desconto nem condição especial.`;
 As mensagens anteriores do lado da empresa foram escritas pelo Marcos ou pela equipe, pessoalmente. Continue de onde a conversa parou: não recomece a apresentação, não repita perguntas já respondidas e não contradiga o que já foi combinado.
 Onde parou e próximo passo: ${conv.continuity}`;
     }
+    const m = settings.crm?.mentoring;
+    if (this.notifyOwner && m?.enabled !== false && Number(m?.price) > 0) {
+      const price = `${m.currency === 'BRL' ? 'R$' : 'US$'} ${Number(m.price).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`;
+      system += `\n\n# Mentoria com o Marcos Miguel (única forma de falar direto com ele)
+O Marcos não faz atendimento comum de venda: quem fecha é a equipe. Quem insistir em falar diretamente com o Marcos (ou perguntar se ele atende pessoalmente) pode contratar a mentoria dele: ${m.minutes || 60} minutos por ${price}. Não é só sobre cédula e migração: ele conversa sobre vários assuntos, inclusive investimentos no Paraguai, negócios em ascensão com potencial de retorno e, se fizer sentido e estiver de acordo com os princípios e valores da Migra, até parcerias de negócio.
+- Primeiro mostre que a equipe resolve a migração e os documentos; ofereça a mentoria só para quem quer falar com o Marcos mesmo. Apresente o valor com naturalidade e dê a escolha ("você prefere seguir com a equipe ou já reservar a mentoria com o Marcos?").
+- Se ele quiser, use avisar_marcos com assunto "mentoria" (nome, o que quer conversar e disponibilidade). Diga que o Marcos confirma por aqui o dia, o horário e a forma de pagamento. Nunca confirme data, horário ou forma de pagamento por conta própria.
+- Não prometa lucro nem retorno financeiro: fale em "oportunidades" e "conversar sobre". Não invente formato (online ou presencial) nem desconto.`;
+    }
     const partner = this.partnerLink ? this.partnerLink() : '';
     if (this.routeSector) system += `\n\n# Corretores de imóveis e quem quer ser parceiro
 Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a venda de imóveis aí") ou quem quer indicar clientes: é um parceiro em potencial, não um cliente de pacote. Acolha, explique em 2 frases que a Migra tem um programa de parceiros (a pessoa indica clientes pelo link dela e ganha comissão quando a venda fecha; quem atende e fecha é a equipe da Migra)${partner ? ` e mande o link do cadastro: ${partner}` : ''}. Se ele quer vender ou trazer clientes para os imóveis e loteamentos da Migra, use também direcionar_para_setor com setor "loteamentos" e resumo "corretor quer parceria". Não prometa percentual de comissão: os valores aparecem no cadastro.`;
