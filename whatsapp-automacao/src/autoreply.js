@@ -94,6 +94,7 @@ export class AutoReply {
     // Número da equipe com a IA desligada: o vendedor responde sozinho.
     if (msg.line && msg.agentOff) return null;
     if (msg.phone && this.store.isBlacklisted(msg.phone)) return null;
+    if (this.ignoredInstagram(msg.username)) return null;
 
     // Agente de IA ligado: regras de palavra-chave (opcionais) e depois a IA.
     if (this.agentAllowed(msg)) {
@@ -118,9 +119,17 @@ export class AutoReply {
     return null;
   }
 
+  /** Perfis do próprio Grupo Migra no Instagram (menções em story, recados internos): a atendente não responde. */
+  ignoredInstagram(username) {
+    const u = String(username || '').replace(/^@/, '').trim().toLowerCase();
+    if (!u) return false;
+    return (this.store.settings.instagram?.ignoreUsers || []).some((x) => String(x).replace(/^@/, '').trim().toLowerCase() === u);
+  }
+
   /** Agente ligado e, no modo de teste, mensagem vinda de um número de teste. */
   agentAllowed(msg) {
     if (!this.agent?.active) return false;
+    if (this.ignoredInstagram(msg.username)) return false;
     const cfg = this.store.settings.agent;
     if (cfg.audience !== 'test') return true;
     const list = cfg.testNumbers || [];
@@ -166,7 +175,7 @@ export class AutoReply {
     if (!msg.text) return;
 
     const decision = this.decide(msg);
-    if (this.agent?.active && !msg.isGroup && !this.agentAllowed(msg)) {
+    if (this.agent?.active && !msg.isGroup && !this.agentAllowed(msg) && !this.ignoredInstagram(msg.username)) {
       this.store.addLog({
         type: 'system',
         phone: msg.phone || msg.jid,

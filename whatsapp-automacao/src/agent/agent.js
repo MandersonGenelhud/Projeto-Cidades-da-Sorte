@@ -23,6 +23,7 @@ export class Agent {
     this.sendQuote = null; // (conversa, args, { dryRun }) => gera e envia o orçamento ORC (PDF + resumo)
     this.moveToWhatsapp = null; // (conversa do Instagram, args, { dryRun }) => chama o cliente no WhatsApp
     this.learnings = null; // () => texto com os aprendizados aprovados
+    this.partnerLink = null; // () => link do cadastro de parceiros (/parceiros)
     this.sendContract = null; // (conversa, args, { dryRun }) => gera o contrato e manda o link para assinar (ou a ficha, se faltar dado)
     this.notifyOwner = null; // (conversa, args, { dryRun }) => contratação/parcerias direto para o Marcos
     this.routeSector = null; // (conversa, args, { dryRun }) => loteamentos/veículos para o atendente do setor
@@ -184,6 +185,9 @@ Não prometa desconto nem condição especial.`;
 As mensagens anteriores do lado da empresa foram escritas pelo Marcos ou pela equipe, pessoalmente. Continue de onde a conversa parou: não recomece a apresentação, não repita perguntas já respondidas e não contradiga o que já foi combinado.
 Onde parou e próximo passo: ${conv.continuity}`;
     }
+    const partner = this.partnerLink ? this.partnerLink() : '';
+    if (this.routeSector) system += `\n\n# Corretores de imóveis e quem quer ser parceiro
+Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a venda de imóveis aí") ou quem quer indicar clientes: é um parceiro em potencial, não um cliente de pacote. Acolha, explique em 2 frases que a Migra tem um programa de parceiros (a pessoa indica clientes pelo link dela e ganha comissão quando a venda fecha; quem atende e fecha é a equipe da Migra)${partner ? ` e mande o link do cadastro: ${partner}` : ''}. Se ele quer vender ou trazer clientes para os imóveis e loteamentos da Migra, use também direcionar_para_setor com setor "loteamentos" e resumo "corretor quer parceria". Não prometa percentual de comissão: os valores aparecem no cadastro.`;
     const lessons = this.learnings ? this.learnings() : '';
     if (lessons) system += `\n\n# Aprendizados de vendas fechadas (aprovados pelo Marcos)\nO que já funcionou com clientes reais da Migra. Use quando a situação for parecida, sempre com os fatos da base:\n${lessons}`;
     if (extraSystem) system += `\n\n${extraSystem}`;

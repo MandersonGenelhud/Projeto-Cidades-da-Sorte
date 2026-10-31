@@ -166,6 +166,7 @@ const sectors = new Sectors({
   notifyAdmins: (text) => notifyAdmins(text),
 });
 agent.routeSector = (conv, args, opts) => sectors.route(conv, args, opts);
+agent.partnerLink = () => (publicBase() ? `${publicBase()}/parceiros` : '');
 // Instagram → WhatsApp: o cliente passou o número e a Migra chama no WhatsApp continuando a conversa.
 agent.moveToWhatsapp = async (conv, args = {}, { dryRun } = {}) => {
   const phone = normalizePhone(args.whatsapp);
@@ -646,6 +647,7 @@ async function syncInstagram() {
   for (const p of extractPending(msgs, { maxDays: Math.max(30, manualDays) })) {
     if (p.at >= dayAgo) continue;
     const username = msgs.find((m) => m.jid === p.jid && m.username)?.username || '';
+    if (autoReply.ignoredInstagram(username)) continue;
     const lead = crm.ensureFromConversation({ key: p.jid, name: p.name, username, channel: 'instagram' });
     if (!lead) continue;
     if (!lead.igOldNoted) {

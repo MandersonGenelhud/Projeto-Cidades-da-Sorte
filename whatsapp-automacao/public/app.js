@@ -740,6 +740,7 @@ loaders.connection = async () => {
   const fi = $('#formInstagram');
   fi.enabled.checked = Boolean(s.instagram?.enabled);
   for (const k of ['accessToken', 'verifyToken', 'appSecret']) fi[k].value = s.instagram?.[k] || '';
+  fi.ignoreUsers.value = (s.instagram?.ignoreUsers || []).map((u) => `@${u}`).join('\n');
   if (info.fromEnv.igToken) fi.accessToken.placeholder = 'definido no arquivo .env';
   if (info.fromEnv.igVerifyToken) fi.verifyToken.placeholder = 'definido no arquivo .env';
   if (info.fromEnv.igAppSecret) fi.appSecret.placeholder = 'definido no arquivo .env';
@@ -819,6 +820,7 @@ $('#formInstagram').addEventListener('submit', withBusy($('#formInstagram'), asy
       accessToken: f.accessToken.value.trim(),
       verifyToken: f.verifyToken.value.trim(),
       appSecret: f.appSecret.value.trim(),
+      ignoreUsers: f.ignoreUsers.value.split('\n').map((u) => u.replace(/^@/, '').trim().toLowerCase()).filter(Boolean),
     } },
   });
   toast(f.enabled.checked ? 'Instagram salvo. Conectando…' : 'Instagram desligado');

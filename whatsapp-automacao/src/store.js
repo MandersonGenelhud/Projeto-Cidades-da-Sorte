@@ -76,6 +76,8 @@ const DEFAULT_DATA = {
       verifyToken: '',
       appSecret: '',
       graphVersion: 'v25.0',
+      // Perfis do Grupo Migra: a atendente não responde (menções em story e recados entre as contas).
+      ignoreUsers: ['migraimobiliaria', 'migra_motors', 'migracontabilidade', 'migraparaguai.londrina'],
     },
     connection: {
       mode: 'qr', // qr (WhatsApp Web) | cloud (API oficial da Meta)

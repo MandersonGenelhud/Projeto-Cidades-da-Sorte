@@ -69,3 +69,16 @@ test('fora do horário de atendimento envia o aviso', () => {
   assert.equal(d.kind, 'offhours');
   assert.equal(d.text, 'Fechado');
 });
+
+test('Instagram: perfis do Grupo Migra (menções em story) não recebem resposta da atendente', async () => {
+  const { AutoReply } = await import('../src/autoreply.js');
+  const { tempStore: ts } = await import('./helpers.js');
+  const store = ts();
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const ar = new AutoReply({ store, wa: { on() {} }, notify() {}, agent: { active: true } });
+  assert.equal(ar.ignoredInstagram('migra_motors'), true);
+  assert.equal(ar.ignoredInstagram('@MigraImobiliaria'), true);
+  assert.equal(ar.agentAllowed({ username: 'migracontabilidade', channel: 'instagram' }), false);
+  assert.equal(ar.agentAllowed({ username: 'ana.maria', channel: 'instagram' }), true);
+  assert.equal(ar.decide({ username: 'migraparaguai.londrina', text: 'Mencionou você', jid: 'ig:1' }), null);
+});
