@@ -8,6 +8,17 @@ export function greetingFor(now = new Date()) {
 }
 
 /** Troca "bom dia / boa tarde / boa noite" errados pela saudação de agora, mantendo maiúsculas. */
+/**
+ * Abertura das retomadas do Instagram (clientes que esperaram): saudação do horário, o motivo da demora,
+ * o pedido de perdão e o agradecimento. Fica igual para todos; a IA escreve só a continuação.
+ */
+export function backlogOpening({ name = '', now = new Date() } = {}) {
+  const first = String(name || '').trim().replace(/^@/, '').split(/\s+/)[0];
+  const hi = greetingFor(now).replace(/^./, (c) => c.toUpperCase());
+  const who = first && !/[._\d]/.test(first) ? `, ${first}` : '';
+  return `${hi}${who}! Nossa demanda está alta e precisamos aumentar a nossa equipe para conseguir dar o atendimento que você merece. Peço perdão pela demora e agradeço por aguardar!`;
+}
+
 export function fixGreeting(text, now = new Date()) {
   const right = greetingFor(now);
   return String(text).replace(/\b(bom\s+dia|boa\s+tarde|boa\s+noite)\b/gi, (m) => {

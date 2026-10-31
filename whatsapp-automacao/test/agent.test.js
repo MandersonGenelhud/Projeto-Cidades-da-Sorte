@@ -419,3 +419,14 @@ test('tom profissional: nada de beijo (no máximo um abraço), mesmo se a IA esc
   assert.match(system, /Nunca mande beijo/);
   assert.match(system, /no máximo "Um abraço"/);
 });
+
+test('retomada do Instagram: abertura fixa com demanda alta, perdão e agradecimento (saudação do horário)', async () => {
+  const { backlogOpening } = await import('../src/agent/greeting.js');
+  const noon = new Date(2026, 10, 2, 9, 0);
+  assert.equal(
+    backlogOpening({ name: 'Carla Souza', now: noon }),
+    'Bom dia, Carla! Nossa demanda está alta e precisamos aumentar a nossa equipe para conseguir dar o atendimento que você merece. Peço perdão pela demora e agradeço por aguardar!',
+  );
+  assert.match(backlogOpening({ name: '@fabio_lemos88', now: new Date(2026, 10, 2, 20, 0) }), /^Boa noite! Nossa demanda/, 'perfil do Instagram não vira nome');
+  assert.match(backlogOpening({ name: '', now: new Date(2026, 10, 2, 15, 0) }), /^Boa tarde! /);
+});

@@ -50,6 +50,7 @@ import { CrmAi } from './crm-ai.js';
 import { LLMClient } from './agent/llm.js';
 import { createCalendar, toDateStr } from './agent/calendar.js';
 import { Agent, STRESS_TESTS } from './agent/agent.js';
+import { backlogOpening } from './agent/greeting.js';
 import { buildSystemPrompt } from './agent/prompt.js';
 import { PRESETS, presetSettings } from './agent/presets.js';
 import { csvToContacts, normalizePhone, randomBetween, renderTemplate, samePhone, sleep, uid } from './utils.js';
@@ -758,13 +759,18 @@ async function draftInstagram(p, username, kind = 'responder') {
     if (kind === 'responder') for (const t of p.texts) agent.remember(conv, 'user', t);
   }
   const days = Math.max(1, Math.round((Date.now() - p.at) / 86_400_000));
-  const extraSystem = kind === 'retomar'
-    ? `# Retomar uma conversa que esfriou (a equipe envia pelo app do Instagram)
-Esta conversa parou há ${days} dia(s): o cliente deixou de responder, provavelmente porque o atendimento anterior foi automático e repetitivo. Leia o que ele já disse. Escreva UMA mensagem curta e humana: saudação do horário, mostre que leu e lembrou do caso dele (use o que ele contou, com as palavras dele), não peça desculpas, apenas retome com leveza, e termine com UMA pergunta fácil que leve ao próximo passo, de preferência pedindo o WhatsApp com DDD para continuar por lá e mandar o orçamento em PDF. Não liste planos, não use menu, não use markdown, não diga que é o Marcos. Não use ferramentas.`
-    : `# Resposta para a equipe enviar pelo app do Instagram
-O cliente escreveu há ${days} dia(s) e ficou sem resposta. Escreva UMA mensagem curta e humana: saudação do horário, agradeça por aguardar, responda o que ele perguntou e peça o WhatsApp com DDD para mandar o orçamento certinho em PDF. Não liste planos em menu, não use markdown e não use ferramentas.`;
-  const r = await agent.think(conv, { dryRun: true, delayed: kind === 'responder', extraSystem });
-  return String(r.text || '').slice(0, 900);
+  // A abertura (saudação, demanda alta, perdão e agradecimento) é fixa; a IA escreve só a continuação.
+  const opening = backlogOpening({ name: p.name || conv.name });
+  const extraSystem = `# Continuação do atendimento (a equipe envia pelo app do Instagram)
+A mensagem já começa com esta abertura, escrita pelo sistema: "${opening}"
+NÃO escreva saudação, nem explicação da demora, nem pedido de perdão ou agradecimento: já estão na abertura. Escreva SÓ a continuação, em até 2 frases curtas.
+${kind === 'retomar'
+    ? `A conversa parou há ${days} dia(s): o cliente deixou de responder. Leia o que ele já disse e dê continuidade ao atendimento de onde parou: mostre que lembrou do caso dele (com as palavras dele) e faça UMA pergunta fácil que leve ao próximo passo.`
+    : `O cliente escreveu há ${days} dia(s) e ficou sem resposta. Responda o que ele perguntou e dê continuidade ao atendimento.`}
+Se fizer sentido, peça o WhatsApp com DDD para continuar por lá e mandar o orçamento certinho em PDF. Não liste planos em menu, não use markdown, não diga que é o Marcos e não use ferramentas.`;
+  const r = await agent.think(conv, { dryRun: true, extraSystem });
+  const cont = String(r.text || '').replace(/^\s+/, '');
+  return `${opening}\n\n${cont}`.slice(0, 950);
 }
 
 /** Avisa o responsável (ou os administradores) no dia do retorno agendado. */
