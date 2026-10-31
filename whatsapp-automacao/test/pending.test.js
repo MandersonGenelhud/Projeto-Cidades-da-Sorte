@@ -205,3 +205,28 @@ test('antes de responder a fila antiga: conversa pessoal/negociação do Marcos 
   assert.match(systems[0], /falta mandar o orçamento para 2 pessoas/);
   assert.equal(store.data.conversations['595981000020@s.whatsapp.net'].continuity, undefined, 'a análise vale só para a primeira resposta');
 });
+
+test('Instagram: conversas que esfriaram (a última mensagem foi nossa) entram para retomar, sem contar só botões', async () => {
+  const { extractStalled } = await import('../src/pending.js');
+  const now = Date.parse('2026-10-31T12:00:00Z');
+  const h = (n) => now - n * 3_600_000;
+  const m = (jid, fromMe, text, hoursAgo) => ({ jid, fromMe, text, timestamp: h(hoursAgo), username: jid.replace('ig:', 'u') });
+  const msgs = [
+    // Josemar: só clicou no botão e o robô perguntou o plano: não é conversa de verdade ainda
+    m('ig:1', false, 'Quero saber o valor', 60), m('ig:1', true, 'Qual plano você gostaria?', 59),
+    // Magda: escreveu de próprio punho e o robô respondeu mal; parou há 2 dias
+    m('ig:2', false, 'Quero saber o valor', 70), m('ig:2', true, 'Qual plano?', 69),
+    m('ig:2', false, 'Eu só queria saber como está a situação para montar restaurante lá', 52), m('ig:2', true, 'Desculpe, não tenho informações', 51),
+    // Silver: cliente falou por último (é "sem resposta", outro fluxo)
+    m('ig:3', true, 'Quantos adultos?', 30), m('ig:3', false, 'Dois', 29),
+    // Recente demais (menos de 24h)
+    m('ig:4', false, 'Quero morar aí', 6), m('ig:4', true, 'Que bom, me conta mais', 5),
+    // Antiga demais (mais de 15 dias)
+    m('ig:5', false, 'Oi quero saber', 24 * 20), m('ig:5', true, 'Olá', 24 * 20 - 1),
+  ];
+  const r = extractStalled(msgs, { now, maxDays: 15 });
+  assert.deepEqual(r.map((x) => x.jid), ['ig:2']);
+  assert.equal(r[0].texts.at(-1), 'Eu só queria saber como está a situação para montar restaurante lá');
+  assert.equal(r[0].context.at(-1).role, 'assistant');
+  assert.equal(r[0].at, h(52));
+});

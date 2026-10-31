@@ -114,3 +114,22 @@ test('mentoria com o Marcos (US$ 250/h): a atendente oferece só para quem insis
   await agent.think(conv);
   assert.doesNotMatch(system, /Mentoria com o Marcos Miguel/);
 });
+
+test('Instagram: a atendente não usa menu de planos, trata botões como interesse e nunca diz que é o Marcos', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const seen = [];
+  const llm = { configured: true, chat: async ({ messages }) => { seen.push(messages[0].content); return { content: 'Oi!', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm, now: () => new Date(2026, 9, 26, 9, 5) });
+  const ig = agent.conversation('ig:123');
+  agent.remember(ig, 'user', 'Quero saber o valor');
+  await agent.think(ig);
+  assert.match(seen[0], /NUNCA liste os planos como menu/);
+  assert.match(seen[0], /botões automáticos de comentário/);
+  assert.match(seen[0], /Nunca diga que você é o Marcos Miguel/);
+  const wa = agent.conversation('5511999990000@s.whatsapp.net');
+  agent.remember(wa, 'user', 'Oi');
+  await agent.think(wa);
+  assert.doesNotMatch(seen.at(-1), /Instagram: conversa humana/);
+});

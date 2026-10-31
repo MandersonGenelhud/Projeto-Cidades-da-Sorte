@@ -1246,7 +1246,7 @@ async function loadIgManual() {
   $('#igManualPanel').hidden = !list.length;
   $('#igManualCount').textContent = list.length;
   $('#igManualList').innerHTML = list.map((x) => `<div class="item" data-ig="${esc(x.id)}" data-user="${esc(x.username || '')}"><div class="grow">
-      <b>${esc(x.name || `@${x.username}`)}</b> ${x.username ? `<span class="meta">@${esc(x.username)}</span>` : ''} <span class="meta">· escreveu em ${new Date(x.clientAt).toLocaleDateString('pt-BR')}</span>
+      <b>${esc(x.name || `@${x.username}`)}</b> ${x.kind === 'retomar' ? '<span class="badge paused">retomar: parou de responder</span>' : '<span class="badge pending">sem resposta</span>'} ${x.username ? `<span class="meta">@${esc(x.username)}</span>` : ''} <span class="meta">· ${x.kind === 'retomar' ? 'última mensagem dele em' : 'escreveu em'} ${new Date(x.clientAt).toLocaleDateString('pt-BR')}</span>
       <div class="meta">“${esc(x.texts.join(' / ').slice(0, 220))}”</div>
       <textarea rows="3" data-text placeholder="Escreva a resposta">${esc(x.text || '')}</textarea></div>
     <div class="form">

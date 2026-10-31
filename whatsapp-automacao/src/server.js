@@ -19,7 +19,7 @@ import { ConnectionManager } from './connection.js';
 import { CampaignRunner } from './campaigns.js';
 import { AutoReply } from './autoreply.js';
 import { Scheduler } from './scheduler.js';
-import { PendingInbox, extractPending } from './pending.js';
+import { PendingInbox, extractPending, extractStalled } from './pending.js';
 import { LeadRouter, chatPreview } from './routing.js';
 import { buildRanking, currentMonth } from './ranking.js';
 import { clearDemo, hasDemo, loadDemo } from './demo.js';
@@ -724,32 +724,46 @@ async function syncInstagram() {
       old++;
     }
     const fresh = p.at >= Date.now() - manualDays * 86_400_000;
-    if (fresh && lead.igDraft?.clientAt !== p.at && drafts < 20) {
-      lead.igDraft = { status: 'pendente', clientAt: p.at, username, name: p.name || '', texts: p.texts, text: await draftInstagram(p, username).catch(() => ''), at: new Date().toISOString() };
+    if (fresh && lead.igDraft?.clientAt !== p.at && drafts < 40) {
+      lead.igDraft = { status: 'pendente', kind: 'responder', clientAt: p.at, username, name: p.name || '', texts: p.texts, text: await draftInstagram(p, username).catch(() => ''), at: new Date().toISOString() };
       drafts++;
     }
   }
+  // Conversas que esfriaram (o cliente parou de responder, muitas vezes por causa do atendimento robótico):
+  // a IA escreve uma retomada humana para a equipe enviar pelo app.
+  let stalled = 0;
+  for (const p of extractStalled(msgs, { maxDays: manualDays })) {
+    if (drafts >= 60) break;
+    const username = p.username || msgs.find((m) => m.jid === p.jid && m.username)?.username || '';
+    if (autoReply.ignoredInstagram(username)) continue;
+    const lead = crm.ensureFromConversation({ key: p.jid, name: p.name, username, channel: 'instagram' });
+    if (!lead || ['ganho', 'perdido'].includes(lead.stage)) continue;
+    if (lead.igDraft && lead.igDraft.lastOurAt === p.lastOurAt) continue; // já tratado
+    lead.igDraft = { status: 'pendente', kind: 'retomar', clientAt: p.at, lastOurAt: p.lastOurAt, username, name: p.name || '', texts: p.texts, text: await draftInstagram(p, username, 'retomar').catch(() => ''), at: new Date().toISOString() };
+    stalled++;
+    drafts++;
+  }
   store.save();
-  store.addLog({ type: 'system', message: `📸 Direct verificado: ${recent} conversa(s) para o agente responder, ${old} antiga(s) no CRM e ${drafts} resposta(s) sugerida(s) para enviar pelo app` });
-  return { recent, old, drafts, total: new Set(msgs.map((m) => m.jid)).size };
+  store.addLog({ type: 'system', message: `📸 Direct verificado: ${recent} conversa(s) para o agente responder, ${old} antiga(s) no CRM e ${drafts} resposta(s) sugerida(s) para enviar pelo app (${stalled} para retomar conversas paradas)` });
+  return { recent, old, drafts, stalled, total: new Set(msgs.map((m) => m.jid)).size };
 }
 /** Resposta sugerida pela IA para quem escreveu no Direct há mais de 24h (a equipe envia pelo app). */
-async function draftInstagram(p, username) {
+async function draftInstagram(p, username, kind = 'responder') {
   if (!llm.configured) return '';
   const conv = agent.conversation(p.jid);
   conv.name ||= p.name || '';
   conv.username ||= username;
   if (!conv.messages.length) {
     for (const m of p.context || []) agent.remember(conv, m.role, m.content);
-    for (const t of p.texts) agent.remember(conv, 'user', t);
+    if (kind === 'responder') for (const t of p.texts) agent.remember(conv, 'user', t);
   }
   const days = Math.max(1, Math.round((Date.now() - p.at) / 86_400_000));
-  const r = await agent.think(conv, {
-    dryRun: true,
-    delayed: true,
-    extraSystem: `# Resposta para a equipe enviar pelo app do Instagram
-O cliente escreveu há ${days} dia(s) e ficou sem resposta. Escreva UMA mensagem curta: saudação do horário, agradeça por aguardar, responda o que ele perguntou e peça o WhatsApp com DDD para mandar o orçamento certinho em PDF. Não use ferramentas.`,
-  });
+  const extraSystem = kind === 'retomar'
+    ? `# Retomar uma conversa que esfriou (a equipe envia pelo app do Instagram)
+Esta conversa parou há ${days} dia(s): o cliente deixou de responder, provavelmente porque o atendimento anterior foi automático e repetitivo. Leia o que ele já disse. Escreva UMA mensagem curta e humana: saudação do horário, mostre que leu e lembrou do caso dele (use o que ele contou, com as palavras dele), não peça desculpas, apenas retome com leveza, e termine com UMA pergunta fácil que leve ao próximo passo, de preferência pedindo o WhatsApp com DDD para continuar por lá e mandar o orçamento em PDF. Não liste planos, não use menu, não use markdown, não diga que é o Marcos. Não use ferramentas.`
+    : `# Resposta para a equipe enviar pelo app do Instagram
+O cliente escreveu há ${days} dia(s) e ficou sem resposta. Escreva UMA mensagem curta e humana: saudação do horário, agradeça por aguardar, responda o que ele perguntou e peça o WhatsApp com DDD para mandar o orçamento certinho em PDF. Não liste planos em menu, não use markdown e não use ferramentas.`;
+  const r = await agent.think(conv, { dryRun: true, delayed: kind === 'responder', extraSystem });
   return String(r.text || '').slice(0, 900);
 }
 

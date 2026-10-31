@@ -39,6 +39,42 @@ export function extractPending(messages, { now = Date.now(), maxDays = 7 } = {})
   return out;
 }
 
+/**
+ * Conversas que esfriaram: a última mensagem foi nossa (do robô ou da equipe) e o cliente parou de
+ * responder. Só entram quem escreveu algo de próprio (não só clicou num botão automático) e a
+ * conversa parada há pelo menos minHours. Serve para retomar o contato de forma humana.
+ */
+const BUTTONS = /^(quero saber o valor|sim,? manda a[ií]|me envie o link|sim|ok)$/i;
+export function extractStalled(messages, { now = Date.now(), maxDays = 15, minHours = 24 } = {}) {
+  const byJid = new Map();
+  for (const m of messages) {
+    if (!m || m.isGroup || !m.text) continue;
+    if (!byJid.has(m.jid)) byJid.set(m.jid, []);
+    byJid.get(m.jid).push(m);
+  }
+  const out = [];
+  for (const [jid, list] of byJid) {
+    list.sort((a, b) => a.timestamp - b.timestamp);
+    const last = list.at(-1);
+    if (!last.fromMe) continue; // quem falou por último foi o cliente: é "sem resposta", outro fluxo
+    if (last.timestamp > now - minHours * 3_600_000 || last.timestamp < now - maxDays * 86_400_000) continue;
+    const mine = list.filter((m) => !m.fromMe && !BUTTONS.test(String(m.text).trim()));
+    if (!mine.length) continue;
+    const lastClient = [...list].reverse().find((m) => !m.fromMe);
+    out.push({
+      jid,
+      phone: list.find((m) => m.phone)?.phone || null,
+      name: list.find((m) => m.name)?.name || '',
+      username: list.find((m) => m.username)?.username || '',
+      texts: mine.map((m) => m.text).slice(-3),
+      context: list.slice(-20).map((m) => ({ role: m.fromMe ? 'assistant' : 'user', content: m.text, at: new Date(m.timestamp).toISOString() })),
+      at: lastClient.timestamp,
+      lastOurAt: last.timestamp,
+    });
+  }
+  return out;
+}
+
 export class PendingInbox {
   constructor({ store, agent, wa, autoReply, notify, delay = [45, 90], careful = true, now = () => new Date() }) {
     this.store = store;
