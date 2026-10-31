@@ -12,8 +12,9 @@ export const DEFAULT_BRING = 'o seu RG; a certidão de nascimento, de casamento 
 
 export class Visits {
   /** notifyOwner(text) avisa o Marcos; sendTo(convKey, payload) fala com o cliente; remember(convKey, text) guarda na memória da atendente. */
-  constructor({ store, crm, notifyOwner = async () => {}, sendTo = async () => {}, remember = () => {}, notify = () => {} }) {
-    Object.assign(this, { store, crm, notifyOwner, sendTo, remember, notify });
+  constructor({ store, crm, notifyOwner = async () => {}, sendTo = async () => {}, remember = () => {}, notify = () => {}, isClient = () => false }) {
+    // isClient(prospecto): já é cliente (reserva paga)? Então a visita não tem taxa.
+    Object.assign(this, { store, crm, notifyOwner, sendTo, remember, notify, isClient });
     store.data.visits ||= [];
   }
 
@@ -55,7 +56,7 @@ export class Visits {
     if (lead) this.crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `🏢 Pediu visita ao escritório: ${v.preferred || 'sem data'}${v.period ? ` (${v.period})` : ''} · ${v.people} pessoa(s) · ${v.subject || '-'}`);
     this.notify('visits', { id: v.id, new: true });
     await this.notifyOwner([
-      '🏢 *Pedido de visita ao escritório*',
+      '🏢 *Pedido de visita ao escritório* (atendimento com um consultor da equipe, não com o Marcos)',
       `👤 ${v.name || 'Cliente'}${v.phone ? ` · +${v.phone}` : ''}`,
       `📅 Prefere: ${v.preferred || 'não disse'}${v.period ? ` · ${v.period}` : ''}`,
       `👥 ${v.people} pessoa(s)`,
@@ -93,7 +94,7 @@ export class Visits {
       c.address ? `📍 ${c.address}` : '',
       v.ownerNote ? `\n${v.ownerNote}` : '',
       `\n📋 Lembre de vir preparado(a) para já iniciar: ${String(c.bring || DEFAULT_BRING).replace(/\.$/, '')}.\nAssim você aproveita a viagem e não precisa voltar depois.`,
-      Number(c.consultFee ?? 150) > 0 ? `\n💡 A consultoria presencial tem a taxa de R$ ${Number(c.consultFee ?? 150).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, cobrada só se você não fechar nenhum pacote. Fechando com a Migra, você fica isento: ela já está incluída no contrato.` : '',
+      Number(c.consultFee ?? 150) > 0 && !this.isClient(v.leadId ? this.crm.byId(v.leadId) : null) ? `\n💡 A visita é uma consultoria presencial com um dos nossos consultores (não é com o Marcos) e tem a taxa de R$ ${Number(c.consultFee ?? 150).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, cobrada só se você não fechar nenhum pacote. Fechando com a Migra, você fica isento: ela já está incluída no contrato.` : '',
     ].filter(Boolean).join('\n'));
     if (v.leadId) this.crm.addNote({ name: by, role: 'admin' }, v.leadId, `🏢 Visita confirmada para ${fmtDate(date)} às ${time}`);
     this.notify('visits', { id });

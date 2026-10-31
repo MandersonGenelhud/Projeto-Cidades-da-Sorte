@@ -546,6 +546,7 @@ const tellMarcos = async (text) => {
   if (owner && wa.status === 'connected') await wa.send(owner, { text, typing: false }).catch(() => {});
   else await notifyAdmins(text);
 };
+agent.isClient = (conv) => isClientOfMigra(crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username }));
 agent.bookMentoring = async (conv, args = {}, { dryRun } = {}) => {
   const m = store.settings.crm?.mentoring || {};
   const brl = mentoringPriceBRL();
@@ -604,6 +605,7 @@ const visits = new Visits({
   store,
   crm,
   notify,
+  isClient: (lead) => isClientOfMigra(lead),
   sendTo: (key, payload) => wa.send(key, { ...payload, typing: false }),
   remember: (key, text) => {
     const conv = agent.conversation(key, { create: false });
@@ -647,7 +649,8 @@ agent.visitInfo = (conv) => {
     c.hours ? `Dias e horários em que o escritório recebe: ${c.hours}.` : '',
     c.address ? `Endereço do escritório: ${c.address}.` : 'O escritório fica em Santa Rita, Alto Paraná; o endereço exato vai junto com a confirmação.',
     `O que trazer (lembre o cliente exatamente disto): ${c.bring || DEFAULT_BRING}`,
-    Number(c.consultFee ?? 150) > 0 ? `Taxa da consultoria presencial: R$ ${Number(c.consultFee ?? 150).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, só para quem não fechar nenhum pacote; quem fecha fica isento (já incluída no contrato).` : 'A visita não tem taxa.',
+    isClientOfMigra(crm.findForConversation({ key: conv.key, phone: conv.phone })) ? 'ESTE CLIENTE JÁ É CLIENTE DA MIGRA (reserva paga): a visita ao escritório NÃO tem taxa para ele. Não fale em taxa.' : '',
+    !isClientOfMigra(crm.findForConversation({ key: conv.key, phone: conv.phone })) && Number(c.consultFee ?? 150) > 0 ? `Taxa da consultoria presencial: R$ ${Number(c.consultFee ?? 150).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, só para quem não fechar nenhum pacote; quem fecha fica isento (já incluída no contrato).` : 'A visita não tem taxa.',
     ...mine.map((v) => v.status === 'confirmada' ? `Este cliente JÁ TEM visita confirmada: ${v.date.split('-').reverse().join('/')} às ${v.time}.` : `Este cliente já pediu visita (${v.preferred || 'sem data'}); aguardando a equipe confirmar. Não registre outro pedido.`),
   ].filter(Boolean).join('\n');
 };

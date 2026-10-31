@@ -192,7 +192,7 @@ export const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'reservar_mentoria',
-      description: 'Reserva a mentoria de 1 hora com o Marcos Miguel. O cliente escolhe online ou presencial e a forma de pagamento (Pix ou cartão). Quem JÁ É CLIENTE da Migra não paga (o sistema confere). Para os demais, o pagamento vem antes do agendamento: o Pix é gerado e enviado na hora; no cartão a equipe manda o link. Depois de pago, a assessoria do Marcos escolhe o dia e o horário (dentro do prazo do cliente) e confirma com ele.',
+      description: 'Reserva a mentoria de 1 hora DIRETAMENTE com o Marcos Miguel (é diferente da visita ao escritório, que é com um consultor). O cliente escolhe online ou presencial e a forma de pagamento (Pix ou cartão). Quem JÁ É CLIENTE da Migra não paga (o sistema confere). Para os demais, o pagamento vem antes do agendamento: o Pix é gerado e enviado na hora; no cartão a equipe manda o link. Depois de pago, a assessoria do Marcos escolhe o dia e o horário (dentro do prazo do cliente) e confirma com ele.',
       parameters: {
         type: 'object',
         properties: {
@@ -262,7 +262,7 @@ export const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'agendar_visita_escritorio',
-      description: 'Registra o pedido de visita ao escritório da Migra aqui no Paraguai (consultoria presencial com a equipe) e avisa quem cuida das visitas, que confirma o dia e o horário com o cliente. NÃO use para quem quer falar direto com o Marcos Miguel: isso é a mentoria paga (reservar_mentoria). Use só depois de fazer a ressalva de vir preparado (documentos e valor para iniciar) e de saber a preferência de dia.',
+      description: 'Registra o pedido de visita ao escritório da Migra aqui no Paraguai (consultoria presencial com a equipe) e avisa quem cuida das visitas, que confirma o dia e o horário com o cliente. É atendimento com um dos CONSULTORES da equipe, nunca com o Marcos. NÃO use para quem quer falar direto com o Marcos Miguel: isso é a mentoria paga (reservar_mentoria). Use só depois de fazer a ressalva de vir preparado (documentos e valor para iniciar) e de saber a preferência de dia.',
       parameters: {
         type: 'object',
         properties: {

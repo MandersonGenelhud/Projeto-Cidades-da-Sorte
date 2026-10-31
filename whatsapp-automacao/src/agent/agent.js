@@ -24,6 +24,7 @@ export class Agent {
     this.moveToWhatsapp = null; // (conversa do Instagram, args, { dryRun }) => chama o cliente no WhatsApp
     this.learnings = null; // () => texto com os aprendizados aprovados
     this.bookMentoring = null; // (conversa, args, { dryRun }) => cobra (se não for cliente) e registra a mentoria com o Marcos
+    this.isClient = null; // (conversa) => já é cliente da Migra (reserva paga)? Visita e mentoria não têm custo para ele
     this.whatsappLink = null; // (conversa do Instagram) => link do WhatsApp da Migra com o código do cliente
     this.partnerLink = null; // () => link do cadastro de parceiros (/parceiros)
     this.sendContract = null; // (conversa, args, { dryRun }) => gera o contrato e manda o link para assinar (ou a ficha, se faltar dado)
@@ -142,6 +143,7 @@ export class Agent {
 4. Se ele disser que já preencheu e a ficha não aparecer como preenchida abaixo, peça com gentileza para conferir se clicou em "Enviar meus dados" no final.${status ? `\n\n## Situação deste cliente agora\n${status}` : ''}`;
     }
     const visits = Boolean(this.requestVisit) && settings.visits?.enabled !== false;
+    const isClient = this.isClient ? Boolean(this.isClient(conv)) : false;
     const mentoringOn = Boolean(this.notifyOwner) && settings.crm?.mentoring?.enabled !== false && Number(settings.crm?.mentoring?.price) > 0;
     const fee = Number(settings.visits?.consultFee ?? 150) || 0;
     if (visits) {
@@ -149,10 +151,18 @@ export class Agent {
       system += `\n\n# Visita ao escritório da Migra (aqui no Paraguai)
 Tem cliente que prefere conhecer o escritório e fechar pessoalmente com a equipe. O atendimento presencial é com a equipe do escritório. ATENÇÃO: quem quer falar direto com o Marcos Miguel NÃO é visita ao escritório: ${mentoringOn ? 'esse caso é a mentoria paga (seção "Mentoria com o Marcos Miguel"): nunca registre visita para ele' : 'não prometa encontro com o Marcos; a equipe atende'}. Quando o cliente quiser conhecer o escritório:
 1. Acolha a ideia e faça a ressalva, com carinho e em mensagem curta: se vier até a gente, já venha preparado para iniciar o processo, com os documentos e o valor da entrada. Assim não perde tempo nem precisa voltar depois. O Marcos se preocupa muito com isso: são milhares de pessoas chegando, e ele quer aproveitar bem o tempo do cliente e o dele.${fee ? `
-   Avise também, com naturalidade: a visita é uma consultoria presencial com taxa de R$ ${fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, cobrada só se ele não fechar nenhum pacote. Fechando com a Migra, fica isento: a consultoria já está incluída no contrato. Use isso a favor do fechamento ("o ideal é já vir para fechar, aí a consultoria sai sem custo").` : ''}
+   Deixe claro que a visita é com um dos CONSULTORES da equipe, não com o Marcos. Avise também, com naturalidade${isClient ? ' (este cliente já é cliente da Migra: NÃO fale de taxa, para ele é sem custo)' : ''}: a visita é uma consultoria presencial com taxa de R$ ${fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, cobrada só se ele não fechar nenhum pacote. Fechando com a Migra, fica isento: a consultoria já está incluída no contrato. Use isso a favor do fechamento ("o ideal é já vir para fechar, aí a consultoria sai sem custo").` : ''}
 2. Pergunte o dia e o período que prefere e quantas pessoas vêm.
 3. Use agendar_visita_escritorio. Diga que passou o pedido para a equipe do escritório e que ela confirma o dia e o horário por aqui. Nunca confirme data ou horário por conta própria.
 4. Lembre o que trazer, exatamente como está em "O que trazer" (documentos apostilados e o permiso na entrada do Paraguai).${info ? `\n${info}` : ''}`;
+    }
+    if (visits || mentoringOn) {
+      const price = settings.crm?.mentoring ? `${Number(settings.crm.mentoring.price) || 250} ${settings.crm.mentoring.currency === 'BRL' ? 'reais' : 'dólares americanos'}` : '250 dólares americanos';
+      system += `\n\n# Visita ao escritório x mentoria com o Marcos: são DUAS coisas diferentes (deixe isso muito claro)
+- VISITA AO ESCRITÓRIO${visits ? '' : ' (indisponível agora)'}: o cliente vai ao escritório e é atendido por um dos CONSULTORES da equipe, não pelo Marcos.${fee ? ` Consultoria presencial com taxa de R$ ${fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, cobrada só de quem não fechar nenhum pacote.` : ''}
+${mentoringOn ? `- MENTORIA COM O MARCOS: 1 hora de conversa DIRETAMENTE com o Marcos Miguel (online ou presencial), ${price} (US$ ${Number(settings.crm.mentoring.price) || 250}). Não é o mesmo que a visita ao escritório.
+` : ''}- Quem já é cliente da Migra (reserva paga) NÃO paga nenhum dos dois agendamentos.${isClient ? ' ESTE CLIENTE JÁ É CLIENTE: não fale de taxa nem de valor, é sem custo.' : ''}
+- Se o pedido for confuso ("quero ir aí falar com o Marcos", "quero marcar com o Marcos"), explique a diferença em duas frases curtas e peça para ele escolher: visita com um consultor, ou mentoria direta com o Marcos. Nunca deixe o cliente achar que a taxa da visita é para falar com o Marcos, nem que a mentoria é a visita.`;
     }
     if (this.closeHandoff) {
       system += `\n\n# Você fecha a venda (não passe para vendedor)
@@ -195,7 +205,7 @@ Onde parou e próximo passo: ${conv.continuity}`;
 O Marcos não faz atendimento comum de venda: quem fecha é a equipe. Quem insistir em falar diretamente com o Marcos (ou perguntar se ele atende pessoalmente) pode contratar a mentoria dele: ${m.minutes || 60} minutos por ${price}. Não é só sobre cédula e migração: ele conversa sobre vários assuntos, inclusive investimentos no Paraguai, negócios em ascensão com potencial de retorno e, se fizer sentido e estiver de acordo com os princípios e valores da Migra, até parcerias de negócio.
 - Primeiro mostre que a equipe resolve a migração e os documentos; ofereça a mentoria só para quem quer falar com o Marcos mesmo. Fale sempre o valor em dólar e escreva por extenso, para ninguém entender como reais: "250 dólares americanos (US$ 250) a hora" (online ou presencial, o mesmo valor). Nunca escreva só "250" nem só "US$ 250" sem a palavra "dólares" na primeira vez que falar o valor. Não converta para reais por conta própria. Apresente o valor com naturalidade e dê a escolha ("você prefere seguir com a equipe ou já reservar a mentoria com o Marcos?").
 - A mentoria pode ser online ou presencial: deixe o cliente escolher. Quem JÁ É CLIENTE da Migra não paga a mentoria (o sistema confere pelo cadastro: não diga isso por conta própria, deixe a ferramenta decidir).
-- Para os demais, o pagamento vem ANTES do agendamento, no Pix ou no cartão de crédito. Dê a escolha com naturalidade: "Prefere online ou presencial? E o pagamento, Pix ou cartão?". Pergunte também até que dia a mentoria precisa ser agendada (o prazo dele). Quem escolhe o dia e o horário é a equipe do Marcos, não o cliente: não pergunte "qual dia e horário você prefere" e não ofereça horários. Com as escolhas, use reservar_mentoria (formato, pagamento, assunto, o prazo em prazo_para_agendar e o nome completo de quem paga; CPF se for Pix). O Pix sai na hora; no cartão a equipe manda o link.
+- Para os demais (quem ainda não pagou a reserva), o pagamento vem ANTES do agendamento, no Pix ou no cartão de crédito. Dê a escolha com naturalidade: "Prefere online ou presencial? E o pagamento, Pix ou cartão?". Pergunte também até que dia a mentoria precisa ser agendada (o prazo dele). Quem escolhe o dia e o horário é a equipe do Marcos, não o cliente: não pergunte "qual dia e horário você prefere" e não ofereça horários. Com as escolhas, use reservar_mentoria (formato, pagamento, assunto, o prazo em prazo_para_agendar e o nome completo de quem paga; CPF se for Pix). O Pix sai na hora; no cartão a equipe manda o link.
 - Depois de pago, a assessoria do Marcos escolhe o dia e o horário na agenda dele, dentro do prazo, e confirma por aqui com o cliente se esse dia e horário servem para ele. Diga isso ao cliente. Você nunca confirma nem sugere data ou horário.
 - Não prometa lucro nem retorno financeiro: fale em "oportunidades" e "conversar sobre". Não invente formato (online ou presencial) nem desconto.`;
     }

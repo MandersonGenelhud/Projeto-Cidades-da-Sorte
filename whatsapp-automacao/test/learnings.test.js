@@ -183,3 +183,31 @@ test('quem pede para falar direto com o Marcos não vira visita: a instrução d
   assert.doesNotMatch(system, /ou pede para falar com o Marcos/);
   assert.ok(tools.includes('reservar_mentoria') && tools.includes('agendar_visita_escritorio'));
 });
+
+test('visita ao escritório e mentoria com o Marcos são separadas, e quem já é cliente não paga nenhuma', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  let system = '';
+  const llm = { configured: true, chat: async (req) => { system = req.messages[0].content; return { content: 'Ok', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm, now: () => new Date(2026, 9, 26, 9, 5) });
+  agent.requestVisit = async () => ({ ok: true });
+  agent.notifyOwner = async () => ({ ok: true });
+  agent.bookMentoring = async () => ({ ok: true });
+  agent.isClient = () => false;
+  const conv = agent.conversation('5511999990000@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Quero ir aí falar com o Marcos');
+  await agent.think(conv);
+  assert.match(system, /são DUAS coisas diferentes/);
+  assert.match(system, /atendido por um dos CONSULTORES da equipe, não pelo Marcos/);
+  assert.match(system, /DIRETAMENTE com o Marcos Miguel \(online ou presencial\), 250 dólares americanos/);
+  assert.match(system, /Nunca deixe o cliente achar que a taxa da visita é para falar com o Marcos/);
+  assert.match(system, /Deixe claro que a visita é com um dos CONSULTORES/);
+  assert.match(system, /consultoria presencial com taxa de R\$ 150,00/);
+  assert.doesNotMatch(system, /ESTE CLIENTE JÁ É CLIENTE/);
+  // Cliente com reserva paga: nenhum dos dois agendamentos tem custo.
+  agent.isClient = () => true;
+  await agent.think(conv);
+  assert.match(system, /ESTE CLIENTE JÁ É CLIENTE: não fale de taxa nem de valor, é sem custo/);
+  assert.match(system, /este cliente já é cliente da Migra: NÃO fale de taxa/);
+});
