@@ -61,7 +61,15 @@ grep -q '^TUNNEL=' .env || echo "TUNNEL=off" >> .env
 sed -i "s/SEU_DOMINIO/$DOMINIO/" Caddyfile
 docker compose up -d --build
 
+# Cópia diária dos dados (guarda 14 dias em /opt/migra/backups)
+cat > /etc/cron.daily/migra-backup <<CRON
+#!/bin/sh
+bash $DIR/app/whatsapp-automacao/deploy/backup-vps.sh >> /var/log/migra-backup.log 2>&1
+CRON
+chmod +x /etc/cron.daily/migra-backup
+
 echo
 echo "Pronto! Abra https://$DOMINIO (o HTTPS pode levar 1 a 2 minutos para aparecer)."
 echo "Na primeira vez, crie o administrador e ligue a verificação em duas etapas."
 echo "Para trazer os dados do computador: bash deploy/migrar-dados.sh /caminho/da/pasta/data"
+echo "Para atualizar depois: bash $DIR/app/whatsapp-automacao/deploy/atualizar-vps.sh"

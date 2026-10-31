@@ -320,3 +320,13 @@ test('toOpus converte áudio de verdade para OGG/Opus com o ffmpeg', async () =>
   const ogg = await toOpus(sine.stdout, { ffmpeg: 'ffmpeg' });
   assert.equal(ogg.subarray(0, 4).toString(), 'OggS');
 });
+
+test('voz: se o serviço local falhar (ainda baixando o modelo), o Gemini assume, e vice-versa', async () => {
+  const { FallbackStt, ChoiceTts } = await import('../src/voice.js');
+  const bad = { ready: true, transcribe: async () => { throw new Error('modelo baixando'); }, speak: async () => { throw new Error('modelo baixando'); } };
+  const good = { ready: true, transcribe: async () => 'ok', speak: async () => ({ buffer: Buffer.from('a'), mimetype: 'audio/ogg' }) };
+  assert.equal(await new FallbackStt(bad, good).transcribe(Buffer.from('x')), 'ok');
+  await assert.rejects(new FallbackStt(bad, { ready: false }).transcribe(Buffer.from('x')), /modelo baixando/);
+  assert.equal((await new ChoiceTts({ gemini: good, local: bad }).speak('oi', 'pf_dora')).mimetype, 'audio/ogg', 'voz local falhou: usa a do Gemini');
+  assert.equal((await new ChoiceTts({ gemini: bad, local: good }).speak('oi', 'Laomedeia')).mimetype, 'audio/ogg', 'Gemini falhou: usa a local');
+});

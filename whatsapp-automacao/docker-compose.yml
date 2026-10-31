@@ -6,6 +6,7 @@ services:
     env_file: .env
     environment:
       HOST: 0.0.0.0
+      UPDATER: "off" # na VPS a atualização é pelo script deploy/atualizar-vps.sh (o código vem da imagem)
       # Voz da Nina (faster-whisper entende o áudio, kokoro-onnx fala). Rodam na própria VPS, só na rede interna.
       STT_URL: http://voz:9000
       TTS_URL: http://voz:9000

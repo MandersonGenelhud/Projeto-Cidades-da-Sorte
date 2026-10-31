@@ -43,12 +43,19 @@ Depois de confirmar tudo, apague a cópia: `rm -rf /root/migra-data`. Ela conté
 Com o endereço fixo, siga o passo a passo do Instagram. O webhook é:
 `https://app.migraparaguai.tech/webhook/instagram`
 
+## Atualizar e cópias de segurança
+- **Atualizar** (na VPS): `bash /opt/migra/app/whatsapp-automacao/deploy/atualizar-vps.sh`. Ele guarda uma cópia dos dados, baixa a versão nova e religa. O botão "Atualizar agora" do painel fica desligado na VPS.
+- **Cópia diária** automática dos dados em `/opt/migra/backups` (últimos 14 dias). Esses arquivos têm segredos: não envie para ninguém. Para uma cópia fora da VPS, use Configurações → Segurança.
+
 ## Depois de tudo funcionando
 - Ative os **snapshots** da VPS no painel da Hostinger (grátis) e tire um antes de mudanças grandes.
 - Configure a cópia extra dos backups em **Configurações → Segurança**.
 - Entre na VPS só com chave SSH e desligue o login por senha (peça o passo a passo).
 
-## Voz da Nina (opcional, na VPS)
+## Voz da Nina e das atendentes
+Se o provedor da IA for o **Google Gemini**, a Nina já ouve e responde com a voz animada do Gemini, sem instalar nada. O serviço `voz` abaixo é o **plano B local**: ouve com o faster-whisper e fala com o Kokoro, sem enviar áudio para fora; ele entra sozinho se o Gemini falhar.
+
+## Voz local da Nina (opcional, na VPS)
 A Nina entende **áudios** e responde **falando**, com dois programas livres que rodam na própria VPS (nenhum áudio sai dela):
 - **faster-whisper** (SYSTRAN, licença MIT): transforma o áudio em texto. Modelo `small`, só processador.
 - **kokoro-onnx** (licença MIT; modelo Apache 2.0): voz em português do Brasil (Dora, Alex ou Santa).

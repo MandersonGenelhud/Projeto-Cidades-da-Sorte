@@ -2201,6 +2201,7 @@ app.post('/api/pending/dismiss', (req, res) => {
 const updater = new Updater({ root: ROOT, dataDir: DATA_DIR, token: () => process.env.GITHUB_TOKEN || store.settings.updater?.token || '' });
 app.get('/api/update/check', async (_req, res) => res.json(await updater.check()));
 app.post('/api/update', async (_req, res) => {
+  if (process.env.UPDATER === 'off') throw httpError(400, 'Nesta instalação (VPS) a atualização é feita pelo servidor: bash deploy/atualizar-vps.sh');
   const result = await updater.update();
   store.addLog({ type: 'system', message: `⬆️ Agente atualizado: ${result.version.message || result.version.sha.slice(0, 7)}. Reiniciando…` });
   res.json(result);

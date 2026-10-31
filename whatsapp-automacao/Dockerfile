@@ -1,7 +1,8 @@
 FROM node:22-alpine
 WORKDIR /app
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 TZ=America/Sao_Paulo DATA_DIR=/app/data
-RUN apk add --no-cache tzdata
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 TZ=America/Sao_Paulo DATA_DIR=/app/data FFMPEG_PATH=/usr/bin/ffmpeg
+# ffmpeg do sistema: converte a voz da Nina para mensagem de voz do WhatsApp (o ffmpeg-static do npm não roda no Alpine).
+RUN apk add --no-cache tzdata ffmpeg
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY src ./src

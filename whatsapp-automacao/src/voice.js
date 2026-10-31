@@ -139,8 +139,11 @@ export class FallbackStt {
     return this.primary.ready || this.secondary.ready;
   }
 
-  transcribe(buffer, mimetype) {
-    return (this.primary.ready ? this.primary : this.secondary).transcribe(buffer, mimetype);
+  async transcribe(buffer, mimetype) {
+    if (this.primary.ready) {
+      try { return await this.primary.transcribe(buffer, mimetype); } catch (e) { if (!this.secondary.ready) throw e; }
+    }
+    return this.secondary.transcribe(buffer, mimetype);
   }
 }
 
@@ -211,10 +214,16 @@ export class ChoiceTts {
     return this.gemini.ready || this.local.ready;
   }
 
-  speak(text, voice, style) {
+  async speak(text, voice, style) {
     const wantsGemini = Boolean(GEMINI_VOICES[voice]);
-    if (wantsGemini && this.gemini.ready) return this.gemini.speak(text, voice, style);
-    if (this.local.ready) return this.local.speak(text, wantsGemini ? undefined : voice);
-    return this.gemini.speak(text, wantsGemini ? voice : undefined, style);
+    const viaGemini = () => this.gemini.speak(text, wantsGemini ? voice : undefined, style);
+    const viaLocal = () => this.local.speak(text, wantsGemini ? undefined : voice);
+    const order = wantsGemini ? [[this.gemini, viaGemini], [this.local, viaLocal]] : [[this.local, viaLocal], [this.gemini, viaGemini]];
+    let lastErr = new Error('Nenhum serviço de voz disponível');
+    for (const [engine, run] of order) {
+      if (!engine.ready) continue;
+      try { return await run(); } catch (e) { lastErr = e; } // se um falhar (cota, modelo ainda baixando), tenta o outro
+    }
+    throw lastErr;
   }
 }
