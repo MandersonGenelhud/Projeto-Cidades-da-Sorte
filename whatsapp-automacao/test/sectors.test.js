@@ -140,3 +140,33 @@ test('o mesmo cliente não é avisado duas vezes ao mesmo setor nem ao mesmo ven
   assert.equal(r2.jaEncaminhado && r3.jaEncaminhado, true);
   assert.match(r2.instrucao, /NÃO chame esta ferramenta de novo/);
 });
+
+test('área por pessoa: botões da Equipe definem quem recebe cada setor, migra a lista antiga e vale para rodízio e indicações', async () => {
+  const { Sectors } = await import('../src/sectors.js');
+  const { Auth } = await import('../src/auth.js');
+  const { Crm } = await import('../src/crm.js');
+  const store = tempStore();
+  const auth = new Auth({ store, dataDir: store.dataDir });
+  const mk = (name, whatsapp, extra = {}) => auth.get(auth.create({ name, login: name.toLowerCase(), password: 'segredo123', role: 'seller', whatsapp, ...extra }).id);
+  const gabriel = mk('Gabriel', '5545999990011');
+  const camila = mk('Camila', '5545999990012');
+  const eliezer = mk('Eliezer', '5545999990013', { sectors: ['veiculos'] });
+  assert.deepEqual(auth.list().find((u) => u.name === 'Eliezer').sectors, ['veiculos']);
+  // Lista antiga de Regras → marcação por pessoa (uma vez), e nomes sem cadastro ficam como estavam.
+  store.updateSettings({ crm: { sectors: { loteamentos: { people: [{ name: 'Gabriel', whatsapp: '' }, { name: 'Fulano sem cadastro', whatsapp: '595981000000' }] }, documentacao: { people: [{ name: 'Camila', whatsapp: '' }] } } } });
+  const sectors = new Sectors({ store, crm: {}, auth });
+  sectors.migrate();
+  assert.deepEqual(gabriel.sectors, ['loteamentos']);
+  assert.deepEqual(camila.sectors, ['documentacao']);
+  assert.deepEqual(sectors.people('loteamentos').map((p) => p.name), ['Gabriel', 'Fulano sem cadastro']);
+  // Mudou de área pelo botão: Gabriel passa a vender veículos e sai de terrenos.
+  auth.update(gabriel.id, { sectors: ['veiculos'] });
+  assert.deepEqual(sectors.people('loteamentos').map((p) => p.name), ['Fulano sem cadastro']);
+  assert.deepEqual(sectors.people('veiculos').map((p) => p.name).sort(), ['Eliezer', 'Gabriel']);
+  auth.update(gabriel.id, { sectors: 'x' });
+  assert.deepEqual(auth.get(gabriel.id).sectors, [], 'valor inválido não vira área');
+  // Rodízio da migração só com quem atende documentação (ou ainda sem área marcada).
+  auth.update(gabriel.id, { sectors: ['veiculos'] });
+  const crm = new Crm({ store, auth });
+  assert.deepEqual(crm.rotation().map((u) => u.name), ['Camila']);
+});

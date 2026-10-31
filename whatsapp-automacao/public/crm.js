@@ -606,6 +606,7 @@ async function refreshDueBadge() {
 }
 
 // ---------- EQUIPE ----------
+const SECTOR_BTNS = [['documentacao', '🛂 Documentação'], ['loteamentos', '🏡 Terrenos'], ['veiculos', '🚗 Veículos']];
 loaders.team = async () => {
   const [users, settings] = await Promise.all([api('/api/users'), api('/api/settings')]);
   const active = users.filter((u) => u.active);
@@ -626,6 +627,7 @@ loaders.team = async () => {
         <div class="meta">login: ${esc(u.login)}${u.whatsapp ? ` · WhatsApp ${esc(fmtPhone(u.whatsapp))}` : ' · sem WhatsApp (fora do rodízio)'}
           · ${u.receivesLeads && u.whatsapp ? `🔄 no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : '⏸️ fora do rodízio'}
           · ${u.receivesAffiliateLeads ? '🤝 recebe indicações de parceiros' : '🚫 não recebe indicações de parceiros'}</div></div>
+      ${u.active ? `<div class="sector-btns" title="Em que áreas esta pessoa atende">${SECTOR_BTNS.map(([id, label]) => `<button class="btn small ${(u.sectors || []).includes(id) ? 'primary' : ''}" data-act="sector" data-sector="${id}" aria-pressed="${(u.sectors || []).includes(id)}">${label}</button>`).join('')}</div>` : ''}
       ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? '⏸️ Pausar rodízio' : '▶️ Pôr no rodízio'}</button>
         <button class="btn small" data-act="affleads" title="Indicações de parceiros pagam comissão menor ao vendedor">${u.receivesAffiliateLeads ? '🤝 Parar indicações' : '🤝 Receber indicações'}</button>` : ''}
       <button class="btn small" data-act="edit">✏️ Editar</button>
@@ -633,7 +635,7 @@ loaders.team = async () => {
       ${u.id === window.currentUser.id ? '' : `<button class="btn small ${u.active ? 'danger' : ''}" data-act="toggle">${u.active ? 'Desativar' : 'Reativar'}</button>`}
       <button class="btn small" data-act="transfer" title="Passar os prospectos em aberto para outra pessoa">🔁 Passar carteira</button>
     </div>`).join('');
-  $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads, receivesAffiliateLeads }) => ({ id, name, receivesLeads, receivesAffiliateLeads })));
+  $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads, receivesAffiliateLeads, sectors }) => ({ id, name, receivesLeads, receivesAffiliateLeads, sectors })));
   renderSystemLinks().catch(() => {});
 
   const c = settings.crm || {};
@@ -652,11 +654,6 @@ loaders.team = async () => {
   f.fxUSD.value = c.fx?.USD ?? 5.5;
   f.fxPYG.value = c.fx?.PYG ?? 0.0007;
   f.specialists.value = (c.specialists || []).map((s) => [s.topic, s.name, s.whatsapp ? `+${s.whatsapp}` : ''].join(' = ')).join('\n');
-  const sec = c.sectors || {};
-  const people = (id) => (sec[id]?.people || []).map((p) => `${p.name}${p.whatsapp ? ` = +${p.whatsapp}` : ''}`).join('\n');
-  f.sectorLoteamentos.value = people('loteamentos');
-  f.sectorDocumentacao.value = people('documentacao');
-  f.sectorVeiculos.value = people('veiculos');
   f.autoCreate.checked = c.autoCreate !== false;
   f.aiExtract.checked = c.aiExtract !== false;
   f.notifyFollowUps.checked = c.notifyFollowUps !== false;
@@ -671,6 +668,12 @@ $('#teamList').addEventListener('click', async (e) => {
     if (act === 'rotation') {
       const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
       await api(`/api/users/${id}`, { method: 'PATCH', body: { receivesLeads: !u?.receivesLeads } });
+    } else if (act === 'sector') {
+      const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
+      const sec = e.target.closest('[data-sector]').dataset.sector;
+      const now = new Set(u?.sectors || []);
+      if (now.has(sec)) now.delete(sec); else now.add(sec);
+      await api(`/api/users/${id}`, { method: 'PATCH', body: { sectors: [...now] } });
     } else if (act === 'affleads') {
       const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
       await api(`/api/users/${id}`, { method: 'PATCH', body: { receivesAffiliateLeads: !u?.receivesAffiliateLeads } });
@@ -707,7 +710,7 @@ $('#teamList').addEventListener('click', async (e) => {
 
 $('#formUser').addEventListener('submit', withBusy($('#formUser'), async (e) => {
   const f = e.target;
-  await api('/api/users', { method: 'POST', body: { ...Object.fromEntries(new FormData(f)), receivesLeads: f.receivesLeads.checked } });
+  await api('/api/users', { method: 'POST', body: { ...Object.fromEntries(new FormData(f)), receivesLeads: f.receivesLeads.checked, sectors: ['documentacao', 'loteamentos', 'veiculos'].filter((id) => f[`sec_${id}`].checked) } });
   toast(`Cadastrado! Passe o login "${f.login.value}" e a senha. A pessoa já aparece em Conexões WhatsApp para conectar o WhatsApp dela.`);
   f.reset();
   crmState.stages = [];
@@ -729,10 +732,6 @@ $('#formCrmSettings').addEventListener('submit', withBusy($('#formCrmSettings'),
       specialists: f.specialists.value.split('\n').map((line) => line.split('=').map((x) => x.trim()))
         .filter(([topic, name]) => topic && name)
         .map(([topic, name, whatsapp = '']) => ({ topic, name, whatsapp: whatsapp.replace(/\D/g, '') })),
-      sectors: (() => {
-        const parse = (t) => t.split('\n').map((l) => l.split(/[=:]/).map((x) => x.trim())).filter(([n]) => n).map(([name, w = '']) => ({ name, whatsapp: w.replace(/\D/g, '') }));
-        return { loteamentos: { people: parse(f.sectorLoteamentos.value) }, documentacao: { people: parse(f.sectorDocumentacao.value) }, veiculos: { people: parse(f.sectorVeiculos.value) } };
-      })(),
       panelUrl: f.panelUrl.value.trim(),
       ownerPhone: f.ownerPhone.value.replace(/\D/g, ''),
       jobsContact: f.jobsContact.value.split(',').map((l) => l.split(/[=:]/).map((x) => x.trim())).filter(([n]) => n).map(([name, w = '']) => ({ name, whatsapp: w.replace(/\D/g, '') })),

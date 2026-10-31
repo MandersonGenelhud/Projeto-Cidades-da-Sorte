@@ -22,11 +22,15 @@ export function checkPassword(password, stored) {
   return expected.length === test.length && crypto.timingSafeEqual(expected, test);
 }
 
+/** Áreas em que a pessoa atende (recebe clientes da IA, da Nina, do Instagram e das indicações). */
+export const SECTOR_IDS = ['documentacao', 'loteamentos', 'veiculos'];
+const cleanSectors = (v) => [...new Set((Array.isArray(v) ? v : []).filter((x) => SECTOR_IDS.includes(x)))];
+
 const publicUser = (u) => (u ? {
   id: u.id, name: u.name, login: u.login, role: u.role, whatsapp: u.whatsapp || '', active: u.active !== false,
   receivesLeads: u.receivesLeads ?? u.role === 'seller', leadsReceived: u.leadsReceived || 0, lastLeadAt: u.lastLeadAt || null, rotationSeq: u.rotationSeq || 0,
   twoFactor: Boolean(u.totpEnabled), pending: Boolean(u.pending), requestedAt: u.requestedAt || null, commissionPct: u.commissionPct ?? null, affiliateCommissionPct: u.affiliateCommissionPct ?? null,
-  receivesAffiliateLeads: Boolean(u.receivesAffiliateLeads), refCode: u.refCode || '',
+  receivesAffiliateLeads: Boolean(u.receivesAffiliateLeads), refCode: u.refCode || '', sectors: cleanSectors(u.sectors),
 } : null);
 
 export class Auth {
@@ -58,7 +62,7 @@ export class Auth {
     return this.users.filter((u) => u.active !== false);
   }
 
-  create({ name, login, password, role = 'seller', whatsapp = '', receivesLeads, pending = false }) {
+  create({ name, login, password, role = 'seller', whatsapp = '', receivesLeads, pending = false, sectors = [] }) {
     name = String(name || '').trim();
     login = String(login || '').trim().toLowerCase();
     if (!name) throw Object.assign(new Error('Informe o nome'), { status: 400 });
@@ -74,6 +78,7 @@ export class Auth {
       passwordHash: hashPassword(password),
       receivesLeads: receivesLeads === undefined ? role !== 'admin' : Boolean(receivesLeads),
       active: !pending,
+      sectors: cleanSectors(sectors),
       ...(pending ? { pending: true, requestedAt: new Date().toISOString() } : {}),
       createdAt: new Date().toISOString(),
     };
@@ -98,6 +103,7 @@ export class Auth {
       if (u.active) delete u.pending; // liberado pelo administrador
     }
     if (patch.receivesLeads !== undefined) u.receivesLeads = Boolean(patch.receivesLeads);
+    if (patch.sectors !== undefined) u.sectors = cleanSectors(patch.sectors);
     if (patch.receivesAffiliateLeads !== undefined) u.receivesAffiliateLeads = Boolean(patch.receivesAffiliateLeads);
     if (patch.password) {
       if (String(patch.password).length < 6) throw Object.assign(new Error('A senha precisa ter pelo menos 6 caracteres'), { status: 400 });

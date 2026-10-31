@@ -297,7 +297,8 @@ export class Crm {
   // ---------- Rodízio de vendedores ----------
   /** Quem está no rodízio: ativo, com WhatsApp e com "recebe clientes" ligado. */
   rotation() {
-    return this.auth.users.filter((u) => u.active !== false && u.whatsapp && (u.receivesLeads ?? u.role === 'seller'));
+    // Quem foi marcado só para terrenos ou veículos não recebe o rodízio da migração.
+    return this.auth.users.filter((u) => u.active !== false && u.whatsapp && (u.receivesLeads ?? u.role === 'seller') && (!u.sectors?.length || u.sectors.includes('documentacao')));
   }
 
   /** Próximo da vez: quem recebeu cliente há mais tempo (ou nunca recebeu). */

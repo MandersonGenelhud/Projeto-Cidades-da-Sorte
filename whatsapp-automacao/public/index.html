@@ -708,6 +708,12 @@
           </div>
           <label>WhatsApp do vendedor (o sistema confere com o WhatsApp que ele conectar) <input name="whatsapp" placeholder="+55 11 98765-4321" /></label>
           <label class="check"><input type="checkbox" name="receivesLeads" checked /> Entra no rodízio de clientes</label>
+          <fieldset class="sector-pick"><legend>Em que área esta pessoa atende?</legend>
+            <label class="check"><input type="checkbox" name="sec_documentacao" checked /> 🛂 Documentação e migração (Migra Paraguai)</label>
+            <label class="check"><input type="checkbox" name="sec_loteamentos" /> 🏡 Loteamentos e terrenos (Migra Imobiliária)</label>
+            <label class="check"><input type="checkbox" name="sec_veiculos" /> 🚗 Veículos (Migra Motors)</label>
+            <p class="hint">Ela recebe só os clientes dessas áreas: da Nina, do Instagram, do atendimento e das indicações de parceiros. Dá para mudar a qualquer hora na lista da Equipe.</p>
+          </fieldset>
           <label>Tipo de acesso
             <select name="role"><option value="seller">Vendedor (vê os próprios prospectos)</option><option value="admin">Administrador (vê tudo)</option></select>
           </label>
@@ -729,16 +735,7 @@
           <textarea name="routingCriteria" rows="5"></textarea>
         </label>
         <h3>🏢 Setores e atendentes</h3>
-        <p class="hint">Coloque os atendentes de cada setor, um por linha: <b>Nome = WhatsApp</b>. A IA direciona o cliente pelo assunto e o atendente recebe o resumo no WhatsApp para entrar em contato. Pode escrever só o nome de quem está na Equipe (o WhatsApp vem do cadastro). Com mais de um atendente, vai um de cada vez. Quem a IA passa para um humano no fechamento vai para o setor de documentação e migração. Setor sem ninguém: o aviso vai para os administradores.</p>
-        <label>🏡 Loteamentos e terrenos (Migra Imobiliária)
-          <textarea name="sectorLoteamentos" rows="2" placeholder="Robson = +595 981 000000"></textarea>
-        </label>
-        <label>🛂 Documentação e migração (Migra Paraguai): recebe quem a IA passa para um humano
-          <textarea name="sectorDocumentacao" rows="2" placeholder="Ana = +55 45 99999-0001&#10;Pedro = +595 982 000000"></textarea>
-        </label>
-        <label>🚗 Veículos (Migra Motors)
-          <textarea name="sectorVeiculos" rows="2" placeholder="Carlos = +595 983 000000"></textarea>
-        </label>
+        <p class="hint">Agora é por pessoa: na lista da <b>Equipe</b>, cada pessoa tem os botões 🛂 Documentação, 🏡 Terrenos e 🚗 Veículos. Quem estiver marcado recebe os clientes daquela área (da IA, da Nina, do Instagram e das indicações). Setor sem ninguém: o aviso de terrenos não vai para os administradores (fica no CRM).</p>
         <input type="hidden" name="specialists" />
         <div class="row">
           <label>Cotação do dólar para os painéis (R$ por US$ 1) <input type="number" step="0.01" min="0" name="fxUSD" /></label>

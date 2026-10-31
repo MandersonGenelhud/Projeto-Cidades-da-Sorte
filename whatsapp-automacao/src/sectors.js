@@ -59,8 +59,32 @@ export class Sectors {
     return this.store.settings.crm?.sectors || {};
   }
 
+  /**
+   * Quem atende o setor: as pessoas da Equipe marcadas com essa área (ativas e com WhatsApp)
+   * e, por compatibilidade, nomes antigos da lista de Regras que não têm cadastro na Equipe.
+   */
   people(id) {
-    return resolvePeople(this.config[id]?.people, this.auth?.users);
+    const users = this.auth?.users || [];
+    const flagged = users.filter((u) => u.active !== false && !u.pending && u.whatsapp && (u.sectors || []).includes(id)).map((u) => ({ name: u.name, whatsapp: u.whatsapp }));
+    const legacy = resolvePeople(this.config[id]?.people, users).filter((p) => !flagged.some((f) => samePhone(f.whatsapp, p.whatsapp)));
+    return [...flagged, ...legacy];
+  }
+
+  /** Uma vez só: passa as listas antigas (Regras → Setores) para a marcação por pessoa na Equipe. */
+  migrate() {
+    if (this.store.data.sectorsMigrated) return;
+    for (const id of Object.keys(SECTORS)) {
+      const keep = [];
+      for (const p of this.config[id]?.people || []) {
+        const n = norm(p.name);
+        const u = (this.auth?.users || []).find((x) => (p.whatsapp && x.whatsapp && samePhone(x.whatsapp, p.whatsapp)) || (n && (norm(x.name) === n || norm(x.name).startsWith(`${n} `))));
+        if (u) u.sectors = [...new Set([...(u.sectors || []), id])];
+        else keep.push(p);
+      }
+      if (this.config[id]) this.config[id].people = keep;
+    }
+    this.store.data.sectorsMigrated = true;
+    this.store.save();
   }
 
   /** Próximo atendente do setor (rodízio). Devolve { name, whatsapp, id } (id = usuário do painel com o mesmo WhatsApp). */

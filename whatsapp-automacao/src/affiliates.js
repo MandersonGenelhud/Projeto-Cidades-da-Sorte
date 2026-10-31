@@ -313,7 +313,13 @@ export class Affiliates {
     const extra = [input.city && `cidade: ${String(input.city).slice(0, 60)}`, input.when && `melhor horário: ${String(input.when).slice(0, 40)}`, input.message && `mensagem: ${String(input.message).slice(0, 300)}`].filter(Boolean).join(' · ');
     (lead.timeline ||= []).push({ at: new Date().toISOString(), by: 'Sistema', type: 'nota', text: `📝 Pré-cadastro: ${service.label}${extra ? ` · ${extra}` : ''}${selfReferral ? ' · (indicação de si mesmo: sem comissão)' : ''}` });
     let owner = lead.ownerId ? this.auth?.get(lead.ownerId) : null;
-    if (!owner && lead.affiliateId) owner = this.crm.routeLead(lead, { reason: 'indicação de parceiro', pool: (u) => Boolean(u.receivesAffiliateLeads) });
+    if (!owner && lead.affiliateId) {
+      // A indicação vai para quem atende aquela área (terreno → Migra Imobiliária, veículo → Motors, o resto → migração); sem ninguém na área, qualquer um que aceita indicações.
+      const sector = { imoveis: 'loteamentos', veiculos: 'veiculos' }[service.category] || 'documentacao';
+      const accepts = (u) => Boolean(u.receivesAffiliateLeads);
+      owner = this.crm.routeLead(lead, { reason: 'indicação de parceiro', pool: (u) => accepts(u) && (u.sectors || []).includes(sector) })
+        || this.crm.routeLead(lead, { reason: 'indicação de parceiro', pool: (u) => accepts(u) && (!u.sectors?.length || u.sectors.includes(sector)) });
+    }
     this.store.save();
     return { lead, owner: owner || null, affiliate: lead.affiliateId ? this.get(lead.affiliateId) : null, selfReferral, service, extra };
   }

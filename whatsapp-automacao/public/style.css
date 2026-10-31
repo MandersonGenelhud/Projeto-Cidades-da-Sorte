@@ -1007,3 +1007,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--blue) 6%, transparent);
 .cash-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 13px; color: var(--text); }
 .cash-row .progress { flex: 1; }
 .cash-row b { white-space: nowrap; }
+
+.sector-btns{display:flex;flex-wrap:wrap;gap:6px;flex-basis:100%}
+.sector-pick{border:1px solid var(--line,#d9e2dc);border-radius:10px;padding:10px 12px;margin:4px 0}
+.sector-pick legend{font-weight:600;padding:0 6px}

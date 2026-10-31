@@ -170,6 +170,7 @@ const sectors = new Sectors({
   notifyAdmins: (text) => notifyAdmins(text),
 });
 agent.routeSector = (conv, args, opts) => sectors.route(conv, args, opts);
+sectors.migrate();
 // Link do WhatsApp da Migra com o código do cliente (para quem conversa no Instagram escolher tocar em vez de digitar o número).
 agent.whatsappLink = (conv) => {
   if (!String(conv.key).startsWith('ig:')) return '';
