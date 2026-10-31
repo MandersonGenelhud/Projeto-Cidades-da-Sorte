@@ -163,3 +163,23 @@ test('Instagram → WhatsApp: o link leva o código da pessoa e a atendente ganh
   assert.equal(lead.conversationKey, 'ig:555', 'o histórico do Instagram continua guardado');
   assert.equal(lead.phone, '5545988887777');
 });
+
+test('quem pede para falar direto com o Marcos não vira visita: a instrução das visitas manda para a mentoria', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  let system = '';
+  let tools = [];
+  const llm = { configured: true, chat: async (req) => { system = req.messages[0].content; tools = req.tools.map((t) => t.function.name); return { content: 'Ok', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm, now: () => new Date(2026, 9, 26, 9, 5) });
+  agent.requestVisit = async () => ({ ok: true });
+  agent.notifyOwner = async () => ({ ok: true });
+  agent.bookMentoring = async () => ({ ok: true });
+  const conv = agent.conversation('5511999990000@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Quero falar direto com o Marcos');
+  await agent.think(conv);
+  assert.match(system, /quem quer falar direto com o Marcos Miguel NÃO é visita ao escritório/);
+  assert.match(system, /nunca registre visita para ele/);
+  assert.doesNotMatch(system, /ou pede para falar com o Marcos/);
+  assert.ok(tools.includes('reservar_mentoria') && tools.includes('agendar_visita_escritorio'));
+});

@@ -630,6 +630,12 @@ agent.requestVisit = async (conv, args, { dryRun } = {}) => {
   if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real ${visitDeskName()} recebe o pedido no WhatsApp. Diga que passou o pedido para a equipe do escritório, que confirma o dia e o horário por aqui.` };
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
     || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+  // Quem quer falar direto com o Marcos não é visita: é a mentoria paga.
+  const m = store.settings.crm?.mentoring || {};
+  if (m.enabled !== false && Number(m.price) > 0 && /marcos|mentoria|direto com o dono|falar com o dono/i.test(`${args.assunto || ''} ${args.observacoes || ''} ${args.preparado || ''}`)) {
+    const price = `${m.currency === 'BRL' ? 'R$' : 'US$'} ${Number(m.price).toLocaleString('pt-BR')}`;
+    return { erro: `Não registre visita: quem quer falar direto com o Marcos Miguel contrata a mentoria de ${m.minutes || 60} minutos por ${Number(m.price)} ${m.currency === 'BRL' ? 'reais' : 'dólares americanos'} (${price}), online ou presencial, gratuita para quem já é cliente da Migra. Explique isso com naturalidade, dê a escolha entre seguir com a equipe ou reservar a mentoria e, se ele quiser, use reservar_mentoria. Se na verdade ele só quer conhecer o escritório com a equipe, tente de novo sem citar o Marcos.` };
+  }
   await visits.request({ convKey: conv.key, lead, phone: conv.phone, ...args });
   return { ok: true, instrucao: `Pedido registrado: ${visitDeskName()}, da equipe do escritório, já recebeu. Diga que a equipe confirma o dia e o horário por aqui. Em seguida, em uma mensagem curta, lembre do que trazer: ${store.settings.visits?.bring || DEFAULT_BRING}` };
 };

@@ -142,11 +142,12 @@ export class Agent {
 4. Se ele disser que já preencheu e a ficha não aparecer como preenchida abaixo, peça com gentileza para conferir se clicou em "Enviar meus dados" no final.${status ? `\n\n## Situação deste cliente agora\n${status}` : ''}`;
     }
     const visits = Boolean(this.requestVisit) && settings.visits?.enabled !== false;
+    const mentoringOn = Boolean(this.notifyOwner) && settings.crm?.mentoring?.enabled !== false && Number(settings.crm?.mentoring?.price) > 0;
     const fee = Number(settings.visits?.consultFee ?? 150) || 0;
     if (visits) {
       const info = this.visitInfo ? this.visitInfo(conv) : '';
       system += `\n\n# Visita ao escritório da Migra (aqui no Paraguai)
-Tem cliente que prefere conhecer o escritório e fechar pessoalmente, ou pede para falar com o Marcos. O atendimento presencial é com a equipe do escritório (não prometa encontro com o Marcos). Quando isso aparecer:
+Tem cliente que prefere conhecer o escritório e fechar pessoalmente com a equipe. O atendimento presencial é com a equipe do escritório. ATENÇÃO: quem quer falar direto com o Marcos Miguel NÃO é visita ao escritório: ${mentoringOn ? 'esse caso é a mentoria paga (seção "Mentoria com o Marcos Miguel"): nunca registre visita para ele' : 'não prometa encontro com o Marcos; a equipe atende'}. Quando o cliente quiser conhecer o escritório:
 1. Acolha a ideia e faça a ressalva, com carinho e em mensagem curta: se vier até a gente, já venha preparado para iniciar o processo, com os documentos e o valor da entrada. Assim não perde tempo nem precisa voltar depois. O Marcos se preocupa muito com isso: são milhares de pessoas chegando, e ele quer aproveitar bem o tempo do cliente e o dele.${fee ? `
    Avise também, com naturalidade: a visita é uma consultoria presencial com taxa de R$ ${fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, cobrada só se ele não fechar nenhum pacote. Fechando com a Migra, fica isento: a consultoria já está incluída no contrato. Use isso a favor do fechamento ("o ideal é já vir para fechar, aí a consultoria sai sem custo").` : ''}
 2. Pergunte o dia e o período que prefere e quantas pessoas vêm.
