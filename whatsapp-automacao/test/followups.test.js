@@ -66,3 +66,43 @@ test('cliente voltou a falar antes da data: não retoma; prompt proíbe encerrar
   assert.equal(await f.run({ wait: async () => {} }), 0);
   assert.equal(sent.length, 0);
 });
+
+test('retomada antecipada: a IA chama quem marcou para o futuro, uma vez por data, e pula quem não dá', async () => {
+  const clock = { now: new Date(2026, 9, 31, 10, 0) }; // sábado, 31/10, 10h
+  const { crm, agent, f, sent, systems } = setup(clock);
+  const admin = { name: 'Marcos', role: 'admin' };
+  const mk = (name, phone, date) => {
+    const l = crm.byId(crm.create(admin, { name, phone }).id);
+    crm.followUp(admin, l.id, { date, reason: 'quer começar ano que vem' });
+    return l;
+  };
+  const carla = mk('Carla', '5521998887777', '2027-02-10');
+  const conv = agent.conversation('5521998887777@s.whatsapp.net');
+  conv.phone = '5521998887777';
+  carla.conversationKey = conv.key;
+  const joao = mk('João', '5545988881111', '2026-12-15'); // sem conversa ainda: cria pelo telefone
+  const ana = mk('Ana', '5545988882222', '2027-01-20');
+  const anaConv = agent.conversation('5545988882222@s.whatsapp.net');
+  anaConv.handoff = true; // um atendente assumiu
+  ana.conversationKey = anaConv.key;
+  mk('Hoje', '5545988883333', '2026-10-31'); // retorno é hoje: fica com a rotina do dia
+  const sem = crm.byId(crm.create(admin, { name: 'Sem telefone', instagram: 'semtel' }).id);
+  crm.followUp(admin, sem.id, { date: '2027-03-01', reason: 'x' });
+
+  assert.equal(f.futureList({ minDays: 31 }).length, 4, 'mais de 30 dias: Carla, Ana, João e o do Instagram');
+  const out = await f.reconfirm({ wait: async () => {} });
+  assert.deepEqual(out.sent.map((x) => x.name).sort(), ['Carla', 'João']);
+  assert.deepEqual(out.skipped.map((x) => x.reason).sort(), ['sem WhatsApp cadastrado', 'um atendente assumiu a conversa']);
+  assert.equal(sent.length, 2);
+  assert.match(systems.at(-1), /Retomada antecipada/);
+  assert.match(systems.find((s) => s.includes('10/02/2027')), /confirmar o que ficou combinado para 10\/02\/2027/);
+  assert.equal(carla.reconfirmedFor, '2027-02-10');
+  assert.match(carla.timeline.at(-1).text, /Retomada antecipada pela IA/);
+  // Não repete para a mesma data; o retorno do dia combinado continua marcado.
+  assert.equal((await f.reconfirm({ wait: async () => {} })).sent.length, 0);
+  assert.equal(carla.followUpAt, '2027-02-10');
+  // Fora do horário comercial, nada sai.
+  clock.now = new Date(2026, 9, 31, 22, 0);
+  carla.reconfirmedFor = null;
+  assert.match((await f.reconfirm({ wait: async () => {} })).erro, /Fora do horário/);
+});

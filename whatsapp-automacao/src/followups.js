@@ -34,6 +34,65 @@ export class AutoFollowUps {
     return { ok: true, data: date, hora: time, instrucao: say };
   }
 
+  /** Clientes com retorno marcado para o futuro (depois de hoje), que ainda não foram reconfirmados para essa data. */
+  futureList({ minDays = 1, ids = null } = {}) {
+    const from = new Date(this.now());
+    from.setDate(from.getDate() + minDays);
+    const start = isoDay(from);
+    return this.crm.leads.filter((l) => l.followUpAt && l.followUpAt >= start && !['ganho', 'perdido'].includes(l.stage)
+      && (!ids || ids.includes(l.id)) && l.reconfirmedFor !== l.followUpAt)
+      .sort((a, b) => a.followUpAt.localeCompare(b.followUpAt));
+  }
+
+  /**
+   * Retomada antecipada: a IA chama, um por um (com intervalo), quem marcou retorno para o futuro,
+   * confirma a data combinada e oferece adiantar o início. Só das 8h às 20h, só WhatsApp
+   * (o Instagram só deixa responder até 24h depois do cliente), e pula quem um humano assumiu.
+   */
+  async reconfirm({ minDays = 1, ids = null, max = 25, gapMs = 60_000, wait = (ms) => new Promise((r) => setTimeout(r, ms)), onProgress = () => {} } = {}) {
+    const now = this.now();
+    const hhmm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const out = { sent: [], skipped: [] };
+    if (hhmm < '08:00' || hhmm > '20:00') return { ...out, erro: 'Fora do horário (8h às 20h). Tente de novo no horário comercial.' };
+    const list = this.futureList({ minDays, ids }).slice(0, max);
+    for (const [i, lead] of list.entries()) {
+      const who = lead.name || lead.phone || lead.code;
+      let key = lead.followUpKey || lead.conversationKey || lead.whatsappKey || null;
+      if (key && String(key).startsWith('ig:')) key = lead.whatsappKey || null;
+      let conv = key ? this.agent.conversation(key, { create: false }) : null;
+      if (!conv && lead.phone) {
+        key = lead.whatsappKey || lead.phone;
+        conv = this.agent.conversation(key);
+        conv.phone ||= lead.phone;
+        conv.name ||= lead.name || '';
+      }
+      const skip = (reason) => { out.skipped.push({ id: lead.id, name: who, reason }); onProgress(out); };
+      if (!conv) { skip('sem WhatsApp cadastrado'); continue; }
+      if (conv.handoff) { skip('um atendente assumiu a conversa'); continue; }
+      if (!this.canSend(key)) { skip('WhatsApp desconectado ou atendente de IA desligada'); continue; }
+      try {
+        const r = await this.agent.think(conv, {
+          extraSystem: `# Retomada antecipada (o retorno combinado é só em ${BR(lead.followUpAt)})
+Este cliente pediu para conversar mais para frente e ficou combinado ${BR(lead.followUpAt)}. Motivo da espera: ${lead.followUpReason || '-'}. O que falta: ${lead.followUpNext || '-'}.
+Mande UMA mensagem curta, com a saudação do horário e o nome dele: diga que está passando para confirmar o que ficou combinado para ${BR(lead.followUpAt)} e mostre, com verdade, por que vale adiantar (o processo leva em média 90 a 120 dias úteis; começando agora, ele fica pronto antes da data que quer). Termine com uma escolha que leve ao próximo passo, por exemplo: "Você prefere já garantir a sua reserva esta semana ou eu deixo tudo encaminhado para começarmos em ${BR(lead.followUpAt)}?". Não peça desculpas, não se despeça e não invente condição especial.`,
+        });
+        await this.send(key, r.text);
+        this.agent.remember(conv, 'assistant', r.text);
+        Object.assign(lead, { reconfirmedFor: lead.followUpAt, reconfirmedAt: now.toISOString(), followUpMsgCount: conv.messages.length });
+        this.crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `🔁 Retomada antecipada pela IA (retorno marcado para ${BR(lead.followUpAt)}): "${r.text.slice(0, 200)}"`);
+        this.store.save();
+        out.sent.push({ id: lead.id, name: who });
+        this.log({ type: 'system', message: `🔁 Retomada antecipada enviada para ${who} (retorno de ${BR(lead.followUpAt)})` });
+      } catch (e) {
+        skip(`erro: ${e.message}`);
+        continue;
+      }
+      onProgress(out);
+      if (i < list.length - 1) await wait(gapMs);
+    }
+    return out;
+  }
+
   /** Retomadas do dia: só no horário combinado, das 8h às 20h, e se o cliente não voltou a falar antes. */
   async run({ max = 15, gapMs = 45_000, wait = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
     const now = this.now();

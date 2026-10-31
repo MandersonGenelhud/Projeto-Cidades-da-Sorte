@@ -2604,6 +2604,22 @@ app.delete('/api/leads/:id', (req, res) => {
 });
 
 // CRM: retornos e números
+// Retomada antecipada dos retornos marcados para o futuro (botão em Retornos, só o administrador).
+let reconfirmJob = null;
+app.get('/api/followups/reconfirm', (_req, res) => res.json({ job: reconfirmJob, pending: followups.futureList().length, far: followups.futureList({ minDays: 31 }).length }));
+app.post('/api/followups/reconfirm', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  if (reconfirmJob?.running) throw httpError(409, 'A retomada já está em andamento');
+  const minDays = req.body?.scope === 'far' ? 31 : 1;
+  const total = Math.min(25, followups.futureList({ minDays }).length);
+  if (!total) throw httpError(400, 'Não há clientes com retorno futuro para retomar');
+  reconfirmJob = { running: true, total, sent: 0, skipped: [], startedAt: new Date().toISOString(), by: req.user.name };
+  followups.reconfirm({ minDays, onProgress: (o) => Object.assign(reconfirmJob, { sent: o.sent.length, skipped: o.skipped }) })
+    .then((o) => Object.assign(reconfirmJob, { running: false, sent: o.sent.length, skipped: o.skipped, erro: o.erro || null, endedAt: new Date().toISOString() }))
+    .catch((e) => Object.assign(reconfirmJob, { running: false, erro: e.message }))
+    .finally(() => notify('crm', {}));
+  res.json(reconfirmJob);
+});
 app.get('/api/crm/agenda', (req, res) => res.json(crm.agenda(req.user)));
 app.get('/api/crm/handoffs', (req, res) => {
   const ownerId = req.user.role === 'admin' ? req.query.owner || undefined : req.user.id;

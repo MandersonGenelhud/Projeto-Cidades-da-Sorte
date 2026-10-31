@@ -581,6 +581,7 @@ loaders.followups = async () => {
         <button class="btn small" data-open="${esc(l.id)}">Abrir ficha</button>
       </div>`).join('') || `<p class="muted">${empty}</p>`}
     </div>`;
+  if (isAdmin()) renderReconfirm().catch(() => {});
   $('#followupsBox').innerHTML = [
     a.atrasados.length ? group('⚠️ Atrasados', a.atrasados, 'warn', '') : '',
     group('🔔 Hoje', a.hoje, 'today', 'Nenhum retorno para hoje.'),
@@ -1734,4 +1735,36 @@ $('#btnShareBuild').addEventListener('click', () => {
     return `<div class="item"><div class="grow"><b>${esc(n || 'Contato')}</b> <span class="meta">+${phone}</span></div>
       <a class="btn small primary" target="_blank" rel="noopener" href="https://wa.me/${phone}?text=${encodeURIComponent(shareText(n, shareState.link))}">Enviar</a></div>`;
   }).join('') || '<p class="hint">Nenhum telefone válido. Use: Nome, telefone com DDD.</p>';
+});
+
+// ---------- Retomada antecipada (IA chama quem marcou retorno para o futuro) ----------
+let reconfirmTimer = null;
+async function renderReconfirm() {
+  const box = $('#reconfirmBox');
+  const r = await api('/api/followups/reconfirm');
+  box.hidden = false;
+  const j = r.job;
+  const status = j ? (j.running
+    ? `⏳ Em andamento: ${j.sent} de ${j.total} enviados (uma mensagem por minuto, para não bloquear o WhatsApp).`
+    : `✅ Última retomada: ${j.sent} enviado(s)${j.skipped?.length ? `, ${j.skipped.length} pulado(s)` : ''}${j.erro ? ` · ${esc(j.erro)}` : ''}.`) : '';
+  box.innerHTML = `<h2>🤖 Retomar quem marcou para o futuro</h2>
+    <p class="hint">A atendente de IA chama um por um, no WhatsApp, quem marcou retorno para frente: confirma a data combinada e mostra por que vale adiantar o início. Só das 8h às 20h, até 25 por vez, uma mensagem por minuto. Pula quem um atendente assumiu e quem só falou pelo Instagram.</p>
+    <div class="row">
+      <button type="button" class="btn primary" data-reconfirm="far" ${j?.running || !r.far ? 'disabled' : ''}>Retomar os de "Mais para frente" (${r.far})</button>
+      <button type="button" class="btn" data-reconfirm="all" ${j?.running || !r.pending ? 'disabled' : ''}>Retomar todos os futuros (${r.pending})</button>
+    </div>
+    ${status ? `<p class="hint">${status}</p>` : ''}
+    ${j && !j.running && j.skipped?.length ? `<details><summary>Pulados</summary>${j.skipped.map((x) => `<div class="meta">${esc(x.name)}: ${esc(x.reason)}</div>`).join('')}</details>` : ''}`;
+  clearTimeout(reconfirmTimer);
+  if (j?.running) reconfirmTimer = setTimeout(() => renderReconfirm().catch(() => {}), 15000);
+}
+$('#reconfirmBox').addEventListener('click', async (e) => {
+  const scope = e.target.closest('[data-reconfirm]')?.dataset.reconfirm;
+  if (!scope) return;
+  if (!confirm('A atendente vai mandar uma mensagem para cada cliente, uma por minuto. Começar agora?')) return;
+  try {
+    await api('/api/followups/reconfirm', { method: 'POST', body: { scope } });
+    toast('Retomada iniciada');
+    renderReconfirm();
+  } catch (err) { toast(err.message, true); }
 });
