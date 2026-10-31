@@ -1,7 +1,7 @@
 // Setores do Grupo Migra: cada assunto tem os seus atendentes (cadastrados no painel).
 // A atendente virtual direciona o cliente; o atendente do setor recebe o resumo no WhatsApp
 // e entra em contato. Com mais de um atendente no setor, vai um de cada vez (rodízio).
-import { chatPreview } from './routing.js';
+import { chatPreview, REPEAT_MS } from './routing.js';
 import { normalizePhone, samePhone } from './utils.js';
 
 export const SECTORS = {
@@ -86,6 +86,10 @@ export class Sectors {
     }
     const lead = this.crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username })
       || this.crm.ensureFromConversation({ key: conv.key, phone: conv.phone || normalizePhone(args.telefone) || null, name: args.nome || conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+    // Já direcionado a este setor há pouco: um único aviso (o atendente já viu; repetir enterra as mensagens que importam).
+    if (lead?.handoff?.sector === id && Date.now() - Date.parse(lead.handoff.at || 0) < REPEAT_MS) {
+      return { ok: true, setor: label, jaEncaminhado: true, instrucao: 'Este cliente já foi direcionado para o setor e o atendente já recebeu o resumo. NÃO chame esta ferramenta de novo. Diga só, em uma frase, que o correspondente vai chamar por aqui e agradeça a paciência.' };
+    }
     const person = this.next(id);
     const phone = conv.phone || normalizePhone(args.telefone) || lead?.phone || '';
     const who = args.nome || lead?.name || conv.name || (phone ? `+${phone}` : conv.username ? `@${conv.username}` : 'Cliente');

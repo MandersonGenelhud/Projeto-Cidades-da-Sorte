@@ -47,6 +47,9 @@ export function normalizeMessage(msg, lidToPn = new Map()) {
     text,
     // Áudio (mensagem de voz): a Nina baixa e transcreve. Só marca que existe; o conteúdo vem sob demanda.
     hasAudio: Boolean(m.audioMessage),
+    // Foto (ex.: comprovante de Pix): a Nina baixa e lê quando vem de um administrador do Caixa.
+    hasImage: Boolean(m.imageMessage),
+    imageMime: m.imageMessage?.mimetype || '',
     timestamp: Number(msg.messageTimestamp) * 1000 || Date.now(),
   };
   // Mensagem original, para baixar a mídia. Não enumerável: não vai para JSON, painel nem logs.

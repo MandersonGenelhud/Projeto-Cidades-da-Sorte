@@ -592,6 +592,12 @@ agent.notifyOwner = async (conv, args, { dryRun } = {}) => {
   // Quem quer trabalhar na Migra vai direto para o Gabriel (não para o Marcos).
   const hr = args.assunto === 'contratação' ? jobsContact() : null;
   const to = hr ? hr.name.split(' ')[0] : 'Marcos';
+  // Um único aviso por pessoa e assunto (o mesmo contato repetido enterra o que importa).
+  const seen = (store.data.ownerNotices ||= {});
+  const noticeKey = `${conv.key}|${args.assunto || 'outro'}`;
+  if (!dryRun && !String(conv.key).startsWith('sim:') && Date.now() - (seen[noticeKey] || 0) < 3 * 86_400_000) {
+    return { ok: true, jaAvisado: true, instrucao: `Este assunto já foi passado para ${to}. NÃO chame esta ferramenta de novo: diga só que ${to} já tem o contato e retorna.` };
+  }
   if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real o aviso vai para o WhatsApp de ${to}. Diga que passou o contato para ${hr ? `${to}, da equipe,` : 'o Marcos'} e que ${hr ? 'ele' : 'ele'} retorna.` };
   const who = args.nome || conv.name || (conv.phone ? `+${conv.phone}` : conv.username ? `@${conv.username}` : 'Contato');
   const preview = chatPreview(conv, 6);
@@ -604,6 +610,8 @@ agent.notifyOwner = async (conv, args, { dryRun } = {}) => {
   const target = hr?.whatsapp || normalizePhone(store.settings.crm?.ownerPhone);
   if (target && wa.status === 'connected') await wa.send(target, { text, typing: false }).catch(() => {});
   else await notifyAdmins(text);
+  seen[noticeKey] = Date.now();
+  store.save();
   store.addLog({ type: 'system', message: `📌 ${who}: ${args.assunto} → ${to}` });
   return { ok: true, instrucao: hr
     ? `Diga, em uma frase, que passou o contato para ${to}, da equipe da Migra, que cuida das vagas e retorna para ele. Continue disponível.`

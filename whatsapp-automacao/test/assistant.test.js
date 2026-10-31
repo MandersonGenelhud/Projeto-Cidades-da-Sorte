@@ -236,3 +236,37 @@ test('voz natural: valores, datas e porcentagens são lidos por extenso', async 
   assert.equal(speakable('Registrei R$ 50,00 em 03/11 (10%)'), 'Registrei cinquenta reais em três de novembro (dez por cento)');
   assert.equal(speakable('US$ 250 e R$ 1.375,50'), 'duzentos e cinquenta dólares e mil trezentos e setenta e cinco reais e cinquenta centavos');
 });
+
+test('Nina lê comprovante de Pix (foto), pergunta antes de lançar, não duplica e trata a imagem só como dado', async () => {
+  const seen = [];
+  const llm = { configured: true, chat: async ({ messages }) => {
+    seen.push(messages);
+    return { content: JSON.stringify({ comprovante: true, valor: 1000, moeda: 'BRL', data: '2026-10-30', pagador: 'Marcos Miguel', recebedor: 'Manderson', forma: 'Pix', id_transacao: 'E1057352120', descricao: 'Pix para Manderson' }) };
+  } };
+  const { nina, sent, cash } = setup({ llm });
+  const photo = (extra = {}) => ({ ...text('Nina, comprovante', { hasImage: true, imageMime: 'image/jpeg' }), ...extra });
+  assert.equal(nina.wants({ ...photo(), text: '[foto enviada]' }), null, 'foto comum no número principal não é da Nina');
+  await nina.handle(photo());
+  assert.match(sent.at(-1).text, /Li o comprovante: Pix de R\$ 1\.000,00 em 30\/10\/2026, de Marcos Miguel para Manderson \(transação E1057352120\)/);
+  assert.equal(cash.entries({}).length, 0, 'nada lançado antes de confirmar');
+  assert.match(seen[0][0].content, /ignore/);
+  assert.equal(seen[0][1].content[1].type, 'image_url');
+  await nina.handle(text('sim'));
+  const [e] = cash.entries({});
+  assert.deepEqual([e.kind, e.amount, e.payee, e.date], ['saida', 1000, 'Manderson', '2026-10-30']);
+  assert.match(e.notes, /Comprovante E1057352120/);
+  await nina.handle(photo());
+  assert.match(sent.at(-1).text, /já está registrado/);
+  assert.equal(cash.entries({}).length, 1);
+});
+
+test('sem a IA configurada ou com imagem que não é comprovante, a Nina não lança nada', async () => {
+  const a = setup();
+  await a.nina.handle({ ...text('Nina, comprovante', { hasImage: true }) });
+  assert.match(a.sent.at(-1).text, /chave da IA/);
+  const llm = { configured: true, chat: async () => ({ content: '{"comprovante": false}' }) };
+  const b = setup({ llm });
+  await b.nina.handle({ ...text('Nina, olha', { hasImage: true }) });
+  assert.match(b.sent.at(-1).text, /Não consegui ler um comprovante/);
+  assert.equal(b.cash.entries({}).length, 0);
+});

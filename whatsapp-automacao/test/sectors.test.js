@@ -121,3 +121,22 @@ test('corretor/parceria imobiliária nunca vai para o Marcos nem para os adminis
   assert.equal(adminMsgs.length, 0, 'sem Gabriel/Diego cadastrados, ninguém da diretoria recebe');
   assert.ok(store.data.logs.some((l) => /ninguém com WhatsApp cadastrado/.test(l.message)));
 });
+
+test('o mesmo cliente não é avisado duas vezes ao mesmo setor nem ao mesmo vendedor', async () => {
+  const { Sectors } = await import('../src/sectors.js');
+  const store = tempStore();
+  const sent = [];
+  const lead = { id: 'L1', code: 'MIG-1', name: 'Adriano', phone: '5527999343066' };
+  const crm = { findForConversation: () => lead, ensureFromConversation: () => lead, update() {}, addNote() {} };
+  const auth = { users: [{ id: 'g', name: 'Gabriel', whatsapp: '5545999990002', active: true }] };
+  store.updateSettings({ crm: { sectors: { loteamentos: { people: [{ name: 'Gabriel', whatsapp: '5545999990002' }] } } } });
+  const sectors = new Sectors({ store, crm, auth, send: async (p, t) => sent.push({ p, t }) });
+  const conv = { key: '5527999343066@s.whatsapp.net', phone: '5527999343066', name: 'Adriano' };
+  const r1 = await sectors.route(conv, { setor: 'loteamentos', resumo: 'corretor quer parceria' });
+  const r2 = await sectors.route(conv, { setor: 'loteamentos', resumo: 'corretor de novo, com outro texto' });
+  const r3 = await sectors.route(conv, { setor: 'loteamentos', resumo: 'e mais uma vez' });
+  assert.equal(sent.length, 1, 'uma única mensagem para o Gabriel');
+  assert.equal(r1.jaEncaminhado, undefined);
+  assert.equal(r2.jaEncaminhado && r3.jaEncaminhado, true);
+  assert.match(r2.instrucao, /NÃO chame esta ferramenta de novo/);
+});

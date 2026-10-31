@@ -3,6 +3,8 @@
 // avisa o vendedor com o histórico e devolve o link do WhatsApp dele para o cliente.
 const firstName = (name) => String(name || '').trim().split(/\s+/)[0] || '';
 const money = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`;
+// Mesmo cliente, mesmo destino: só um aviso por esse prazo.
+export const REPEAT_MS = 3 * 86_400_000;
 const TEMP = { quente: '🔥 Quente', morno: '🌤️ Morno', frio: '❄️ Frio' };
 const MONEY = { sim: 'Tem o valor para começar', parcial: 'Tem parte do valor', nao: 'Ainda não tem o valor', nao_informou: 'Não informou' };
 
@@ -128,6 +130,11 @@ export class LeadRouter {
     this.crm.qualify(lead, args);
     const seller = this.crm.routeLead(lead, { reason: 'rodízio após a peneira da IA' });
     if (!seller) return { erro: 'Nenhum vendedor disponível no rodízio. Use transferir_para_humano.' };
+    // Já avisou esse vendedor sobre este cliente há pouco: não repete (a mensagem repetida enterra as que importam).
+    if (lead.routedAt && conv.routedTo === seller.id && Date.now() - Date.parse(lead.routedAt) < REPEAT_MS) {
+      return { ok: true, jaEncaminhado: true, vendedor: firstName(seller.name), codigo: lead.code, link: this.clientLink(lead, seller),
+        instrucao: `O cliente já foi encaminhado para ${firstName(seller.name)}, que já recebeu o resumo. NÃO chame esta ferramenta de novo: só lembre, em uma frase, que ${firstName(seller.name)} vai continuar pelo WhatsApp (reenvie o link se ele pedir).` };
+    }
     lead.routedAt = new Date().toISOString();
     conv.routedTo = seller.id;
     this.store.save();
