@@ -175,6 +175,22 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'levar_para_whatsapp',
+      description: 'Só no Instagram: quando o cliente passar o WhatsApp, o sistema chama ele no WhatsApp da Migra continuando a conversa (lá o fechamento é completo e não tem o limite de 24h do Instagram).',
+      parameters: {
+        type: 'object',
+        properties: {
+          whatsapp: { type: 'string', description: 'Número que o cliente passou, com DDD (e +código do país se não for do Brasil)' },
+          nome: { type: 'string', description: 'Nome do cliente, se souber' },
+          primeira_mensagem: { type: 'string', description: 'A primeira mensagem no WhatsApp: cumprimente pelo nome, diga que é da Migra continuando a conversa do Instagram e já dê o próximo passo (sem pergunta de sim ou não). Até 300 caracteres.' },
+        },
+        required: ['whatsapp'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'direcionar_para_setor',
       description: 'Direciona o cliente para o atendente do setor certo do Grupo Migra, que recebe o resumo no WhatsApp e entra em contato com o cliente. Use para loteamentos/terrenos/imóveis (inclusive quem quer falar com o dono de um loteamento) e para veículos, depois de entender o básico do que ele procura.',
       parameters: {
@@ -372,6 +388,10 @@ export async function runTool(name, args, ctx) {
       case 'gerar_orcamento': {
         if (!ctx.onQuote) return { erro: 'Orçamento indisponível. Use enviar_etapas_pagamento.' };
         return await ctx.onQuote(args);
+      }
+      case 'levar_para_whatsapp': {
+        if (!ctx.onMoveToWhatsapp) return { erro: 'Indisponível agora. Siga a conversa por aqui mesmo.' };
+        return await ctx.onMoveToWhatsapp(args);
       }
       case 'enviar_contrato': {
         if (!ctx.onContract) return { erro: 'Contrato indisponível por aqui. Use passar_fechamento_para_humano (ou transferir_para_humano) para a equipe enviar.' };

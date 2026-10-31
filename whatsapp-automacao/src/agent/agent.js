@@ -21,6 +21,7 @@ export class Agent {
     this.visitInfo = null; // (conversa) => regras da visita e pedidos já feitos por este cliente
     this.sendPlan = null; // (conversa, args, { dryRun }) => envia o passo a passo do pagamento
     this.sendQuote = null; // (conversa, args, { dryRun }) => gera e envia o orçamento ORC (PDF + resumo)
+    this.moveToWhatsapp = null; // (conversa do Instagram, args, { dryRun }) => chama o cliente no WhatsApp
     this.learnings = null; // () => texto com os aprendizados aprovados
     this.sendContract = null; // (conversa, args, { dryRun }) => gera o contrato e manda o link para assinar (ou a ficha, se faltar dado)
     this.notifyOwner = null; // (conversa, args, { dryRun }) => contratação/parcerias direto para o Marcos
@@ -194,6 +195,7 @@ Onde parou e próximo passo: ${conv.continuity}`;
       if (t.function.name === 'encaminhar_para_vendedor') return routing;
       if (t.function.name === 'gerar_orcamento') return Boolean(this.sendQuote);
       if (t.function.name === 'enviar_contrato') return Boolean(this.sendContract);
+      if (t.function.name === 'levar_para_whatsapp') return Boolean(this.moveToWhatsapp) && channel === 'Instagram';
       if (t.function.name === 'avisar_marcos') return Boolean(this.notifyOwner);
       if (t.function.name === 'direcionar_para_setor') return Boolean(this.routeSector);
       if (t.function.name === 'agendar_retorno') return Boolean(this.scheduleReturn);
@@ -224,6 +226,7 @@ Onde parou e próximo passo: ${conv.continuity}`;
       onCloseHandoff: this.closeHandoff ? (args) => this.closeHandoff(conv, args, { dryRun }) : null,
       onQuote: this.sendQuote ? (args) => this.sendQuote(conv, args, { dryRun }) : null,
       onContract: this.sendContract ? (args) => this.sendContract(conv, args, { dryRun }) : null,
+      onMoveToWhatsapp: this.moveToWhatsapp ? (args) => this.moveToWhatsapp(conv, args, { dryRun }) : null,
       onOwner: this.notifyOwner ? (args) => this.notifyOwner(conv, args, { dryRun }) : null,
       onSector: this.routeSector ? (args) => this.routeSector(conv, args, { dryRun }) : null,
       onReturn: this.scheduleReturn ? (args) => this.scheduleReturn(conv, args, { dryRun }) : null,

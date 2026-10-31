@@ -46,7 +46,8 @@ test('atendente: fechamento por escolha (Pix, cartão ou dinheiro), sem aceitar 
   const conv = agent.conversation('5511999990000@s.whatsapp.net');
   agent.remember(conv, 'user', 'Vou deixar para depois');
   await agent.think(conv);
-  assert.match(system, /prefere fazer no Pix, no cartão de crédito ou à vista em dinheiro aqui no escritório/);
+  assert.match(system, /A sua reserva fica R\$ 1\.000,00 \+ R\$ 800,00 por adulto \(com 2 adultos, R\$ 2\.600,00\)\. Você prefere fazer no Pix, no cartão de crédito ou à vista em dinheiro aqui no escritório/);
+  assert.match(system, /levar_para_whatsapp/);
   assert.match(system, /NUNCA pergunte algo que possa ser respondido com "não"/);
   assert.match(system, /Só depois de duas tentativas/);
   assert.match(system, /2 = R\$ 2\.600,00/);
@@ -57,4 +58,30 @@ test('atendente: fechamento por escolha (Pix, cartão ou dinheiro), sem aceitar 
   store.updateSettings({ visits: { consultFee: 0 } });
   await agent.think(conv);
   assert.doesNotMatch(system, /consultoria presencial com taxa de R\$ 0/);
+});
+
+test('Instagram: a ferramenta de levar para o WhatsApp só aparece no Direct', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const seen = [];
+  const replies = [
+    { content: '', tool_calls: [{ id: '1', type: 'function', function: { name: 'levar_para_whatsapp', arguments: JSON.stringify({ whatsapp: '45 98888-1111', nome: 'Carla' }) } }] },
+    { content: 'Acabei de te chamar no WhatsApp, seguimos por lá!', tool_calls: [] },
+    { content: 'Oi!', tool_calls: [] },
+  ];
+  const llm = { configured: true, chat: async ({ tools }) => { seen.push(tools.map((t) => t.function.name)); return replies.shift(); } };
+  const agent = new Agent({ store, llm, now: () => new Date(2026, 9, 26, 9, 5) });
+  const moved = [];
+  agent.moveToWhatsapp = async (conv, args) => { moved.push(args); return { ok: true }; };
+  const ig = agent.conversation('ig:123');
+  agent.remember(ig, 'user', 'Meu zap é 45 98888-1111');
+  const r = await agent.think(ig);
+  assert.equal(moved[0].whatsapp, '45 98888-1111');
+  assert.match(r.text, /WhatsApp/);
+  assert.ok(seen[0].includes('levar_para_whatsapp'));
+  const wa = agent.conversation('5545988881111@s.whatsapp.net');
+  agent.remember(wa, 'user', 'Oi');
+  await agent.think(wa);
+  assert.ok(!seen.at(-1).includes('levar_para_whatsapp'), 'no WhatsApp a ferramenta não aparece');
 });

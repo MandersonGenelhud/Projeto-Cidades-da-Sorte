@@ -166,6 +166,35 @@ const sectors = new Sectors({
   notifyAdmins: (text) => notifyAdmins(text),
 });
 agent.routeSector = (conv, args, opts) => sectors.route(conv, args, opts);
+// Instagram → WhatsApp: o cliente passou o número e a Migra chama no WhatsApp continuando a conversa.
+agent.moveToWhatsapp = async (conv, args = {}, { dryRun } = {}) => {
+  const phone = normalizePhone(args.whatsapp);
+  if (!phone) return { erro: 'Número inválido. Peça o WhatsApp com DDD (e o código do país, se não for do Brasil).' };
+  const first = String(args.nome || conv.name || '').trim().split(' ')[0];
+  const text = String(args.primeira_mensagem || '').trim().slice(0, 400)
+    || `Oi${first ? `, ${first}` : ''}! Aqui é da Migra Paraguai, continuando a nossa conversa do Instagram 😊 Por aqui eu consigo te mandar o orçamento em PDF e tudo certinho para garantir a sua reserva.`;
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real o cliente recebe no WhatsApp (+${phone}): "${text}". Diga que acabou de chamar no WhatsApp e que seguem por lá.` };
+  const main = mainWhatsapp();
+  const link = main ? `https://wa.me/${main}?text=${encodeURIComponent(`Oi! Vim do Instagram da Migra${first ? `, sou ${first}` : ''}.`)}` : '';
+  if (wa.status !== 'connected') return { erro: `O WhatsApp da Migra está desconectado agora.${link ? ` Mande este link para ele chamar: ${link}` : ' Siga a conversa por aqui.'}` };
+  const lead = crm.findForConversation({ key: conv.key, phone, username: conv.username })
+    || crm.ensureFromConversation({ key: conv.key, name: args.nome || conv.name, username: conv.username, channel: 'instagram' });
+  const key = `${phone}@s.whatsapp.net`;
+  if (lead) {
+    if (!lead.phone) lead.phone = phone;
+    if (args.nome && (!lead.name || lead.name.startsWith('@'))) lead.name = String(args.nome).trim();
+    lead.whatsappKey = key;
+    crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `📲 Conversa levada do Instagram para o WhatsApp (+${phone})`);
+  }
+  await wa.send(key, { text, typing: false });
+  const waConv = agent.conversation(key);
+  waConv.phone ||= phone;
+  waConv.name ||= args.nome || conv.name || '';
+  agent.remember(waConv, 'assistant', text);
+  store.save();
+  notify('crm', { id: lead?.id });
+  return { ok: true, instrucao: `O cliente já recebeu a mensagem no WhatsApp (+${phone}). Diga em uma frase que acabou de chamar ele no WhatsApp e que seguem por lá${link ? `; se não aparecer, ele pode chamar por este link: ${link}` : ''}.` };
+};
 // Retorno combinado: a IA marca dia e hora com o cliente e, no dia, retoma a conversa sozinha.
 const followups = new AutoFollowUps({
   store,
@@ -595,18 +624,48 @@ async function syncInstagram() {
   const recent = pending.ingestHistory(msgs, { maxDays: 1, label: 'Instagram' });
   let old = 0;
   const dayAgo = Date.now() - 86_400_000;
-  for (const p of extractPending(msgs, { maxDays: 30 })) {
+  // De 1 a 15 dias: a Meta não deixa o robô responder (regra das 24h). A IA escreve a resposta
+  // e a equipe envia pelo app do Instagram, no quadro de Conversas.
+  const manualDays = Number(store.settings.instagram?.manualDays) || 15;
+  let drafts = 0;
+  for (const p of extractPending(msgs, { maxDays: Math.max(30, manualDays) })) {
     if (p.at >= dayAgo) continue;
     const username = msgs.find((m) => m.jid === p.jid && m.username)?.username || '';
     const lead = crm.ensureFromConversation({ key: p.jid, name: p.name, username, channel: 'instagram' });
-    if (lead && !lead.igOldNoted) {
+    if (!lead) continue;
+    if (!lead.igOldNoted) {
       lead.igOldNoted = true;
-      crm.addNote({ name: 'Sistema', role: 'admin' }, lead.id, `Mandou mensagem no Direct em ${new Date(p.at).toLocaleDateString('pt-BR')} e ficou sem resposta: "${p.texts.join(' / ').slice(0, 200)}". Passou de 24h, então o robô não pode responder: responda pelo app do Instagram.`);
+      crm.addNote({ name: 'Sistema', role: 'admin' }, lead.id, `Mandou mensagem no Direct em ${new Date(p.at).toLocaleDateString('pt-BR')} e ficou sem resposta: "${p.texts.join(' / ').slice(0, 200)}". Passou de 24h, então o robô não pode responder: responda pelo app do Instagram (a resposta sugerida fica em Conversas).`);
       old++;
     }
+    const fresh = p.at >= Date.now() - manualDays * 86_400_000;
+    if (fresh && lead.igDraft?.clientAt !== p.at && drafts < 20) {
+      lead.igDraft = { status: 'pendente', clientAt: p.at, username, name: p.name || '', texts: p.texts, text: await draftInstagram(p, username).catch(() => ''), at: new Date().toISOString() };
+      drafts++;
+    }
   }
-  store.addLog({ type: 'system', message: `📸 Direct verificado: ${recent} conversa(s) para o agente responder e ${old} antiga(s) enviada(s) ao CRM` });
-  return { recent, old, total: new Set(msgs.map((m) => m.jid)).size };
+  store.save();
+  store.addLog({ type: 'system', message: `📸 Direct verificado: ${recent} conversa(s) para o agente responder, ${old} antiga(s) no CRM e ${drafts} resposta(s) sugerida(s) para enviar pelo app` });
+  return { recent, old, drafts, total: new Set(msgs.map((m) => m.jid)).size };
+}
+/** Resposta sugerida pela IA para quem escreveu no Direct há mais de 24h (a equipe envia pelo app). */
+async function draftInstagram(p, username) {
+  if (!llm.configured) return '';
+  const conv = agent.conversation(p.jid);
+  conv.name ||= p.name || '';
+  conv.username ||= username;
+  if (!conv.messages.length) {
+    for (const m of p.context || []) agent.remember(conv, m.role, m.content);
+    for (const t of p.texts) agent.remember(conv, 'user', t);
+  }
+  const days = Math.max(1, Math.round((Date.now() - p.at) / 86_400_000));
+  const r = await agent.think(conv, {
+    dryRun: true,
+    delayed: true,
+    extraSystem: `# Resposta para a equipe enviar pelo app do Instagram
+O cliente escreveu há ${days} dia(s) e ficou sem resposta. Escreva UMA mensagem curta: saudação do horário, agradeça por aguardar, responda o que ele perguntou e peça o WhatsApp com DDD para mandar o orçamento certinho em PDF. Não use ferramentas.`,
+  });
+  return String(r.text || '').slice(0, 900);
 }
 
 /** Avisa o responsável (ou os administradores) no dia do retorno agendado. */
@@ -1350,6 +1409,21 @@ app.post('/api/connection/mode', async (req, res) => {
 });
 app.get('/api/instagram/status', (_req, res) => res.json(instagram.getState()));
 app.post('/api/instagram/sync', async (_req, res) => res.json(await syncInstagram()));
+// Direct de 1 a 15 dias: resposta sugerida pela IA para a equipe enviar pelo app do Instagram.
+app.get('/api/instagram/manual', (_req, res) => res.json(crm.leads.filter((l) => l.igDraft?.status === 'pendente')
+  .sort((a, b) => b.igDraft.clientAt - a.igDraft.clientAt)
+  .map((l) => ({ id: l.id, code: l.code, name: l.name, ...l.igDraft }))));
+app.post('/api/instagram/manual/:id/done', (req, res) => {
+  const lead = crm.byId(req.params.id);
+  if (!lead?.igDraft) throw httpError(404, 'Conversa não encontrada');
+  const text = String(req.body?.text || lead.igDraft.text || '').slice(0, 900);
+  Object.assign(lead.igDraft, { status: req.body?.skip ? 'ignorado' : 'respondido', doneBy: req.user.name, doneAt: new Date().toISOString() });
+  const conv = lead.conversationKey ? agent.conversation(lead.conversationKey, { create: false }) : null;
+  if (conv && text && !req.body?.skip) agent.remember(conv, 'assistant', text);
+  crm.addNote(req.user, lead.id, req.body?.skip ? '📸 Direct antigo: marcado como sem resposta necessária' : `📸 Respondido pelo app do Instagram: "${text.slice(0, 200)}"`);
+  store.save();
+  res.json({ ok: true });
+});
 app.get('/api/tunnel', (_req, res) => res.json({ ...tunnel.state, auto: tunnelWanted() }));
 app.post('/api/tunnel/start', async (_req, res) => {
   store.updateSettings({ instagram: { tunnel: true } });

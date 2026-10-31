@@ -898,6 +898,16 @@
         <p id="pendingStatus" class="hint"></p>
         <div id="pendingList" class="pending-list"></div>
       </div>
+      <div class="panel" id="igManualPanel" data-admin hidden>
+        <h2>📸 Instagram: responder pelo app <span class="badge pending" id="igManualCount">0</span></h2>
+        <p class="hint">Quem escreveu no Direct há mais de 24 horas (até 15 dias). A Meta não deixa o robô responder depois de 24 horas, então a IA já escreveu a resposta: confira, toque em <b>Copiar e abrir o Direct</b>, cole no Instagram e envie. Ela pede o WhatsApp do cliente para continuar o fechamento por lá.</p>
+        <div id="igManualList"></div>
+      </div>
+      <div class="row conv-filter" id="convFilter">
+        <button type="button" class="btn small primary" data-channel="">Todas</button>
+        <button type="button" class="btn small" data-channel="wa">💬 WhatsApp</button>
+        <button type="button" class="btn small" data-channel="ig">📸 Instagram</button>
+      </div>
       <div class="conv-layout">
         <div class="panel conv-list" id="convList"></div>
         <div class="panel conv-view">

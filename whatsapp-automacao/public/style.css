@@ -1003,3 +1003,4 @@ tbody tr:hover td { background: color-mix(in srgb, var(--blue) 6%, transparent);
 .sale-head b { white-space: nowrap; }
 .commission-seller { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line, #dfe6ee); border-radius: 12px; }
 .commission-seller label { font-size: 12.5px; }
+.conv-filter { margin: 4px 0 10px; gap: 6px; }

@@ -1218,9 +1218,12 @@ $('#btnPendingCancel').addEventListener('click', async () => {
 
 // ---------- Conversas ----------
 let currentConv = null;
+let convChannel = '';
 loaders.conversations = async () => {
   loadPending();
-  const list = await api('/api/conversations');
+  if (window.currentUser?.role === 'admin') loadIgManual().catch(() => {});
+  const all = await api('/api/conversations');
+  const list = all.filter((c) => !convChannel || (convChannel === 'ig') === String(c.key).startsWith('ig:'));
   $('#convList').innerHTML = list.map((c) => `
     <div class="conv-item ${c.key === currentConv ? 'active' : ''}" data-key="${esc(c.key)}">
       ${String(c.key).startsWith('ig:') ? '📸' : '💬'} <b>${esc(c.name || fmtPhone(c.phone) || c.key)}</b> ${c.handoff ? '<span class="badge paused">humano</span>' : ''}
@@ -1229,6 +1232,43 @@ loaders.conversations = async () => {
     </div>`).join('') || '<p class="muted">Nenhuma conversa ainda. Quando clientes falarem com o agente, elas aparecem aqui.</p>';
   if (currentConv) openConversation(currentConv);
 };
+$('#convFilter').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-channel]');
+  if (!b) return;
+  convChannel = b.dataset.channel;
+  $$('#convFilter [data-channel]').forEach((x) => x.classList.toggle('primary', x === b));
+  loaders.conversations();
+});
+async function loadIgManual() {
+  const list = await api('/api/instagram/manual');
+  $('#igManualPanel').hidden = !list.length;
+  $('#igManualCount').textContent = list.length;
+  $('#igManualList').innerHTML = list.map((x) => `<div class="item" data-ig="${esc(x.id)}" data-user="${esc(x.username || '')}"><div class="grow">
+      <b>${esc(x.name || `@${x.username}`)}</b> ${x.username ? `<span class="meta">@${esc(x.username)}</span>` : ''} <span class="meta">· escreveu em ${new Date(x.clientAt).toLocaleDateString('pt-BR')}</span>
+      <div class="meta">“${esc(x.texts.join(' / ').slice(0, 220))}”</div>
+      <textarea rows="3" data-text placeholder="Escreva a resposta">${esc(x.text || '')}</textarea></div>
+    <div class="form">
+      <button type="button" class="btn small primary" data-act="open">Copiar e abrir o Direct</button>
+      <button type="button" class="btn small" data-act="done">Já respondi</button>
+      <button type="button" class="btn small" data-act="skip">Não precisa</button>
+    </div></div>`).join('');
+}
+$('#igManualList').addEventListener('click', async (e) => {
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  const item = e.target.closest('[data-ig]');
+  if (!act || !item) return;
+  const text = item.querySelector('[data-text]').value;
+  if (act === 'open') {
+    try { await navigator.clipboard.writeText(text); toast('Resposta copiada: cole no Direct e envie'); } catch {}
+    const user = item.dataset.user;
+    window.open(user ? `https://ig.me/m/${encodeURIComponent(user)}` : 'https://www.instagram.com/direct/inbox/', '_blank', 'noopener');
+    return;
+  }
+  try {
+    await api(`/api/instagram/manual/${item.dataset.ig}/done`, { method: 'POST', body: { text, skip: act === 'skip' } });
+    loadIgManual();
+  } catch (err) { toast(err.message, true); }
+});
 $('#convList').addEventListener('click', (e) => {
   const key = e.target.closest('[data-key]')?.dataset.key;
   if (key) {
