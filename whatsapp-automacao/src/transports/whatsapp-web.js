@@ -7,6 +7,7 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
   fetchLatestWaWebVersion,
+  downloadMediaMessage,
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
@@ -36,7 +37,7 @@ export function normalizeMessage(msg, lidToPn = new Map()) {
   // Em contas com LID o número real vem em remoteJidAlt (ou no mapeamento LID → número).
   const pnJid = [msg.key.remoteJidAlt, lidToPn.get(jid), jid].find((j) => j && j.endsWith('@s.whatsapp.net'));
   const senderJid = isGroup ? msg.key.participantAlt || msg.key.participant : pnJid;
-  return {
+  const out = {
     id: msg.key.id,
     jid,
     isGroup,
@@ -44,8 +45,13 @@ export function normalizeMessage(msg, lidToPn = new Map()) {
     phone: senderJid ? jidToPhone(senderJid) : null,
     name: msg.key.fromMe ? '' : msg.pushName || '',
     text,
+    // Áudio (mensagem de voz): a Nina baixa e transcreve. Só marca que existe; o conteúdo vem sob demanda.
+    hasAudio: Boolean(m.audioMessage),
     timestamp: Number(msg.messageTimestamp) * 1000 || Date.now(),
   };
+  // Mensagem original, para baixar a mídia. Não enumerável: não vai para JSON, painel nem logs.
+  Object.defineProperty(out, '_raw', { value: msg, enumerable: false, writable: true });
+  return out;
 }
 
 /** Motivo da queda em português, para o painel. */
@@ -338,12 +344,15 @@ export class WhatsAppClient extends EventEmitter {
     if (typing && typingMs !== 0) await this.#simulateTyping(jid, text, typingMs);
 
     let content;
-    if (media?.path) {
+    if (media?.buffer && String(media.mimetype || '').startsWith('audio/')) {
+      // Mensagem de voz já em memória (resposta falada da Nina).
+      content = { audio: media.buffer, mimetype: media.mimetype, ptt: media.ptt !== false };
+    } else if (media?.path) {
       const buffer = fs.readFileSync(media.path);
       const mimetype = media.mimetype || 'application/octet-stream';
       if (mimetype.startsWith('image/')) content = { image: buffer, caption: text || undefined, mimetype };
       else if (mimetype.startsWith('video/')) content = { video: buffer, caption: text || undefined, mimetype };
-      else if (mimetype.startsWith('audio/')) content = { audio: buffer, mimetype, ptt: false };
+      else if (mimetype.startsWith('audio/')) content = { audio: buffer, mimetype, ptt: Boolean(media.ptt) };
       else content = {
         document: buffer,
         mimetype,
@@ -398,6 +407,13 @@ export class WhatsAppClient extends EventEmitter {
         return jid ? jidToPhone(jid) : null;
       })
       .filter(Boolean);
+  }
+
+  /** Baixa o áudio de uma mensagem recebida (devolve um Buffer, ou null se não der). */
+  async downloadAudio(msg) {
+    const raw = msg?._raw;
+    if (!raw || !this.sock) return null;
+    return downloadMediaMessage(raw, 'buffer', {}, { logger: this.logger, reuploadRequest: this.sock.updateMediaMessage });
   }
 
   async stop() {

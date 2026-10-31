@@ -543,6 +543,19 @@
           <div id="cashViewers"></div>
           <button class="btn primary">Salvar</button>
         </form>
+        <form class="form" id="formNina">
+          <h3>🎙️ Nina, a secretária do caixa</h3>
+          <p class="hint">Quem tem acesso ao caixa manda texto ou <b>áudio</b> no WhatsApp ("Nina, gastei 5 reais com café" ou "Nina, recebi 2 mil de uma consultoria") e ela registra aqui e responde. Pelo número principal, ela só atende o WhatsApp cadastrado de um administrador liberado e só quando chamada pelo nome. Com um número só dela (em Conexões), não precisa chamar.</p>
+          <label class="check"><input type="checkbox" name="enabled" /> Nina ligada</label>
+          <div class="grid2 tight">
+            <label>Nome para chamar <input name="wakeWord" maxlength="20" /></label>
+            <label>Número só da Nina (opcional) <select name="lineId"><option value="">Usar o número principal</option></select></label>
+            <label>Voz da resposta <select name="voice"><option value="pf_dora">Feminina (Dora)</option><option value="pm_alex">Masculina (Alex)</option><option value="pm_santa">Masculina (Santa)</option></select></label>
+            <label class="check"><input type="checkbox" name="voiceReply" /> Responder falando quando ele mandar áudio</label>
+          </div>
+          <p class="hint" id="ninaVoice"></p>
+          <button class="btn primary">Salvar</button>
+        </form>
       </details>
     </section>
 

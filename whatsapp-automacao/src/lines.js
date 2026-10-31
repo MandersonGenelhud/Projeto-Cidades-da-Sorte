@@ -131,14 +131,18 @@ export class LineManager extends EventEmitter {
 
   #wire(id, client) {
     const line = () => this.get(id) || { id, label: id };
-    const wrap = (msg) => ({
-      ...msg,
-      jid: lineKey(id, msg.jid),
-      line: id,
-      lineLabel: line().label,
-      ownerId: line().ownerId || null,
-      agentOff: line().agent === false,
-    });
+    const wrap = (msg) => {
+      const out = {
+        ...msg,
+        jid: lineKey(id, msg.jid),
+        line: id,
+        lineLabel: line().label,
+        ownerId: line().ownerId || null,
+        agentOff: line().agent === false,
+      };
+      if (msg._raw) Object.defineProperty(out, '_raw', { value: msg._raw, enumerable: false, writable: true });
+      return out;
+    };
     client.on('status', (state) => this.emit('status', { id, ...state }));
     client.on('message', (msg) => this.emit('message', wrap(msg)));
     client.on('ownerMessage', (msg) => this.emit('ownerMessage', wrap(msg)));
@@ -164,6 +168,10 @@ export class LineManager extends EventEmitter {
     const { client, jid } = this.#client(key);
     const result = await client.send(jid, payload);
     return { ...result, jid: key };
+  }
+
+  async downloadAudio(msg) {
+    return this.clients.get(msg.line)?.downloadAudio(msg) ?? null;
   }
 
   async markRead(key, ids) {

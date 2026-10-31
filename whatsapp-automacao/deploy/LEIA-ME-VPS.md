@@ -47,3 +47,25 @@ Com o endereço fixo, siga o passo a passo do Instagram. O webhook é:
 - Ative os **snapshots** da VPS no painel da Hostinger (grátis) e tire um antes de mudanças grandes.
 - Configure a cópia extra dos backups em **Configurações → Segurança**.
 - Entre na VPS só com chave SSH e desligue o login por senha (peça o passo a passo).
+
+## Voz da Nina (opcional, na VPS)
+A Nina entende **áudios** e responde **falando**, com dois programas livres que rodam na própria VPS (nenhum áudio sai dela):
+- **faster-whisper** (SYSTRAN, licença MIT): transforma o áudio em texto. Modelo `small`, só processador.
+- **kokoro-onnx** (licença MIT; modelo Apache 2.0): voz em português do Brasil (Dora, Alex ou Santa).
+
+Eles ficam no serviço `voz` do `docker-compose.yml`. Na primeira vez que a Nina receber um áudio, o serviço baixa os modelos (uns 1 GB) e guarda no volume `voz_models`; a primeira resposta por voz demora mais. Para conferir:
+```
+cd /opt/migra/app/whatsapp-automacao
+docker compose up -d --build voz
+docker compose logs --tail 20 voz
+docker compose exec zapauto wget -qO- http://voz:9000/health
+```
+Se a VPS tiver pouca memória, troque `WHISPER_MODEL: small` por `base` no `docker-compose.yml`.
+
+## Número só da Nina (opcional)
+Hoje o Marcos fala com a Nina pelo número principal da Migra, começando a frase com "Nina". Para ter um número só dela:
+1. Consiga um **chip de verdade ou eSIM com SMS** (o WhatsApp recusa a maioria dos números virtuais/VoIP e eSIMs só de dados; landline só no WhatsApp Business, por ligação).
+2. Instale o **WhatsApp Business** em um celular com esse número.
+3. No Migra Hub, em **Conexões WhatsApp**, crie um número da equipe com o nome "Nina" e leia o QR Code (é um aparelho conectado, como o WhatsApp Web).
+4. No **Caixa → ⚙️ → Nina**, escolha esse número em "Número só da Nina". Dali em diante o Marcos não precisa dizer "Nina".
+O número oficial pela API da Meta também serve, mas hoje o sistema usa a API oficial para o número principal inteiro; misturar exige uma mudança maior.

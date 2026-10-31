@@ -1819,6 +1819,7 @@ loaders.cash = async () => {
       <td class="row">${e.source === 'manual' ? `${e.status === 'a_pagar' ? '<button class="btn small primary" data-act="paid">Pago</button>' : ''}<button class="btn small" data-act="edit">✏️</button><button class="btn small" data-act="history" title="Histórico">🕘</button><button class="btn small danger" data-act="delete">🗑️</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum lançamento neste período.</td></tr>'}</tbody>`;
   const cf = $('#formCashConfig');
   cf.categories.value = (settingsCache?.cash?.categories?.length ? settingsCache.cash.categories : d.categories).join('\n');
+  loadNina().catch(() => {});
   $('#cashViewers').innerHTML = d.admins.map((a) => `<label class="check"><input type="checkbox" data-viewer="${esc(a.id)}" ${d.allowedUserIds.includes(a.id) ? 'checked' : ''} ${a.id === d.me.id ? '' : ''} /> ${esc(a.name)}${a.id === d.me.id ? ' (você)' : ''}</label>`).join('');
 };
 for (const sel of ['#cashPeriod', '#cashKind', '#cashCategory']) $(sel).addEventListener('change', () => loaders.cash());
@@ -1883,4 +1884,25 @@ $('#formCashConfig').addEventListener('submit', withBusy($('#formCashConfig'), a
   toast('Configurações do caixa salvas');
   settingsCache = await api('/api/settings').catch(() => settingsCache);
   loaders.cash();
+}));
+
+async function loadNina() {
+  const n = await api('/api/cash/assistant');
+  const f = $('#formNina');
+  f.enabled.checked = n.enabled !== false;
+  f.wakeWord.value = n.wakeWord || 'nina';
+  f.voice.value = n.voice || 'pf_dora';
+  f.voiceReply.checked = n.voiceReply !== false;
+  f.lineId.innerHTML = `<option value="">Usar o número principal</option>${n.lines.map((l) => `<option value="${esc(l.id)}">${esc(l.label)}</option>`).join('')}`;
+  f.lineId.value = n.lineId || '';
+  $('#ninaVoice').textContent = n.sttReady && n.ttsReady
+    ? '✅ Voz ligada: ela entende áudios e responde falando.'
+    : n.sttReady ? '⚠️ Ela entende áudios, mas a voz de resposta não está ligada (responde por texto).'
+      : 'ℹ️ O serviço de voz ainda não está ligado (é instalado na VPS). Por enquanto a Nina atende só por texto.';
+}
+$('#formNina').addEventListener('submit', withBusy($('#formNina'), async (ev) => {
+  const f = ev.target;
+  await api('/api/cash/assistant', { method: 'PUT', body: { enabled: f.enabled.checked, wakeWord: f.wakeWord.value, voice: f.voice.value, voiceReply: f.voiceReply.checked, lineId: f.lineId.value } });
+  toast('Nina salva');
+  loadNina();
 }));

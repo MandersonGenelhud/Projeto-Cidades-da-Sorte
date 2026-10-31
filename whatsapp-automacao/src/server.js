@@ -27,6 +27,8 @@ import { Tunnel } from './tunnel.js';
 import { makeContractFlow, contractReady } from './autocontract.js';
 import { Learnings } from './learnings.js';
 import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES } from './cash.js';
+import { Nina } from './assistant.js';
+import { HttpStt, HttpTts } from './voice.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Affiliates } from './affiliates.js';
@@ -880,6 +882,11 @@ lines.on('status', (state) => {
   notify('lineStatus', { id: line.id });
 });
 wa.on('message', (msg) => {
+  // Nina (secretária do Marcos): mensagem de administrador liberado que a chama (ou áudio) vai só para ela.
+  if (nina.wants(msg)) {
+    nina.handle(msg).catch((err) => store.addLog({ type: 'error', message: `Nina: ${err.message}` }));
+    return;
+  }
   pending.onIncoming(msg);
   if (!msg.isGroup) {
     try {
@@ -2767,6 +2774,15 @@ app.post('/api/sales/:id/cancel', (req, res) => {
 });
 // ---------- Controle de caixa (só administradores liberados) ----------
 const cash = new Cash({ store, auth, payments, sales, affiliates });
+const nina = new Nina({
+  store, auth, cash, llm,
+  stt: new HttpStt({ url: process.env.STT_URL }),
+  tts: new HttpTts({ url: process.env.TTS_URL }),
+  send: (jid, payload) => wa.send(jid, payload),
+  downloadAudio: (m) => wa.downloadAudio(m),
+  audit: (text) => securityEvent('caixa_nina', 'Nina', null, text),
+  log: (l) => store.addLog(l),
+});
 app.use('/api/cash', (req, res, next) => {
   if (!cash.canAccess(req.user)) return res.status(403).json({ error: 'O caixa é restrito: só os administradores liberados veem.' });
   next();
@@ -2795,6 +2811,27 @@ app.get('/api/cash', (req, res) => {
     allowedUserIds: store.settings.cash?.allowedUserIds || [],
     me: { id: req.user.id, name: req.user.name },
   });
+});
+// Nina: ajustes e estado da voz (só quem vê o caixa).
+app.get('/api/cash/assistant', (_req, res) => res.json({
+  ...store.settings.assistant,
+  sttReady: nina.stt.ready,
+  ttsReady: nina.tts.ready,
+  lines: lines.list().map((l) => ({ id: l.id, label: l.label })),
+}));
+app.put('/api/cash/assistant', (req, res) => {
+  const b = req.body || {};
+  const lineId = String(b.lineId || '');
+  if (lineId && !lines.list().some((l) => l.id === lineId)) throw httpError(400, 'Número não encontrado em Conexões');
+  store.updateSettings({ assistant: {
+    enabled: Boolean(b.enabled),
+    wakeWord: String(b.wakeWord || 'nina').trim().slice(0, 20) || 'nina',
+    voiceReply: Boolean(b.voiceReply),
+    voice: ['pf_dora', 'pm_alex', 'pm_santa'].includes(b.voice) ? b.voice : 'pf_dora',
+    lineId,
+  } });
+  securityEvent('caixa_nina_ajustes', req.user, req, b.enabled ? 'ligada' : 'desligada');
+  res.json({ ok: true });
 });
 app.get('/api/cash/:id/history', (req, res) => {
   const e = cash.list.find((x) => x.id === req.params.id);

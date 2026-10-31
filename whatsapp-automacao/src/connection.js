@@ -60,6 +60,12 @@ export class ConnectionManager extends EventEmitter {
     return String(to).startsWith(IG_PREFIX) ? this.instagram?.status === 'connected' : this.status === 'connected';
   }
 
+  /** Baixa o áudio de uma mensagem recebida (número principal ou número da equipe). */
+  async downloadAudio(msg) {
+    if (msg?.line) return this.lines?.downloadAudio(msg) ?? null;
+    return this.current.downloadAudio?.(msg) ?? null;
+  }
+
   /** Envia pelo canal da conversa e avisa quem estiver ouvindo (ex.: lista de conversas sem resposta). */
   async send(to, payload) {
     if (String(to).startsWith(LINE_PREFIX)) {
