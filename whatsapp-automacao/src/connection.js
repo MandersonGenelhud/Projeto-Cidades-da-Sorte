@@ -31,6 +31,7 @@ export class ConnectionManager extends EventEmitter {
       client.on('ownerMessage', (msg) => mode === this.mode && this.emit('ownerMessage', msg));
       client.on('history', (msgs) => mode === this.mode && this.emit('history', msgs));
       client.on('log', (entry) => this.emit('log', entry));
+      client.on('drop', (d) => mode === this.mode && this.emit('drop', d));
     }
     for (const method of FORWARDED) {
       this[method] = (...args) => this.current[method](...args);

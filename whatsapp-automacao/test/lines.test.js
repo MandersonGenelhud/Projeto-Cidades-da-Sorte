@@ -106,3 +106,17 @@ test('ao conectar, confere se o WhatsApp é o do vendedor cadastrado', () => {
   r = matchSeller({ ownerId: null }, '5500000000000', users, opts);
   assert.equal(r.patch.verified, null);
 });
+
+test('reconexão do WhatsApp: queda isolada espera pouco; quedas repetidas esperam cada vez mais (sem bater na porta)', async () => {
+  const { reconnectDelay } = await import('../src/transports/whatsapp-web.js');
+  assert.equal(reconnectDelay({ failures: 0, recentDrops: 1 }), 3000);
+  assert.equal(reconnectDelay({ failures: 0, recentDrops: 2 }), 3000);
+  // Oscilação: a conexão abre (failures volta a 0) e cai de novo. Antes esperava sempre 3 s.
+  const waits = [3, 4, 5, 6, 7, 8, 9].map((n) => reconnectDelay({ failures: 0, recentDrops: n }));
+  assert.deepEqual(waits, [10_000, 20_000, 40_000, 80_000, 160_000, 300_000, 300_000]);
+  // Falhas antes de conectar continuam com o recuo antigo (até 60 s).
+  assert.equal(reconnectDelay({ failures: 5, recentDrops: 1 }), 60_000);
+  // QR lido (515) e sessão encerrada: volta quase na hora.
+  assert.equal(reconnectDelay({ failures: 9, recentDrops: 9, normal: true }), 1000);
+  assert.equal(reconnectDelay({ failures: 9, recentDrops: 9, loggedOut: true }), 1000);
+});

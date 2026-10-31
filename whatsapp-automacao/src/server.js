@@ -830,6 +830,14 @@ wa.on('status', (state) => {
   if (state.status === 'qr') console.log(`📱 Abra http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT} e escaneie o QR Code`);
 });
 wa.on('log', (entry) => store.addLog(entry));
+// Histórico das últimas quedas do WhatsApp (para descobrir a causa de oscilações).
+wa.on('drop', (d) => {
+  const list = (store.data.waDrops ||= []);
+  list.push(d);
+  if (list.length > 60) list.splice(0, list.length - 60);
+  store.save();
+});
+
 let igSynced = false;
 wa.on('instagramStatus', (state) => {
   notify('instagramStatus', state);
@@ -1561,6 +1569,7 @@ app.post('/api/instagram/manual/:id/done', (req, res) => {
   store.save();
   res.json({ ok: true });
 });
+app.get('/api/wa/drops', (_req, res) => res.json([...(store.data.waDrops || [])].reverse().slice(0, 30)));
 app.get('/api/tunnel', (_req, res) => res.json({ ...tunnel.state, auto: tunnelWanted() }));
 app.post('/api/tunnel/start', async (_req, res) => {
   store.updateSettings({ instagram: { tunnel: true } });

@@ -730,7 +730,24 @@ function renderInstagram(st) {
     : st.error ? `<p>⚠️ ${esc(st.error)}</p>` : '<p class="muted">Instagram desligado.</p>';
 }
 
+// Quedas recentes do WhatsApp: mostra o motivo e o que fazer (só aparece se houve quedas na última hora).
+async function renderDrops() {
+  const list = await api('/api/wa/drops').catch(() => []);
+  const recent = list.filter((d) => Date.now() - Date.parse(d.at) < 3_600_000);
+  $('#dropsPanel').hidden = recent.length < 2;
+  if (recent.length < 2) return;
+  const codes = recent.map((d) => d.code);
+  const count = (...c) => codes.filter((x) => c.includes(x)).length;
+  let tip = 'A conexão está oscilando. Confira a internet do computador e se o Wi-Fi não está em economia de energia.';
+  if (count(440, 411) >= 1) tip = 'O mesmo número está aberto em outro lugar (outra janela do sistema, outro computador, a VPS ou o WhatsApp Web). Feche as outras, porque duas conexões com o mesmo número derrubam uma à outra sem parar.';
+  else if (count(401) >= 1) tip = 'O número foi desconectado pelo celular (WhatsApp → Aparelhos conectados). Leia o QR Code de novo.';
+  else if (count(403) >= 1) tip = 'O WhatsApp recusou a conexão deste número. Deixe desligado por algumas horas, para não piorar, e tente de novo.';
+  else if (count(408, 428, 503, null) >= 2) tip = 'Sem resposta do WhatsApp: internet instável, antivírus/firewall bloqueando, ou o computador dormindo. Na VPS isso deixa de acontecer.';
+  $('#dropsHint').textContent = `${recent.length} quedas na última hora. O sistema já espera mais tempo a cada queda para não ser bloqueado. ${tip}`;
+  $('#dropsTable').innerHTML = `<thead><tr><th>Hora</th><th>Motivo</th></tr></thead><tbody>${recent.slice(0, 10).map((d) => `<tr><td>${new Date(d.at).toLocaleTimeString('pt-BR')}</td><td>${esc(d.reason || 'conexão caiu')}</td></tr>`).join('')}</tbody>`;
+}
 loaders.connection = async () => {
+  renderDrops().catch(() => {});
   const [info, s, ig] = await Promise.all([api('/api/connection/info'), api('/api/settings'), api('/api/instagram/status')]);
   settingsCache = s;
   renderInstagram(ig);

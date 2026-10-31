@@ -64,6 +64,18 @@ export function describeClose(code, message = '') {
   return `${known[code] || 'conexão caiu'}${code ? ` (código ${code})` : ''}${!known[code] && message ? `: ${message}` : ''}`;
 }
 
+/**
+ * Quanto esperar antes de reconectar (ms). Queda isolada: espera curta. Quedas repetidas (internet
+ * oscilando, número aberto em outro lugar) esperam cada vez mais, para não ficar "batendo na porta" do WhatsApp:
+ * 3 quedas em 10 minutos = 10 s, depois 20 s, 40 s... até 5 min.
+ */
+export function reconnectDelay({ failures = 0, recentDrops = 0, loggedOut = false, normal = false } = {}) {
+  if (loggedOut || normal) return 1000;
+  const base = Math.min(60_000, 3000 * 2 ** Math.min(failures, 5));
+  const flap = recentDrops >= 3 ? Math.min(300_000, 10_000 * 2 ** (recentDrops - 3)) : 0;
+  return Math.max(base, flap);
+}
+
 export class WhatsAppClient extends EventEmitter {
   constructor({ authDir, logLevel = 'silent' }) {
     super();
@@ -77,6 +89,7 @@ export class WhatsAppClient extends EventEmitter {
     this.sentIds = new Set(); // mensagens enviadas por este sistema (para não confundir com o dono)
     this.stopping = false;
     this.failures = 0; // quedas seguidas antes de aparecer o QR Code ou conectar
+    this.drops = []; // quando o WhatsApp caiu nos últimos 10 minutos (para segurar o ritmo das reconexões)
     this.lastError = null; // motivo da última queda, mostrado no painel
   }
 
@@ -145,7 +158,12 @@ export class WhatsAppClient extends EventEmitter {
         // 428 antes do QR Code: o WhatsApp recusou a identificação. Depois de 3 tentativas, usa a que sempre gera QR.
         if (code === 428 && !wasUp && !state.creds?.registered && this.failures >= 3) this.fallback = true;
         this.lastError = normal ? null : describeClose(code, lastDisconnect?.error?.message);
-        this.#setStatus('disconnected', { qr: null, me: null });
+        const nowMs = Date.now();
+        this.drops = this.drops.filter((t) => nowMs - t < 10 * 60_000);
+        if (!normal && !loggedOut) this.drops.push(nowMs);
+        if (!normal) this.emit('drop', { at: new Date(nowMs).toISOString(), code: code || null, reason: this.lastError || '', wasUp, recent: this.drops.length });
+        // Vai reconectar sozinho: mostra "conectando" (âmbar) em vez de vermelho, para não ficar piscando a cada oscilação.
+        this.#setStatus(!this.stopping && !loggedOut ? 'connecting' : 'disconnected', { qr: null, me: null });
         if (this.lastError && !loggedOut) this.emit('log', { type: 'error', message: `WhatsApp: ${this.lastError}` });
         // Sessão encerrada no celular, ou sessão salva que não abre mais (comum depois de "Desconectar"):
         // apaga a sessão antiga para gerar um QR Code novo.
@@ -156,7 +174,7 @@ export class WhatsAppClient extends EventEmitter {
         }
         if (!this.stopping) {
           // Reconecta sozinho; se continuar caindo, espera mais (o WhatsApp bloqueia tentativas seguidas).
-          const wait = loggedOut || normal ? 1000 : Math.min(60_000, 3000 * 2 ** Math.min(this.failures, 5));
+          const wait = reconnectDelay({ failures: this.failures, recentDrops: this.drops.length, loggedOut, normal });
           await sleep(wait);
           this.start().catch((err) => this.emit('log', { type: 'error', message: `Falha ao reconectar: ${err.message}` }));
         }
