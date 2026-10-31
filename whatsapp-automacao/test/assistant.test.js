@@ -352,3 +352,11 @@ test('conversa do Marcos consigo mesmo: reconhece o próprio número, e a Nina r
   // Anotação dele sem chamar a Nina: ela não se mete.
   assert.equal(nina.wants({ ...self, hasAudio: false, text: 'comprar pão' }), null);
 });
+
+test('teste da Nina pelo painel: modo "dry" não grava nada e a voz informa o motivo quando falta', async () => {
+  const { nina, cash } = setup();
+  const r = await nina.process({ id: 'x', name: 'M' }, 'gastei 50 reais com gasolina', { phone: 'painel:1', dry: true });
+  assert.match(r, /teste, nada foi gravado\) Eu registraria: saída de R\$ 50,00 · Combustível · Empresa/);
+  assert.equal(cash.entries({}).length, 0);
+  await assert.rejects(nina.speakText('oi'), /Nenhuma voz disponível/);
+});

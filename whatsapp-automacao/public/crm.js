@@ -1950,3 +1950,20 @@ $('#formNina').addEventListener('submit', withBusy($('#formNina'), async (ev) =>
   toast('Nina salva');
   loadNina();
 }));
+
+$('#btnNinaTest')?.addEventListener('click', async (e) => {
+  const out = $('#ninaTestOut');
+  e.target.disabled = true;
+  out.textContent = 'Testando…';
+  try {
+    const r = await api('/api/cash/assistant/test', { method: 'POST', body: { text: $('#ninaTestText').value } });
+    out.innerHTML = `<p><b>Ela respondeu:</b> ${esc(r.reply)}</p>
+      <p>👂 Ouvir áudio: ${r.hears ? '✅ pronto' : '❌ não disponível (use o provedor Gemini com a chave preenchida)'}</p>
+      <p>🗣️ Voz: ${r.voice ? '✅ gerada, toque abaixo' : `❌ ${esc(r.voiceError || 'não disponível')}`}</p>
+      ${r.voice ? `<audio controls autoplay src="data:${esc(r.voice.mimetype.split(';')[0])};base64,${r.voice.base64}"></audio>` : ''}`;
+  } catch (err) {
+    out.textContent = `❌ ${err.message}`;
+  } finally {
+    e.target.disabled = false;
+  }
+});

@@ -188,6 +188,13 @@ export class Nina {
     return true;
   }
 
+  /** Gera a voz da resposta (para o teste do painel). Devolve { buffer, mimetype } ou lança o motivo da falha. */
+  async speakText(text) {
+    if (!this.tts?.ready) throw new Error('Nenhuma voz disponível: use o provedor Google Gemini com a chave preenchida (ou o serviço de voz da VPS).');
+    const spoken = speakable(text).replace(/[^\p{L}\p{N}\s.,!?;:-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 700);
+    return this.tts.speak(spoken, this.config.voice || 'Laomedeia', this.config.voiceStyle || undefined);
+  }
+
   async #say(msg, answer, asVoice) {
     const { text, file = null } = typeof answer === 'string' ? { text: answer } : answer;
     if (asVoice && this.tts?.ready && this.config.voiceReply !== false) {
@@ -204,7 +211,7 @@ export class Nina {
   }
 
   /** Entende a frase e faz o que foi pedido. Devolve o texto da resposta. */
-  async process(user, text, { phone, spoke = false, heard = '' } = {}) {
+  async process(user, text, { phone, spoke = false, heard = '', dry = false } = {}) {
     const t = String(text || '').trim();
     const state = this.pending.get(phone);
     if (state && state.until > Date.now()) {
@@ -233,6 +240,7 @@ export class Nina {
     if (it.acao !== 'registrar') return 'Não entendi. Diga, por exemplo: "Nina, gastei 5 reais com café", "Nina, recebi 2 mil de consultoria", "Nina, quanto gastei com gasolina este mês?", "Nina, me manda a planilha" ou "Nina, desfaz".';
     const draft = this.#draft(it);
     if (!draft) return 'Não consegui entender o valor. Pode repetir dizendo o número e o que foi? (ex.: "gastei 50 reais com gasolina")';
+    if (dry) return `🧪 (teste, nada foi gravado) Eu registraria: ${draft.tipo === 'saida' ? 'saída' : 'entrada'} de ${money(draft.valor, draft.moeda)} · ${draft.categoria} · ${SCOPE_LABELS[draft.escopo]} · "${draft.descricao}".`;
     if (draft.tipo === 'entrada' && !draft.origem) {
       this.pending.set(phone, { kind: 'origem', draft, heard, until: Date.now() + PENDING_MS });
       return `Anotei uma entrada de ${money(draft.valor, draft.moeda)}. De onde veio esse dinheiro?`;

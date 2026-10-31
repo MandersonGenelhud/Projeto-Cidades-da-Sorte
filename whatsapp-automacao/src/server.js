@@ -2914,6 +2914,22 @@ app.get('/api/cash/assistant', (_req, res) => res.json({
   geminiVoices: GEMINI_VOICES,
   lines: lines.list().map((l) => ({ id: l.id, label: l.label })),
 }));
+// Teste da Nina dentro do painel (sem WhatsApp): mostra o que ela entendeu, toca a voz e diz o motivo se algo falhar.
+app.post('/api/cash/assistant/test', async (req, res) => {
+  const text = String(req.body?.text || '').slice(0, 400);
+  const out = { hears: nina.stt.ready, speaks: nina.tts.ready, reply: '', voice: null, voiceError: '' };
+  out.reply = await nina.process(req.user, nina.stripWake(text).rest || text, { phone: `painel:${req.user.id}`, dry: true });
+  if (typeof out.reply !== 'string') out.reply = out.reply.text;
+  if (req.body?.speak !== false) {
+    try {
+      const v = await nina.speakText(out.reply);
+      out.voice = { mimetype: v.mimetype, base64: v.buffer.toString('base64') };
+    } catch (e) {
+      out.voiceError = e.message;
+    }
+  }
+  res.json(out);
+});
 app.put('/api/cash/assistant', (req, res) => {
   const b = req.body || {};
   const lineId = String(b.lineId || '');
