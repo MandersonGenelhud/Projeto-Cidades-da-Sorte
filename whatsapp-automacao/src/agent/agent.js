@@ -21,6 +21,7 @@ export class Agent {
     this.visitInfo = null; // (conversa) => regras da visita e pedidos já feitos por este cliente
     this.sendPlan = null; // (conversa, args, { dryRun }) => envia o passo a passo do pagamento
     this.sendQuote = null; // (conversa, args, { dryRun }) => gera e envia o orçamento ORC (PDF + resumo)
+    this.learnings = null; // () => texto com os aprendizados aprovados
     this.sendContract = null; // (conversa, args, { dryRun }) => gera o contrato e manda o link para assinar (ou a ficha, se faltar dado)
     this.notifyOwner = null; // (conversa, args, { dryRun }) => contratação/parcerias direto para o Marcos
     this.routeSector = null; // (conversa, args, { dryRun }) => loteamentos/veículos para o atendente do setor
@@ -137,11 +138,13 @@ export class Agent {
 4. Se ele disser que já preencheu e a ficha não aparecer como preenchida abaixo, peça com gentileza para conferir se clicou em "Enviar meus dados" no final.${status ? `\n\n## Situação deste cliente agora\n${status}` : ''}`;
     }
     const visits = Boolean(this.requestVisit) && settings.visits?.enabled !== false;
+    const fee = Number(settings.visits?.consultFee ?? 150) || 0;
     if (visits) {
       const info = this.visitInfo ? this.visitInfo(conv) : '';
       system += `\n\n# Visita ao escritório da Migra (aqui no Paraguai)
 Tem cliente que prefere conhecer o escritório e fechar pessoalmente, ou quer marcar algo com o Marcos. Quando isso aparecer:
-1. Acolha a ideia e faça a ressalva, com carinho e em mensagem curta: se vier até a gente, já venha preparado para iniciar o processo, com os documentos e o valor da entrada. Assim não perde tempo nem precisa voltar depois. O Marcos se preocupa muito com isso: são milhares de pessoas chegando, e ele quer aproveitar bem o tempo do cliente e o dele.
+1. Acolha a ideia e faça a ressalva, com carinho e em mensagem curta: se vier até a gente, já venha preparado para iniciar o processo, com os documentos e o valor da entrada. Assim não perde tempo nem precisa voltar depois. O Marcos se preocupa muito com isso: são milhares de pessoas chegando, e ele quer aproveitar bem o tempo do cliente e o dele.${fee ? `
+   Avise também, com naturalidade: a visita é uma consultoria presencial com taxa de R$ ${fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, cobrada só se ele não fechar nenhum pacote. Fechando com a Migra, fica isento: a consultoria já está incluída no contrato. Use isso a favor do fechamento ("o ideal é já vir para fechar, aí a consultoria sai sem custo").` : ''}
 2. Pergunte o dia e o período que prefere e quantas pessoas vêm.
 3. Use agendar_visita_escritorio. Diga que passou o pedido ao Marcos e que ele confirma o dia e o horário por aqui. Nunca confirme data ou horário por conta própria.${info ? `\n${info}` : ''}`;
     }
@@ -165,8 +168,8 @@ Não prometa desconto nem condição especial.`;
       system += `\n\n# Nunca encerre o atendimento
 - Não se despeça nem encerre a conversa: nada de "tchau", "bom final de semana", "fica à vontade", "no seu tempo", "quando quiser, me chama". Toda mensagem termina com uma pergunta ou um próximo passo concreto.
 - O objetivo é ir até o fim: ficha de dados → Pix da reserva → termo assinado. Pegue informações precisas: quantas pessoas e adultos, qual pacote, quando quer começar (data) e se já tem o valor da entrada.
-- Se o cliente agradecer ou se despedir, responda curto e já puxe o próximo passo (ex.: "Quer que eu já te mande a ficha para garantir a sua reserva?").
-- "Mais pra frente", "vou pensar", "depois eu vejo": acolha, descubra o motivo real e contorne. Se ainda assim não for agora, proponha dia e hora exatos ("Combinado! Posso te chamar na quinta, dia 06/11, às 10h?") e, com o sim dele, use agendar_retorno. Nunca deixe a data em aberto.
+- Se o cliente agradecer ou se despedir, responda curto e já puxe o próximo passo, sem pergunta de sim ou não (ex.: "Vou te mandar a ficha agora para garantir a sua reserva.").
+- "Mais pra frente", "vou pensar", "depois eu vejo": não aceite de primeira. Acolha, descubra o motivo real, isole e contorne com fatos, e volte ao fechamento com uma escolha (forma de pagamento ou data de início). Só depois de duas tentativas, se ainda não for agora, trave dia e hora exatos ("Combinado: te chamo quinta, dia 06/11, às 10h") e use agendar_retorno. Nunca deixe a data em aberto.
 - Se ele não quiser fechar com você nem marcar data, use passar_fechamento_para_humano.`;
     }
     if (this.notifyOwner) system += '\n\n# Assuntos do Marcos\nQuem quer trabalhar na Migra (contratação, vaga, currículo), propostas de parceria de negócio, fornecedores, imprensa ou investidores: entenda o básico em 1 ou 2 perguntas e use avisar_marcos. Diga que passou direto para o Marcos e que ele mesmo retorna. Não venda pacote para essas pessoas.';
@@ -179,6 +182,8 @@ Não prometa desconto nem condição especial.`;
 As mensagens anteriores do lado da empresa foram escritas pelo Marcos ou pela equipe, pessoalmente. Continue de onde a conversa parou: não recomece a apresentação, não repita perguntas já respondidas e não contradiga o que já foi combinado.
 Onde parou e próximo passo: ${conv.continuity}`;
     }
+    const lessons = this.learnings ? this.learnings() : '';
+    if (lessons) system += `\n\n# Aprendizados de vendas fechadas (aprovados pelo Marcos)\nO que já funcionou com clientes reais da Migra. Use quando a situação for parecida, sempre com os fatos da base:\n${lessons}`;
     if (extraSystem) system += `\n\n${extraSystem}`;
     if (delayed) {
       system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece com a saudação de agora e agradeça por aguardar, por exemplo: "Oi, bom dia! Agradeço por aguardar. Nossa demanda está muito alta e responder um a um ficou um pouco complicado." Nunca peça desculpas. Depois siga a conversa normalmente, respondendo o que ele perguntou.';

@@ -901,6 +901,7 @@ $('#btnAgentCheck').addEventListener('click', async (e) => {
 });
 
 loaders.agent = async () => {
+  renderLearnings().catch(() => {});
   const s = await api('/api/settings');
   settingsCache = s;
   const f = $('#formAgent');
@@ -1646,3 +1647,35 @@ async function renderClosingBar(key) {
     }
   };
 }
+
+// ---------- Aprendizados de vendas fechadas ----------
+async function renderLearnings() {
+  const list = await api('/api/learnings');
+  const pend = list.filter((l) => l.status === 'pendente');
+  const ok = list.filter((l) => l.status === 'aprovado');
+  const row = (l) => `<div class="item" data-learn="${esc(l.id)}"><div class="grow">${l.status === 'pendente' ? `<textarea rows="2" data-text>${esc(l.text)}</textarea>` : esc(l.text)}
+      <div class="meta">${l.source === 'venda' ? 'sugerido pela IA após uma venda' : `escrito por ${esc(l.by)}`} · ${new Date(l.at).toLocaleDateString('pt-BR')}</div></div>
+    ${l.status === 'pendente' ? '<button class="btn small primary" data-act="approve">Aprovar</button><button class="btn small" data-act="reject">Recusar</button>' : '<button class="btn small danger" data-act="delete">Remover</button>'}</div>`;
+  $('#learnList').innerHTML = (pend.length ? `<h3>Aguardando sua aprovação (${pend.length})</h3>${pend.map(row).join('')}` : '')
+    + `<h3>Em uso pela atendente (${ok.length})</h3>${ok.map(row).join('') || '<p class="hint">Nenhum ainda. Eles aparecem aqui a cada venda confirmada.</p>'}`;
+}
+$('#learnList').addEventListener('click', async (e) => {
+  const act = e.target.closest('button[data-act]')?.dataset.act;
+  const item = e.target.closest('[data-learn]');
+  if (!act || !item) return;
+  const id = item.dataset.learn;
+  try {
+    if (act === 'approve') await api(`/api/learnings/${id}/approve`, { method: 'POST', body: { text: item.querySelector('[data-text]')?.value } });
+    if (act === 'reject') await api(`/api/learnings/${id}/reject`, { method: 'POST' });
+    if (act === 'delete' && confirm('Remover este aprendizado do atendimento?')) await api(`/api/learnings/${id}`, { method: 'DELETE' });
+    renderLearnings();
+  } catch (err) { toast(err.message, true); }
+});
+$('#btnLearnAdd').addEventListener('click', async () => {
+  try {
+    await api('/api/learnings', { method: 'POST', body: { text: $('#learnNew').value } });
+    $('#learnNew').value = '';
+    toast('Aprendizado adicionado ao atendimento');
+    renderLearnings();
+  } catch (err) { toast(err.message, true); }
+});

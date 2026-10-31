@@ -985,6 +985,7 @@ loaders.visits = async () => {
   const f = $('#formVisits');
   f.enabled.checked = c.enabled !== false;
   for (const k of ['address', 'notifyPhone', 'hours', 'bring']) f[k].value = c[k] || '';
+  f.consultFee.value = c.consultFee ?? 150;
 };
 $('#visitTable').addEventListener('click', async (e) => {
   const act = e.target.closest('button[data-act]')?.dataset.act;
@@ -1025,7 +1026,7 @@ $('#visitTable').addEventListener('click', async (e) => {
 });
 $('#formVisits').addEventListener('submit', withBusy($('#formVisits'), async (e) => {
   const f = e.target;
-  await api('/api/settings', { method: 'PUT', body: { visits: { enabled: f.enabled.checked, address: f.address.value.trim(), notifyPhone: f.notifyPhone.value.trim(), hours: f.hours.value.trim(), bring: f.bring.value.trim() } } });
+  await api('/api/settings', { method: 'PUT', body: { visits: { enabled: f.enabled.checked, address: f.address.value.trim(), notifyPhone: f.notifyPhone.value.trim(), hours: f.hours.value.trim(), bring: f.bring.value.trim(), consultFee: Number(f.consultFee.value || 0) } } });
   toast('Salvo');
   loaders.visits();
 }));

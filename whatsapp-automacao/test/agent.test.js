@@ -318,7 +318,7 @@ test('fechamento: a atendente manda a ficha de dados (e não gera Pix direto) e 
   assert.match(seen[0].system, /Fechamento da reserva/);
   assert.match(seen[0].system, /AINDA NÃO preenchida/);
   assert.match(seen[0].system, /NADA de textão/);
-  assert.match(seen[0].system, /Evite "contrato"/);
+  assert.match(seen[0].system, /Não ofereça "contrato" por conta própria/);
 });
 
 test('visita ao escritório e etapas de pagamento: ferramentas e ressalva de vir preparado', async () => {

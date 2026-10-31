@@ -545,6 +545,7 @@
         </div>
         <label>Dias e horários em que costuma receber <input name="hours" placeholder="ex.: segunda a sexta, das 9h às 17h" /></label>
         <label>O que o cliente deve trazer <textarea name="bring" rows="2" placeholder="documentos para iniciar (RG ou passaporte e foto) e o valor da entrada"></textarea></label>
+        <label>Taxa da consultoria presencial (R$), cobrada só de quem não fechar; quem fecha fica isento. 0 = sem taxa <input name="consultFee" type="number" min="0" step="1" /></label>
         <button class="btn primary">Salvar</button>
       </form>
     </section>
@@ -695,6 +696,12 @@
           <label>Perfil <select id="presetSelect"></select></label>
           <button type="button" class="btn" id="btnApplyPreset">📥 Carregar perfil</button>
         </div>
+      </div>
+      <div class="panel" id="learnPanel">
+        <h2>🎓 Aprendizados de vendas fechadas</h2>
+        <p class="hint">A cada venda confirmada, a IA lê a conversa e sugere o que funcionou (a objeção e o argumento que fez o cliente decidir). Só entra no atendimento o que você aprovar. Você também pode escrever um aprendizado seu.</p>
+        <div id="learnList"></div>
+        <div class="row"><input id="learnNew" class="grow" placeholder="Ex.: Quem diz que vai esperar o dinheiro aceita bem quando mostramos que hoje só paga a entrada." /><button type="button" class="btn" id="btnLearnAdd">Adicionar</button></div>
       </div>
       <form id="formAgent" class="form">
         <div class="panel">

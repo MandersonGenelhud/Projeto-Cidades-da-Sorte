@@ -25,6 +25,7 @@ import { buildRanking, currentMonth } from './ranking.js';
 import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
 import { makeContractFlow } from './autocontract.js';
+import { Learnings } from './learnings.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Affiliates } from './affiliates.js';
@@ -187,7 +188,18 @@ const affiliates = new Affiliates({
     if (wa.status === 'connected') await wa.send(phone, { text, typing: false });
   },
 });
-crm.onWon = (lead) => affiliates.onLeadWon(lead);
+// Aprendizados: cada venda confirmada vira sugestão para o Marcos aprovar (entra no atendimento só depois).
+const learnings = new Learnings({ store, llm });
+agent.learnings = () => learnings.approvedText();
+crm.onWon = async (lead) => {
+  await affiliates.onLeadWon(lead);
+  const conv = lead.conversationKey ? agent.conversation(lead.conversationKey, { create: false }) : null;
+  if (conv) {
+    learnings.fromWon(lead, conv.messages).then((list) => {
+      if (list.length) notify('learnings', { count: list.length });
+    }).catch((e) => store.addLog({ type: 'error', message: `Aprendizados da venda: ${e.message}` }));
+  }
+};
 
 // Avisos para o dono (administradores com WhatsApp + número extra dos pagamentos).
 async function notifyAdmins(text) {
@@ -508,6 +520,7 @@ agent.visitInfo = (conv) => {
     c.hours ? `Dias e horários em que o Marcos costuma receber: ${c.hours}.` : '',
     c.address ? `Endereço do escritório: ${c.address}.` : 'O escritório fica em Santa Rita, Alto Paraná; o endereço exato vai junto com a confirmação.',
     `O que trazer: ${c.bring || 'documentos para iniciar (RG frente e verso ou passaporte e uma foto de meio corpo) e o valor da entrada'}.`,
+    Number(c.consultFee ?? 150) > 0 ? `Taxa da consultoria presencial: R$ ${Number(c.consultFee ?? 150).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, só para quem não fechar nenhum pacote; quem fecha fica isento (já incluída no contrato).` : 'A visita não tem taxa.',
     ...mine.map((v) => v.status === 'confirmada' ? `Este cliente JÁ TEM visita confirmada: ${v.date.split('-').reverse().join('/')} às ${v.time}.` : `Este cliente já pediu visita (${v.preferred || 'sem data'}); aguardando o Marcos confirmar. Não registre outro pedido.`),
   ].filter(Boolean).join('\n');
 };
@@ -1829,6 +1842,11 @@ app.delete('/api/realty/developments/:id/lots/:lotId', (req, res) => {
 });
 
 // Programa de indicação (administração)
+app.get('/api/learnings', (_req, res) => res.json([...learnings.list].reverse()));
+app.post('/api/learnings', (req, res) => res.json(learnings.add(req.body?.text, { by: req.user.name })));
+app.post('/api/learnings/:id/approve', (req, res) => res.json(learnings.approve(req.params.id, req.user.name, req.body?.text)));
+app.post('/api/learnings/:id/reject', (req, res) => res.json(learnings.reject(req.params.id, req.user.name)));
+app.delete('/api/learnings/:id', (req, res) => { learnings.remove(req.params.id); res.json({ ok: true }); });
 app.get('/api/affiliates', (_req, res) => res.json(affiliates.adminList()));
 app.get('/api/affiliates-meta', (_req, res) => res.json({ categories: affiliates.categories(), services: affiliates.services }));
 app.patch('/api/affiliates/:id', (req, res) => res.json(affiliates.publicAffiliate(affiliates.update(req.params.id, req.body))));

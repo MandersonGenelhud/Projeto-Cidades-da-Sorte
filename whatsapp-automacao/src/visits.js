@@ -92,6 +92,7 @@ export class Visits {
       c.address ? `📍 ${c.address}` : '',
       v.ownerNote ? `\n${v.ownerNote}` : '',
       `\nLembre de vir preparado(a) para já iniciar: ${c.bring || DEFAULT_BRING}. Assim você aproveita a viagem e não precisa voltar depois.`,
+      Number(c.consultFee ?? 150) > 0 ? `\n💡 A consultoria presencial tem a taxa de R$ ${Number(c.consultFee ?? 150).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, cobrada só se você não fechar nenhum pacote. Fechando com a Migra, você fica isento: ela já está incluída no contrato.` : '',
     ].filter(Boolean).join('\n'));
     if (v.leadId) this.crm.addNote({ name: by, role: 'admin' }, v.leadId, `🏢 Visita confirmada para ${fmtDate(date)} às ${time}`);
     this.notify('visits', { id });

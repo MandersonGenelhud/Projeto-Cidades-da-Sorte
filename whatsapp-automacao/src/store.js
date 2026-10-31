@@ -115,6 +115,7 @@ const DEFAULT_DATA = {
       hours: '', // dias e horários em que o Marcos costuma receber
       notifyPhone: '', // WhatsApp que recebe os pedidos (vazio = administradores)
       bring: '', // o que o cliente deve trazer (vazio = texto padrão)
+      consultFee: 150, // taxa da consultoria presencial (isenta para quem fecha um pacote); 0 = sem taxa
     },
     // Orçamentos ORC-AAAA-NNNNN (PDF + mensagem). nextNumber continua a numeração que a Migra já usa.
     quotes: {
