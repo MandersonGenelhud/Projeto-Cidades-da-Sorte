@@ -980,7 +980,7 @@ loaders.visits = async () => {
         ${v.status !== 'cancelada' && sellerOptions ? `<div class="visit-actions"><select data-f="seller"><option value="">Escolha o vendedor…</option>${sellerOptions}</select><button class="btn small" data-act="forward">📤 Passar para o vendedor</button></div>` : ''}</td>
       <td>${esc(v.preferred || '—')}${v.period ? `<div class="hint">${esc(v.period)}</div>` : ''}</td>
       <td>${esc(v.subject || '—')}</td><td class="small">${esc(v.prepared || '—')}</td>
-      <td>${VISIT_STATUS[v.status] || esc(v.status)}${v.feePaidAt ? `<div class="hint">💳 Taxa paga (${cashMoney(v.feeAmount || 125)})${v.refundedAt ? ' · ✅ estornada' : ''}</div>` : ''}${v.refundDue ? '<div class="status-warn">💸 Fechou com a Migra: estornar a taxa</div>' : ''}${v.status === 'confirmada' ? `<div class="hint">${esc(v.date.split('-').reverse().join('/'))} às ${esc(v.time)}</div>` : ''}</td>
+      <td>${VISIT_STATUS[v.status] || esc(v.status)}${v.feePaidAt ? `<div class="hint">💳 Taxa paga (${cashMoney(v.feeAmount || 150)})${v.refundedAt ? ' · ✅ estornada' : ''}</div>` : ''}${v.refundDue ? '<div class="status-warn">💸 Fechou com a Migra: estornar a taxa</div>' : ''}${v.status === 'confirmada' ? `<div class="hint">${esc(v.date.split('-').reverse().join('/'))} às ${esc(v.time)}</div>` : ''}</td>
       <td>${['pendente', 'remarcar'].includes(v.status) ? `<div class="visit-actions"><input type="date" data-f="date" min="${today}" /><input type="time" data-f="time" step="900" /><button class="btn small primary" data-act="confirm">Confirmar</button><button class="btn small" data-act="reschedule">Propor outro dia</button><button class="btn small danger" data-act="cancel">Recusar</button></div>`
         : v.status === 'confirmada' ? '<button class="btn small" data-act="done">Marcar como realizada</button>' : ''}${v.refundDue ? '<button class="btn small primary" data-act="refunded">💸 Marcar como estornada</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum pedido de visita ainda.</td></tr>'}</tbody>`;
   const pend = list.filter((v) => v.status === 'pendente').length;
@@ -990,7 +990,7 @@ loaders.visits = async () => {
   const f = $('#formVisits');
   f.enabled.checked = c.enabled !== false;
   for (const k of ['address', 'notifyPhone', 'hours', 'bring']) f[k].value = c[k] || '';
-  f.consultFee.value = c.consultFee ?? 125;
+  f.consultFee.value = c.consultFee ?? 150;
   renderFeeNotice().catch(() => {});
   f.people.value = (c.people || []).map((p) => `${p.name}${p.whatsapp ? ` = +${p.whatsapp}` : ''}`).join('\n');
 };

@@ -676,7 +676,7 @@ agent.requestVisit = async (conv, args, { dryRun } = {}) => {
     const price = `${m.currency === 'BRL' ? 'R$' : 'US$'} ${Number(m.price).toLocaleString('pt-BR')}`;
     return { erro: `Não registre visita: quem quer falar direto com o Marcos Miguel contrata a mentoria de ${m.minutes || 60} minutos por ${Number(m.price)} ${m.currency === 'BRL' ? 'reais' : 'dólares americanos'} (${price}), online ou presencial, gratuita para quem já é cliente da Migra. Explique isso com naturalidade, dê a escolha entre seguir com a equipe ou reservar a mentoria e, se ele quiser, use reservar_mentoria. Se na verdade ele só quer conhecer o escritório com a equipe, tente de novo sem citar o Marcos.` };
   }
-  // Taxa de reserva (R$ 125) paga ANTES de agendar; estornada se o cliente fechar. Quem já é cliente não paga.
+  // Taxa de reserva (R$ 150) paga ANTES de agendar; estornada se o cliente fechar. Quem já é cliente não paga.
   if (visits.fee > 0 && !isClientOfMigra(lead)) {
     const open = visits.forConversation(conv.key).find((v) => v.status === 'aguardando_taxa');
     const fee = visits.fee;

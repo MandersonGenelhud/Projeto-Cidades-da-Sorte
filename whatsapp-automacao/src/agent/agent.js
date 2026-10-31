@@ -152,7 +152,7 @@ Se ele disser que já preencheu e a ficha não aparecer como preenchida abaixo, 
     const visits = Boolean(this.requestVisit) && settings.visits?.enabled !== false;
     const isClient = this.isClient ? Boolean(this.isClient(conv)) : false;
     const mentoringOn = Boolean(this.notifyOwner) && settings.crm?.mentoring?.enabled !== false && Number(settings.crm?.mentoring?.price) > 0;
-    const fee = Number(settings.visits?.consultFee ?? 125) || 0;
+    const fee = Number(settings.visits?.consultFee ?? 150) || 0;
     if (visits) {
       const info = this.visitInfo ? this.visitInfo(conv) : '';
       system += `\n\n# Visita ao escritório da Migra (aqui no Paraguai)

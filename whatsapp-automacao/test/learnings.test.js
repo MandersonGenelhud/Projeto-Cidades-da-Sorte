@@ -52,7 +52,7 @@ test('atendente: fechamento por escolha (Pix, cartão ou dinheiro), sem aceitar 
   assert.match(system, /NUNCA pergunte algo que possa ser respondido com "não"/);
   assert.match(system, /Só depois de duas tentativas/);
   assert.match(system, /2 = R\$ 2\.600,00/);
-  assert.match(system, /taxa de reserva de R\$ 125,00 paga antes pelo Pix/);
+  assert.match(system, /taxa de reserva de R\$ 150,00 paga antes pelo Pix/);
   assert.match(system, /Aprendizados de vendas fechadas[\s\S]*dia 10/);
   assert.doesNotMatch(system, /Quer que eu já te mande a ficha/);
   // Taxa zerada no painel: a atendente não fala de taxa.
@@ -204,7 +204,7 @@ test('visita ao escritório e mentoria com o Marcos são separadas, e quem já �
   assert.match(system, /DIRETAMENTE com o Marcos Miguel \(online ou presencial\), 250 dólares americanos/);
   assert.match(system, /Nunca deixe o cliente achar que a taxa da visita é para falar com o Marcos/);
   assert.match(system, /Deixe claro que a visita é com um dos CONSULTORES/);
-  assert.match(system, /taxa de reserva de R\$ 125,00 paga antes pelo Pix/);
+  assert.match(system, /taxa de reserva de R\$ 150,00 paga antes pelo Pix/);
   assert.doesNotMatch(system, /ESTE CLIENTE JÁ É CLIENTE/);
   // Cliente com reserva paga: nenhum dos dois agendamentos tem custo.
   agent.isClient = () => true;
