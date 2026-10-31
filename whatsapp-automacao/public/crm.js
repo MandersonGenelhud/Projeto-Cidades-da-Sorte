@@ -1092,6 +1092,7 @@ const lineCard = (l, people) => `
         <span class="switch" aria-hidden="true"><i></i></span>
         <span><b>${l.agent !== false ? 'IA ligada' : 'IA desligada'}</b><small>${l.agent !== false ? 'A atendente responde os clientes deste WhatsApp' : 'Só o vendedor responde neste WhatsApp'}</small></span>
       </button>
+      <label class="agent-name">Nome da atendente de IA deste WhatsApp <input data-field="agentName" maxlength="30" placeholder="ex.: Sofia (vazio = nome geral)" value="${esc(l.agentName || '')}" /></label>
       ${numberCheck(l)}
       ${isAdmin() && !l.ownerId ? `<div class="row">
         <label>Nome da conexão <input data-field="label" value="${esc(l.label)}" /></label>
@@ -1146,7 +1147,7 @@ async function addLine(ownerId = null) {
 $('#btnAddLine').addEventListener('click', () => addLine());
 document.addEventListener('change', async (e) => {
   const card = e.target.closest('[data-lines-grid] [data-line]');
-  if (!card || !['label', 'ownerId'].includes(e.target.dataset.field)) return;
+  if (!card || !['label', 'ownerId', 'agentName'].includes(e.target.dataset.field)) return;
   try {
     await api(`/api/lines/${card.dataset.line}`, { method: 'PATCH', body: { [e.target.dataset.field]: e.target.value } });
     toast('Salvo');

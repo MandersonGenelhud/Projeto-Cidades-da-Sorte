@@ -10,6 +10,13 @@ import crypto from 'node:crypto';
 export const LINE_PREFIX = 'l:';
 // Cada conexão usa memória do computador; 20 cobre a equipe com folga.
 export const MAX_LINES = 20;
+/** Nome da atendente de IA daquele número (ex.: "Sofia"). Vazio = usa o nome geral. "Nina" é da secretária financeira. */
+export function cleanAgentName(v) {
+  const name = String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, 30);
+  if (name && !/^[\p{L}][\p{L}\p{N} .'-]*$/u.test(name)) throw Object.assign(new Error('Use só letras no nome da atendente'), { status: 400 });
+  if (/^nina\b/i.test(name)) throw Object.assign(new Error('"Nina" é o nome da secretária financeira do Marcos. Escolha outro nome.'), { status: 400 });
+  return name;
+}
 export const lineKey = (id, jid) => `${LINE_PREFIX}${id}:${jid}`;
 
 /** "l:abc:5511...@s.whatsapp.net" → { id: 'abc', jid: '5511...@s.whatsapp.net' } */
@@ -88,6 +95,7 @@ export class LineManager extends EventEmitter {
     if (patch.label !== undefined) next.label = String(patch.label).trim() || line.label;
     if (patch.ownerId !== undefined) next.ownerId = patch.ownerId || null;
     if (patch.agent !== undefined) next.agent = Boolean(patch.agent);
+    if (patch.agentName !== undefined) next.agentName = cleanAgentName(patch.agentName);
     // Número que conectou e se ele confere com o cadastro do vendedor (true, false ou null = sem cadastro).
     if (patch.phone !== undefined) next.phone = patch.phone || '';
     if (patch.verified !== undefined) next.verified = patch.verified;

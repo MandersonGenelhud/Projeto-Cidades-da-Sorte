@@ -120,3 +120,30 @@ test('reconexão do WhatsApp: queda isolada espera pouco; quedas repetidas esper
   assert.equal(reconnectDelay({ failures: 9, recentDrops: 9, normal: true }), 1000);
   assert.equal(reconnectDelay({ failures: 9, recentDrops: 9, loggedOut: true }), 1000);
 });
+
+test('cada WhatsApp de vendedor tem o nome da própria atendente; "Nina" é reservado e nome inválido é recusado', async () => {
+  const { cleanAgentName } = await import('../src/lines.js');
+  const { buildSystemPrompt } = await import('../src/agent/prompt.js');
+  assert.equal(cleanAgentName('  Sofia   Lima '), 'Sofia Lima');
+  assert.equal(cleanAgentName(''), '');
+  assert.throws(() => cleanAgentName('Nina'), /secretária financeira/);
+  assert.throws(() => cleanAgentName('nina souza'), /secretária financeira/);
+  assert.throws(() => cleanAgentName('<b>x</b>'), /só letras/);
+  const { Agent } = await import('../src/agent/agent.js');
+  const { tempStore } = await import('./helpers.js');
+  const store = tempStore();
+  store.updateSettings({ agent: { enabled: true, audience: 'all', agentName: 'Geral' } });
+  let system = '';
+  const llm = { configured: true, chat: async ({ messages }) => { system = messages[0].content; return { content: 'Oi!', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm });
+  agent.agentNameFor = (conv) => (conv.key.startsWith('l:abc:') ? 'Sofia' : '');
+  let conv = agent.conversation('l:abc:5511999990000@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Oi');
+  await agent.think(conv);
+  assert.match(system, /Você é Sofia,/);
+  conv = agent.conversation('5511999990000@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Oi');
+  await agent.think(conv);
+  assert.match(system, /Você é Geral,/, 'sem nome próprio, usa o nome geral');
+  assert.ok(buildSystemPrompt);
+});

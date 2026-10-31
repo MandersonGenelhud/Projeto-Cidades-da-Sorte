@@ -28,6 +28,7 @@ export class Agent {
     this.whatsappLink = null; // (conversa do Instagram) => link do WhatsApp da Migra com o código do cliente
     this.partnerLink = null; // () => link do cadastro de parceiros (/parceiros)
     this.sendContract = null; // (conversa, args, { dryRun }) => gera o contrato e manda o link para assinar (ou a ficha, se faltar dado)
+    this.agentNameFor = null; // (conversa) => nome da atendente naquele número, ou ''
     this.notifyOwner = null; // (conversa, args, { dryRun }) => contratação/parcerias direto para o Marcos
     this.routeSector = null; // (conversa, args, { dryRun }) => loteamentos/veículos para o atendente do setor
     this.scheduleReturn = null; // (conversa, args, { dryRun }) => retorno combinado com data e hora
@@ -126,7 +127,10 @@ export class Agent {
     // No WhatsApp de um vendedor o cliente já é dele: nada de rodízio.
     const routing = Boolean(this.routeLead) && settings.crm?.routing?.enabled !== false && !note && !this.closeHandoff;
     const closing = Boolean(this.sendForm) && settings.closing?.enabled !== false;
-    let system = buildSystemPrompt(settings, { now: this.now(), contactName: conv.name, channel, routing, closing });
+    // Cada WhatsApp de vendedor pode ter o nome da própria atendente (assim ninguém confunde uma com a outra).
+    const nameHere = this.agentNameFor ? this.agentNameFor(conv) : '';
+    const promptSettings = nameHere ? { ...settings, agent: { ...settings.agent, agentName: nameHere } } : settings;
+    let system = buildSystemPrompt(promptSettings, { now: this.now(), contactName: conv.name, channel, routing, closing });
     if (note) system += `\n\n# Este WhatsApp\n${note}`;
     const known = this.contextFor ? this.contextFor(conv) : '';
     if (known) system += `\n\n# O que já sabemos deste cliente (CRM)\n${known}\nUse isso: cumprimente pelo nome, mostre que já sabe o interesse dele ("vi aqui que você...") e siga para o fechamento sem repetir perguntas já respondidas.`;

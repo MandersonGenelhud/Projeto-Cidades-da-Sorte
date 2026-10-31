@@ -159,6 +159,7 @@ const router = new LeadRouter({
   canSendWhatsApp: () => wa.status === 'connected',
 });
 agent.routeLead = (conv, args, opts) => router.route(conv, args, opts);
+agent.agentNameFor = (conv) => lines.get(parseLineKey(conv.key)?.id)?.agentName || '';
 agent.routeSpecialist = (conv, args, opts) => router.routeSpecialist(conv, args, opts);
 // Setores (loteamentos, documentação, veículos): a IA direciona e o atendente do setor recebe o resumo.
 const sectors = new Sectors({
@@ -2162,7 +2163,7 @@ app.post('/api/lines', (req, res) => {
 });
 app.patch('/api/lines/:id', (req, res) => {
   myLine(req.user, req.params.id);
-  const patch = req.user.role === 'admin' ? req.body : { agent: req.body.agent };
+  const patch = req.user.role === 'admin' ? req.body : { agent: req.body.agent, agentName: req.body.agentName };
   res.json(lines.update(req.params.id, patch));
 });
 app.delete('/api/lines/:id', async (req, res) => {
