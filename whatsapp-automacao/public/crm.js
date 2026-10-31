@@ -608,7 +608,8 @@ async function refreshDueBadge() {
 // ---------- EQUIPE ----------
 const SECTOR_BTNS = [['documentacao', '🛂 Documentação'], ['loteamentos', '🏡 Terrenos'], ['veiculos', '🚗 Veículos']];
 loaders.team = async () => {
-  const [users, settings] = await Promise.all([api('/api/users'), api('/api/settings')]);
+  const [users, settings, myLines] = await Promise.all([api('/api/users'), api('/api/settings'), api('/api/lines').catch(() => [])]);
+  const lineOf = (u) => myLines.find((l) => l.ownerId === u.id);
   const active = users.filter((u) => u.active);
   const inRotation = active.filter((u) => u.whatsapp && u.receivesLeads)
     .sort((a, b) => (a.rotationSeq || 0) - (b.rotationSeq || 0) || a.name.localeCompare(b.name));
@@ -626,7 +627,8 @@ loaders.team = async () => {
         ${u.active ? '' : '<span class="badge canceled">Inativo</span>'} ${u.twoFactor ? '<span class="badge done">🔐 2 etapas</span>' : '<span class="badge paused">só senha</span>'}
         <div class="meta">login: ${esc(u.login)}${u.whatsapp ? ` · WhatsApp ${esc(fmtPhone(u.whatsapp))}` : ' · sem WhatsApp (fora do rodízio)'}
           · ${u.receivesLeads && u.whatsapp ? `🔄 no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : '⏸️ fora do rodízio'}
-          · ${u.receivesAffiliateLeads ? '🤝 recebe indicações de parceiros' : '🚫 não recebe indicações de parceiros'}</div></div>
+          · ${u.receivesAffiliateLeads ? '🤝 recebe indicações de parceiros' : '🚫 não recebe indicações de parceiros'}
+          · ${(() => { const l = lineOf(u); return !l ? '📵 WhatsApp não conectado' : l.status === 'connected' ? `🟢 WhatsApp conectado · ${l.agent !== false ? '🤖 IA atendendo' : '🤖 IA desligada'}` : `🟡 WhatsApp ${(LINE_STATUS[l.status] || l.status).toLowerCase()}`; })()}</div></div>
       ${u.active ? `<div class="sector-btns" title="Em que áreas esta pessoa atende">${SECTOR_BTNS.map(([id, label]) => `<button class="btn small ${(u.sectors || []).includes(id) ? 'primary' : ''}" data-act="sector" data-sector="${id}" aria-pressed="${(u.sectors || []).includes(id)}">${label}</button>`).join('')}</div>` : ''}
       ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? '⏸️ Pausar rodízio' : '▶️ Pôr no rodízio'}</button>
         <button class="btn small" data-act="affleads" title="Indicações de parceiros pagam comissão menor ao vendedor">${u.receivesAffiliateLeads ? '🤝 Parar indicações' : '🤝 Receber indicações'}</button>` : ''}
@@ -637,6 +639,7 @@ loaders.team = async () => {
     </div>`).join('');
   $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads, receivesAffiliateLeads, sectors }) => ({ id, name, receivesLeads, receivesAffiliateLeads, sectors })));
   renderSystemLinks().catch(() => {});
+  loaders.lines().catch(() => {});
 
   const c = settings.crm || {};
   const f = $('#formCrmSettings');
@@ -1125,6 +1128,7 @@ loaders.lines = async () => {
     if (!typing) grid.innerHTML = html;
   });
   $('#btnAddLine').hidden = !isAdmin();
+  if ($('#teamLinesSummary')) $('#teamLinesSummary').innerHTML = `<span>${list.filter((l) => l.status === 'connected').length} de ${list.length + waiting.length} conectados</span><span>🤖 IA ligada em ${list.filter((l) => l.agent !== false).length}</span>`;
   if ($('#connSummary')) {
     const on = list.filter((l) => l.status === 'connected').length;
     $('#connSummary').innerHTML = `<span><i class="ldot disponivel"></i>${on} de ${list.length + waiting.length} vendedores conectados</span><span>🤖 IA ligada em ${list.filter((l) => l.agent !== false).length}</span>${list.some((l) => l.verified === false) ? '<span>⚠️ número diferente do cadastro</span>' : ''}`;
@@ -1197,6 +1201,7 @@ function onLineStatus() {
   clearTimeout(lineRefresh);
   lineRefresh = setTimeout(() => {
     if ($('#tab-lines').classList.contains('active') || $('#tab-connection').classList.contains('active')) loaders.lines();
+    if ($('#tab-team')?.classList.contains('active')) loaders.team();
   }, 400);
 }
 {
