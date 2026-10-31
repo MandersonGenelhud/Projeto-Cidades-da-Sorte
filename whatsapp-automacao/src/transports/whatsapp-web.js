@@ -217,6 +217,14 @@ export class WhatsAppClient extends EventEmitter {
 
     sock.ev.on('messages.upsert', ({ messages, type }) => {
       if (this.sock !== sock) return;
+      // Mensagem recente do dono para si mesmo: vale como pedido à Nina mesmo se o WhatsApp a entregar como "append".
+      if (type === 'append') {
+        for (const msg of messages) {
+          if (!msg.key?.fromMe || !isSelfChat(msg.key.remoteJid, sock.user)) continue;
+          if (Date.now() - (Number(msg.messageTimestamp) * 1000 || 0) > 90_000) continue;
+          this.#emitSelfChat(msg, sock);
+        }
+      }
       if (type === 'append') {
         // Mensagens que chegaram enquanto o sistema estava desligado: não respondem
         // na hora, mas entram na lista de clientes esperando resposta.
@@ -228,15 +236,7 @@ export class WhatsAppClient extends EventEmitter {
       for (const msg of messages) {
         // Conversa do dono consigo mesmo ("Você"/"Mensagem para mim"): é onde ele fala com a Nina.
         if (msg.key.fromMe && isSelfChat(msg.key.remoteJid, sock.user)) {
-          if (this.sentIds.has(msg.key.id)) continue; // as respostas da própria Nina não voltam como pedido
-          const parsed = normalizeMessage(msg);
-          if (parsed && !parsed.isGroup) {
-            parsed.fromMe = false;
-            parsed.selfChat = true;
-            parsed.phone = jidToPhone(sock.user.id);
-            parsed.name = '';
-            this.emit('message', parsed);
-          }
+          this.#emitSelfChat(msg, sock);
           continue;
         }
         if (msg.key.fromMe) {
@@ -250,6 +250,18 @@ export class WhatsAppClient extends EventEmitter {
         if (parsed) this.emit('message', parsed);
       }
     });
+  }
+
+  #emitSelfChat(msg, sock) {
+    if (this.sentIds.has(msg.key.id)) return; // as respostas da própria Nina não voltam como pedido
+    this.selfSeen ||= new Set();
+    if (this.selfSeen.has(msg.key.id)) return;
+    this.selfSeen.add(msg.key.id);
+    if (this.selfSeen.size > 500) this.selfSeen.delete(this.selfSeen.values().next().value);
+    const parsed = normalizeMessage(msg);
+    if (!parsed || parsed.isGroup) return;
+    Object.assign(parsed, { fromMe: false, selfChat: true, phone: jidToPhone(sock.user.id), name: '' });
+    this.emit('message', parsed);
   }
 
   #parseIncoming(msg) {

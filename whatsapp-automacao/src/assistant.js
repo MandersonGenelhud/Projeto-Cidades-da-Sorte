@@ -167,7 +167,8 @@ export class Nina {
       }
       if (spoke) {
         if (!this.stt?.ready) {
-          if (this.dedicated(msg)) await this.#say(msg, 'Ainda não consigo ouvir áudios aqui (o serviço de voz não está ligado). Escreva por texto, por favor.', false);
+          if (msg.selfChat) this.log({ type: 'error', message: 'Nina: recebi seu áudio, mas não consigo ouvir: use o provedor Google Gemini com a chave preenchida (aba Agente IA) ou instale o serviço de voz na VPS.' });
+          if (this.dedicated(msg) || msg.selfChat) await this.#say(msg, 'Ainda não consigo ouvir áudios aqui (o serviço de voz não está ligado). Escreva por texto, por favor.', false);
           return true;
         }
         const audio = await this.downloadAudio(msg);
@@ -175,6 +176,7 @@ export class Nina {
         text = await this.stt.transcribe(audio, 'audio/ogg');
       }
       const wake = this.stripWake(text);
+      if (msg.selfChat) this.log({ type: 'system', message: `Nina: ${spoke ? `áudio entendido (${text.length} letras)` : 'texto recebido'} na conversa com você mesmo; chamada pelo nome: ${wake.had ? 'sim' : 'não'}` });
       // No número principal, áudio que não chama a Nina é conversa normal: ela não se mete.
       if (!this.dedicated(msg) && !wake.had && !this.waiting(msg.phone, text)) return true;
       const reply = await this.process(user, wake.rest, { phone: msg.phone, spoke, heard: spoke ? text : '' });

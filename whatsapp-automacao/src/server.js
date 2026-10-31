@@ -940,7 +940,11 @@ wa.on('message', (msg) => {
     return;
   }
   // Conversa do dono consigo mesmo: só a Nina atende (chamada pelo nome ou por áudio). O resto é anotação dele, nunca vai para a atendente.
-  if (msg.selfChat) return;
+  if (msg.selfChat) {
+    if (!nina.userFor(msg)) store.addLog({ type: 'error', message: `Nina: recebi uma mensagem sua na conversa "Você", mas o número +${msg.phone} não é de um administrador com acesso ao Caixa (aba Equipe: WhatsApp do Marcos + Caixa liberado).` });
+    else if (!nina.enabled) store.addLog({ type: 'error', message: 'Nina: recebi uma mensagem sua, mas a Nina está desligada (Caixa → ⚙️ → Nina).' });
+    return;
+  }
   // Cliente com Pix em aberto mandou foto/PDF: se for o comprovante, a IA lê, confere e dá baixa; se não for, segue o atendimento.
   if (receipts.wants(msg)) {
     receipts.handle(msg).then((done) => done || routeIncoming(msg)).catch((err) => { store.addLog({ type: 'error', message: `Comprovante: ${err.message}` }); routeIncoming(msg); });

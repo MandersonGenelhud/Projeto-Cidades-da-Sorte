@@ -1940,9 +1940,9 @@ async function loadNina() {
   f.lineId.innerHTML = `<option value="">Usar o número principal</option>${n.lines.map((l) => `<option value="${esc(l.id)}">${esc(l.label)}</option>`).join('')}`;
   f.lineId.value = n.lineId || '';
   $('#ninaVoice').textContent = n.sttReady && n.ttsReady
-    ? '✅ Voz ligada: ela entende áudios e responde falando.'
+    ? `✅ Voz ligada: ela entende áudios e responde falando.${n.selfChatHint || ''}`
     : n.sttReady ? '⚠️ Ela entende áudios, mas a voz de resposta não está ligada (responde por texto).'
-      : 'ℹ️ O serviço de voz ainda não está ligado (é instalado na VPS). Por enquanto a Nina atende só por texto.';
+      : 'ℹ️ Ela ainda não consegue ouvir áudios: escolha o provedor Google Gemini com a chave preenchida (aba Agente IA) ou instale o serviço de voz na VPS. Por texto ela já atende.';
 }
 $('#formNina').addEventListener('submit', withBusy($('#formNina'), async (ev) => {
   const f = ev.target;
