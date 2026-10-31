@@ -167,6 +167,13 @@ const sectors = new Sectors({
   notifyAdmins: (text) => notifyAdmins(text),
 });
 agent.routeSector = (conv, args, opts) => sectors.route(conv, args, opts);
+// Link do WhatsApp da Migra com o código do cliente (para quem conversa no Instagram escolher tocar em vez de digitar o número).
+agent.whatsappLink = (conv) => {
+  if (!String(conv.key).startsWith('ig:')) return '';
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username })
+    || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: 'instagram' });
+  return whatsappLinkFor(lead);
+};
 agent.partnerLink = () => (publicBase() ? `${publicBase()}/parceiros` : '');
 // Instagram → WhatsApp: o cliente passou o número e a Migra chama no WhatsApp continuando a conversa.
 agent.moveToWhatsapp = async (conv, args = {}, { dryRun } = {}) => {
@@ -176,8 +183,8 @@ agent.moveToWhatsapp = async (conv, args = {}, { dryRun } = {}) => {
   const text = String(args.primeira_mensagem || '').trim().slice(0, 400)
     || `Oi${first ? `, ${first}` : ''}! Aqui é da Migra Paraguai, continuando a nossa conversa do Instagram 😊 Por aqui eu consigo te mandar o orçamento em PDF e tudo certinho para garantir a sua reserva.`;
   if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real o cliente recebe no WhatsApp (+${phone}): "${text}". Diga que acabou de chamar no WhatsApp e que seguem por lá.` };
-  const main = mainWhatsapp();
-  const link = main ? `https://wa.me/${main}?text=${encodeURIComponent(`Oi! Vim do Instagram da Migra${first ? `, sou ${first}` : ''}.`)}` : '';
+  const lead0 = crm.findForConversation({ key: conv.key, phone, username: conv.username });
+  const link = whatsappLinkFor(lead0);
   if (wa.status !== 'connected') return { erro: `O WhatsApp da Migra está desconectado agora.${link ? ` Mande este link para ele chamar: ${link}` : ' Siga a conversa por aqui.'}` };
   const lead = crm.findForConversation({ key: conv.key, phone, username: conv.username })
     || crm.ensureFromConversation({ key: conv.key, name: args.nome || conv.name, username: conv.username, channel: 'instagram' });
@@ -687,7 +694,7 @@ agent.contextFor = (conv) => {
   if (!lead || lead.conversationKey === conv.key) return '';
   const q = lead.qualification || {};
   const origin = lead.conversationKey ? agent.conversation(lead.conversationKey, { create: false }) : null;
-  const before = (origin?.messages || []).slice(-8).map((m) => `${m.role === 'user' ? 'Cliente' : 'Atendimento'}: ${m.content}`).join('\n');
+  const before = (origin?.messages || []).slice(-14).map((m) => `${m.role === 'user' ? 'Cliente' : 'Atendimento'}: ${m.content}`).join('\n');
   return [
     `Nome: ${lead.name || '-'} · código ${lead.code}${lead.instagram ? ` · Instagram @${lead.instagram}` : ''}`,
     lead.interest ? `Interesse: ${lead.interest}${lead.people > 1 ? ` para ${lead.people} pessoas` : ''}` : '',
@@ -726,7 +733,7 @@ async function syncInstagram() {
     }
     const fresh = p.at >= Date.now() - manualDays * 86_400_000;
     if (fresh && lead.igDraft?.clientAt !== p.at && drafts < 40) {
-      lead.igDraft = { status: 'pendente', kind: 'responder', clientAt: p.at, username, name: p.name || '', texts: p.texts, text: await draftInstagram(p, username).catch(() => ''), at: new Date().toISOString() };
+      lead.igDraft = { status: 'pendente', kind: 'responder', clientAt: p.at, username, name: p.name || '', texts: p.texts, text: await draftInstagram(p, username, 'responder', lead).catch(() => ''), at: new Date().toISOString() };
       drafts++;
     }
   }
@@ -740,7 +747,7 @@ async function syncInstagram() {
     const lead = crm.ensureFromConversation({ key: p.jid, name: p.name, username, channel: 'instagram' });
     if (!lead || ['ganho', 'perdido'].includes(lead.stage)) continue;
     if (lead.igDraft && lead.igDraft.lastOurAt === p.lastOurAt) continue; // já tratado
-    lead.igDraft = { status: 'pendente', kind: 'retomar', clientAt: p.at, lastOurAt: p.lastOurAt, username, name: p.name || '', texts: p.texts, text: await draftInstagram(p, username, 'retomar').catch(() => ''), at: new Date().toISOString() };
+    lead.igDraft = { status: 'pendente', kind: 'retomar', clientAt: p.at, lastOurAt: p.lastOurAt, username, name: p.name || '', texts: p.texts, text: await draftInstagram(p, username, 'retomar', lead).catch(() => ''), at: new Date().toISOString() };
     stalled++;
     drafts++;
   }
@@ -749,7 +756,7 @@ async function syncInstagram() {
   return { recent, old, drafts, stalled, total: new Set(msgs.map((m) => m.jid)).size };
 }
 /** Resposta sugerida pela IA para quem escreveu no Direct há mais de 24h (a equipe envia pelo app). */
-async function draftInstagram(p, username, kind = 'responder') {
+async function draftInstagram(p, username, kind = 'responder', lead = null) {
   if (!llm.configured) return '';
   const conv = agent.conversation(p.jid);
   conv.name ||= p.name || '';
@@ -767,10 +774,21 @@ NÃO escreva saudação, nem explicação da demora, nem pedido de perdão ou ag
 ${kind === 'retomar'
     ? `A conversa parou há ${days} dia(s): o cliente deixou de responder. Leia o que ele já disse e dê continuidade ao atendimento de onde parou: mostre que lembrou do caso dele (com as palavras dele) e faça UMA pergunta fácil que leve ao próximo passo.`
     : `O cliente escreveu há ${days} dia(s) e ficou sem resposta. Responda o que ele perguntou e dê continuidade ao atendimento.`}
-Se fizer sentido, peça o WhatsApp com DDD para continuar por lá e mandar o orçamento certinho em PDF. Não liste planos em menu, não use markdown, não diga que é o Marcos e não use ferramentas.`;
+NÃO peça o WhatsApp e não mande link: o sistema acrescenta isso depois da sua mensagem. Não liste planos em menu, não use markdown, não diga que é o Marcos e não use ferramentas.`;
   const r = await agent.think(conv, { dryRun: true, extraSystem });
-  const cont = String(r.text || '').replace(/^\s+/, '');
-  return `${opening}\n\n${cont}`.slice(0, 950);
+  const cont = String(r.text || '').replace(/^\s+/, '').slice(0, 340);
+  // Fechamento fixo: link do WhatsApp da Migra com o código da pessoa (liga as duas conversas) ou o número dela.
+  const link = whatsappLinkFor(lead);
+  const ending = link
+    ? `Para continuarmos com mais agilidade, toque aqui e fale com a gente no WhatsApp: ${link}\nSe preferir, me passe o seu número com DDD que eu te chamo.`
+    : 'Para continuarmos com mais agilidade, me passe o seu WhatsApp com DDD que eu te chamo.';
+  return `${opening}\n\n${cont}\n\n${ending}`;
+}
+/** Link para o cliente abrir o WhatsApp da Migra já com o código dele na mensagem (o sistema liga a conversa ao Instagram). */
+function whatsappLinkFor(lead) {
+  const main = mainWhatsapp();
+  if (!main) return '';
+  return `https://wa.me/${main}?text=${encodeURIComponent(`Oi! Vim do Instagram da Migra${lead?.code ? ` (${lead.code})` : ''}.`)}`;
 }
 
 /** Avisa o responsável (ou os administradores) no dia do retorno agendado. */
@@ -845,8 +863,9 @@ wa.on('message', (msg) => {
   pending.onIncoming(msg);
   if (!msg.isGroup) {
     try {
-      // Chegou no WhatsApp do vendedor com o código do Instagram: liga ao prospecto.
-      if (msg.line) crm.linkByCode({ text: msg.text, key: msg.jid, phone: msg.phone });
+      // Chegou no WhatsApp (da Migra ou de um vendedor) com o código do Instagram: liga ao prospecto
+      // e a atendente passa a ver o histórico de lá.
+      if (msg.channel !== 'instagram') crm.linkByCode({ text: msg.text, key: msg.jid, phone: msg.phone });
       const lead = crm.ensureFromConversation({ key: msg.jid, phone: msg.phone, name: msg.name, username: msg.username, channel: msg.channel || 'whatsapp', referral: msg.referral, ownerId: msg.ownerId });
       // Veio pelo link de um indicador ("código de indicação: ana482")?
       const aff = affiliates.codeInText(msg.text);

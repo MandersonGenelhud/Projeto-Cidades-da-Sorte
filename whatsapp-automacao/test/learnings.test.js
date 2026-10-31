@@ -133,3 +133,33 @@ test('Instagram: a atendente não usa menu de planos, trata botões como interes
   await agent.think(wa);
   assert.doesNotMatch(seen.at(-1), /Instagram: conversa humana/);
 });
+
+test('Instagram → WhatsApp: o link leva o código da pessoa e a atendente ganha o histórico do Instagram', async () => {
+  const { Auth } = await import('../src/auth.js');
+  const { Crm } = await import('../src/crm.js');
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const auth = new Auth({ store, dataDir: store.dataDir });
+  const crm = new Crm({ store, auth });
+  const llm = { configured: true, chat: async () => ({ content: 'Oi!', tool_calls: [] }) };
+  const agent = new Agent({ store, llm, now: () => new Date(2026, 9, 26, 9, 5) });
+  // Conversa no Instagram: vira prospecto com código.
+  const ig = agent.conversation('ig:555');
+  agent.remember(ig, 'user', 'Quero abrir um restaurante em Ciudad del Este');
+  const lead = crm.ensureFromConversation({ key: ig.key, name: 'Magda', username: 'magda.ataide', channel: 'instagram' });
+  agent.whatsappLink = (conv) => `https://wa.me/595981000000?text=${encodeURIComponent(`Oi! Vim do Instagram da Migra (${crm.findForConversation({ key: conv.key }).code}).`)}`;
+  await agent.think(ig);
+  const seen = [];
+  agent.llm.chat = async ({ messages }) => { seen.push(messages[0].content); return { content: 'Oi!', tool_calls: [] }; };
+  await agent.think(ig);
+  assert.match(seen[0], new RegExp(`wa\\.me/595981000000\\?text=.*${lead.code}`), 'o link do WhatsApp leva o código');
+  assert.match(seen[0], /tocar neste link/);
+  // A pessoa toca no link: a primeira mensagem no WhatsApp principal traz o código e liga as conversas.
+  const waKey = '5545988887777@s.whatsapp.net';
+  const linked = crm.linkByCode({ text: `Oi! Vim do Instagram da Migra (${lead.code}).`, key: waKey, phone: '5545988887777' });
+  assert.equal(linked.id, lead.id);
+  assert.equal(crm.findForConversation({ key: waKey, phone: '5545988887777' }).id, lead.id, 'o WhatsApp passa a ser o mesmo prospecto');
+  assert.equal(lead.conversationKey, 'ig:555', 'o histórico do Instagram continua guardado');
+  assert.equal(lead.phone, '5545988887777');
+});
