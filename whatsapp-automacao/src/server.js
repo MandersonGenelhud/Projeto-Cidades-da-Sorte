@@ -26,6 +26,7 @@ import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
 import { makeContractFlow, contractReady } from './autocontract.js';
 import { Learnings } from './learnings.js';
+import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES } from './cash.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Affiliates } from './affiliates.js';
@@ -1271,7 +1272,7 @@ app.get('/brand/logo', (_req, res) => {
 const require2fa = () => store.settings.security?.require2fa !== false;
 app.get('/api/auth/state', (req, res) => {
   const u = auth.fromRequest(req);
-  res.json({ needsSetup: auth.needsSetup, user: u ? { ...publicUser(u), visitDesk: isVisitDesk(u) } : null, setup2fa: Boolean(u && require2fa() && !u.totpEnabled) });
+  res.json({ needsSetup: auth.needsSetup, user: u ? { ...publicUser(u), visitDesk: isVisitDesk(u), cashAccess: cash.canAccess(u) } : null, setup2fa: Boolean(u && require2fa() && !u.totpEnabled) });
 });
 // Cadastro do vendedor: fica aguardando a liberação do administrador (não entra antes disso).
 app.post('/api/auth/signup', (req, res) => {
@@ -2763,6 +2764,68 @@ app.post('/api/sales/:id/cancel', (req, res) => {
   const s = sales.cancel(req.user, req.params.id, req.body?.reason);
   securityEvent('venda_cancelada', req.user, req, `${s.number} · ${req.body?.reason || ''}`);
   res.json(sales.view(s));
+});
+// ---------- Controle de caixa (só administradores liberados) ----------
+const cash = new Cash({ store, auth, payments, sales, affiliates });
+app.use('/api/cash', (req, res, next) => {
+  if (!cash.canAccess(req.user)) return res.status(403).json({ error: 'O caixa é restrito: só os administradores liberados veem.' });
+  next();
+});
+const cashRange = (period) => {
+  const t = new Date();
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const first = (y, m) => new Date(Date.UTC(y, m, 1));
+  if (period === 'month') return { from: iso(first(t.getUTCFullYear(), t.getUTCMonth())), to: '' };
+  if (period === 'last') return { from: iso(first(t.getUTCFullYear(), t.getUTCMonth() - 1)), to: iso(new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), 0))) };
+  if (period === '30') return { from: iso(new Date(t.getTime() - 30 * 86_400_000)), to: '' };
+  if (period === 'year') return { from: `${t.getUTCFullYear()}-01-01`, to: '' };
+  return { from: '', to: '' };
+};
+app.get('/api/cash', (req, res) => {
+  const { from, to } = req.query.from || req.query.to ? { from: String(req.query.from || ''), to: String(req.query.to || '') } : cashRange(String(req.query.period || 'month'));
+  const entries = cash.entries({ from, to, kind: req.query.kind, category: req.query.category, q: req.query.q, status: req.query.status });
+  res.json({
+    from, to, count: entries.length,
+    entries: entries.slice(0, 500),
+    summary: cash.summary(entries),
+    categories: cash.categories,
+    methods: CASH_METHODS,
+    currencies: CASH_CURRENCIES,
+    admins: auth.users.filter((u) => u.role === 'admin' && u.active !== false).map((u) => ({ id: u.id, name: u.name })),
+    allowedUserIds: store.settings.cash?.allowedUserIds || [],
+    me: { id: req.user.id, name: req.user.name },
+  });
+});
+app.get('/api/cash/:id/history', (req, res) => {
+  const e = cash.list.find((x) => x.id === req.params.id);
+  if (!e) throw httpError(404, 'Lançamento não encontrado');
+  res.json({ history: e.history, deleted: e.deleted || null });
+});
+app.post('/api/cash', (req, res) => {
+  const e = cash.add(req.user, req.body || {});
+  securityEvent('caixa_lancamento', req.user, req, `${e.kind} · ${e.amount} ${e.currency} · ${e.category}`);
+  res.json(e);
+});
+app.patch('/api/cash/:id', (req, res) => {
+  const e = cash.update(req.user, req.params.id, req.body || {});
+  securityEvent('caixa_alterado', req.user, req, `${e.id} · ${e.kind} · ${e.amount} ${e.currency}`);
+  res.json(e);
+});
+app.delete('/api/cash/:id', (req, res) => {
+  cash.remove(req.user, req.params.id, req.body?.reason);
+  securityEvent('caixa_apagado', req.user, req, `${req.params.id} · ${req.body?.reason || ''}`);
+  res.json({ ok: true });
+});
+app.put('/api/cash/settings', (req, res) => {
+  const categories = (Array.isArray(req.body?.categories) ? req.body.categories : []).map((c) => String(c).trim().slice(0, 80)).filter(Boolean).slice(0, 40);
+  const adminIds = new Set(auth.users.filter((u) => u.role === 'admin' && u.active !== false).map((u) => u.id));
+  const allowed = (Array.isArray(req.body?.allowedUserIds) ? req.body.allowedUserIds : []).filter((id) => adminIds.has(id));
+  if (allowed.length && !allowed.includes(req.user.id)) throw httpError(400, 'Você não pode se tirar da lista de quem vê o caixa.');
+  store.updateSettings({ cash: { categories, allowedUserIds: allowed } });
+  store.settings.cash.allowedUserIds = allowed; // updateSettings junta listas por substituição; garante o valor exato
+  store.save();
+  securityEvent('caixa_acesso', req.user, req, allowed.length ? `liberado para ${allowed.length} administrador(es)` : 'liberado para todos os administradores');
+  res.json({ ok: true });
 });
 app.put('/api/sales/settings', (req, res) => {
   if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');

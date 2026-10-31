@@ -26,6 +26,7 @@
       <button data-tab="sales" data-admin>📈 Vendas</button>
       <button data-tab="quotes">🧾 Orçamentos</button>
       <button data-tab="contracts">💼 Contratos e vendas</button>
+      <button data-tab="cash" data-admin data-cash hidden>💰 Caixa</button>
       <button data-tab="leads">🗂️ Prospectos</button>
       <button data-tab="followups">📅 Retornos <span class="nav-badge" id="dueBadge" hidden>0</span></button>
       <button data-tab="payments">💳 Pagamentos</button>
@@ -493,6 +494,56 @@
         <p class="hint">Cada link já leva o seu código. Toque em WhatsApp para enviar.</p>
         <div id="shareMaterials"></div>
       </div>
+    </section>
+
+    <!-- CAIXA (só administradores liberados) -->
+    <section id="tab-cash" class="tab">
+      <div class="page-head">
+        <h1>💰 Caixa</h1>
+        <div class="row">
+          <select id="cashPeriod"><option value="month">Este mês</option><option value="last">Mês passado</option><option value="30">Últimos 30 dias</option><option value="year">Este ano</option><option value="all">Tudo</option></select>
+          <button type="button" class="btn primary" id="btnCashNew">➕ Novo lançamento</button>
+        </div>
+      </div>
+      <p class="hint">Os <b>recebimentos dos clientes</b> (Pix e parcelas) e as <b>comissões pagas</b> entram sozinhos. Aqui você registra o que <b>pagou</b>, para que despesa foi e quem pagou. Cada moeda é somada separada. Só os administradores liberados veem esta aba.</p>
+      <div id="cashKpis"></div>
+      <form class="panel form" id="formCash" hidden>
+        <h2 id="cashFormTitle">Novo lançamento</h2>
+        <div class="grid2 tight">
+          <label>Tipo <select name="kind"><option value="saida">Saída (paguei)</option><option value="entrada">Entrada (recebi)</option></select></label>
+          <label>Data <input type="date" name="date" required /></label>
+          <label>Valor <input type="number" name="amount" min="0" step="0.01" required /></label>
+          <label>Moeda <select name="currency"><option value="BRL">R$ (reais)</option><option value="USD">US$ (dólares)</option><option value="PYG">Gs. (guaranis)</option></select></label>
+        </div>
+        <label>O que foi <input name="description" placeholder="ex.: aluguel do escritório, anúncio no Instagram, certidões" required /></label>
+        <div class="grid2 tight">
+          <label>Para que despesa (categoria) <select name="category"></select></label>
+          <label>Forma de pagamento <select name="method"></select></label>
+          <label>Quem pagou / de qual conta <input name="account" placeholder="ex.: Marcos, empresa, cartão da Migra" /></label>
+          <label>Para quem foi (ou de quem veio) <input name="payee" placeholder="fornecedor, pessoa ou empresa" /></label>
+          <label>Situação <select name="status"><option value="pago">Já pago</option><option value="a_pagar">A pagar / a receber</option></select></label>
+          <label>Vencimento (se ainda não pagou) <input type="date" name="dueDate" /></label>
+        </div>
+        <label>Observações <input name="notes" /></label>
+        <div class="row"><button class="btn primary">Salvar</button><button type="button" class="btn" id="btnCashCancel">Cancelar</button></div>
+      </form>
+      <div class="panel">
+        <div class="row conv-filter">
+          <select id="cashKind"><option value="">Entradas e saídas</option><option value="entrada">Só entradas</option><option value="saida">Só saídas</option></select>
+          <select id="cashCategory"></select>
+          <input id="cashSearch" placeholder="Buscar (descrição, pessoa, conta)" class="grow" />
+        </div>
+        <div class="table-wrap"><table id="cashTable"></table></div>
+      </div>
+      <details class="panel" id="cashConfig">
+        <summary><b>⚙️ Categorias das despesas e quem pode ver o caixa</b></summary>
+        <form class="form" id="formCashConfig">
+          <label>Categorias de despesa (uma por linha; vazio = padrão) <textarea name="categories" rows="6"></textarea></label>
+          <p class="hint">Quem pode ver o caixa (só administradores). Sem ninguém marcado, todos os administradores veem. Marque para limitar.</p>
+          <div id="cashViewers"></div>
+          <button class="btn primary">Salvar</button>
+        </form>
+      </details>
     </section>
 
     <!-- INDICADORES -->

@@ -137,6 +137,8 @@ const DEFAULT_DATA = {
     contract: { company: 'MIGRA ASESORIA PARAGUAY E.A.S.', ruc: '80171751-5', address: 'Calle Las Palmeras, Edifício Domício 2, Santa Rita, Alto Paraná, República do Paraguai', signer: 'Migra Assessoria', city: 'Santa Rita, Alto Paraná', foro: 'Santa Rita, República do Paraguai', payee: 'Migra Paraguai Assessoria LTDA, CNPJ 58.521.546/0001-78' },
     // Segurança: duas etapas obrigatórias para todos (administrador e vendedores).
     security: { require2fa: true, backupDir: '' },
+    // Controle de caixa (só administradores liberados): categorias das despesas e quem pode ver (vazio = todos os administradores).
+    cash: { categories: [], allowedUserIds: [] },
     // Fechamento: ficha de dados → Pix → termo da reserva assinado no celular.
     closing: {
       enabled: true,
