@@ -11,7 +11,7 @@ function setup(clock) {
   store.updateSettings({ agent: { enabled: true, audience: 'all', apiKey: 'x' } });
   const auth = new Auth({ store, dataDir: store.dataDir });
   auth.create({ name: 'Marcos', login: 'marcos', password: 'segredo123', role: 'admin' });
-  const crm = new Crm({ store, auth });
+  const crm = new Crm({ store, auth, now: () => clock.now });
   const systems = [];
   const llm = { configured: true, chat: async ({ messages }) => { systems.push(messages[0].content); return { content: 'Bom dia, Carla! Hoje é o dia que combinamos. Te mando a ficha para garantir a sua reserva?', tool_calls: [] }; } };
   const agent = new Agent({ store, llm, now: () => clock.now });
@@ -36,7 +36,9 @@ test('cliente pede "mais pra frente": vira data marcada e, no dia, a IA retoma s
   assert.equal(lead.followUpAt, '2026-11-05');
   // Datas inválidas.
   assert.match((await f.schedule(conv, { data: '2026-10-01', motivo: 'x' })).erro, /de hoje em diante/);
-  assert.match((await f.schedule(conv, { data: '2027-06-01', motivo: 'x' })).erro, /90 dias/);
+  assert.match((await f.schedule(conv, { data: '2028-06-01', motivo: 'x' })).erro, /12 meses/);
+  assert.equal((await f.schedule(conv, { data: '2027-03-15', hora: '19:30', motivo: 'daqui a uns meses' })).ok, true, 'até 12 meses vale');
+  await f.schedule(conv, { data: '2026-11-05', hora: '10:00', motivo: 'recebe o salário dia 5', o_que_falta: 'pagar a entrada' });
   await f.schedule(conv, { data: '2026-11-05', hora: '10:00', motivo: 'recebe o salário dia 5', o_que_falta: 'pagar a entrada' });
 
   clock.now = new Date(2026, 10, 5, 9, 30); // antes do horário
@@ -105,4 +107,61 @@ test('retomada antecipada: a IA chama quem marcou para o futuro, uma vez por dat
   clock.now = new Date(2026, 9, 31, 22, 0);
   carla.reconfirmedFor = null;
   assert.match((await f.reconfirm({ wait: async () => {} })).erro, /Fora do horário/);
+});
+
+test('retorno pedido pelo cliente e lido pela IA (à noite, mês que vem): a atendente retoma sozinha e a equipe não é incomodada', async () => {
+  const clock = { now: new Date(2026, 9, 31, 7, 19) }; // sábado, 07:19
+  const { crm, agent, f, sent } = setup(clock);
+  const key = '554491433691@s.whatsapp.net';
+  const conv = agent.conversation(key);
+  conv.phone = '554491433691';
+  conv.name = 'Vinicius Figueiredo';
+  agent.remember(conv, 'user', 'Sou adventista, posso responder à noite?');
+  const lead = crm.byId(crm.ensureFromConversation({ key, phone: conv.phone, name: conv.name, channel: 'whatsapp' }).id);
+  // A IA leu a conversa: "hoje à noite" (mesmo dia, horário que ainda não passou).
+  crm.applyAi(lead, { retorno_data: '2026-10-31', retorno_hora: '19:30', motivo_espera: 'Cliente é adventista e pediu para responder à noite' });
+  const today = crm.today();
+  assert.equal(lead.followUpAuto, true, 'marcado pela IA: a atendente retoma');
+  assert.equal(lead.followUpTime, '19:30');
+  assert.equal(lead.followUpAt, today === '2026-10-31' ? '2026-10-31' : lead.followUpAt);
+  // Fora de hora ou antes das 19:30: nada sai. O aviso para a equipe também não.
+  lead.followUpAt = '2026-10-31';
+  assert.equal(crm.dueToNotify().filter((l) => l.id === lead.id).length, 0, 'a equipe não é avisada: a atendente cuida');
+  assert.equal(await f.run({ wait: async () => {} }), 0);
+  // 19:40: a atendente retoma, e o retorno sai da agenda.
+  clock.now = new Date(2026, 9, 31, 19, 40);
+  assert.equal(await f.run({ wait: async () => {} }), 1);
+  assert.equal(sent[0].key, key);
+  assert.equal(lead.followUpAt, null);
+  assert.equal(lead.stage, 'em_contato');
+  assert.equal(await f.run({ wait: async () => {} }), 0, 'uma vez só');
+  // Retorno para daqui 5 meses também vale, e retorno marcado por uma pessoa continua com a pessoa.
+  const far = crm.byId(crm.create({ name: 'Marcos', role: 'admin' }, { name: 'Longe', phone: '5545988880000' }).id);
+  crm.followUp({ name: 'IA', role: 'admin' }, far.id, { date: '2027-03-31', reason: 'só daqui 5 meses' });
+  assert.equal(far.followUpAuto, true);
+  const human = crm.byId(crm.create({ name: 'Marcos', role: 'admin' }, { name: 'Humano', phone: '5545988881111' }).id);
+  crm.followUp({ name: 'Camila', role: 'seller' }, human.id, { date: '2026-10-31', reason: 'eu ligo' });
+  assert.equal(human.followUpAuto, false);
+  assert.equal(crm.dueToNotify().some((l) => l.id === human.id), true, 'a equipe segue sendo avisada nos retornos que ela mesma marcou');
+});
+
+test('retomada automática que não dá certo (um atendente assumiu ou não há WhatsApp) avisa a equipe', async () => {
+  const clock = { now: new Date(2026, 10, 5, 11, 0) };
+  const { crm, agent, f, sent } = setup(clock);
+  const mkAuto = (name, phone) => {
+    const l = crm.byId(crm.create({ name: 'Marcos', role: 'admin' }, { name, phone }).id);
+    crm.followUp({ name: 'IA', role: 'admin' }, l.id, { date: '2026-11-05', reason: 'à noite' });
+    l.followUpTime = '10:00';
+    return l;
+  };
+  const taken = mkAuto('Assumido', '5545988882222');
+  agent.conversation('5545988882222@s.whatsapp.net').handoff = true;
+  taken.conversationKey = '5545988882222@s.whatsapp.net';
+  const noPhone = crm.byId(crm.create({ name: 'Marcos', role: 'admin' }, { name: 'Só Instagram', instagram: 'so.insta' }).id);
+  crm.followUp({ name: 'IA', role: 'admin' }, noPhone.id, { date: '2026-11-05', reason: 'x' });
+  noPhone.followUpTime = '10:00';
+  await f.run({ wait: async () => {} });
+  assert.equal(sent.length, 0);
+  const notify = crm.dueToNotify().map((l) => l.name).sort();
+  assert.deepEqual(notify, ['Assumido', 'Só Instagram'], 'quem a atendente não conseguiu retomar volta para a equipe');
 });

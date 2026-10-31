@@ -67,9 +67,9 @@ Responda SOMENTE com um objeto JSON, sem texto antes ou depois, com estas chaves
  "pacote": uma destas opções exatamente ou null: ${JSON.stringify(packages)},
  "pessoas": número|null,
  "etapa": "em_contato" | "proposta" | null,
- "retorno_data": "AAAA-MM-DD"|null, "motivo_espera": string|null,
+ "retorno_data": "AAAA-MM-DD"|null, "retorno_hora": "HH:MM"|null, "motivo_espera": string|null,
  "resumo": string curta (até 2 frases) com o que o cliente quer e o próximo passo}
-Regras: "proposta" só se o cliente já recebeu valores. "retorno_data" só se o cliente disse que quer decidir/voltar a falar numa data ou período ("dia 15 de novembro", "mês que vem", "ano que vem", "daqui 2 anos"); para períodos vagos, use o primeiro dia útil do período.`;
+Regras: "proposta" só se o cliente já recebeu valores. "retorno_data" só se o cliente disse que quer decidir/voltar a falar numa data ou período ("dia 15 de novembro", "mês que vem", "ano que vem", "daqui 2 anos"); para períodos vagos, use o primeiro dia útil do período. "retorno_hora" só se o cliente disse horário ou período do dia ("à noite" = 19:30, "de manhã" = 09:00, "à tarde" = 14:30, "depois do almoço" = 14:00, "às 20h" = 20:00); quando ele pede "hoje à noite", retorno_data é hoje.`;
     const reply = await this.llm.chat({ messages: [{ role: 'system', content: system }, { role: 'user', content: transcript }] });
     return parseJsonObject(reply.content);
   }

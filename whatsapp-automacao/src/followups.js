@@ -3,6 +3,7 @@
 const pad = (n) => String(n).padStart(2, '0');
 const isoDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const BR = (iso) => iso.split('-').reverse().join('/');
+const OPEN_STAGES = new Set(['novo', 'em_contato', 'proposta', 'aguardando']);
 const WD = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
 
 export class AutoFollowUps {
@@ -17,8 +18,8 @@ export class AutoFollowUps {
     const date = String(args.data || '').trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today) return { erro: 'Data inválida: use AAAA-MM-DD, de hoje em diante.' };
     const limit = new Date(this.now());
-    limit.setDate(limit.getDate() + 90);
-    if (date > isoDay(limit)) return { erro: 'No máximo 90 dias. Proponha uma data mais próxima ao cliente.' };
+    limit.setDate(limit.getDate() + 366);
+    if (date > isoDay(limit)) return { erro: 'No máximo 12 meses. Proponha uma data mais próxima ao cliente.' };
     let time = /^\d{1,2}:\d{2}$/.test(String(args.hora || '')) ? String(args.hora).padStart(5, '0') : '10:00';
     if (time < '08:00') time = '08:00';
     if (time > '20:00') time = '20:00';
@@ -93,24 +94,46 @@ Mande UMA mensagem curta, com a saudação do horário e o nome dele: diga que e
     return out;
   }
 
+  /** Conversa do WhatsApp deste prospecto (cria pela memória do telefone se ainda não existir). Instagram sozinho não dá: a Meta só deixa responder em 24h. */
+  #convFor(lead) {
+    let key = lead.followUpKey || lead.conversationKey || lead.whatsappKey || null;
+    if (key && String(key).startsWith('ig:')) key = lead.whatsappKey || null;
+    let conv = key ? this.agent.conversation(key, { create: false }) : null;
+    if (!conv && lead.phone) {
+      key = lead.whatsappKey || lead.phone;
+      conv = this.agent.conversation(key);
+      conv.phone ||= lead.phone;
+      conv.name ||= lead.name || '';
+    }
+    return conv ? { key, conv } : null;
+  }
+
   /** Retomadas do dia: só no horário combinado, das 8h às 20h, e se o cliente não voltou a falar antes. */
   async run({ max = 15, gapMs = 45_000, wait = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
     const now = this.now();
     const today = isoDay(now);
     const hhmm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
     if (hhmm < '08:00' || hhmm > '20:00') return 0;
-    const due = this.crm.leads.filter((l) => l.followUpAuto && l.stage === 'aguardando' && l.followUpAt
+    const due = this.crm.leads.filter((l) => l.followUpAuto && OPEN_STAGES.has(l.stage) && l.followUpAt
       && (l.followUpAt < today || (l.followUpAt === today && (l.followUpTime || '10:00') <= hhmm))
       && l.followUpSentFor !== l.followUpAt);
     let sent = 0;
+    // Terminou o retorno: sai da agenda e o prospecto volta para "em contato" (a conversa segue com a atendente).
+    const finish = () => { lead0.followUpAt = null; lead0.followUpAuto = false; if (lead0.stage === 'aguardando') lead0.stage = 'em_contato'; this.store.save(); };
+    let lead0 = null;
     for (const lead of due.slice(0, max)) {
-      const key = lead.followUpKey || lead.conversationKey || lead.whatsappKey;
-      const conv = key ? this.agent.conversation(key, { create: false }) : null;
+      lead0 = lead;
+      const found = this.#convFor(lead);
+      // Sem WhatsApp para responder ou um atendente já assumiu: a equipe é avisada (aviso normal do dia do retorno).
+      const fail = () => { lead.followUpAutoFailed = lead.followUpAt; lead.followUpSentFor = lead.followUpAt; this.store.save(); };
+      if (!found || found.conv.handoff) { fail(); continue; }
+      const { key, conv } = found;
+      // WhatsApp desligado agora: tenta de novo no próximo ciclo; só avisa a equipe se passar do dia.
+      if (!this.canSend(key)) { if (lead.followUpAt < today) fail(); continue; }
       lead.followUpSentFor = lead.followUpAt; // uma tentativa por data (não insiste se der erro)
       this.store.save();
-      if (!conv || conv.handoff || !this.canSend(key)) continue;
       // O cliente já voltou a falar depois de marcar o retorno: a conversa seguiu, não precisa retomar.
-      if (conv.messages.slice(lead.followUpMsgCount ?? conv.messages.length).some((m) => m.role === 'user')) continue;
+      if (conv.messages.slice(lead.followUpMsgCount ?? conv.messages.length).some((m) => m.role === 'user')) { finish(); continue; }
       try {
         const r = await this.agent.think(conv, {
           extraSystem: `# Retorno combinado (é hoje)
@@ -121,9 +144,11 @@ Mande UMA mensagem curta, com a saudação do horário: lembre o que foi combina
         this.agent.remember(conv, 'assistant', r.text);
         this.crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `📅 Retorno combinado feito pela IA: "${r.text.slice(0, 200)}"`);
         sent++;
+        finish();
         this.log({ type: 'system', message: `📅 Retorno combinado enviado para ${lead.name || lead.phone || key}` });
       } catch (e) {
         this.log({ type: 'error', message: `Retorno combinado (${lead.name || key}): ${e.message}` });
+        fail();
       }
       if (sent < due.length) await wait(gapMs);
     }

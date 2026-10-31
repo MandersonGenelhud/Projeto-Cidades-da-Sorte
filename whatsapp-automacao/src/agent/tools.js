@@ -233,7 +233,7 @@ export const TOOL_DEFINITIONS = [
       parameters: {
         type: 'object',
         properties: {
-          data: { type: 'string', description: 'Dia combinado, no formato AAAA-MM-DD (até 90 dias)' },
+          data: { type: 'string', description: 'Dia combinado, no formato AAAA-MM-DD (até 12 meses)' },
           hora: { type: 'string', description: 'Horário combinado, HH:MM (entre 08:00 e 20:00)' },
           motivo: { type: 'string', description: 'Por que ele pediu para esperar, nas palavras dele' },
           o_que_falta: { type: 'string', description: 'O que falta para fechar e qual o próximo passo no retorno (ex.: receber o salário dia 10 e pagar a entrada)' },

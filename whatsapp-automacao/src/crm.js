@@ -234,12 +234,19 @@ export class Crm {
     this.#log(lead, user, 'etapa', `${stageLabel(from)} → ${stageLabel(stage)}${extra}`);
   }
 
-  #followUp(user, lead, date, reason) {
+  #followUp(user, lead, date, reason, time = '') {
     if (!isDate(date)) throw err(400, 'Data inválida');
     lead.stage = 'aguardando';
     lead.followUpAt = date;
     lead.followUpReason = String(reason || '').trim();
     lead.followUpNotified = null;
+    // Retorno marcado pela IA ou pelo sistema: a atendente retoma sozinha no dia e horário.
+    // Retorno marcado por uma pessoa da equipe continua com ela (ela quem chama).
+    const byAi = ['IA', 'Sistema'].includes(typeof user === 'string' ? user : user?.name);
+    lead.followUpAuto = byAi;
+    lead.followUpSentFor = null;
+    lead.followUpAutoFailed = null;
+    lead.followUpTime = /^\d{1,2}:\d{2}$/.test(String(time)) ? String(time).padStart(5, '0') : null;
     this.#log(lead, user, 'retorno', `Retorno agendado para ${fmtDate(date)}${lead.followUpReason ? ` · motivo: ${lead.followUpReason}` : ''}`);
   }
 
@@ -465,8 +472,12 @@ export class Crm {
       this.#log(lead, 'IA', 'etapa', `${stageLabel(lead.stage)} → ${stageLabel(info.etapa)}`);
       lead.stage = info.etapa;
     }
-    if (isDate(info.retorno_data) && info.retorno_data > this.today() && !lead.followUpAt && OPEN.has(lead.stage)) {
-      this.#followUp('IA', lead, info.retorno_data, info.motivo_espera || 'Cliente pediu para retomar depois');
+    // Retorno pedido pelo cliente ("à noite", "amanhã", "mês que vem", "daqui 5 meses"). No mesmo dia só vale se o horário ainda não passou.
+    const hora = /^\d{1,2}:\d{2}$/.test(String(info.retorno_hora || '')) ? String(info.retorno_hora).padStart(5, '0') : '';
+    const nowHm = (() => { const n = this.now(); return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`; })();
+    const okDate = isDate(info.retorno_data) && (info.retorno_data > this.today() || (info.retorno_data === this.today() && hora > nowHm));
+    if (okDate && !lead.followUpAt && OPEN.has(lead.stage)) {
+      this.#followUp('IA', lead, info.retorno_data, info.motivo_espera || 'Cliente pediu para retomar depois', hora);
     }
     if (changes.length) this.#log(lead, 'IA', 'ia', `Preenchido pela IA: ${changes.join(', ')}`);
     lead.updatedAt = new Date().toISOString();
@@ -478,7 +489,9 @@ export class Crm {
   /** Retornos que chegaram na data e ainda não foram avisados. */
   dueToNotify() {
     const today = this.today();
-    return this.leads.filter((l) => l.followUpAt && OPEN.has(l.stage) && l.followUpAt <= today && l.followUpNotified !== l.followUpAt);
+    // Retorno que a atendente retoma sozinha não precisa avisar ninguém, a não ser que ela não tenha conseguido.
+    return this.leads.filter((l) => l.followUpAt && OPEN.has(l.stage) && l.followUpAt <= today && l.followUpNotified !== l.followUpAt
+      && (!l.followUpAuto || l.followUpAutoFailed === l.followUpAt || (l.followUpAt < today && l.followUpSentFor !== l.followUpAt)));
   }
 
   markNotified(lead) {
