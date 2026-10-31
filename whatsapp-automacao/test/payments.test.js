@@ -94,3 +94,21 @@ test('Mercado Pago: cria a cobrança e confirma sozinho quando o Pix cai', async
   assert.match(p.confirmedBy, /Mercado Pago/);
   assert.match(admins.at(-1), /Pix confirmado/);
 });
+
+test('mentoria paga não fecha o prospecto como venda de pacote', async () => {
+  const { Payments } = await import('../src/payments.js');
+  const store = tempStore();
+  store.updateSettings({ payments: { pixKey: '12345678000190', receiverName: 'Migra Paraguai', receiverCity: 'Ciudad del Este', company: { name: 'Migra Paraguai Assessoria', document: '12.345.678/0001-90' } } });
+  const lead = { id: 'L1', name: 'Carla', phone: '5511999990000', stage: 'em_contato', timeline: [] };
+  const updates = [];
+  const crm = { leads: [lead], update: (_u, id, patch) => updates.push(patch), addNote() {}, ownerName: () => '' };
+  const pay = new Payments({ store, crm, dataDir: store.dataDir, secret: 's', sendTo: async () => {}, notifyAdmins: async () => {}, notify() {} });
+  const p = await pay.create({ leadId: 'L1', amount: 1375, description: 'Mentoria com Marcos Miguel (60 min, online)' });
+  p.purpose = 'mentoria';
+  const paid = [];
+  pay.onPaid = (x) => paid.push(x.purpose);
+  await pay.confirm(p.id, { by: 'teste' });
+  assert.equal(p.status, 'paid');
+  assert.deepEqual(updates, [], 'o prospecto não vira Fechado');
+  assert.deepEqual(paid, ['mentoria']);
+});

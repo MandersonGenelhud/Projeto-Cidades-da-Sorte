@@ -94,12 +94,16 @@ test('mentoria com o Marcos (US$ 250/h): a atendente oferece só para quem insis
   const llm = { configured: true, chat: async ({ messages }) => { system = messages[0].content; return { content: 'Ok', tool_calls: [] }; } };
   const agent = new Agent({ store, llm, now: () => new Date(2026, 9, 26, 9, 5) });
   agent.notifyOwner = async () => ({ ok: true });
+  agent.bookMentoring = async () => ({ ok: true });
   const conv = agent.conversation('5511999990000@s.whatsapp.net');
   agent.remember(conv, 'user', 'Quero falar direto com o Marcos');
   await agent.think(conv);
   assert.match(system, /60 minutos por US\$ 250/);
   assert.match(system, /investimentos no Paraguai/);
-  assert.match(system, /Nunca confirme data, horário ou forma de pagamento/);
+  assert.match(system, /online ou presencial/);
+  assert.match(system, /JÁ É CLIENTE da Migra não paga/);
+  assert.match(system, /pagamento vem ANTES do agendamento, no Pix ou no cartão/);
+  assert.match(system, /Nunca confirme data ou horário/);
   assert.match(system, /Não prometa lucro/);
   store.updateSettings({ crm: { mentoring: { enabled: false } } });
   await agent.think(conv);

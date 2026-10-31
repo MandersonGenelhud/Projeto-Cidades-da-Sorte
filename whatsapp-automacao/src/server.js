@@ -270,6 +270,14 @@ const closing = new Closing({
   },
 });
 payments.onPaid = (p) => {
+  if (p.purpose === 'mentoria') {
+    const lead = p.leadId ? crm.byId(p.leadId) : null;
+    tellMarcos(mentoringNotice(lead, { ...p.mentoring, nome: p.mentoring?.nome || p.payerName }, { phone: lead?.phone || '' }, `PAGA (R$ ${p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}): agendar`)).catch(() => {});
+    const conv = p.convKey ? agent.conversation(p.convKey, { create: false }) : null;
+    const text = 'Pagamento confirmado! ✅ O Marcos já recebeu o seu pedido de mentoria e vai confirmar por aqui o dia e o horário.';
+    if (p.convKey) wa.send(p.convKey, { text, typing: false }).then(() => conv && agent.remember(conv, 'assistant', text)).catch(() => {});
+    return;
+  }
   closing.onPaid(p);
   setTimeout(() => salesOnPaid(p), 0); // a venda nasce com a entrada já recebida
 };
@@ -506,6 +514,59 @@ function forwardUnpaid(now = Date.now()) {
 setInterval(() => forwardUnpaid(), 15 * 60_000).unref();
 
 // Contratação, parcerias e assuntos de negócio vão direto para o WhatsApp do Marcos.
+// Mentoria com o Marcos (US$ 250/h, online ou presencial): paga antes de agendar; cliente da Migra não paga.
+const isClientOfMigra = (lead) => Boolean(lead) && (lead.stage === 'ganho'
+  || sales.list.some((s) => s.leadId === lead.id && s.status !== 'cancelada')
+  || (store.data.payments || []).some((p) => p.leadId === lead.id && p.status === 'paid' && !p.purpose));
+const mentoringPriceBRL = () => {
+  const m = store.settings.crm?.mentoring || {};
+  if (Number(m.priceBRL) > 0) return Number(m.priceBRL);
+  if (m.currency === 'BRL') return Number(m.price) || 0;
+  return Math.round((Number(m.price) || 0) * (Number(store.settings.crm?.fx?.USD) || 5.5) * 100) / 100;
+};
+const mentoringNotice = (lead, args, conv, extra) => [
+  `🎓 *Mentoria com o Marcos: ${extra}*`,
+  `👤 ${args.nome || lead?.name || conv.name || 'Cliente'}${conv.phone || lead?.phone ? ` · https://wa.me/${conv.phone || lead?.phone}` : ''}`,
+  `📍 Formato: ${args.formato === 'presencial' ? 'presencial' : 'online'}`,
+  args.assunto ? `📝 ${args.assunto}` : '',
+  args.disponibilidade ? `📅 Disponibilidade: ${args.disponibilidade}` : '',
+  lead?.code ? `🔖 ${lead.code}` : '',
+  '\nConfirme o dia e o horário com o cliente por aqui.',
+].filter(Boolean).join('\n');
+const tellMarcos = async (text) => {
+  const owner = normalizePhone(store.settings.crm?.ownerPhone);
+  if (owner && wa.status === 'connected') await wa.send(owner, { text, typing: false }).catch(() => {});
+  else await notifyAdmins(text);
+};
+agent.bookMentoring = async (conv, args = {}, { dryRun } = {}) => {
+  const m = store.settings.crm?.mentoring || {};
+  const brl = mentoringPriceBRL();
+  const money = `R$ ${brl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  const usd = `${m.currency === 'BRL' ? 'R$' : 'US$'} ${Number(m.price || 250).toLocaleString('pt-BR')}`;
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real, cliente da Migra não paga; os demais recebem o Pix de ${money} (${usd}) ou o link do cartão. Diga isso em uma frase.` };
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username })
+    || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+  if (isClientOfMigra(lead)) {
+    await tellMarcos(mentoringNotice(lead, args, conv, 'cliente da Migra (sem cobrança)'));
+    if (lead) crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `🎓 Mentoria com o Marcos pedida (${args.formato || 'online'}), sem cobrança por já ser cliente`);
+    return { ok: true, cliente: true, instrucao: 'Este cliente já é da Migra, então a mentoria não tem cobrança. Diga isso com carinho ("como você já é nosso cliente, não tem custo"), que passou o pedido para o Marcos e que ele confirma o dia e o horário por aqui. Nunca confirme data ou horário.' };
+  }
+  if (args.pagamento === 'cartao') {
+    await tellMarcos(mentoringNotice(lead, args, conv, `PAGAMENTO NO CARTÃO (${usd}): enviar o link e, depois de pago, agendar`));
+    if (lead) crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `🎓 Mentoria com o Marcos pedida (${args.formato || 'online'}), pagamento no cartão: aguardando o link da equipe`);
+    return { ok: true, cartao: true, instrucao: `Diga que a equipe vai enviar o link do cartão por aqui em instantes (mentoria de 1 hora, ${usd}) e que, depois do pagamento, o Marcos confirma o dia e o horário. Não invente link.` };
+  }
+  try {
+    const p = await payments.create({ convKey: conv.key, leadId: lead?.id || null, amount: brl, description: `Mentoria com Marcos Miguel (${m.minutes || 60} min, ${args.formato === 'presencial' ? 'presencial' : 'online'})`, payerName: args.nome, payerDoc: args.cpf, by: 'IA' });
+    p.purpose = 'mentoria';
+    p.mentoring = { formato: args.formato === 'presencial' ? 'presencial' : 'online', assunto: String(args.assunto || '').slice(0, 300), disponibilidade: String(args.disponibilidade || '').slice(0, 200), nome: args.nome || '' };
+    store.save();
+    await payments.sendCharge(p);
+    return { ok: true, valor: money, instrucao: `O QR Code e o Pix copia e cola já foram enviados logo acima (${money}, equivalente a ${usd}). Explique que é só copiar o código no app do banco; assim que o pagamento for confirmado, o recibo chega aqui e o Marcos confirma o dia e o horário da mentoria. Nunca confirme data ou horário.` };
+  } catch (e) {
+    return { erro: `${e.message}. Use avisar_marcos com assunto "mentoria" para a equipe cobrar.` };
+  }
+};
 /** Quem recebe quem quer trabalhar na Migra (Prospectos → Regras): só o nome de quem está na Equipe, ou "Nome = WhatsApp". */
 const jobsContact = () => resolvePeople(store.settings.crm?.jobsContact || [], auth.users)[0] || null;
 agent.notifyOwner = async (conv, args, { dryRun } = {}) => {

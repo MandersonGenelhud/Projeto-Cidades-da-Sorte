@@ -129,7 +129,8 @@ export class Payments {
     const lead = p.leadId ? this.crm.leads.find((l) => l.id === p.leadId) : null;
     if (lead) {
       const sys = { name: by, role: 'admin', id: userId };
-      if (lead.stage !== 'ganho') this.crm.update(sys, lead.id, { stage: 'ganho', closedValue: lead.value || p.amount });
+      // Mentoria não é venda de pacote: não fecha o prospecto (nem gera ranking ou comissão de parceiro).
+      if (lead.stage !== 'ganho' && !p.purpose) this.crm.update(sys, lead.id, { stage: 'ganho', closedValue: lead.value || p.amount });
       this.crm.addNote(sys, lead.id, `✅ Pix confirmado: ${money(p.amount)} · recibo nº ${String(p.receiptNo).padStart(4, '0')}`);
     }
 
@@ -151,7 +152,7 @@ export class Payments {
     const owner = lead?.ownerId ? this.crm.ownerName(lead.ownerId) : '';
     const q = lead?.qualification || {};
     const notice = [
-      '💰 *Venda fechada! Pix confirmado*',
+      p.purpose === 'mentoria' ? '🎓 *Mentoria paga! Pix confirmado*' : '💰 *Venda fechada! Pix confirmado*',
       `👤 ${p.payerName || lead?.name || 'Cliente'}${lead?.phone ? ` · +${lead.phone}` : lead?.instagram ? ` · @${lead.instagram}` : ''}`,
       `💵 ${money(p.amount)} · ${p.description}`,
       lead?.interest ? `📦 ${lead.interest}${lead.people > 1 ? ` · ${lead.people} pessoas` : ''}${lead.value ? ` · total ${money(lead.value)}` : ''}` : '',

@@ -23,6 +23,7 @@ export class Agent {
     this.sendQuote = null; // (conversa, args, { dryRun }) => gera e envia o orçamento ORC (PDF + resumo)
     this.moveToWhatsapp = null; // (conversa do Instagram, args, { dryRun }) => chama o cliente no WhatsApp
     this.learnings = null; // () => texto com os aprendizados aprovados
+    this.bookMentoring = null; // (conversa, args, { dryRun }) => cobra (se não for cliente) e registra a mentoria com o Marcos
     this.partnerLink = null; // () => link do cadastro de parceiros (/parceiros)
     this.sendContract = null; // (conversa, args, { dryRun }) => gera o contrato e manda o link para assinar (ou a ficha, se faltar dado)
     this.notifyOwner = null; // (conversa, args, { dryRun }) => contratação/parcerias direto para o Marcos
@@ -191,7 +192,9 @@ Onde parou e próximo passo: ${conv.continuity}`;
       system += `\n\n# Mentoria com o Marcos Miguel (única forma de falar direto com ele)
 O Marcos não faz atendimento comum de venda: quem fecha é a equipe. Quem insistir em falar diretamente com o Marcos (ou perguntar se ele atende pessoalmente) pode contratar a mentoria dele: ${m.minutes || 60} minutos por ${price}. Não é só sobre cédula e migração: ele conversa sobre vários assuntos, inclusive investimentos no Paraguai, negócios em ascensão com potencial de retorno e, se fizer sentido e estiver de acordo com os princípios e valores da Migra, até parcerias de negócio.
 - Primeiro mostre que a equipe resolve a migração e os documentos; ofereça a mentoria só para quem quer falar com o Marcos mesmo. Apresente o valor com naturalidade e dê a escolha ("você prefere seguir com a equipe ou já reservar a mentoria com o Marcos?").
-- Se ele quiser, use avisar_marcos com assunto "mentoria" (nome, o que quer conversar e disponibilidade). Diga que o Marcos confirma por aqui o dia, o horário e a forma de pagamento. Nunca confirme data, horário ou forma de pagamento por conta própria.
+- A mentoria pode ser online ou presencial: deixe o cliente escolher. Quem JÁ É CLIENTE da Migra não paga a mentoria (o sistema confere pelo cadastro: não diga isso por conta própria, deixe a ferramenta decidir).
+- Para os demais, o pagamento vem ANTES do agendamento, no Pix ou no cartão de crédito. Dê a escolha com naturalidade: "Prefere online ou presencial? E o pagamento, Pix ou cartão?". Com as escolhas, use reservar_mentoria (formato, pagamento, assunto, disponibilidade e o nome completo de quem paga; CPF se for Pix). O Pix sai na hora; no cartão a equipe manda o link.
+- Depois de pago, o Marcos confirma por aqui o dia e o horário. Nunca confirme data ou horário por conta própria.
 - Não prometa lucro nem retorno financeiro: fale em "oportunidades" e "conversar sobre". Não invente formato (online ou presencial) nem desconto.`;
     }
     const partner = this.partnerLink ? this.partnerLink() : '';
@@ -209,6 +212,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       if (t.function.name === 'encaminhar_para_vendedor') return routing;
       if (t.function.name === 'gerar_orcamento') return Boolean(this.sendQuote);
       if (t.function.name === 'enviar_contrato') return Boolean(this.sendContract);
+      if (t.function.name === 'reservar_mentoria') return Boolean(this.bookMentoring) && settings.crm?.mentoring?.enabled !== false;
       if (t.function.name === 'levar_para_whatsapp') return Boolean(this.moveToWhatsapp) && channel === 'Instagram';
       if (t.function.name === 'avisar_marcos') return Boolean(this.notifyOwner);
       if (t.function.name === 'direcionar_para_setor') return Boolean(this.routeSector);
@@ -239,6 +243,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       onPlan: this.sendPlan ? (args) => this.sendPlan(conv, args, { dryRun }) : null,
       onCloseHandoff: this.closeHandoff ? (args) => this.closeHandoff(conv, args, { dryRun }) : null,
       onQuote: this.sendQuote ? (args) => this.sendQuote(conv, args, { dryRun }) : null,
+      onMentoring: this.bookMentoring ? (args) => this.bookMentoring(conv, args, { dryRun }) : null,
       onContract: this.sendContract ? (args) => this.sendContract(conv, args, { dryRun }) : null,
       onMoveToWhatsapp: this.moveToWhatsapp ? (args) => this.moveToWhatsapp(conv, args, { dryRun }) : null,
       onOwner: this.notifyOwner ? (args) => this.notifyOwner(conv, args, { dryRun }) : null,
