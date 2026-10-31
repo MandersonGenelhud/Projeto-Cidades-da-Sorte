@@ -227,7 +227,7 @@ export const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'avisar_marcos',
-      description: 'Para assuntos que não são venda de pacote e vão direto para o Marcos: quem quer trabalhar na Migra (contratação, currículo, vaga), propostas de parceria de negócio, fornecedores, imprensa ou investidores. Avisa o Marcos no WhatsApp dele com o resumo.',
+      description: 'Para assuntos que não são venda de pacote: quem quer trabalhar na Migra (contratação, currículo, vaga: vai para o Gabriel, da equipe), propostas de parceria de negócio, fornecedores, imprensa ou investidores (vão para o Marcos). Avisa no WhatsApp com o resumo.',
       parameters: {
         type: 'object',
         properties: {

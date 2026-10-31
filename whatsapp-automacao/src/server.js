@@ -506,21 +506,28 @@ function forwardUnpaid(now = Date.now()) {
 setInterval(() => forwardUnpaid(), 15 * 60_000).unref();
 
 // Contratação, parcerias e assuntos de negócio vão direto para o WhatsApp do Marcos.
+/** Quem recebe quem quer trabalhar na Migra (Prospectos → Regras): só o nome de quem está na Equipe, ou "Nome = WhatsApp". */
+const jobsContact = () => resolvePeople(store.settings.crm?.jobsContact || [], auth.users)[0] || null;
 agent.notifyOwner = async (conv, args, { dryRun } = {}) => {
-  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: 'Simulação: no atendimento real o aviso vai para o WhatsApp do Marcos. Diga que passou o assunto direto para o Marcos e que ele retorna.' };
+  // Quem quer trabalhar na Migra vai direto para o Gabriel (não para o Marcos).
+  const hr = args.assunto === 'contratação' ? jobsContact() : null;
+  const to = hr ? hr.name.split(' ')[0] : 'Marcos';
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real o aviso vai para o WhatsApp de ${to}. Diga que passou o contato para ${hr ? `${to}, da equipe,` : 'o Marcos'} e que ${hr ? 'ele' : 'ele'} retorna.` };
   const who = args.nome || conv.name || (conv.phone ? `+${conv.phone}` : conv.username ? `@${conv.username}` : 'Contato');
   const preview = chatPreview(conv, 6);
   const text = [
-    `📌 *Assunto para o Marcos: ${args.assunto || 'outro'}*`,
+    `📌 *Assunto para ${hr ? to : 'o Marcos'}: ${args.assunto || 'outro'}*`,
     `👤 ${who}${conv.phone ? ` · https://wa.me/${conv.phone}` : ''}`,
     `📝 ${args.resumo || ''}`,
     preview ? `\n💬 *Prévia da conversa:*\n${preview}` : '',
   ].filter(Boolean).join('\n');
-  const owner = normalizePhone(store.settings.crm?.ownerPhone);
-  if (owner && wa.status === 'connected') await wa.send(owner, { text, typing: false }).catch(() => {});
+  const target = hr?.whatsapp || normalizePhone(store.settings.crm?.ownerPhone);
+  if (target && wa.status === 'connected') await wa.send(target, { text, typing: false }).catch(() => {});
   else await notifyAdmins(text);
-  store.addLog({ type: 'system', message: `📌 ${who}: ${args.assunto} → Marcos` });
-  return { ok: true, instrucao: 'Diga, em uma frase, que passou o assunto direto para o Marcos e que ele mesmo retorna. Continue disponível.' };
+  store.addLog({ type: 'system', message: `📌 ${who}: ${args.assunto} → ${to}` });
+  return { ok: true, instrucao: hr
+    ? `Diga, em uma frase, que passou o contato para ${to}, da equipe da Migra, que cuida das vagas e retorna para ele. Continue disponível.`
+    : 'Diga, em uma frase, que passou o assunto direto para o Marcos e que ele mesmo retorna. Continue disponível.' };
 };
 
 // Visitas ao escritório: a atendente registra, o Marcos confirma pelo painel.

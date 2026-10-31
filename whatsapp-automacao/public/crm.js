@@ -643,6 +643,7 @@ loaders.team = async () => {
   f.routingCriteria.value = c.routing?.criteria || '';
   f.panelUrl.value = c.panelUrl || '';
   f.ownerPhone.value = c.ownerPhone ? `+${c.ownerPhone}` : '';
+  f.jobsContact.value = (c.jobsContact || []).map((p) => `${p.name}${p.whatsapp ? ` = +${p.whatsapp}` : ''}`).join(', ');
   const qs = settings.quotes || {};
   f.quoteNext.value = qs.nextNumber || 1;
   f.quoteDays.value = qs.validityDays || 7;
@@ -734,6 +735,7 @@ $('#formCrmSettings').addEventListener('submit', withBusy($('#formCrmSettings'),
       })(),
       panelUrl: f.panelUrl.value.trim(),
       ownerPhone: f.ownerPhone.value.replace(/\D/g, ''),
+      jobsContact: f.jobsContact.value.split(',').map((l) => l.split(/[=:]/).map((x) => x.trim())).filter(([n]) => n).map(([name, w = '']) => ({ name, whatsapp: w.replace(/\D/g, '') })),
       fx: { USD: Number(f.fxUSD.value) || 1, PYG: Number(f.fxPYG.value) || 0 },
     },
     quotes: { nextNumber: Number(f.quoteNext.value) || 1, validityDays: Number(f.quoteDays.value) || 7, phone: f.quotePhone.value.trim(), email: f.quoteEmail.value.trim() } },

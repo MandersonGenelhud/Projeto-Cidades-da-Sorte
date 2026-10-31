@@ -43,7 +43,8 @@ const DEFAULT_DATA = {
       autoAssign: 'qualified', // qualified (rodízio depois da peneira da IA) | roundrobin (na 1ª mensagem) | none
       routing: { enabled: true, criteria: PRESET.crm?.routing?.criteria || '' },
       panelUrl: '', // endereço do painel na internet, para o link da ficha no aviso ao vendedor
-      ownerPhone: '', // WhatsApp do Marcos: contratação, parcerias e assuntos de negócio vão direto para ele
+      ownerPhone: '', // WhatsApp do Marcos: parcerias e assuntos de negócio vão direto para ele
+      jobsContact: [{ name: 'Gabriel', whatsapp: '' }], // quem quer trabalhar na Migra (só o nome = WhatsApp da Equipe)
       codePrefix: 'MIG',
       fx: { USD: 5.5, PYG: 0.0007 }, // cotação usada só para somar vendas em R$ nos painéis
       // Assuntos que vão direto para um especialista (ex.: terrenos → Robson).
@@ -227,6 +228,7 @@ export class Store extends EventEmitter {
       for (const u of this.data.users || []) {
         if (/^marcos\b/i.test(String(u.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) Object.assign(u, { receivesLeads: false, receivesAffiliateLeads: false });
       }
+      crmS.jobsContact = [{ name: 'Gabriel', whatsapp: '' }];
       crmS.teamRouting2026 = true;
       this.flush();
     }

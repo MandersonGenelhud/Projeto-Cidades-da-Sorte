@@ -90,3 +90,20 @@ test('nova divisão da equipe: setores só com o nome usam o WhatsApp da Equipe 
   assert.equal(new Store(path.dirname(store.file)).data.settings.crm.sectors.veiculos.people[0].name, 'Outro');
   assert.ok(fs.existsSync(store.file));
 });
+
+test('quem quer trabalhar na Migra vai para o Gabriel; parceria de negócio continua com o Marcos', async () => {
+  const { Agent } = await import('../src/agent/agent.js');
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  assert.deepEqual(store.settings.crm.jobsContact, [{ name: 'Gabriel', whatsapp: '' }]);
+  let system = '';
+  const llm = { configured: true, chat: async ({ messages }) => { system = messages[0].content; return { content: 'Que bom!', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm, now: () => new Date(2026, 9, 26, 9, 5) });
+  agent.notifyOwner = async () => ({ ok: true });
+  const conv = agent.conversation('5511999990000@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Tenho interesse em trabalhar no Paraguai com vocês');
+  await agent.think(conv);
+  assert.match(system, /assunto "contratação": o contato vai para o Gabriel/);
+  assert.match(system, /parceria de negócio, fornecedores, imprensa ou investidores: use avisar_marcos/);
+});

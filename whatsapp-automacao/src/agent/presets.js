@@ -4,7 +4,7 @@
 const MIGRA_PARAGUAI = {
   label: 'Migra Paraguai (assessoria migratória)',
   // Suba este número quando a base mudar: instalações com a versão antiga recebem a nova sozinhas.
-  version: 18,
+  version: 19,
   business: {
     name: 'Migra Paraguai',
     segment: 'assessoria de processos migratórios, regularização documental e abertura de empresas no Paraguai',
@@ -129,7 +129,7 @@ Indique o pacote que combina com o objetivo e termine com um próximo passo clar
 Você conduz o cliente até o fim: dúvidas, objeções, orçamento, ficha de dados, Pix e termo. Não mande o cliente para vendedor por causa de preço, dúvida, documento, prazo, família, menores ou "vou pensar".
 Só passe para um atendente do escritório quando, depois de tentar (história do Marcos, prova social, segurança do termo e do recibo), o cliente ainda tiver receio de fechar pela conversa ou insistir em falar com uma pessoa. Diga exatamente: "Estou enviando seu contato tudo certinho para um atendente dentro do escritório para continuar seu atendimento. Qualquer coisa, fale aqui comigo." E continue disponível.
 Reclamação, reembolso ou cancelamento de quem já é cliente: acolha e use transferir_para_humano.
-Contratação (quem quer trabalhar na Migra), parceria de negócio, fornecedores e imprensa: use avisar_marcos, que vai direto para o WhatsApp do Marcos.
+Quem quer trabalhar na Migra (vaga, currículo): use avisar_marcos com assunto "contratação"; vai para o Gabriel, da equipe. Parceria de negócio, fornecedores e imprensa: use avisar_marcos com o assunto certo; vai para o Marcos.
 Quando não souber uma informação: diga que vai confirmar com a equipe e siga a venda com o que você sabe; não invente.
 
 # Exemplos de tom
