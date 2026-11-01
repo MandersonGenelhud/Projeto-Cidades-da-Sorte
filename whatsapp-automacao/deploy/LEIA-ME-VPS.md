@@ -62,7 +62,8 @@ Se o computador continuou recebendo conversas ou cadastros depois da primeira mi
 (Diferente do `migrar-dados.sh`, que **substitui** tudo da VPS pelo que está no computador.)
 
 ## Atualizar e cópias de segurança
-- **Atualizar** (na VPS): `bash /opt/migra/app/whatsapp-automacao/deploy/atualizar-vps.sh`. Ele guarda uma cópia dos dados, baixa a versão nova e religa. O botão "Atualizar agora" do painel fica desligado na VPS.
+- **Atualizar pelo painel:** em Configurações → Atualizar o agente, clique em **Verificar** e depois **Atualizar agora**. A VPS atualiza em até 1 minuto e reinicia (3 a 6 minutos). Para isso funcionar, rode **uma vez** na VPS: `bash /opt/migra/app/whatsapp-automacao/deploy/ativar-atualizacao-painel.sh` (o `atualizar-vps.sh` já faz isso sozinho).
+- **Atualizar pela VPS** (se o painel estiver fora do ar): `bash /opt/migra/app/whatsapp-automacao/deploy/atualizar-vps.sh`. Ele guarda uma cópia dos dados, baixa a versão nova e religa.
 - **Cópia diária** automática dos dados em `/opt/migra/backups` (últimos 14 dias). Esses arquivos têm segredos: não envie para ninguém. Para uma cópia fora da VPS, use Configurações → Segurança.
 
 ## Depois de tudo funcionando

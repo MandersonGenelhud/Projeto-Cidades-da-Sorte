@@ -106,6 +106,8 @@ const DEFAULT_DATA = {
       handoffNotifyPhone: '',
       // Se o dono responder um cliente pelo celular, o agente para de responder aquele cliente.
       pauseOnOwnerReply: true,
+      // Pausa por "respondi pelo celular" termina sozinha depois de tantas horas sem o dono falar de novo (0 = nunca).
+      resumeAfterOwnerHours: 6,
       // Ritmo humano: espera para "ver", ler e digitar; divide a resposta em mensagens curtas.
       humanize: { enabled: true, noticeMin: 5, noticeMax: 20 },
       // Conversas sem resposta: considera mensagens dos últimos N dias e responde sozinho.

@@ -27,6 +27,7 @@ import { Tunnel } from './tunnel.js';
 import { makeContractFlow, contractReady } from './autocontract.js';
 import { Learnings } from './learnings.js';
 import { ReceiptReader } from './receipts.js';
+import { OWNER_PAUSE } from './agent/agent.js';
 import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, toCsv as cashToCsv } from './cash.js';
 import { Nina } from './assistant.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
@@ -1656,6 +1657,8 @@ function healthReport() {
   if (queue.queue > 0 && !queue.running) add('bad', `Há ${queue.queue} cliente(s) na fila, mas a fila está PARADA. Abra Conversas e clique em "Agente responder marcados" de novo.`);
   else if (queue.queue > 0) add('warn', `Fila respondendo com cuidado: ${queue.queue} na fila, no máximo ${queue.perHour} por hora (${queue.sentLastHour} na última hora), das ${queue.from}h às ${queue.to}h${queue.etaMin ? `. Tempo estimado: cerca de ${Math.ceil(queue.etaMin / 60)} h` : ''}${queue.waiting ? `. Agora: ${queue.waiting}` : ''}.`);
   else if (queue.count > 0) add('warn', `${queue.count} cliente(s) esperando resposta e a fila está vazia (marque e clique em "Agente responder marcados").`);
+  const pausedWaiting = pending.list().filter((p) => agent.conversation(p.jid, { create: false })?.handoff);
+  if (pausedWaiting.length) add('bad', `${pausedWaiting.length} cliente(s) esperando resposta estão com a IA PAUSADA (conversa assumida por um humano ou "você respondeu pelo celular"). Em Conversas, clique em "Retomar com a IA".`);
   const lineList = lines.list().map((l) => ({ id: l.id, label: l.label, status: l.status, lastError: l.lastError || '', agent: l.agent !== false }));
   const off = lineList.filter((l) => l.status !== 'connected');
   if (off.length) add('warn', `${off.length} WhatsApp(s) de vendedor sem conexão: ${off.map((l) => l.label).join(', ')}.`);
@@ -2166,8 +2169,24 @@ app.delete('/api/conversations/:key', (req, res) => {
 
 // Conversas sem resposta
 app.get('/api/pending', (req, res) => {
-  const items = pending.list().filter((p) => canSeeConv(req.user, p.jid)).map((p) => ({ ...p, channelLabel: convLabel(p.jid) }));
-  res.json({ ...pending.status(), count: items.length, items, maxDays: Number(store.settings.agent?.pendingMaxDays || 15) });
+  const items = pending.list().filter((p) => canSeeConv(req.user, p.jid)).map((p) => {
+    const conv = agent.conversation(p.jid, { create: false });
+    return { ...p, channelLabel: convLabel(p.jid), pausedReason: conv?.handoff ? conv.handoffReason || 'um humano assumiu' : '' };
+  });
+  const paused = items.filter((p) => p.pausedReason);
+  res.json({ ...pending.status(), count: items.length, items, maxDays: Number(store.settings.agent?.pendingMaxDays || 15), paused: paused.length, pausedByOwner: paused.filter((p) => p.pausedReason === OWNER_PAUSE).length });
+});
+// Clientes esperando cuja conversa foi pausada só porque o dono respondeu pelo celular: a IA volta a atender e já entra na fila.
+app.post('/api/pending/resume-paused', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  const jids = pending.list().map((p) => p.jid).filter((jid) => {
+    const c = agent.conversation(jid, { create: false });
+    return c?.handoff && c.handoffReason === OWNER_PAUSE;
+  });
+  for (const jid of jids) agent.setHandoff(jid, false);
+  securityEvent('ia_retomada', req.user, req, `${jids.length} conversa(s) devolvida(s) para a IA`);
+  const r = jids.length ? pending.enqueue(jids) : { queued: 0, blocked: 0 };
+  res.json({ resumed: jids.length, ...r });
 });
 
 // Migra Imóveis (administração)
@@ -2338,9 +2357,18 @@ app.post('/api/pending/dismiss', (req, res) => {
 
 // Atualização do programa
 const updater = new Updater({ root: ROOT, dataDir: DATA_DIR, token: () => process.env.GITHUB_TOKEN || store.settings.updater?.token || '' });
-app.get('/api/update/check', async (_req, res) => res.json(await updater.check()));
-app.post('/api/update', async (_req, res) => {
-  if (process.env.UPDATER === 'off') throw httpError(400, 'Nesta instalação (VPS) a atualização é feita pelo servidor: bash deploy/atualizar-vps.sh');
+const vpsUpdate = () => process.env.UPDATER === 'off';
+const watcherAlive = () => { try { return Date.now() - fs.statSync(path.join(DATA_DIR, 'update-watch-alive')).mtimeMs < 3 * 60_000; } catch { return false; } };
+app.get('/api/update/check', async (_req, res) => res.json({ ...(await updater.check()), vps: vpsUpdate(), watcherAlive: watcherAlive() }));
+app.post('/api/update', async (req, res) => {
+  // Na VPS o código vem da imagem: o painel só PEDE a atualização (arquivo de pedido) e um vigia da própria VPS, que roda a cada minuto, executa o atualizar-vps.sh.
+  if (vpsUpdate()) {
+    if (!watcherAlive()) throw httpError(400, 'A atualização pelo painel ainda não foi ativada na VPS. Rode uma vez no Terminal da VPS: bash /opt/migra/app/whatsapp-automacao/deploy/ativar-atualizacao-painel.sh');
+    fs.writeFileSync(path.join(DATA_DIR, 'update-requested'), new Date().toISOString());
+    securityEvent('atualizacao_pedida', req.user, req, 'pedido pelo painel (VPS)');
+    store.addLog({ type: 'system', message: `⬆️ Atualização pedida pelo painel por ${req.user.name}. A VPS atualiza em até 1 minuto e reinicia.` });
+    return res.json({ requested: true });
+  }
   const result = await updater.update();
   store.addLog({ type: 'system', message: `⬆️ Agente atualizado: ${result.version.message || result.version.sha.slice(0, 7)}. Reiniciando…` });
   res.json(result);

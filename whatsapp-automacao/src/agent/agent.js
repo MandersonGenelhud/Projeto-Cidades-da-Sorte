@@ -10,6 +10,8 @@ const MAX_STORED_MESSAGES = 200;
 const MAX_TOOL_ROUNDS = 6;
 const randomPause = () => 600 + Math.floor(Math.random() * 1400); // entre uma mensagem e outra
 
+export const OWNER_PAUSE = 'Você respondeu pelo celular';
+
 export class Agent {
   constructor({ store, llm, calendar, notify, notifyTeam, onReplied, routeLead, routeSpecialist, contextFor, createPix, claimPaid, now = () => new Date(), wait = sleep }) {
     this.store = store;
@@ -78,6 +80,16 @@ export class Agent {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
+  /** Por que a IA não responde esta conversa? (lista de motivos em português; vazia = nada impede). */
+  whyNot(conv, { phone = conv.phone, username = conv.username } = {}) {
+    const why = [];
+    if (!this.config.enabled) why.push('O agente está desligado (aba Agente IA).');
+    else if (!this.llm.configured) why.push('Falta a chave da IA (aba Agente IA).');
+    if (conv.handoff) why.push(`Pausada: ${conv.handoffReason || 'um humano assumiu'}.`);
+    if (this.config.audience === 'test') why.push('Modo de teste: a IA só responde os números de teste.');
+    return why;
+  }
+
   setHandoff(key, value, reason = '') {
     const conv = this.conversation(key, { create: false });
     if (!conv) throw new Error('Conversa não encontrada');
@@ -99,9 +111,10 @@ export class Agent {
     if (!conv) return null;
     conv.phone ||= phone || null;
     if (text) this.remember(conv, 'assistant', text);
+    conv.ownerRepliedAt = Date.now();
     if (this.config.pauseOnOwnerReply !== false && !conv.handoff) {
       conv.handoff = true;
-      conv.handoffReason = 'Você respondeu pelo celular';
+      conv.handoffReason = OWNER_PAUSE;
       this.store.save();
       this.store.addLog({ type: 'system', phone: phone || key, message: '🙋 Você respondeu pelo celular: o agente pausou nesta conversa' });
       this.notify('conversation', { key, handoff: true });
@@ -425,6 +438,15 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       if (name) conv.name = name;
       if (username) conv.username = username;
       this.remember(conv, 'user', texts.join('\n'));
+      // A pausa de "respondi pelo celular" termina sozinha se o dono ficou calado por horas e o cliente voltou a escrever.
+      if (conv.handoff && conv.handoffReason === OWNER_PAUSE) {
+        const hours = Number(this.config.resumeAfterOwnerHours ?? 6);
+        if (hours > 0 && Date.now() - (conv.ownerRepliedAt || 0) > hours * 3_600_000) {
+          conv.handoff = false;
+          conv.handoffReason = '';
+          this.store.addLog({ type: 'system', phone: conv.phone || key, message: `▶️ A IA retomou ${conv.name || conv.phone || key}: você não falou com ele há mais de ${hours} h` });
+        }
+      }
       if (conv.handoff) continue; // um humano está atendendo
 
       if (human) {

@@ -1193,6 +1193,9 @@ async function loadPending() {
        ${r.queue} na fila · ${r.sentLastHour ?? 0} respondidas na última hora · última resposta enviada às ${hhmm(r.lastSentAt)}${r.etaMin ? ` · tempo estimado: cerca de ${Math.ceil(r.etaMin / 60)} h` : ''}${r.waiting ? `<br>⏸️ Esperando: ${esc(r.waiting)}.` : ''}<br>
        <span class="muted">Não é falha: é de propósito, para o WhatsApp não bloquear o número. Pode fechar esta tela; a fila continua. Para responder mais rápido, aumente "Respostas por hora" aqui em cima (com cuidado).</span>`
     : (r.lastError ? `⚠️ A fila parou: ${esc(r.lastError.message)}. Veja Conexões → Saúde do sistema.` : '');
+  const pp = $('#pendingPaused');
+  pp.hidden = !r.paused;
+  pp.innerHTML = r.paused ? `⏸️ <b>${r.paused} cliente(s) esperando estão com a IA pausada</b>${r.pausedByOwner ? ` (${r.pausedByOwner} porque você respondeu pelo celular)` : ''}. A fila pula essas conversas. ${r.pausedByOwner ? '<button type="button" class="btn small primary" id="btnResumePaused">▶️ Retomar com a IA</button>' : ''}` : '';
   $('#btnPendingCancel').hidden = !r.running;
 }
 $('#pendingPerHour').addEventListener('change', async (e) => {
@@ -1455,9 +1458,9 @@ $('#btnUpdateCheck').addEventListener('click', async () => {
   try {
     const r = await api('/api/update/check');
     const when = r.latest.date ? new Date(r.latest.date).toLocaleString('pt-BR') : '';
-    $('#updateStatus').textContent = r.updateAvailable
+    $('#updateStatus').textContent = (r.updateAvailable
       ? `Há uma versão nova (${when}): ${r.latest.message}`
-      : `Você já está com a versão mais nova (${when}).`;
+      : `Você já está com a versão mais nova (${when}).`) + (r.vps && !r.watcherAlive ? ' ⚠️ A atualização pelo painel ainda não está ativada na VPS (veja o aviso ao clicar em Atualizar).' : '');
   } catch (err) {
     $('#updateStatus').textContent = `Não foi possível verificar: ${err.message}`;
   }
@@ -1466,7 +1469,20 @@ $('#btnUpdateNow').addEventListener('click', async (e) => {
   e.target.disabled = true;
   $('#updateStatus').textContent = 'Baixando e instalando… (pode levar até 1 minuto)';
   try {
-    await api('/api/update', { method: 'POST' });
+    const up = await api('/api/update', { method: 'POST' });
+    if (up.requested) {
+      // VPS: a atualização roda no servidor em até 1 minuto; o painel cai por instantes e volta sozinho.
+      $('#updateStatus').textContent = '⏳ Pedido enviado. A VPS atualiza em até 1 minuto e reinicia (leva uns 3 a 6 minutos). A página recarrega sozinha quando voltar.';
+      let wentDown = false;
+      const t0 = Date.now();
+      setTimeout(function wait() {
+        fetch('/api/status').then((r) => {
+          if (r.ok && (wentDown || Date.now() - t0 > 480000)) return location.reload();
+          setTimeout(wait, 4000);
+        }).catch(() => { wentDown = true; setTimeout(wait, 4000); });
+      }, 20000);
+      return;
+    }
     $('#updateStatus').textContent = '✅ Atualizado! Reiniciando… a página recarrega sozinha.';
     // Espera o programa voltar e recarrega a página.
     setTimeout(function wait() {
@@ -1762,4 +1778,16 @@ $('#btnLearnAdd').addEventListener('click', async () => {
     toast('Aprendizado adicionado ao atendimento');
     renderLearnings();
   } catch (err) { toast(err.message, true); }
+});
+
+document.addEventListener('click', async (e) => {
+  if (e.target.id !== 'btnResumePaused') return;
+  if (!confirm('Devolver para a IA os clientes pausados só porque você respondeu pelo celular? Se você está negociando com algum deles agora, deixe como está. A IA lê as mensagens anteriores antes de entrar.')) return;
+  try {
+    const r = await api('/api/pending/resume-paused', { method: 'POST' });
+    toast(`${r.resumed} conversa(s) devolvida(s) para a IA; ${r.queued || 0} na fila`);
+    loadPending();
+  } catch (err) {
+    toast(err.message, true);
+  }
 });

@@ -301,6 +301,14 @@ export class PendingInbox {
         this.sentAt.push(startedAt);
         let skip = false;
         const conv = this.agent.conversation(jid, { create: false });
+        // Conversa pausada (ex.: "você respondeu pelo celular"): a IA não entra. Avisa em vez de pular em silêncio.
+        if (conv?.handoff) {
+          this.store.addLog({ type: 'system', phone: p?.phone || jid, message: `⏸️ A IA não respondeu ${p?.name || p?.phone || jid}: conversa pausada (${conv.handoffReason || 'um humano assumiu'}). Use "Retomar com a IA" em Conversas.` });
+          this.queue = this.queue.filter((j) => j !== jid);
+          if (this.items[jid]) this.items[jid].skipReason = conv.handoffReason || 'um humano assumiu';
+          this.#changed();
+          continue;
+        }
         // Antes de entrar: lê as mensagens anteriores e vê se é cliente esperando ou conversa do Marcos.
         if (p && conv && !conv.handoff && this.agent.triageBacklog && this.store.settings.agent?.triagePending !== false) {
           try {

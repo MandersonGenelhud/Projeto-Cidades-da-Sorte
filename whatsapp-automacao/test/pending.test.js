@@ -275,3 +275,37 @@ test('três falhas seguidas pausam a fila com aviso claro, e o vigia religa uma 
   inbox.ensureRunning();
   await waitFor(() => wa.sent.length === 1);
 });
+
+test('conversa pausada porque o dono respondeu pelo celular: a fila avisa em vez de pular em silêncio, e retomar devolve para a IA', async () => {
+  const { OWNER_PAUSE } = await import('../src/agent/agent.js');
+  const { store, wa, inbox } = setup();
+  const jid = '595981111111@s.whatsapp.net';
+  inbox.ingestHistory([{ ...msg(jid, false, 'Quanto custa?', 120), timestamp: Date.now() - 60000 }]);
+  const conv = inbox.agent.conversation(jid);
+  conv.handoff = true;
+  conv.handoffReason = OWNER_PAUSE;
+  inbox.enqueue([jid]);
+  await waitFor(() => !inbox.running);
+  assert.equal(wa.sent.length, 0);
+  assert.ok(store.data.logs.some((l) => /conversa pausada \(Você respondeu pelo celular\)/.test(l.message)), 'o motivo aparece nos registros');
+  assert.equal(inbox.list().find((p) => p.jid === jid).skipReason, OWNER_PAUSE);
+  inbox.agent.setHandoff(jid, false);
+  inbox.enqueue([jid]);
+  await waitFor(() => wa.sent.length === 1);
+});
+
+test('a pausa de "respondi pelo celular" termina sozinha depois de horas sem o dono falar, mas não antes', async () => {
+  const { OWNER_PAUSE } = await import('../src/agent/agent.js');
+  const { store, wa, inbox } = setup();
+  store.updateSettings({ agent: { humanize: { enabled: false } } });
+  const jid = '595982222222@s.whatsapp.net';
+  const conv = inbox.agent.conversation(jid);
+  Object.assign(conv, { handoff: true, handoffReason: OWNER_PAUSE, ownerRepliedAt: Date.now() - 2 * 3_600_000 });
+  const send = async (text) => { wa.sent.push({ to: jid, text }); };
+  await inbox.agent.handleIncoming({ key: jid, phone: '595982222222', name: 'A', text: 'oi, voltei' }, send);
+  assert.equal(wa.sent.length, 0, '2 h depois: ainda pausada');
+  conv.ownerRepliedAt = Date.now() - 7 * 3_600_000;
+  await inbox.agent.handleIncoming({ key: jid, phone: '595982222222', name: 'A', text: 'alguém aí?' }, send);
+  assert.ok(wa.sent.length >= 1, '7 h depois: a IA retoma e responde');
+  assert.equal(inbox.agent.conversation(jid).handoff, false);
+});

@@ -14,6 +14,7 @@ async function boot(t, env = {}) {
   const port = 39000 + Math.floor(Math.random() * 900);
   const proc = spawn(process.execPath, ['src/server.js'], { cwd: ROOT, env: { ...process.env, DATA_DIR: dir, PORT: String(port), TUNNEL: 'off', OPEN_BROWSER: '', ...env }, stdio: 'ignore' });
   t.after(() => proc.kill());
+  boot.dir = dir;
   const base = `http://127.0.0.1:${port}`;
   for (let i = 0; i < 60; i++) {
     try { await fetch(`${base}/api/auth/state`); break; } catch { await new Promise((r) => setTimeout(r, 250)); }
@@ -73,4 +74,24 @@ test('saúde do sistema: só o administrador vê, diz o que está errado em port
   const t2 = await get('/api/health/test-send', { method: 'POST' });
   assert.equal(t2.status, 400);
   assert.match((await t2.json()).error, /não está conectado/);
+});
+
+test('atualizar pelo painel na VPS: só pede a atualização (arquivo) quando o vigia da VPS está ativo', async (t) => {
+  const base = await boot(t, { UPDATER: 'off' });
+  const dir = boot.dir;
+  const setup = await fetch(`${base}/api/auth/setup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Dono', login: 'dono', password: 'segredo123', whatsapp: '595987101567' }) });
+  let cookie = setup.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
+  const get = (u, init = {}) => fetch(base + u, { ...init, headers: { cookie, 'content-type': 'application/json' } });
+  const sec = await (await get('/api/security/2fa/setup')).json();
+  const en = await get('/api/security/2fa/enable', { method: 'POST', body: JSON.stringify({ code: totpCode(sec.secret) }) });
+  cookie = en.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ') || cookie;
+  const first = await get('/api/update', { method: 'POST' });
+  assert.equal(first.status, 400);
+  assert.match((await first.json()).error, /ativar-atualizacao-painel\.sh/, 'ensina a ativar o vigia');
+  assert.equal(fs.existsSync(path.join(dir, 'update-requested')), false);
+  fs.writeFileSync(path.join(dir, 'update-watch-alive'), new Date().toISOString());
+  const ok = await get('/api/update', { method: 'POST' });
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).requested, true);
+  assert.equal(fs.existsSync(path.join(dir, 'update-requested')), true, 'o pedido fica na pasta de dados para o vigia da VPS');
 });
