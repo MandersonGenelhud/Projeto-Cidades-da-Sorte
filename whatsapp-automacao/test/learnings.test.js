@@ -228,3 +228,21 @@ test('mentoria com o Marcos nunca é estornada; só a taxa da visita volta se o 
   assert.match(system, /NÃO é devolvido nem estornado em nenhum caso/);
   assert.match(system, /nunca diga que o valor da mentoria é devolvido/);
 });
+
+test('atendente: gatilhos para quem compara preço menor ou quer fazer sozinho, sem prometer resultado nem atacar ninguém', async () => {
+  const { Agent } = await import('../src/agent/agent.js');
+  const store = tempStore();
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  let system = '';
+  const llm = { configured: true, chat: async ({ messages }) => { system = messages[0].content; return { content: 'Oi!', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm });
+  const conv = agent.conversation('5511999990000@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Vi outro profissional cobrando mais barato');
+  await agent.think(conv);
+  assert.match(system, /Cliente que compara com preço menor/);
+  assert.match(system, /Custo total, não preço inicial/);
+  assert.match(system, /Aversão à perda/);
+  assert.match(system, /NUNCA prometa aprovação, prazo ou resultado/);
+  assert.match(system, /nada de falar mal de concorrente pelo nome/);
+  assert.match(system, /milhares, sem inventar número|milhares de pessoas \(diga "milhares", sem inventar número\)/);
+});
