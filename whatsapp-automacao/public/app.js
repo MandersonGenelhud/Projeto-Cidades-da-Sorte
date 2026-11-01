@@ -1174,6 +1174,11 @@ async function loadPending() {
   const r = await api('/api/pending');
   if (r.maxDays && document.activeElement !== $('#pendingMaxDays')) $('#pendingMaxDays').value = String(r.maxDays);
   $('#pendingCount').textContent = r.count;
+  if (r.perHour && document.activeElement !== $('#pendingPerHour')) {
+    const sel = $('#pendingPerHour');
+    if (![...sel.options].some((o) => o.value === String(r.perHour))) sel.add(new Option(String(r.perHour), String(r.perHour)));
+    sel.value = String(r.perHour);
+  }
   const checked = new Set($$('.pendingCheck:checked').map((c) => c.value));
   $('#pendingList').innerHTML = r.items.map((p) => `
     <label class="pending-item ${p.queued ? 'queued' : ''}">
@@ -1186,10 +1191,21 @@ async function loadPending() {
   $('#pendingStatus').innerHTML = r.running
     ? `🤖 <b>Respondendo com cuidado</b> para proteger o número: no máximo <b>${r.perHour} por hora</b>, das ${r.from ?? 7}h às ${r.to ?? 21}h, uma de cada vez (45 a 90 s entre uma e outra).<br>
        ${r.queue} na fila · ${r.sentLastHour ?? 0} respondidas na última hora · última resposta enviada às ${hhmm(r.lastSentAt)}${r.etaMin ? ` · tempo estimado: cerca de ${Math.ceil(r.etaMin / 60)} h` : ''}${r.waiting ? `<br>⏸️ Esperando: ${esc(r.waiting)}.` : ''}<br>
-       <span class="muted">Não é falha: é de propósito, para o WhatsApp não bloquear o número. Pode fechar esta tela; a fila continua. Para responder mais rápido, aumente o limite por hora em Agente IA (com cuidado).</span>`
+       <span class="muted">Não é falha: é de propósito, para o WhatsApp não bloquear o número. Pode fechar esta tela; a fila continua. Para responder mais rápido, aumente "Respostas por hora" aqui em cima (com cuidado).</span>`
     : (r.lastError ? `⚠️ A fila parou: ${esc(r.lastError.message)}. Veja Conexões → Saúde do sistema.` : '');
   $('#btnPendingCancel').hidden = !r.running;
 }
+$('#pendingPerHour').addEventListener('change', async (e) => {
+  try {
+    const n = Number(e.target.value);
+    if (n > 45 && !confirm('Responder mais de 45 por hora aumenta o risco de o WhatsApp restringir o número. Quer mesmo?')) return loadPending();
+    await api('/api/settings', { method: 'PUT', body: { agent: { pendingPerHour: n } } });
+    toast(`A fila vai responder até ${n} por hora`);
+    loadPending();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 $('#pendingMaxDays').addEventListener('change', async (e) => {
   try {
     await api('/api/settings', { method: 'PUT', body: { agent: { pendingMaxDays: Number(e.target.value) } } });
