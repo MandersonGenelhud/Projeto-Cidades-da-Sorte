@@ -275,6 +275,15 @@ test('atendente: amarra a decisão (depende de outra pessoa → chamada de víde
   assert.match(on.box.system, /AINDA ESTÁ EM DESENVOLVIMENTO/);
   assert.match(on.box.system, /forma conversacional/);
   assert.match(on.box.system, /EFETUAR O PAGAMENTO DA RESERVA dentro do prazo/);
+  assert.match(on.box.system, /ÚLTIMA carta, só no final/);
+  assert.match(on.box.system, /SÓ DEPOIS de tudo isso/);
+  assert.match(on.box.system, /Nunca na primeira conversa/);
+  assert.match(on.box.system, /esse valor é acessível\? Você tem ele disponível ou precisa se preparar\? Tem em caixa/);
+  assert.match(on.box.system, /INICIAR A DOCUMENTAÇÃO do titular e dos filhos/);
+  assert.doesNotMatch(on.box.system, /BRINDE/, 'sem brinde cadastrado, a atendente não fala de brinde');
+  const gift = make('2026-11-04', { gift: 'um guia de bolso do Paraguai' });
+  await gift.agent.think(gift.conv);
+  assert.match(gift.box.system, /BRINDE: junto com a oferta, quem fechar HOJE ganha ainda um brinde escolhido pelo Marcos: um guia de bolso do Paraguai/);
   const today = make('2026-11-03');
   await today.agent.think(today.conv);
   assert.match(today.box.system, /Oferta especial do aplicativo/, 'vale até o fim do dia da data escolhida');

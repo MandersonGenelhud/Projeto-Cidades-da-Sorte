@@ -655,6 +655,7 @@ loaders.team = async () => {
   f.appOfferMonths.value = ao.months ?? 6;
   f.appOfferPeriod.value = ao.period || 'por mês';
   f.appOfferUntil.value = ao.validUntil || '';
+  f.appOfferGift.value = ao.gift || '';
   f.jobsContact.value = (c.jobsContact || []).map((p) => `${p.name}${p.whatsapp ? ` = +${p.whatsapp}` : ''}`).join(', ');
   const qs = settings.quotes || {};
   f.quoteNext.value = qs.nextNumber || 1;
@@ -742,7 +743,7 @@ $('#formCrmSettings').addEventListener('submit', withBusy($('#formCrmSettings'),
       specialists: f.specialists.value.split('\n').map((line) => line.split('=').map((x) => x.trim()))
         .filter(([topic, name]) => topic && name)
         .map(([topic, name, whatsapp = '']) => ({ topic, name, whatsapp: whatsapp.replace(/\D/g, '') })),
-      appOffer: { enabled: f.appOfferEnabled.checked, regularPrice: Number(f.appOfferPrice.value) || 0, discountPct: Number(f.appOfferPct.value) || 50, months: Number(f.appOfferMonths.value) || 6, period: f.appOfferPeriod.value, validUntil: f.appOfferUntil.value },
+      appOffer: { enabled: f.appOfferEnabled.checked, regularPrice: Number(f.appOfferPrice.value) || 0, discountPct: Number(f.appOfferPct.value) || 50, months: Number(f.appOfferMonths.value) || 6, period: f.appOfferPeriod.value, validUntil: f.appOfferUntil.value, gift: f.appOfferGift.value.trim().slice(0, 200) },
       panelUrl: f.panelUrl.value.trim(),
       ownerPhone: f.ownerPhone.value.replace(/\D/g, ''),
       jobsContact: f.jobsContact.value.split(',').map((l) => l.split(/[=:]/).map((x) => x.trim())).filter(([n]) => n).map(([name, w = '']) => ({ name, whatsapp: w.replace(/\D/g, '') })),
