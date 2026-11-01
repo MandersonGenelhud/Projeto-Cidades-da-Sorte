@@ -29,26 +29,31 @@ ufw --force enable
 echo "==> 3/6 Instalando o Docker"
 command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh
 
-echo "==> 4/6 Chave para baixar o projeto (somente leitura)"
-mkdir -p /root/.ssh && chmod 700 /root/.ssh
-KEY=/root/.ssh/migra_deploy
-[ -f "$KEY" ] || ssh-keygen -t ed25519 -N "" -C "migra-vps-deploy" -f "$KEY"
-echo
-echo "Copie a linha abaixo (é a chave PÚBLICA, pode copiar) e cadastre no GitHub:"
-echo "  GitHub > repositório Projeto-Cidades-da-Sorte > Settings > Deploy keys > Add deploy key"
-echo "  Título: VPS Migra · NÃO marque 'Allow write access' · Add key"
-echo
-cat "$KEY.pub"
-echo
-read -r -p "Depois de cadastrar a chave no GitHub, aperte ENTER para continuar... " _
-
-echo "==> 5/6 Baixando o projeto"
+REPO_HTTPS="${REPO_HTTPS:-https://github.com/MandersonGenelhud/Projeto-Cidades-da-Sorte.git}"
 mkdir -p "$DIR"
+echo "==> 4/6 Baixando o projeto"
 if [ -d "$DIR/app/.git" ]; then
-  GIT_SSH_COMMAND="ssh -i $KEY -o StrictHostKeyChecking=accept-new" git -C "$DIR/app" fetch origin "$BRANCH"
+  # Já instalado antes: atualiza pelo mesmo caminho que foi usado (HTTPS público ou chave de leitura).
+  if GIT_TERMINAL_PROMPT=0 git -C "$DIR/app" fetch origin "$BRANCH" 2>/dev/null; then :; else
+    GIT_SSH_COMMAND="ssh -i /root/.ssh/migra_deploy -o StrictHostKeyChecking=accept-new" git -C "$DIR/app" fetch origin "$BRANCH"
+  fi
   git -C "$DIR/app" checkout "$BRANCH"
-  GIT_SSH_COMMAND="ssh -i $KEY -o StrictHostKeyChecking=accept-new" git -C "$DIR/app" reset --hard "origin/$BRANCH"
+  git -C "$DIR/app" reset --hard "origin/$BRANCH"
+elif GIT_TERMINAL_PROMPT=0 git clone -b "$BRANCH" "$REPO_HTTPS" "$DIR/app" 2>/dev/null; then
+  echo "Projeto baixado (repositório público)."
 else
+  echo "O repositório é privado: vou criar uma chave de leitura (deploy key)."
+  mkdir -p /root/.ssh && chmod 700 /root/.ssh
+  KEY=/root/.ssh/migra_deploy
+  [ -f "$KEY" ] || ssh-keygen -t ed25519 -N "" -C "migra-vps-deploy" -f "$KEY"
+  echo
+  echo "Copie a linha abaixo (é a chave PÚBLICA, pode copiar) e cadastre no GitHub:"
+  echo "  GitHub > repositório Projeto-Cidades-da-Sorte > Settings > Deploy keys > Add deploy key"
+  echo "  Título: VPS Migra · NÃO marque 'Allow write access' · Add key"
+  echo
+  cat "$KEY.pub"
+  echo
+  read -r -p "Depois de cadastrar a chave no GitHub, aperte ENTER para continuar... " _
   GIT_SSH_COMMAND="ssh -i $KEY -o StrictHostKeyChecking=accept-new" git clone -b "$BRANCH" "$REPO" "$DIR/app"
 fi
 cd "$DIR/app/whatsapp-automacao"
