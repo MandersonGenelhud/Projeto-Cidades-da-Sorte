@@ -132,6 +132,13 @@ function notify(event, data) {
 }
 
 const llm = new LLMClient({ getConfig: agentConfig });
+// Chave da IA errada ou desativada: avisa os administradores no WhatsApp (no máximo uma vez a cada 6 horas).
+let lastKeyAlert = 0;
+llm.onAuthError = (err) => {
+  if (Date.now() - lastKeyAlert < 6 * 3_600_000) return;
+  lastKeyAlert = Date.now();
+  notifyAdmins(`⚠️ *A IA parou de responder os clientes*\n${err.message}\n\nAbra o painel → Agente IA, cole uma chave nova e clique em Salvar. Gere em aistudio.google.com/apikey (nunca mande a chave por mensagem).`).catch(() => {});
+};
 const calendar = createCalendar({ store });
 const agent = new Agent({
   store,

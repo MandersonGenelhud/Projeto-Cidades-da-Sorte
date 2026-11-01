@@ -76,6 +76,7 @@ export class LLMClient {
       return out;
     } catch (err) {
       this.lastError = { at: new Date().toISOString(), message: err.message };
+      if (err.auth) this.onAuthError?.(err); // chave errada/desativada: quem cuida do sistema precisa saber na hora
       throw err;
     }
   }

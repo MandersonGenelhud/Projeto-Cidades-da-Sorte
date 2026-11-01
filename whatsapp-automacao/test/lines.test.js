@@ -171,3 +171,14 @@ test('WhatsApp "conectado mas sem entregar": falhas de envio ficam registradas e
   assert.equal(c.getState().lastSend.ok, true);
   assert.equal(c.getState().sendFailures, 0, 'um sucesso zera a contagem');
 });
+
+test('chave da IA errada ou desativada: o erro é registrado e quem cuida do sistema é avisado', async () => {
+  const { LLMClient } = await import('../src/agent/llm.js');
+  const fetchImpl = async () => ({ ok: false, status: 403, json: async () => ({ error: { message: 'API key not valid' } }) });
+  const llm = new LLMClient({ getConfig: () => ({ provider: 'gemini', apiKey: 'k', model: 'm' }), fetchImpl });
+  const alerts = [];
+  llm.onAuthError = (e) => alerts.push(e.message);
+  await assert.rejects(llm.chat({ messages: [{ role: 'user', content: 'oi' }], tools: [] }), /chave está errada ou foi desativada/);
+  assert.equal(alerts.length, 1);
+  assert.match(llm.lastError.message, /chave está errada/);
+});
