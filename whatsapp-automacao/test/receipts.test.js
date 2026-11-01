@@ -94,3 +94,17 @@ test('cobrança por Pix pede o comprovante na conversa', async () => {
   await payments.sendCharge(p);
   assert.match(sent[0].text, /me envie o comprovante aqui na conversa/);
 });
+
+test('recibo em PDF no padrão da marca: logo, marca d\'água, selo de pago, número e código; aviso de estorno só na taxa da visita', async () => {
+  const { payments, p } = await setup();
+  const raw = (extra = {}) => payments.receiptPdf({ ...p, receiptNo: 7, paidAt: '2026-11-01T14:04:00Z', ...extra }).toString('latin1');
+  const visita = raw({ purpose: 'visita' });
+  assert.ok(visita.startsWith('%PDF-1.4'));
+  assert.match(visita, /RECIBO N/);
+  assert.match(visita, /MIGRA PARAGUAI/);
+  assert.match(visita, /PAGO/);
+  assert.match(visita, /estornado integralmente/);
+  assert.match(visita, /DCTDecode/, 'logo da Migra embutida');
+  assert.match(raw({ purpose: 'mentoria' }), /n.o . reembols/);
+  assert.doesNotMatch(raw(), /estornado integralmente|reembols/);
+});

@@ -192,6 +192,17 @@ export class PdfCanvas {
     return lines.length * size * lead;
   }
 
+  /** Marca d'água: texto grande, inclinado e bem clarinho, desenhado antes do conteúdo da página. */
+  watermark(str, { size = 54, color = '#EDF2EF', angle = 35, cx = PAGE_W / 2, cy = PAGE_H / 2 } = {}) {
+    const rad = (angle * Math.PI) / 180;
+    const w = textWidth(str, size, true);
+    const cos = Math.cos(rad).toFixed(4);
+    const sin = Math.sin(rad).toFixed(4);
+    const X = cx - (w / 2) * Math.cos(rad);
+    const Y = PAGE_H - cy - (w / 2) * Math.sin(rad);
+    this.ops.push(`BT ${PdfCanvas.rgb(color)} rg /F2 ${size} Tf ${cos} ${sin} -${sin} ${cos} ${X.toFixed(1)} ${Y.toFixed(1)} Tm (${pdfStr(str)}) Tj ET`);
+  }
+
   width(str, { size = 10, bold = false, spacing = 0 } = {}) {
     return textWidth(str, size, bold) + spacing * String(str).length;
   }

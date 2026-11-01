@@ -5,8 +5,12 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
-import { pixBrCode, simplePdf, valorPorExtenso } from './pix.js';
+import { fileURLToPath } from 'node:url';
+import { pixBrCode, valorPorExtenso } from './pix.js';
+import { PdfCanvas, PAGE } from './pdfdoc.js';
 
+const LOGO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'img', 'migra-logo-escuro.jpg');
+const RC = { green: '#0B2A1E', gold: '#D4AF37', ink: '#1d1d1f', gray: '#5f6368', line: '#d9dedb', soft: '#F4F7F5' };
 const money = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const err = (status, message) => Object.assign(new Error(message), { status });
 const MP_API = () => process.env.MERCADOPAGO_API_URL || 'https://api.mercadopago.com';
@@ -248,27 +252,103 @@ export class Payments {
   }
 
   // ---------- Recibo ----------
+  /** Recibo no mesmo padrão visual do contrato: faixa verde com a logo, filete dourado, marca d'água e selo de pago. */
   receiptPdf(p) {
-    const c = this.config.company || {};
+    const cfg = this.config.company || {};
     const no = String(p.receiptNo || 0).padStart(4, '0');
     const paid = new Date(p.paidAt || Date.now());
-    const when = paid.toLocaleString('pt-BR', { dateStyle: 'long', timeStyle: 'short' });
-    const company = c.name || this.config.receiverName || this.store.settings.business?.name || 'Empresa';
+    const when = paid.toLocaleString('pt-BR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
+    const day = paid.toLocaleDateString('pt-BR', { dateStyle: 'long', timeZone: 'America/Sao_Paulo' });
+    const company = cfg.name || this.config.receiverName || this.store.settings.business?.name || 'Empresa';
     const payer = p.payerName || this.crm.leads.find((l) => l.id === p.leadId)?.name || 'Cliente';
-    return simplePdf([
-      { text: company, size: 16, bold: true, gap: 0 },
-      { text: [c.document && `CNPJ/CPF: ${c.document}`, c.address, [c.phone, c.email].filter(Boolean).join(' · ')].filter(Boolean).join('\n'), size: 9.5, gap: 4 },
-      { text: `RECIBO Nº ${no}`, size: 20, bold: true, gap: 34 },
-      { text: `Valor: ${money(p.amount)}`, size: 14, bold: true, gap: 10 },
-      {
-        text: `Recebemos de ${payer}${p.payerDoc ? ` (CPF/CNPJ ${p.payerDoc})` : ''} a importância de ${money(p.amount)} (${valorPorExtenso(p.amount)}), referente a ${p.description}.`,
-        size: 12, gap: 22, wrap: 80,
-      },
-      { text: `Forma de pagamento: Pix${p.provider === 'mercadopago' ? ' (Mercado Pago)' : ''}\nIdentificador da transação: ${p.txid}\nData do pagamento: ${when}`, size: 11, gap: 16 },
-      { text: `${this.config.receiverCity || ''}${this.config.receiverCity ? ', ' : ''}${paid.toLocaleDateString('pt-BR', { dateStyle: 'long' })}.`, size: 11, gap: 30 },
-      { text: '______________________________________', size: 11, gap: 46 },
-      { text: company, size: 11, bold: true, gap: 2 },
-      { text: `Recibo emitido eletronicamente pelo ${this.store.settings.brand?.name || 'Migra Hub'}. Código de verificação: ${this.receiptToken(p.id).slice(0, 10).toUpperCase()}`, size: 8.5, gap: 60 },
-    ]);
+    const code = this.receiptToken(p.id).slice(0, 10).toUpperCase();
+    const c = new PdfCanvas();
+    const W = PAGE.W;
+    const M = 50;
+    const maxW = W - 2 * M;
+    let logo = null;
+    try { logo = fs.readFileSync(LOGO); } catch { /* sem logo: só o nome */ }
+
+    c.watermark('MIGRA PARAGUAI');
+    c.rect(0, 0, W, 96, { fill: RC.green });
+    c.rect(0, 96, W, 3, { fill: RC.gold });
+    if (logo) c.image(logo, M - 6, 16, 150);
+    else c.text('MIGRA PARAGUAI', M, 36, { size: 18, bold: true, color: '#fff' });
+    c.text(`RECIBO Nº ${no}`, W - M, 26, { size: 15, bold: true, color: RC.gold, align: 'right' });
+    c.text(`Emitido em ${day}`, W - M, 48, { size: 9, color: '#cfe0d7', align: 'right' });
+    c.text('Comprovante oficial de recebimento', W - M, 63, { size: 8, bold: true, color: '#ffe8a3', align: 'right' });
+
+    let y = 128;
+    c.text('RECIBO DE PAGAMENTO', W / 2, y, { size: 17, bold: true, color: RC.ink, align: 'center', spacing: 1 });
+    y += 38;
+
+    // Cartão do valor
+    c.rect(M, y, maxW, 92, { fill: RC.soft, radius: 8 });
+    c.rect(M, y, 6, 92, { fill: RC.gold });
+    c.text('VALOR RECEBIDO', M + 26, y + 16, { size: 8.5, bold: true, color: RC.gray, spacing: 1.2 });
+    c.text(money(p.amount), M + 26, y + 32, { size: 30, bold: true, color: RC.green });
+    const ext = String(valorPorExtenso(p.amount));
+    c.para(`(${ext})`, M + 26, y + 70, maxW - 190, { size: 9, color: RC.gray });
+    // Selo de pago
+    c.rect(W - M - 124, y + 22, 100, 46, { stroke: RC.green, radius: 8, lineWidth: 2 });
+    c.text('PAGO', W - M - 74, y + 32, { size: 20, bold: true, color: RC.green, align: 'center', spacing: 2 });
+    c.text('Pix confirmado', W - M - 74, y + 54, { size: 7.5, color: RC.gray, align: 'center' });
+    y += 120;
+
+    // Texto do recibo
+    const body = `Recebemos de ${payer.toUpperCase()}${p.payerDoc ? `, CPF/CNPJ ${p.payerDoc},` : ''} a importância de ${money(p.amount)} (${ext}), referente a ${p.description}.`;
+    for (const line of c.lines(body, maxW, { size: 11 })) {
+      c.text(line, M, y, { size: 11, color: RC.ink });
+      y += 17;
+    }
+    y += 12;
+
+    // Detalhes do pagamento
+    const rows = [
+      ['Forma de pagamento', `Pix${p.provider === 'mercadopago' ? ' (Mercado Pago)' : ''}`],
+      ['Data e hora do pagamento', when],
+      ['Identificador da transação', p.txid],
+      ['Situação', 'Pago e confirmado'],
+    ];
+    c.text('DETALHES DO PAGAMENTO', M, y, { size: 9, bold: true, color: RC.green, spacing: 0.8 });
+    y += 16;
+    c.rect(M, y - 4, maxW, 0.8, { fill: RC.gold });
+    for (const [k, v] of rows) {
+      y += 6;
+      c.text(k, M + 6, y, { size: 9.5, color: RC.gray });
+      c.text(String(v), W - M - 6, y, { size: 9.5, bold: true, color: RC.ink, align: 'right' });
+      y += 15;
+      c.rect(M, y, maxW, 0.5, { fill: RC.line });
+    }
+    y += 18;
+
+    // Observação conforme o tipo da cobrança
+    const note = p.purpose === 'visita'
+      ? 'Taxa de reserva do atendimento presencial com a assessoria. Se você fechar com a Migra, este valor é estornado integralmente.'
+      : p.purpose === 'mentoria' ? 'Mentoria com o Marcos Miguel. Este valor não é reembolsável.' : '';
+    if (note) {
+      const lines = c.lines(note, maxW - 28, { size: 9 });
+      const h = lines.length * 13 + 16;
+      c.rect(M, y, maxW, h, { fill: '#FFF8E1', radius: 6 });
+      lines.forEach((l, i) => c.text(l, M + 14, y + 9 + i * 13, { size: 9, color: '#6b5300' }));
+      y += h + 16;
+    }
+
+    // Emitente e assinatura
+    y = Math.max(y + 10, 560);
+    c.text(`${this.config.receiverCity ? `${this.config.receiverCity}, ` : ''}${day}.`, M, y, { size: 10.5, color: RC.ink });
+    y += 54;
+    c.rect(M, y, 230, 0.8, { fill: RC.ink });
+    c.text(company, M, y + 7, { size: 10.5, bold: true, color: RC.ink });
+    c.text([cfg.document && `CNPJ/CPF ${cfg.document}`, 'Assinado eletronicamente'].filter(Boolean).join(' · '), M, y + 22, { size: 8.5, color: RC.gray });
+
+    // Rodapé
+    const fy = PAGE.H - 70;
+    c.rect(0, fy, W, 2, { fill: RC.gold });
+    c.rect(0, fy + 2, W, 68, { fill: RC.green });
+    const contact = [cfg.address, [cfg.phone, cfg.email].filter(Boolean).join(' · ')].filter(Boolean).join('  |  ');
+    if (contact) c.text(contact.slice(0, 120), W / 2, fy + 14, { size: 7.8, color: '#cfe0d7', align: 'center' });
+    c.text(`Recibo emitido eletronicamente pelo ${this.store.settings.brand?.name || 'Migra Hub'}  ·  Código de verificação ${code}`, W / 2, fy + 32, { size: 7.8, bold: true, color: RC.gold, align: 'center' });
+    return c.toBuffer();
   }
 }
