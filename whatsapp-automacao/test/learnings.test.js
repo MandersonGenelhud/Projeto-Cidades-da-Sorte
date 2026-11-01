@@ -273,6 +273,8 @@ test('atendente: amarra a decisão (depende de outra pessoa → chamada de víde
   assert.match(on.box.system, /até 04\/11\/2026/);
   assert.match(on.box.system, /de R\$ 59,99 por mês por R\$ 29,99 por mês \(economia de R\$ 180,00 em 6 meses\)/);
   assert.match(on.box.system, /AINDA ESTÁ EM DESENVOLVIMENTO/);
+  assert.match(on.box.system, /forma conversacional/);
+  assert.match(on.box.system, /EFETUAR O PAGAMENTO DA RESERVA dentro do prazo/);
   const today = make('2026-11-03');
   await today.agent.think(today.conv);
   assert.match(today.box.system, /Oferta especial do aplicativo/, 'vale até o fim do dia da data escolhida');
@@ -285,4 +287,22 @@ test('atendente: amarra a decisão (depende de outra pessoa → chamada de víde
   const off = make('2026-11-04', { enabled: false });
   await off.agent.think(off.conv);
   assert.doesNotMatch(off.box.system, /Oferta especial do aplicativo/);
+});
+
+test('oferta de Natal já vem configurada até 25/12/2026 e some sozinha depois', async () => {
+  const { Agent } = await import('../src/agent/agent.js');
+  const store = tempStore();
+  assert.equal(store.settings.crm.appOffer.validUntil, '2026-12-25');
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const run = async (date) => {
+    let system = '';
+    const llm = { configured: true, chat: async ({ messages }) => { system = messages[0].content; return { content: 'Oi!', tool_calls: [] }; } };
+    const agent = new Agent({ store, llm, now: () => date });
+    const conv = agent.conversation(`55119${date.getDate()}@s.whatsapp.net`);
+    agent.remember(conv, 'user', 'Oi');
+    await agent.think(conv);
+    return system;
+  };
+  assert.match(await run(new Date(2026, 11, 25, 20, 0)), /até 25\/12\/2026/, 'no dia 25 ainda vale');
+  assert.doesNotMatch(await run(new Date(2026, 11, 26, 9, 0)), /Oferta especial do aplicativo/, 'dia 26: acabou');
 });
