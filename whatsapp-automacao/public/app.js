@@ -1182,8 +1182,11 @@ async function loadPending() {
         <div class="txt">${esc(p.texts.join(' · '))}</div></div>
       <span class="when">${p.queued ? '⏳ na fila' : ago(p.at)}</span>
     </label>`).join('') || '<p class="muted">Ninguém esperando resposta. 🎉</p>';
-  $('#pendingStatus').textContent = r.running
-    ? `🤖 Respondendo com cuidado (no máximo ${r.perHour || 30} por hora, das 7h às 21h, para proteger o número)… ${r.queue} na fila.${r.waiting ? ` ⏸️ Esperando: ${r.waiting}.` : ''} Pode deixar esta tela aberta ou fechada.`
+  const hhmm = (ms) => (ms ? new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—');
+  $('#pendingStatus').innerHTML = r.running
+    ? `🤖 <b>Respondendo com cuidado</b> para proteger o número: no máximo <b>${r.perHour} por hora</b>, das ${r.from ?? 7}h às ${r.to ?? 21}h, uma de cada vez (45 a 90 s entre uma e outra).<br>
+       ${r.queue} na fila · ${r.sentLastHour ?? 0} respondidas na última hora · última resposta enviada às ${hhmm(r.lastSentAt)}${r.etaMin ? ` · tempo estimado: cerca de ${Math.ceil(r.etaMin / 60)} h` : ''}${r.waiting ? `<br>⏸️ Esperando: ${esc(r.waiting)}.` : ''}<br>
+       <span class="muted">Não é falha: é de propósito, para o WhatsApp não bloquear o número. Pode fechar esta tela; a fila continua. Para responder mais rápido, aumente o limite por hora em Agente IA (com cuidado).</span>`
     : '';
   $('#btnPendingCancel').hidden = !r.running;
 }

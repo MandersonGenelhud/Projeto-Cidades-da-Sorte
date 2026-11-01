@@ -112,7 +112,14 @@ export class PendingInbox {
   }
 
   status() {
-    return { count: this.list().length, queue: this.queue.length, running: this.running, waiting: this.waiting, perHour: this.#limits().perHour };
+    const { perHour, from, to } = this.#limits();
+    const nowMs = this.now().getTime();
+    const sentLastHour = this.sentAt.filter((t) => nowMs - t < 3_600_000).length;
+    return {
+      count: this.list().length, queue: this.queue.length, running: this.running, waiting: this.waiting, perHour, from, to,
+      sentLastHour, lastSentAt: this.lastSentAt || null, lastProgressAt: this.lastProgressAt || null,
+      etaMin: this.careful && this.queue.length ? Math.ceil((this.queue.length / perHour) * 60) : null,
+    };
   }
 
   /** Histórico do celular: adiciona quem estava esperando (sem apagar o que já existe). */
@@ -311,6 +318,7 @@ export class PendingInbox {
             async (text, { typingMs } = {}) => {
               try {
                 await this.wa.send(jid, { text, typingMs });
+                this.lastSentAt = Date.now();
                 this.store.addLog({ type: 'autoreply', phone: p.phone || jid, message: text, rule: 'Agente IA (pendente)' });
               } catch (err) {
                 this.store.addLog({ type: 'error', phone: p.phone || jid, message: `Pendente: ${err.message}` });
@@ -327,6 +335,7 @@ export class PendingInbox {
             : `⏸️ A IA falhou e a fila foi pausada (${this.agent.lastError?.message || 'erro'}). Os clientes continuam na lista.` });
           break;
         }
+        this.lastProgressAt = Date.now();
         if (conv) delete conv.continuity; // a análise vale só para a primeira resposta
         this.queue = this.queue.filter((j) => j !== jid);
         if (this.items[jid]) delete this.items[jid];

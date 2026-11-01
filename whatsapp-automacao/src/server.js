@@ -1645,7 +1645,9 @@ function healthReport() {
   else if (aiErr && (!llm.lastOkAt || aiErr.at > llm.lastOkAt)) add('bad', `A IA falhou no último uso: ${aiErr.message}`);
   else add('ok', `IA configurada (${ai.provider}, modelo ${ai.model || 'padrão'})${llm.lastOkAt ? `, última resposta em ${new Date(llm.lastOkAt).toLocaleString('pt-BR')}` : ''}.`);
   if (store.settings.agent?.enabled === false) add('bad', 'O agente está DESLIGADO (aba Agente IA → "Agente ligado").');
-  if (queue.count > 0) add('warn', `${queue.count} cliente(s) esperando resposta (${queue.queue} na fila de envio).`);
+  if (queue.queue > 0 && !queue.running) add('bad', `Há ${queue.queue} cliente(s) na fila, mas a fila está PARADA. Abra Conversas e clique em "Agente responder marcados" de novo.`);
+  else if (queue.queue > 0) add('warn', `Fila respondendo com cuidado: ${queue.queue} na fila, no máximo ${queue.perHour} por hora (${queue.sentLastHour} na última hora), das ${queue.from}h às ${queue.to}h${queue.etaMin ? `. Tempo estimado: cerca de ${Math.ceil(queue.etaMin / 60)} h` : ''}${queue.waiting ? `. Agora: ${queue.waiting}` : ''}.`);
+  else if (queue.count > 0) add('warn', `${queue.count} cliente(s) esperando resposta e a fila está vazia (marque e clique em "Agente responder marcados").`);
   const lineList = lines.list().map((l) => ({ id: l.id, label: l.label, status: l.status, lastError: l.lastError || '', agent: l.agent !== false }));
   const off = lineList.filter((l) => l.status !== 'connected');
   if (off.length) add('warn', `${off.length} WhatsApp(s) de vendedor sem conexão: ${off.map((l) => l.label).join(', ')}.`);
