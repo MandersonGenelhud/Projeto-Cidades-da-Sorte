@@ -111,7 +111,7 @@ export class WhatsAppClient extends EventEmitter {
   }
 
   getState() {
-    return { status: this.status, qr: this.qr, me: this.me, lastError: this.lastError };
+    return { status: this.status, qr: this.qr, me: this.me, lastError: this.lastError, lastSend: this.lastSend || null, sendFailures: this.sendFailures || 0 };
   }
 
   #setStatus(status, extra = {}) {
@@ -186,6 +186,8 @@ export class WhatsAppClient extends EventEmitter {
         const nowMs = Date.now();
         this.drops = this.drops.filter((t) => nowMs - t < 10 * 60_000);
         if (!normal && !loggedOut) this.drops.push(nowMs);
+        this.drops440 = (this.drops440 || []).filter((t) => nowMs - t < 10 * 60_000);
+        if (code === 440) this.drops440.push(nowMs);
         if (!normal) this.emit('drop', { at: new Date(nowMs).toISOString(), code: code || null, reason: this.lastError || '', wasUp, recent: this.drops.length });
         // Vai reconectar sozinho: mostra "conectando" (âmbar) em vez de vermelho, para não ficar piscando a cada oscilação.
         this.#setStatus(!this.stopping && !loggedOut ? 'connecting' : 'disconnected', { qr: null, me: null });
@@ -199,7 +201,13 @@ export class WhatsAppClient extends EventEmitter {
         }
         if (!this.stopping) {
           // Reconecta sozinho; se continuar caindo, espera mais (o WhatsApp bloqueia tentativas seguidas).
-          const wait = reconnectDelay({ failures: this.failures, recentDrops: this.drops.length, loggedOut, normal });
+          let wait = reconnectDelay({ failures: this.failures, recentDrops: this.drops.length, loggedOut, normal });
+          // Dois sistemas com o mesmo WhatsApp (ex.: o computador e a VPS) se derrubam em ciclo e podem levar o número a ser desconectado.
+          // Depois de 3 quedas "aberto em outro lugar" em 10 minutos, espera 15 minutos e avisa com clareza.
+          if (this.drops440.length >= 3) {
+            wait = Math.max(wait, 15 * 60_000);
+            this.emit('log', { type: 'error', message: 'WhatsApp: este número está aberto em OUTRO lugar (o computador e a VPS ligados ao mesmo tempo?). Feche o outro sistema. Vou esperar 15 minutos antes de tentar de novo, para os dois não ficarem se derrubando.' });
+          }
           await sleep(wait);
           this.start().catch((err) => this.emit('log', { type: 'error', message: `Falha ao reconectar: ${err.message}` }));
         }
@@ -373,6 +381,31 @@ export class WhatsAppClient extends EventEmitter {
     }
   }
 
+  /**
+   * Envia com limite de tempo e vigia a saúde da conexão: o WhatsApp às vezes fica "conectado" mas deixa de entregar
+   * (conexão meio morta). Depois de 3 falhas seguidas, a conexão é reiniciada sozinha.
+   */
+  async #guardedSend(jid, content) {
+    const limit = new Promise((_, reject) => { setTimeout(() => reject(new Error('O WhatsApp não respondeu ao envio em 40 segundos')), 40_000).unref?.(); });
+    try {
+      const sent = await Promise.race([this.sock.sendMessage(jid, content), limit]);
+      this.sendFailures = 0;
+      this.lastSend = { at: new Date().toISOString(), ok: true, error: '' };
+      return sent;
+    } catch (err) {
+      this.sendFailures = (this.sendFailures || 0) + 1;
+      this.lastSend = { at: new Date().toISOString(), ok: false, error: err.message };
+      this.emit('log', { type: 'error', message: `WhatsApp: falha ao enviar (${this.sendFailures}ª seguida): ${err.message}` });
+      if (this.sendFailures >= 3 && Date.now() - (this.lastAutoRestart || 0) > 120_000) {
+        this.lastAutoRestart = Date.now();
+        this.sendFailures = 0;
+        this.emit('log', { type: 'system', message: 'WhatsApp: 3 falhas de envio seguidas. Reiniciando a conexão sozinho.' });
+        this.restart().catch(() => {});
+      }
+      throw err;
+    }
+  }
+
   /** `typingMs` define quanto tempo aparece "digitando…" (senão, calcula pelo tamanho do texto). */
   async send(to, { text = '', media = null, typing = true, typingMs } = {}) {
     this.#ensureConnected();
@@ -402,7 +435,7 @@ export class WhatsAppClient extends EventEmitter {
       if (!text) throw new Error('Mensagem vazia');
       content = { text };
     }
-    const sent = await this.sock.sendMessage(jid, content);
+    const sent = await this.#guardedSend(jid, content);
     if (sent?.key?.id) {
       this.sentIds.add(sent.key.id);
       if (this.sentIds.size > 5000) this.sentIds.delete(this.sentIds.values().next().value);

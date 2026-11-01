@@ -68,7 +68,19 @@ export class LLMClient {
    * Envia a conversa e devolve a mensagem do assistente
    * ({ content, tool_calls }).
    */
-  async chat({ messages, tools }) {
+  async chat(args) {
+    try {
+      const out = await this.#chat(args);
+      this.lastOkAt = new Date().toISOString();
+      this.lastError = null;
+      return out;
+    } catch (err) {
+      this.lastError = { at: new Date().toISOString(), message: err.message };
+      throw err;
+    }
+  }
+
+  async #chat({ messages, tools }) {
     const { provider = 'gemini', apiKey, model } = this.getConfig();
     const p = PROVIDERS[provider] || PROVIDERS.gemini;
     if (!apiKey) {

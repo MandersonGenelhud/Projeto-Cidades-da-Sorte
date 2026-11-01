@@ -1967,3 +1967,36 @@ $('#btnNinaTest')?.addEventListener('click', async (e) => {
     e.target.disabled = false;
   }
 });
+
+// ---------- SAÚDE DO SISTEMA (por que as mensagens pararam?) ----------
+async function loadHealth() {
+  const out = $('#healthOut');
+  if (!out || !isAdmin()) return;
+  out.textContent = 'Verificando…';
+  try {
+    const r = await api('/api/health/detail');
+    const ico = { ok: '✅', warn: '⚠️', bad: '❌' };
+    out.innerHTML = `<p><b>${r.ok ? '✅ Tudo certo no que dá para medir' : '❌ Há algo para resolver'}</b> · ligado há ${r.uptimeMin} min · memória ${r.memoryMb} MB</p>
+      <ul>${r.tips.map((t) => `<li>${ico[t.level] || '•'} ${esc(t.text)}</li>`).join('')}</ul>
+      ${r.drops.length ? `<details><summary>Últimas quedas do WhatsApp (${r.drops.length})</summary><ul>${r.drops.slice(0, 8).map((d) => `<li>${fmtDate(d.at)} · código ${esc(String(d.code ?? '-'))} · ${esc(d.reason || '')}</li>`).join('')}</ul></details>` : ''}`;
+  } catch (e) {
+    out.textContent = `❌ ${e.message}`;
+  }
+}
+$('#btnHealth')?.addEventListener('click', loadHealth);
+$('#btnHealthTest')?.addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  try {
+    const r = await api('/api/health/test-send', { method: 'POST' });
+    toast(`Teste enviado em ${r.ms} ms: confira o seu WhatsApp`);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    e.target.disabled = false;
+    loadHealth();
+  }
+});
+{
+  const loadConn = loaders.connection;
+  loaders.connection = async (...a) => { await loadConn?.(...a); loadHealth(); };
+}

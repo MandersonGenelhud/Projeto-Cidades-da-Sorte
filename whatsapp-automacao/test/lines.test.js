@@ -147,3 +147,27 @@ test('cada WhatsApp de vendedor tem o nome da própria atendente; "Nina" é rese
   assert.match(system, /Você é Geral,/, 'sem nome próprio, usa o nome geral');
   assert.ok(buildSystemPrompt);
 });
+
+test('WhatsApp "conectado mas sem entregar": falhas de envio ficam registradas e 3 seguidas reiniciam a conexão sozinha', async () => {
+  const { WhatsAppClient } = await import('../src/transports/whatsapp-web.js');
+  const c = new WhatsAppClient({ authDir: '/tmp/x-nao-usado' });
+  let restarts = 0;
+  c.restart = async () => { restarts += 1; };
+  const logs = [];
+  c.on('log', (l) => logs.push(l));
+  c.status = 'connected';
+  let fail = true;
+  c.sock = { sendMessage: async () => { if (fail) throw new Error('Connection Closed'); return { key: { id: 'A1' } }; }, sendPresenceUpdate: async () => {}, presenceSubscribe: async () => {} };
+  const send = () => c.send('5511900000000@s.whatsapp.net', { text: 'oi', typing: false });
+  await assert.rejects(send(), /Connection Closed/);
+  await assert.rejects(send(), /Connection Closed/);
+  assert.equal(restarts, 0, 'ainda não');
+  assert.equal(c.getState().lastSend.ok, false);
+  await assert.rejects(send(), /Connection Closed/);
+  assert.equal(restarts, 1, 'na terceira falha seguida reinicia');
+  assert.ok(logs.some((l) => /Reiniciando a conexão sozinho/.test(l.message)));
+  fail = false;
+  await send();
+  assert.equal(c.getState().lastSend.ok, true);
+  assert.equal(c.getState().sendFailures, 0, 'um sucesso zera a contagem');
+});

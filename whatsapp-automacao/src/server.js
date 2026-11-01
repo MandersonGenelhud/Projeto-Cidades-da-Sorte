@@ -1623,6 +1623,62 @@ const publicMedia = (m) => (m ? { id: m.id, mimetype: m.mimetype, fileName: m.fi
 
 // Status e conexão
 app.get('/api/status', (_req, res) => res.json(wa.getState()));
+// Saúde do sistema: junta o que costuma parar o envio de mensagens e diz, em português, o que fazer.
+function healthReport() {
+  const st = wa.getState();
+  const drops = [...(store.data.waDrops || [])].slice(-10).reverse();
+  const recent = drops.filter((d) => Date.now() - Date.parse(d.at) < 15 * 60_000);
+  const ai = agentConfig();
+  const aiErr = llm.lastError;
+  const queue = pending.status();
+  const tips = [];
+  const add = (level, text) => tips.push({ level, text });
+  if (st.status === 'connected') add('ok', `WhatsApp conectado${st.me?.phone ? ` (+${st.me.phone})` : ''}.`);
+  else if (st.status === 'qr') add('bad', 'O WhatsApp está esperando a leitura do QR Code (Conexões). Enquanto isso, nenhuma mensagem é enviada nem recebida.');
+  else add('bad', `O WhatsApp NÃO está conectado (${st.status}). ${st.lastError || 'Abra Conexões e reconecte.'}`);
+  if (recent.filter((d) => d.code === 440).length >= 2) add('bad', 'O número está aberto em OUTRO lugar (440): provavelmente o sistema do computador e o da VPS estão ligados ao mesmo tempo. Feche o do computador. Os dois se derrubam e o envio para.');
+  else if (recent.length >= 3) add('warn', `A conexão caiu ${recent.length} vezes nos últimos 15 minutos (último motivo: ${recent[0].reason || recent[0].code}). Pode ser internet instável ou o número aberto em outro lugar.`);
+  if (st.lastSend && !st.lastSend.ok) add('bad', `O último envio falhou: ${st.lastSend.error}. Depois de 3 falhas seguidas o sistema reinicia a conexão sozinho.`);
+  else if (st.lastSend?.ok) add('ok', `Último envio com sucesso em ${new Date(st.lastSend.at).toLocaleString('pt-BR')}.`);
+  else add('warn', 'Ainda não houve nenhum envio desde que o sistema ligou (faça o teste abaixo).');
+  if (!llm.configured) add('bad', 'A IA não está configurada (aba Agente IA: escolha o provedor e cole a chave). Sem ela a atendente não responde ninguém.');
+  else if (aiErr && (!llm.lastOkAt || aiErr.at > llm.lastOkAt)) add('bad', `A IA falhou no último uso: ${aiErr.message}`);
+  else add('ok', `IA configurada (${ai.provider}, modelo ${ai.model || 'padrão'})${llm.lastOkAt ? `, última resposta em ${new Date(llm.lastOkAt).toLocaleString('pt-BR')}` : ''}.`);
+  if (store.settings.agent?.enabled === false) add('bad', 'O agente está DESLIGADO (aba Agente IA → "Agente ligado").');
+  if (queue.count > 0) add('warn', `${queue.count} cliente(s) esperando resposta (${queue.queue} na fila de envio).`);
+  const lineList = lines.list().map((l) => ({ id: l.id, label: l.label, status: l.status, lastError: l.lastError || '', agent: l.agent !== false }));
+  const off = lineList.filter((l) => l.status !== 'connected');
+  if (off.length) add('warn', `${off.length} WhatsApp(s) de vendedor sem conexão: ${off.map((l) => l.label).join(', ')}.`);
+  if (!publicBase()) add('warn', 'O sistema não tem endereço público (necessário para Instagram, contratos e links).');
+  return {
+    at: new Date().toISOString(),
+    uptimeMin: Math.round(process.uptime() / 60),
+    node: process.version,
+    memoryMb: Math.round(process.memoryUsage().rss / 1048576),
+    whatsapp: { status: st.status, me: st.me, lastError: st.lastError, lastSend: st.lastSend, sendFailures: st.sendFailures || 0 },
+    drops, lines: lineList, queue,
+    ai: { configured: llm.configured, provider: ai.provider, model: ai.model, lastOkAt: llm.lastOkAt || null, lastError: aiErr || null },
+    tips,
+    ok: !tips.some((t) => t.level === 'bad'),
+  };
+}
+app.get('/api/health/detail', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  res.json(healthReport());
+});
+app.post('/api/health/test-send', async (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  const to = normalizePhone(req.user.whatsapp);
+  if (!to) throw httpError(400, 'Seu cadastro não tem WhatsApp (aba Equipe → Editar).');
+  if (wa.status !== 'connected') throw httpError(400, `O WhatsApp não está conectado (${wa.status}).`);
+  const started = Date.now();
+  try {
+    await wa.send(to, { text: '✅ Teste do Migra Hub: se você leu isto, o envio de mensagens está funcionando.', typing: false });
+    res.json({ ok: true, ms: Date.now() - started, to });
+  } catch (e) {
+    res.status(502).json({ error: `O envio falhou: ${e.message}` });
+  }
+});
 app.post('/api/connection/logout', async (_req, res) => {
   await wa.logout();
   res.json({ ok: true });
