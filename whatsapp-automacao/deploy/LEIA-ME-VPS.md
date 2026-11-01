@@ -54,6 +54,13 @@ Depois de confirmar tudo, apague a cópia: `rm -rf /root/migra-data`. Ela conté
 Com o endereço fixo, siga o passo a passo do Instagram. O webhook é:
 `https://app.migraparaguai.tech/webhook/instagram`
 
+## Trazer dados novos do computador depois (sem apagar nada da VPS)
+Se o computador continuou recebendo conversas ou cadastros depois da primeira migração, use a **mesclagem**: ela só **acrescenta o que falta** (clientes, conversas, mensagens, vendas, pagamentos, equipe, contratos), sem sobrescrever a VPS e sem mexer nas chaves, nas configurações nem na sessão do WhatsApp da VPS.
+1. Feche o Migra Hub no computador. No PowerShell, na pasta `whatsapp-automacao`: `scp -r data root@IP_DA_VPS:/root/migra-data`
+2. Na VPS: `bash /opt/migra/app/whatsapp-automacao/deploy/mesclar-dados.sh /root/migra-data`
+3. Confira o painel. A cópia do que existia fica em `/root/data-antes-merge-...tgz`.
+(Diferente do `migrar-dados.sh`, que **substitui** tudo da VPS pelo que está no computador.)
+
 ## Atualizar e cópias de segurança
 - **Atualizar** (na VPS): `bash /opt/migra/app/whatsapp-automacao/deploy/atualizar-vps.sh`. Ele guarda uma cópia dos dados, baixa a versão nova e religa. O botão "Atualizar agora" do painel fica desligado na VPS.
 - **Cópia diária** automática dos dados em `/opt/migra/backups` (últimos 14 dias). Esses arquivos têm segredos: não envie para ninguém. Para uma cópia fora da VPS, use Configurações → Segurança.
