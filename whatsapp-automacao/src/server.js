@@ -1099,6 +1099,14 @@ if (PANEL_PASSWORD) {
   });
 }
 
+// O painel (página e programas) só é entregue a quem está logado: sem sessão, vai direto para o login (sem mostrar a casca da tela).
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js']);
+app.use((req, res, next) => {
+  if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
+  if (auth.fromRequest(req)) return next();
+  if (req.path.endsWith('.js')) return res.status(401).type('text/plain').send('Entre com seu login');
+  return res.redirect(302, '/login.html');
+});
 app.use(express.static(path.join(ROOT, 'public')));
 
 // ---------- Site público: imóveis, loteamentos e programa de indicação ----------
@@ -1345,7 +1353,7 @@ app.get('/brand/logo', (_req, res) => {
 const require2fa = () => store.settings.security?.require2fa !== false;
 app.get('/api/auth/state', (req, res) => {
   const u = auth.fromRequest(req);
-  res.json({ needsSetup: auth.needsSetup, user: u ? { ...publicUser(u), visitDesk: isVisitDesk(u), cashAccess: cash.canAccess(u) } : null, setup2fa: Boolean(u && require2fa() && !u.totpEnabled) });
+  res.json({ needsSetup: auth.needsSetup, setupCodeRequired: Boolean(process.env.SETUP_CODE), user: u ? { ...publicUser(u), visitDesk: isVisitDesk(u), cashAccess: cash.canAccess(u) } : null, setup2fa: Boolean(u && require2fa() && !u.totpEnabled) });
 });
 // Cadastro do vendedor: fica aguardando a liberação do administrador (não entra antes disso).
 app.post('/api/auth/signup', (req, res) => {
@@ -1366,6 +1374,13 @@ app.post('/api/auth/signup', (req, res) => {
 });
 app.post('/api/auth/setup', (req, res) => {
   if (!auth.needsSetup) throw httpError(403, 'O administrador já foi criado. Entre com login e senha.');
+  // Na VPS o instalador define um código de instalação: sem ele, ninguém que ache o endereço consegue virar administrador.
+  const need = process.env.SETUP_CODE;
+  if (need) {
+    const a = Buffer.from(String(req.body?.setupCode || '').trim());
+    const b = Buffer.from(need);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw httpError(403, 'Código de instalação incorreto. Ele aparece no fim da instalação da VPS.');
+  }
   const user = auth.create({ ...req.body, role: 'admin' });
   res.set('Set-Cookie', auth.sessionCookie(auth.get(user.id), { secure: req.secure })).json(user);
 });

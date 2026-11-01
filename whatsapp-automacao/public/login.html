@@ -36,6 +36,7 @@
     <label id="loginWrap">Login <input name="login" autocomplete="username" required placeholder="ex.: marcos" /></label>
     <label id="passWrap">Senha <input name="password" type="password" autocomplete="current-password" required minlength="6" /></label>
     <label id="codeWrap" hidden>Código do app autenticador (6 números) <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" /></label>
+    <label id="setupCodeWrap" hidden>Código de instalação (aparece no fim da instalação da VPS) <input name="setupCode" autocomplete="off" /></label>
     <label id="waWrap" hidden>Seu WhatsApp com DDD <input name="whatsapp" placeholder="+55 45 99999-0000 ou +595 981 123456" /></label>
     <div id="setupBox" hidden></div>
     <p class="err" id="err"></p>
@@ -64,6 +65,7 @@
       const signup = m === 'signup' || m === 'setup';
       $('nameWrap').hidden = !signup;
       $('waWrap').hidden = !signup;
+      $('setupCodeWrap').hidden = !(m === 'setup' && window.setupCodeRequired);
       form.name.required = signup;
       form.whatsapp.required = m === 'signup';
       form.password.autocomplete = signup ? 'new-password' : 'current-password';
@@ -99,6 +101,7 @@
       if (s.user && s.setup2fa) return startTwofa();
       if (s.user) return (location.href = back());
       // Link de convite da equipe (?cadastro=1) já abre o cadastro de vendedor.
+      window.setupCodeRequired = Boolean(s.setupCodeRequired);
       setMode(s.needsSetup ? 'setup' : new URLSearchParams(location.search).has('cadastro') ? 'signup' : 'login');
     });
     $('btnMode').addEventListener('click', () => setMode(mode === 'signup' ? 'login' : 'signup'));

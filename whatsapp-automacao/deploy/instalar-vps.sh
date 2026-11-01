@@ -63,6 +63,9 @@ echo "==> 6/6 Configurando e ligando"
 chmod 600 .env
 grep -q '^PUBLIC_URL=' .env || echo "PUBLIC_URL=https://$DOMINIO" >> .env
 grep -q '^TUNNEL=' .env || echo "TUNNEL=off" >> .env
+# Código para criar o primeiro administrador (ninguém que ache o endereço consegue tomar o sistema antes de você).
+grep -q '^SETUP_CODE=' .env || echo "SETUP_CODE=$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')" >> .env
+SETUP_CODE_SHOWN="$(grep '^SETUP_CODE=' .env | cut -d= -f2)"
 sed -i "s/SEU_DOMINIO/$DOMINIO/" Caddyfile
 docker compose up -d --build
 
@@ -74,6 +77,7 @@ CRON
 chmod +x /etc/cron.daily/migra-backup
 
 echo
+echo "CÓDIGO DE INSTALAÇÃO (guarde; só vale para criar o primeiro administrador): $SETUP_CODE_SHOWN"
 echo "Pronto! Abra https://$DOMINIO (o HTTPS pode levar 1 a 2 minutos para aparecer)."
 echo "Na primeira vez, crie o administrador e ligue a verificação em duas etapas."
 echo "Para trazer os dados do computador: bash deploy/migrar-dados.sh /caminho/da/pasta/data"
