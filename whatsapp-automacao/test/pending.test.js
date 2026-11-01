@@ -238,3 +238,40 @@ test('foto ou documento sem legenda chega como aviso para a atendente (foto do R
   assert.equal(normalizeMessage(base({ documentMessage: { fileName: 'rg.pdf' } })).text, '[documento enviado]');
   assert.equal(normalizeMessage(base({ conversation: 'oi' })).text, 'oi');
 });
+
+test('um cliente com erro não derruba a fila: registra o motivo, pula e continua com os próximos', async () => {
+  const { store, wa, inbox } = setup();
+  const bad = '595981111111@s.whatsapp.net';
+  const good1 = '595982222222@s.whatsapp.net';
+  const good2 = '595983333333@s.whatsapp.net';
+  inbox.ingestHistory([bad, good1, good2].map((jid) => ({ ...msg(jid, false, 'Quanto custa?', 120), timestamp: Date.now() - 60000 })));
+  const real = inbox.agent.handleIncoming.bind(inbox.agent);
+  inbox.agent.handleIncoming = async (m, reply) => {
+    if (m.key === bad) throw new TypeError("Cannot read properties of undefined (reading 'x')");
+    return real(m, reply);
+  };
+  inbox.enqueue([bad, good1, good2]);
+  await waitFor(() => wa.sent.length >= 2);
+  assert.deepEqual(wa.sent.map((s) => s.to).sort(), [good1, good2]);
+  await waitFor(() => !inbox.running);
+  assert.ok(store.data.logs.some((l) => /não consegui responder/.test(l.message) && /Pulei e segui/.test(l.message)));
+  assert.ok(inbox.list().some((p) => p.jid === bad), 'o cliente com erro continua na lista para outra tentativa');
+  assert.match(inbox.status().lastError.message, /Cannot read/);
+});
+
+test('três falhas seguidas pausam a fila com aviso claro, e o vigia religa uma fila que caiu sem rodar', async () => {
+  const { store, wa, inbox } = setup();
+  const jids = ['1', '2', '3', '4'].map((n) => `59598${n.repeat(7)}@s.whatsapp.net`);
+  inbox.ingestHistory(jids.map((jid) => ({ ...msg(jid, false, 'oi', 120), timestamp: Date.now() - 60000 })));
+  inbox.agent.handleIncoming = async () => { throw new Error('modelo indisponível'); };
+  inbox.enqueue(jids);
+  await waitFor(() => !inbox.running);
+  assert.ok(store.data.logs.some((l) => /A fila parou depois de 3 falhas seguidas/.test(l.message)));
+  assert.equal(inbox.queue.length, 0);
+  assert.equal(wa.sent.length, 0);
+  // Vigia: fila com itens e nada rodando volta a andar.
+  inbox.agent.handleIncoming = async (m, reply) => { await reply('Oi!'); };
+  inbox.queue = [jids[3]];
+  inbox.ensureRunning();
+  await waitFor(() => wa.sent.length === 1);
+});

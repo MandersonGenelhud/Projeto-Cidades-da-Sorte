@@ -1187,7 +1187,7 @@ async function loadPending() {
     ? `🤖 <b>Respondendo com cuidado</b> para proteger o número: no máximo <b>${r.perHour} por hora</b>, das ${r.from ?? 7}h às ${r.to ?? 21}h, uma de cada vez (45 a 90 s entre uma e outra).<br>
        ${r.queue} na fila · ${r.sentLastHour ?? 0} respondidas na última hora · última resposta enviada às ${hhmm(r.lastSentAt)}${r.etaMin ? ` · tempo estimado: cerca de ${Math.ceil(r.etaMin / 60)} h` : ''}${r.waiting ? `<br>⏸️ Esperando: ${esc(r.waiting)}.` : ''}<br>
        <span class="muted">Não é falha: é de propósito, para o WhatsApp não bloquear o número. Pode fechar esta tela; a fila continua. Para responder mais rápido, aumente o limite por hora em Agente IA (com cuidado).</span>`
-    : '';
+    : (r.lastError ? `⚠️ A fila parou: ${esc(r.lastError.message)}. Veja Conexões → Saúde do sistema.` : '');
   $('#btnPendingCancel').hidden = !r.running;
 }
 $('#pendingMaxDays').addEventListener('change', async (e) => {

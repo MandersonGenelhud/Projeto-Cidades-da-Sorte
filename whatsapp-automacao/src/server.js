@@ -910,6 +910,7 @@ wa.on('ownerMessage', (msg) => {
 wa.on('history', (msgs) => pending.ingestHistory(msgs));
 // A cada 5 minutos, responde quem ficou esperando (agente fora do ar, erro da IA, mensagem perdida).
 setInterval(() => pending.autoAnswer(), 5 * 60_000).unref();
+setInterval(() => pending.ensureRunning(), 60_000).unref();
 wa.on('sent', ({ to, jid }) => {
   pending.resolve(jid);
   pending.resolve(to);
