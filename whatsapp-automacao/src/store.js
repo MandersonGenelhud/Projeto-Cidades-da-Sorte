@@ -46,6 +46,8 @@ const DEFAULT_DATA = {
       ownerPhone: '', // WhatsApp do Marcos: parcerias e assuntos de negócio vão direto para ele
       jobsContact: [{ name: 'Gabriel', whatsapp: '' }], // quem quer trabalhar na Migra (só o nome = WhatsApp da Equipe)
       mentoring: { enabled: true, price: 250, currency: 'USD', minutes: 60, priceBRL: 0 }, // priceBRL: valor do Pix em reais (0 = US$ × cotação do painel) // mentoria com o Marcos Miguel (único atendimento direto com ele)
+      // Oferta do aplicativo de idiomas da Migra (ainda em desenvolvimento): só vale até a data que o Marcos escolher.
+      appOffer: { enabled: true, regularPrice: 59.99, discountPct: 50, months: 6, period: 'por mês', validUntil: '' },
       codePrefix: 'MIG',
       fx: { USD: 5.5, PYG: 0.0007 }, // cotação usada só para somar vendas em R$ nos painéis
       // Assuntos que vão direto para um especialista (ex.: terrenos → Robson).

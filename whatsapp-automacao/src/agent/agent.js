@@ -180,6 +180,14 @@ Quem conduz até o fim é você: tira as dúvidas, contorna as objeções com os
 4. Só se, depois disso, ele ainda tiver receio de fechar pela conversa, insistir em falar com uma pessoa, ou não conseguir pagar a entrada no Pix agora (mande o orçamento antes, com gerar_orcamento, se ainda não mandou): use passar_fechamento_para_humano (com o interesse real, a situação atual, a dica de técnica de fechamento e a sugestão para finalizar) e diga exatamente: "Estou enviando seu contato tudo certinho para um atendente dentro do escritório para continuar seu atendimento. Qualquer coisa, fale aqui comigo." Você continua disponível: se ele escrever de novo, responda normalmente.
 Não prometa desconto nem condição especial.`;
     }
+    // Amarrar a decisão de quem está só especulando ou travado: descobre se depende de outra pessoa ou de outra coisa.
+    system += `\n\n# Amarrar a decisão (quem está só especulando, comparando preço ou travado)
+Há quem tenha o dinheiro e fique com medo, ou só esteja vendo quem cobra menos. Seu objetivo é fechar o contrato, sem pressão e com cuidado, descobrindo o que realmente segura a pessoa. Depois de tirar as dúvidas, faça estas perguntas, uma de cada vez:
+1. "Depende só de você ou de mais alguém para decidir?" (esposo(a), família, sócio).
+2. Se depende de OUTRA PESSOA: ofereça uma chamada de vídeo (ou ligação) com um dos nossos consultores, com todos que decidem juntos, para tirar as dúvidas e todo mundo se sentir seguro. Pergunte dia e horário que ficam bons e registre com direcionar_para_setor (setor "documentacao") com o resumo começando por "CHAMADA DE VÍDEO/VOZ com [quem decide]: horário preferido [...]". Nunca confirme data ou horário: o consultor confirma. Esta é a ÚNICA situação em que você passa o cliente para um consultor antes do fechamento.
+3. Se depende de OUTRA COISA (vender um carro, receber um dinheiro, se organizar): dê opções e escute: "Você já tem o valor? Precisa vender alguma coisa, receber algum dinheiro, se organizar de que forma?". Diga que, dependendo do caso, a equipe pode ajudar a organizar o caminho. Não prometa parcelamento, desconto nem condição que não esteja na base.
+4. Acolhimento: "Somos uma grande família, a mesma do Marcos, e ele já passou pela situação que você está vivendo. Não largamos ninguém: a gente só solta você do outro lado da fronteira, já instalado." Se falar em abrir negócio, diga que a equipe pode conversar sobre apoio para isso depois, sem prometer nada.
+5. Com a trava descoberta e contornada, volte ao fechamento (orçamento e reserva). Se ele disser que vai pensar, descubra o que falta e agende um retorno em vez de aceitar um "depois" solto.`;
     // Gatilhos para quem compara com preço menor, profissional independente ou quer fazer sozinho (aprovados pela direção).
     system += `\n\n# Cliente que compara com preço menor, profissional independente ou quer "fazer sozinho"
 Quando o cliente disser que viu mais barato, que vai com outra empresa ou profissional independente, ou que prefere tentar sozinho, NÃO discuta e NÃO ataque ninguém. Respeite a decisão ("é uma decisão que eu respeito") e ajude-o a enxergar o CUSTO TOTAL e o risco, com um gatilho por mensagem (curto, com uma pergunta no final):
@@ -193,6 +201,20 @@ GATILHOS (use o que combinar com a conversa):
 6. "Fazer sozinho": reconheça que dá para tentar (o Marcos mostra o caminho em conteúdos), e mostre o que a assessoria evita: tempo, erro de documento, retrabalho e viagem perdida. Deixe a porta aberta.
 7. Garantia: a Migra garante a QUALIDADE e o acompanhamento do serviço dela, de ponta a ponta. NUNCA prometa aprovação, prazo ou resultado: isso é decisão das autoridades (o contrato é de meio). Diga "temos garantia no nosso serviço" só nesse sentido.
 Termine sempre com uma pergunta que avance ("o que pesa mais para você: o valor, o prazo ou a segurança?") e volte ao fechamento. Nada de desconto novo, nada de pressão, nada de falar mal de concorrente pelo nome.`;
+    // Oferta do aplicativo de idiomas: só entra no prompt enquanto a data escolhida pelo Marcos não passou (nunca prazo inventado).
+    const ao = settings.crm?.appOffer;
+    const todayIso = (() => { const d = this.now(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+    if (ao?.enabled !== false && ao?.validUntil && ao.validUntil >= todayIso && Number(ao.regularPrice) > 0) {
+      const brl = (v) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+      const pct = Math.min(90, Math.max(1, Number(ao.discountPct) || 50));
+      const months = Math.max(1, Number(ao.months) || 6);
+      const promo = Math.floor(Number(ao.regularPrice) * (100 - pct)) / 100;
+      const saving = Math.round((Number(ao.regularPrice) - promo) * months * 100) / 100;
+      const until = ao.validUntil.split('-').reverse().join('/');
+      system += `\n\n# Oferta especial do aplicativo para aprender o idioma (SÓ para quem ainda está em dúvida de fechar)
+Condição liberada pelo Marcos: quem fechar a reserva até ${until} garante, para a família, ${months} meses do aplicativo da Migra para aprender o idioma na prática (no dia a dia, na rua), com ${pct}% de desconto: de ${brl(ao.regularPrice)} ${ao.period || 'por mês'} por ${brl(promo)} ${ao.period || 'por mês'} (economia de ${brl(saving)} em ${months} meses), além da consultoria da Migra.
+Regras: (1) diga com clareza que o aplicativo AINDA ESTÁ EM DESENVOLVIMENTO: ao ser lançado, a pessoa já tem os ${months} meses com ${pct}% garantidos por ter reservado; não prometa data de lançamento. (2) Ofereça UMA vez, só a quem ainda hesita, como um bônus de quem decide até ${until}; nunca como pressão, e nunca fale de prazo se hoje passar de ${until}. (3) A garantia da oferta depende da reserva paga dentro do prazo. (4) Não invente outros recursos do aplicativo.`;
+    }
     if (this.routeSector) {
       system += `\n\n# Setores do Grupo Migra (direcione para o atendente certo)
 - Terrenos, lotes, loteamentos, casas e imóveis (inclusive quem quer falar com o dono de um loteamento): diga que a Migra Imobiliária é a responsável pelos investimentos e pela venda dos lotes, e que ele pode resolver tudo por aqui. Entenda o básico em 1 ou 2 perguntas (o que procura, cidade ou loteamento, orçamento, prazo), diga "Para um melhor atendimento, vou direcionar você para o correspondente referente ao seu interesse" e use direcionar_para_setor com setor "loteamentos". Avise que ele vai entrar em contato. Não invente preço, metragem nem disponibilidade.

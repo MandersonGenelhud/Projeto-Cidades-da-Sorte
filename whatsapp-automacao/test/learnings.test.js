@@ -246,3 +246,41 @@ test('atendente: gatilhos para quem compara preço menor ou quer fazer sozinho, 
   assert.match(system, /nada de falar mal de concorrente pelo nome/);
   assert.match(system, /milhares, sem inventar número|milhares de pessoas \(diga "milhares", sem inventar número\)/);
 });
+
+test('atendente: amarra a decisão (depende de outra pessoa → chamada de vídeo com o casal) e a oferta do aplicativo só vale até a data escolhida', async () => {
+  const { Agent } = await import('../src/agent/agent.js');
+  const make = (validUntil, extra = {}) => {
+    const store = tempStore();
+    store.updateSettings({ agent: { enabled: true, audience: 'all' }, crm: { appOffer: { enabled: true, regularPrice: 59.99, discountPct: 50, months: 6, period: 'por mês', validUntil, ...extra } } });
+    const box = { system: '' };
+    const llm = { configured: true, chat: async ({ messages }) => { box.system = messages[0].content; return { content: 'Oi!', tool_calls: [] }; } };
+    const agent = new Agent({ store, llm, now: () => new Date(2026, 10, 3, 10, 0) }); // 03/11/2026
+    agent.routeSector = async () => ({ ok: true });
+    const conv = agent.conversation('5511999990000@s.whatsapp.net');
+    agent.remember(conv, 'user', 'Preciso falar com minha esposa');
+    return { agent, conv, box };
+  };
+  const on = make('2026-11-04');
+  await on.agent.think(on.conv);
+  assert.match(on.box.system, /Depende só de você ou de mais alguém/);
+  assert.match(on.box.system, /chamada de vídeo \(ou ligação\) com um dos nossos consultores/);
+  assert.match(on.box.system, /CHAMADA DE VÍDEO\/VOZ com \[quem decide\]/);
+  assert.match(on.box.system, /vender um carro, receber um dinheiro/);
+  assert.match(on.box.system, /grande família/);
+  assert.match(on.box.system, /Oferta especial do aplicativo/);
+  assert.match(on.box.system, /até 04\/11\/2026/);
+  assert.match(on.box.system, /de R\$ 59,99 por mês por R\$ 29,99 por mês \(economia de R\$ 180,00 em 6 meses\)/);
+  assert.match(on.box.system, /AINDA ESTÁ EM DESENVOLVIMENTO/);
+  const today = make('2026-11-03');
+  await today.agent.think(today.conv);
+  assert.match(today.box.system, /Oferta especial do aplicativo/, 'vale até o fim do dia da data escolhida');
+  const expired = make('2026-11-02');
+  await expired.agent.think(expired.conv);
+  assert.doesNotMatch(expired.box.system, /Oferta especial do aplicativo/, 'data vencida: a oferta some sozinha, sem prazo falso');
+  const noDate = make('');
+  await noDate.agent.think(noDate.conv);
+  assert.doesNotMatch(noDate.box.system, /Oferta especial do aplicativo/, 'sem data, sem oferta');
+  const off = make('2026-11-04', { enabled: false });
+  await off.agent.think(off.conv);
+  assert.doesNotMatch(off.box.system, /Oferta especial do aplicativo/);
+});
