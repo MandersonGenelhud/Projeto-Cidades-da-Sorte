@@ -53,7 +53,8 @@ import { mergeContent, sanitizeContent, renderHome, videoKind } from '../src/sit
 
 test('conteúdo do site: padrão sem números inventados, validação e desenho no servidor', () => {
   const c = mergeContent({});
-  assert.deepEqual(c.stats, []);
+  assert.deepEqual(c.stats, [{ value: '1.500+', label: 'clientes atendidos' }], 'só o número confirmado pela direção');
+  assert.ok(!JSON.stringify(c).includes('satisfa'), 'nenhum índice de satisfação sem pesquisa');
   assert.deepEqual(c.videos, []);
   assert.match(c.faq[0].a, /RG, emitido de 10 anos para cá/);
   assert.throws(() => sanitizeContent({ videos: [{ title: 'x', url: 'http://inseguro.com/a.mp4' }] }), /https/);

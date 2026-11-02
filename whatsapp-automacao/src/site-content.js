@@ -8,8 +8,9 @@ export const DEFAULT_CONTENT = {
   heroKicker: 'Migra Paraguai',
   heroTitle: 'Seu projeto no Paraguai começa aqui',
   heroText: 'Residência, cédula, abertura de empresa, terrenos, imóveis, veículos e idiomas, com o acompanhamento de uma equipe que já fez esse caminho.',
-  // Só aparecem números que a Migra confirmar (value + label). Começa vazio de propósito.
-  stats: [],
+  // Só aparecem números que a Migra confirmar (value + label). Confirmado pela direção: 1.500+ clientes atendidos.
+  // Satisfação só entra depois de medida (pesquisa com os clientes), nunca como número "redondo" sem prova.
+  stats: [{ value: '1.500+', label: 'clientes atendidos' }],
   videos: [],
   faq: [
     { q: 'Quais documentos preciso para começar?', a: 'O principal é o RG, emitido de 10 anos para cá (um RG com mais de 10 anos não serve). Também pedimos uma foto sua de meio corpo. O passaporte não é necessário nesta etapa: ele só entra mais adiante, se você contratar o serviço de empresa com benefícios. Se o seu RG estiver vencido ou você não tiver, a equipe orienta o melhor caminho.' },

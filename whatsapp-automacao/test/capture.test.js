@@ -23,7 +23,7 @@ function sistemaFalso() {
     if (u.pathname === '/contratos') {
       const pg = Number(u.searchParams.get('pagina') || 1);
       const part = CONTRATOS.slice((pg - 1) * 4, pg * 4);
-      return send(`<h1>Contratos</h1><a href="/sair">Sair</a><table><thead><tr><th>Nº</th><th>Cliente</th><th>Valor</th><th>Data</th><th></th></tr></thead><tbody>${part.map((c) => `<tr><td>${c.n}</td><td>${c.nome}</td><td>R$ ${c.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td>${c.data}</td><td><a href="/contratos/ver/${c.n}">Ver</a> <a href="/contratos/excluir/${c.n}">Excluir</a></td></tr>`).join('')}</tbody></table>${pg === 1 ? '<a href="/contratos?pagina=2">Próxima</a>' : ''}<a href="/contratos/dinamico">Clientes</a>`);
+      return send(`<h1>Contratos</h1><a href="/sair">Sair</a><table><thead><tr><th>Nº</th><th>Cliente</th><th>Valor</th><th>Data</th><th></th></tr></thead><tbody>${part.map((c) => `<tr><td>${c.n}</td><td>${c.nome}</td><td>R$ ${c.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td>${c.data}</td><td><a href="/contratos/ver/${c.n}">Ver</a> <a href="/contratos/excluir/${c.n}">Excluir</a></td></tr>`).join('')}</tbody></table>${pg === 1 ? '<a href="/contratos?pagina=2">Próxima</a>' : ''}<a href="/contratos/dinamico">Clientes</a><a href="https://www.youtube.com/watch?v=abcDEF12345" title="Depoimento da Maria">vídeo</a><video src="/contratos/v.mp4"></video>`);
     }
     const m = u.pathname.match(/^\/contratos\/ver\/(\d+)$/);
     if (m) {
@@ -87,6 +87,7 @@ test('ferramenta de captura: percorre a lista e as páginas, lê fichas e PDFs, 
   assert.ok(!bruto.includes('SEGREDO-NAO-LER'), 'campo de senha não é lido');
   const mapa = fs.readFileSync(path.join(pasta, 'mapa.txt'), 'utf8');
   assert.match(mapa, /\/contratos\/ver\/\{n\}/);
+  assert.match(mapa, /Vídeos encontrados[\s\S]*youtube\.com\/watch\?v=abcDEF12345/, 'lista os endereços dos vídeos da página');
   assert.ok(!mapa.includes('Cliente 1') && !mapa.includes('123.456'), 'o mapa não tem dados de clientes');
   const recs = extractRecords(JSON.parse(bruto));
   assert.equal(recs.length, CONTRATOS.length);

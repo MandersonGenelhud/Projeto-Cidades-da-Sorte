@@ -15,7 +15,7 @@ const SEM_VALOR = /(senha|password|passwd|token|csrf|_token|captcha|cartao|card)
 /** Roda dentro da página: lê tabelas, campos de formulário e pares "rótulo: valor". Nunca lê campo de senha. */
 function lerPagina() {
   const txt = (el) => (el?.textContent || '').replace(/\s+/g, ' ').trim();
-  const out = { title: document.title, tables: [], fields: [], links: [], pdfs: [] };
+  const out = { title: document.title, tables: [], fields: [], links: [], pdfs: [], media: [] };
   for (const t of document.querySelectorAll('table')) {
     const rows = [...t.querySelectorAll('tr')];
     if (rows.length < 2) continue;
@@ -48,6 +48,10 @@ function lerPagina() {
     const m = t.length < 250 && t.match(/^([^:\n]{2,40}):\s*(.{1,200})$/);
     if (m && !el.querySelector('div, ul, table')) out.fields.push({ label: m[1], value: m[2] });
     if (out.fields.length > 200) break;
+  }
+  for (const el of document.querySelectorAll('iframe[src], video[src], video source[src], a[href*="youtube.com"], a[href*="youtu.be"], a[href*="vimeo.com"], a[href*="instagram.com/reel"]')) {
+    const src = el.src || el.href;
+    if (/^https?:/i.test(src || '')) out.media.push({ type: el.tagName.toLowerCase(), src, title: (el.title || el.getAttribute('aria-label') || '').slice(0, 80) });
   }
   for (const a of document.querySelectorAll('a[href]')) {
     const h = a.href;
@@ -166,8 +170,11 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
     p.tables.forEach((t) => g.colunas.add(t.headers.join(' | ')));
     grupos.set(k, g);
   }
+  const videos = new Map();
+  for (const p of paginas) for (const m of p.media || []) if (!videos.has(m.src)) videos.set(m.src, m);
   const linhas = [`Sistema: ${origem}`, `Páginas lidas: ${paginas.length} · PDFs baixados: ${n} · respostas JSON: ${api.length}`, ''];
   for (const [k, g] of grupos) linhas.push(`${k}  (${g.n} páginas)`, ...[...g.colunas].slice(0, 5).map((c) => `   colunas: ${c}`), g.rotulos.size ? `   campos: ${[...g.rotulos].slice(0, 40).join(' | ')}` : '', '');
+  if (videos.size) { linhas.push('Vídeos encontrados (endereços):'); for (const m of [...videos.values()].slice(0, 60)) linhas.push(`  ${m.title ? `${m.title} | ` : ''}${m.src}`); linhas.push(''); }
   linhas.push('Respostas JSON (só os nomes dos campos):');
   for (const a of api.slice(0, 40)) { const first = Array.isArray(a.json) ? a.json[0] : a.json; linhas.push(`  ${padrao(a.url)}: ${first && typeof first === 'object' ? Object.keys(first).slice(0, 30).join(', ') : typeof first}`); }
   fs.writeFileSync(path.join(pasta, 'mapa.txt'), linhas.join('\n'));
