@@ -239,6 +239,14 @@ export class Store extends EventEmitter {
       vs.fee150 = true;
       this.flush();
     }
+    // O RG é o documento necessário agora (de 10 anos para cá); o passaporte não o substitui. Corrige textos antigos gravados na base, uma vez.
+    const ag = this.data.settings.agent;
+    if (ag && !ag.rgFix2026) {
+      const fix = (t) => t.replace(/RG \(ou passaporte\)/gi, 'RG (de 10 anos para cá; o passaporte não serve agora)').replace(/RG ou passaporte/gi, 'RG (de 10 anos para cá; o passaporte não serve agora)');
+      for (const [k, v] of Object.entries(ag)) if (typeof v === 'string' && /RG (ou passaporte|\(ou passaporte\))/i.test(v)) ag[k] = fix(v);
+      ag.rgFix2026 = true;
+      this.flush();
+    }
     // Nova divisão da equipe (Nov/2026): nada de vendas nem visitas para o Marcos.
     // Visitas → Silvani; migração → Camila e Fran; veículos → Eliezer; imobiliária → Gabriel e Diego.
     // Só os nomes: o WhatsApp vem do cadastro de cada um na Equipe. Aplica uma vez (depois vale o painel).
