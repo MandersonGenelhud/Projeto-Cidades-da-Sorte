@@ -245,7 +245,7 @@ test('atendente: gatilhos para quem compara preço menor ou quer fazer sozinho, 
   assert.match(system, /NUNCA prometa aprovação, prazo ou resultado/);
   assert.match(system, /nada de falar mal de concorrente pelo nome/);
   assert.match(system, /Confie pelos erros, não pelas promessas/);
-  assert.match(system, /Não quero que confie na Migra pelos nossos acertos, peço que confie pelos meus erros, pois são poucos, e claro, pelas centenas de clientes atendidos e satisfeitos/);
+  assert.match(system, /Não quero que confie na Migra pelos nossos acertos, peço que confie pelos meus erros, pois são poucos, e claro, pelos milhares de clientes atendidos e satisfeitos/);
   assert.match(system, /NUNCA passe número nem nome de ninguém/);
   assert.match(system, /NUNCA transforme isso em "100% de aprovação"/);
   assert.match(system, /milhares, sem inventar número|milhares de pessoas \(diga "milhares", sem inventar número\)/);
