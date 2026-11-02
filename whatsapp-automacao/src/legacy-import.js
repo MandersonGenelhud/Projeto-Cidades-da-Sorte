@@ -4,7 +4,7 @@
 import crypto from 'node:crypto';
 
 const err = (status, message) => Object.assign(new Error(message), { status });
-const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+export const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 
 // Cada campo do Migra Hub e os nomes que o sistema antigo pode ter usado (sem acento, minúsculo).
 const SYN = {
@@ -74,7 +74,7 @@ export function normalizeRecord(raw, { source = '' } = {}) {
   return rec;
 }
 
-function* objectsIn(json, depth = 0) {
+export function* objectsIn(json, depth = 0) {
   if (depth > 4 || json === null) return;
   if (Array.isArray(json)) {
     for (const x of json) {
@@ -83,7 +83,7 @@ function* objectsIn(json, depth = 0) {
     }
   } else if (typeof json === 'object') for (const v of Object.values(json)) yield* objectsIn(v, depth + 1);
 }
-const flat = (o, prefix = '') => Object.entries(o).reduce((acc, [k, v]) => (v && typeof v === 'object' && !Array.isArray(v) ? { ...acc, ...flat(v, `${prefix}${k} `) } : { ...acc, [`${prefix}${k}`]: v }), {});
+export const flat = (o, prefix = '') => Object.entries(o).reduce((acc, [k, v]) => (v && typeof v === 'object' && !Array.isArray(v) ? { ...acc, ...flat(v, `${prefix}${k} `) } : { ...acc, [`${prefix}${k}`]: v }), {});
 
 /** captura = { pages: [{url, title, tables:[{headers, rows}], fields:[{label,value}]}], api: [{url, json}] } */
 export function extractRecords(captura) {

@@ -37,6 +37,7 @@ import { Audit } from './audit.js';
 import { byAttendant, attendantOf } from './attendants.js';
 import { LegacyContracts } from './legacy-import.js';
 import { buildBat } from './legacy-tool.js';
+import { Reengage, rowsFrom, TEMPLATES as REENGAGE_TEMPLATES } from './reengage.js';
 import { Motors } from './motors.js';
 import { School } from './school.js';
 import { Proposals, simulate as finSimulate, options as finOptions, schedule as finSchedule, isConfigured as finConfigured } from './finance.js';
@@ -1121,7 +1122,7 @@ if (PANEL_PASSWORD) {
 }
 
 // O painel (página e programas) só é entregue a quem está logado: sem sessão, vai direto para o login (sem mostrar a casca da tela).
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -2304,6 +2305,45 @@ const imageExt = (file) => {
   if (!file || !/^image\/(png|jpeg|webp)$/.test(file.mimetype)) throw httpError(400, 'Envie uma imagem PNG, JPG ou WEBP');
   return { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' }[file.mimetype];
 };
+// Retomada de contatos (Instagram/Facebook/site/quiz que ainda não foram atendidos). Só administrador.
+const reengage = new Reengage({ store, crm, agent, send: (to, payload) => wa.send(to, { ...payload, typing: false }) });
+const reengageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 80_000_000 } }).single('file');
+const reengageRows = (req) => {
+  if (!req.file) throw httpError(400, 'Escolha o arquivo (planilha CSV ou o captura.json)');
+  const text = req.file.buffer.toString('utf8');
+  let input = text;
+  if (/\.json$/i.test(req.file.originalname || '') || /^\s*[[{]/.test(text)) { try { input = JSON.parse(text); } catch { throw httpError(400, 'Arquivo JSON inválido'); } }
+  const source = String(req.body?.source || '');
+  return rowsFrom(input, { source: ['instagram', 'facebook', 'site', 'quiz', 'grupo', 'outro'].includes(source) ? source : '' });
+};
+app.post('/api/reengage/import', reengageUpload, (req, res) => {
+  const rows = reengageRows(req);
+  if (!rows.length) throw httpError(400, 'Não encontrei nenhum contato com telefone ou e-mail neste arquivo.');
+  const stats = reengage.import(rows);
+  audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'retomada de contatos', label: `Importou ${stats.lidas} linhas: ${stats.novos} novos, ${stats.jaAtendidos} já atendidos` });
+  res.json(stats);
+});
+app.get('/api/reengage', (req, res) => res.json({ summary: reengage.summary(), items: reengage.list(req.query).slice(0, 500), templates: { ...REENGAGE_TEMPLATES, ...(store.settings.reengage?.templates || {}) } }));
+app.post('/api/reengage/send', (req, res) => {
+  if (wa.status !== 'connected') throw httpError(400, 'Conecte o WhatsApp primeiro (aba Conexões)');
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
+  if (!ids.length) throw httpError(400, 'Marque quem vai receber a mensagem.');
+  if (reengage.store.data.reengage.run?.running) throw httpError(409, 'Já existe um envio em andamento');
+  if (!reengage.inHours()) throw httpError(400, `Só envio entre ${reengage.config.from}h e ${reengage.config.to}h, para parecer atendimento normal.`);
+  securityEvent('retomada_envio', req.user, req, `${ids.length} contato(s) aprovado(s)`);
+  reengage.sendApproved(ids, { by: req.user.name }).catch((e) => store.addLog({ type: 'error', message: `Retomada de contatos: ${e.message}` }));
+  res.json({ ok: true });
+});
+app.post('/api/reengage/stop', (_req, res) => res.json(reengage.stop() || { running: false }));
+app.patch('/api/reengage/:id', (req, res) => res.json(reengage.mark(req.params.id, req.body?.status)));
+app.put('/api/reengage/templates', (req, res) => {
+  const t = {};
+  for (const k of Object.keys(REENGAGE_TEMPLATES)) if (typeof req.body?.[k] === 'string' && req.body[k].trim()) t[k] = req.body[k].slice(0, 800);
+  store.updateSettings({ reengage: { templates: t } });
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'retomada de contatos', label: 'Mudou os textos da primeira mensagem' });
+  res.json({ ok: true });
+});
+
 // Contratos do sistema antigo (importados pela ferramenta tools/capturar-sistema). Só administrador.
 const legacyUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 80_000_000 } }).single('file');
 const readCapture = (req) => {

@@ -23,12 +23,18 @@ function sistemaFalso() {
     if (u.pathname === '/contratos') {
       const pg = Number(u.searchParams.get('pagina') || 1);
       const part = CONTRATOS.slice((pg - 1) * 4, pg * 4);
-      return send(`<h1>Contratos</h1><a href="/sair">Sair</a><table><thead><tr><th>Nº</th><th>Cliente</th><th>Valor</th><th>Data</th><th></th></tr></thead><tbody>${part.map((c) => `<tr><td>${c.n}</td><td>${c.nome}</td><td>R$ ${c.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td>${c.data}</td><td><a href="/contratos/ver/${c.n}">Ver</a> <a href="/contratos/excluir/${c.n}">Excluir</a></td></tr>`).join('')}</tbody></table>${pg === 1 ? '<a href="/contratos?pagina=2">Próxima</a>' : ''}`);
+      return send(`<h1>Contratos</h1><a href="/sair">Sair</a><table><thead><tr><th>Nº</th><th>Cliente</th><th>Valor</th><th>Data</th><th></th></tr></thead><tbody>${part.map((c) => `<tr><td>${c.n}</td><td>${c.nome}</td><td>R$ ${c.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td>${c.data}</td><td><a href="/contratos/ver/${c.n}">Ver</a> <a href="/contratos/excluir/${c.n}">Excluir</a></td></tr>`).join('')}</tbody></table>${pg === 1 ? '<a href="/contratos?pagina=2">Próxima</a>' : ''}<a href="/contratos/dinamico">Clientes</a>`);
     }
     const m = u.pathname.match(/^\/contratos\/ver\/(\d+)$/);
     if (m) {
       const c = CONTRATOS.find((x) => x.n === Number(m[1]));
       return send(`<h2>Contrato ${c.n}</h2><table><tr><th>Número do contrato</th><td>${c.n}</td></tr><tr><th>Contratante</th><td>${c.nome}</td></tr><tr><th>CPF</th><td>123.456.789-0${c.n % 10}</td></tr></table><label for="s">Serviço</label><input id="s" value="Residência"><input type="password" name="senha" value="SEGREDO-NAO-LER"><a href="/contratos/pdf/${c.n}.pdf">Baixar PDF</a><a href="/contratos/excluir/${c.n}">Excluir</a>`);
+    }
+    if (u.pathname === '/contratos/dinamico') {
+      return send(`<table><thead><tr><th>Nome</th><th>Telefone</th></tr></thead><tbody id="b"></tbody></table><button id="nx" onclick="go()">Próxima</button><button onclick="fetch('/contratos/excluir/tudo')">Excluir tudo</button>
+        <script>const todos = Array.from({length: 12}, (_, i) => ['Pessoa ' + (i + 1), '+5959810000' + String(i).padStart(2, '0')]); let p = 0;
+        function show() { document.getElementById('b').innerHTML = todos.slice(p * 5, p * 5 + 5).map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join(''); document.getElementById('nx').disabled = (p + 1) * 5 >= todos.length; }
+        function go() { p++; show(); } show();</script>`);
     }
     if (u.pathname.endsWith('.pdf')) return send('%PDF-1.4 fake', 'application/pdf');
     res.writeHead(404); res.end('x');
@@ -74,7 +80,7 @@ test('ferramenta de captura: percorre a lista e as páginas, lê fichas e PDFs, 
   const context = await browser.newContext();
   const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'cap-'));
   const r = await capturar(context, { inicio: `${url}/contratos`, pasta, espera: 0, log: () => {} });
-  assert.equal(r.paginas, 2 + CONTRATOS.length, 'lista (2 páginas) + uma ficha por contrato');
+  assert.equal(r.paginas, 3 + CONTRATOS.length, 'lista (2 páginas) + clientes + uma ficha por contrato');
   assert.equal(r.pdfs, CONTRATOS.length);
   assert.ok(!hits.some((h) => /sair|excluir/.test(h)), 'nunca visitou sair nem excluir');
   const bruto = fs.readFileSync(path.join(pasta, 'captura.json'), 'utf8');
@@ -88,6 +94,9 @@ test('ferramenta de captura: percorre a lista e as páginas, lê fichas e PDFs, 
   assert.deepEqual([c.client, c.value, c.service], ['Cliente 4', 4000.5, 'Residência']);
   assert.match(c.doc, /^123\.456\.789/);
   assert.equal(lastNumber(recs), 506);
+  const dinamica = JSON.parse(bruto).pages.find((p) => p.url.endsWith('/dinamico'));
+  assert.equal(dinamica.tables[0].rows.length, 12, 'clicou em Próxima até acabar e juntou as 3 páginas da lista');
+  assert.ok(!hits.some((h) => /excluir/.test(h)), 'nunca clicou em Excluir');
 });
 
 test('o programa de cópia realmente inicia quando chamado pela linha de comando (no Windows o caminho do arquivo é diferente)', async () => {

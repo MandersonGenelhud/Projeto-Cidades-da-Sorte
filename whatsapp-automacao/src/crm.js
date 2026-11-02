@@ -616,6 +616,6 @@ export function addDays(dateStr, days) {
   return toDateStr(new Date(y, m - 1, d + days));
 }
 
-export const sourceLabel = (s) => ({ whatsapp: 'WhatsApp', instagram: 'Instagram', instagram_ads: 'Anúncio no Instagram', whatsapp_ads: 'Anúncio (WhatsApp)', manual: 'Cadastro manual', indicacao: 'Indicação', site: 'Site', evento: 'Evento' }[s] || s || 'Outro');
+export const sourceLabel = (s) => ({ whatsapp: 'WhatsApp', instagram: 'Instagram', instagram_ads: 'Anúncio no Instagram', facebook: 'Facebook', quiz: 'Quiz', grupo: 'Grupo de WhatsApp', whatsapp_ads: 'Anúncio (WhatsApp)', manual: 'Cadastro manual', indicacao: 'Indicação', site: 'Site', evento: 'Evento' }[s] || s || 'Outro');
 const fmtDate = (s) => s.split('-').reverse().join('/');
 const fmtMoney = (v) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

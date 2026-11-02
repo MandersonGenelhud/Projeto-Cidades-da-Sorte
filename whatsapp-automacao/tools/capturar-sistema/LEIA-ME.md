@@ -18,3 +18,7 @@ Mande o arquivo `mapa.txt` da mesma pasta. Ele mostra só a estrutura (nomes de 
 ## Segurança
 - A pasta `captura-...` tem dados de clientes: não suba para o GitHub, não mande por chat. Apague depois de importar.
 - Nunca digite a senha do sistema do Marcos em chat comigo ou em arquivos.
+
+
+## Sistema inteiro
+O programa pergunta se deve copiar o **sistema inteiro**. Responda S (padrão) para ele passar por todas as telas do menu (contratos, clientes, processos, financeiro, leads…). Nas listas com botão "Próxima", ele clica só nesse botão até acabar. Nunca clica em outros botões.

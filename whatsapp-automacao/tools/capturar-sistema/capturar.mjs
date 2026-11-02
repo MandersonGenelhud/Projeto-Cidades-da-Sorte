@@ -56,6 +56,42 @@ function lerPagina() {
   return out;
 }
 
+/** Acha o botão "Próxima" (só botões, não links: os links o programa já segue sozinho) e o marca. */
+function marcarProxima(perigoso) {
+  const ruim = new RegExp(perigoso, 'i');
+  const norm = (t) => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const nome = /^(proxima|proximo|next|seguinte|>|›|»|→|>>)$/;
+  for (const el of document.querySelectorAll('[data-migra-prox]')) el.removeAttribute('data-migra-prox');
+  for (const el of document.querySelectorAll('button, [role="button"], li, span, a')) {
+    const href = el.getAttribute('href');
+    if (el.tagName === 'A' && href && !href.startsWith('#') && !/^javascript:/i.test(href)) continue;
+    const rotulo = norm(el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent);
+    if (!(nome.test(rotulo) || /^(pagina )?(proxima|next)( pagina| page)?$/.test(rotulo))) continue;
+    if (el.disabled || el.getAttribute('aria-disabled') === 'true' || /disabled/i.test(el.className) || /disabled/i.test(el.parentElement?.className || '')) continue;
+    if (ruim.test(rotulo) || ruim.test(href || '')) continue;
+    const form = el.closest('form');
+    if (form && (form.method || '').toLowerCase() === 'post') continue;
+    if (!el.offsetParent) continue;
+    el.setAttribute('data-migra-prox', '1');
+    return true;
+  }
+  return false;
+}
+const assinatura = (r) => r.join('\u0001');
+/** Junta o que apareceu depois de clicar em "Próxima" ao que já tinha sido lido. Devolve quantas linhas/campos novos. */
+function juntar(base, novo) {
+  let n = 0;
+  for (const t of novo.tables) {
+    const alvo = base.tables.find((x) => x.headers.join('|') === t.headers.join('|'));
+    if (!alvo) { base.tables.push(t); n += t.rows.length; continue; }
+    const tem = new Set(alvo.rows.map(assinatura));
+    for (const r of t.rows) if (!tem.has(assinatura(r)) && alvo.rows.length < 20000) { alvo.rows.push(r); n += 1; }
+  }
+  const temF = new Set(base.fields.map((f) => `${f.label}=${f.value}`));
+  for (const f of novo.fields) if (!temF.has(`${f.label}=${f.value}`) && base.fields.length < 2000) { base.fields.push(f); temF.add(`${f.label}=${f.value}`); n += 1; }
+  return n;
+}
+
 const semHash = (u) => u.split('#')[0];
 const padrao = (u) => { try { const x = new URL(u); return x.pathname.replace(/\/\d+(?=\/|$)/g, '/{n}').replace(/[0-9a-f]{8,}/gi, '{id}'); } catch { return u; } };
 
@@ -89,6 +125,17 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
       const d = await page.evaluate(lerPagina);
+      // Listas com botão "Próxima": clica (só nele) até acabar, juntando as linhas de cada página.
+      for (let cliques = 0; cliques < 400; cliques++) {
+        if (!(await page.evaluate(marcarProxima, PERIGOSO.source).catch(() => false))) break;
+        await page.locator('[data-migra-prox="1"]').first().click({ timeout: 4000 }).catch(() => {});
+        await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => {});
+        await new Promise((r) => setTimeout(r, Math.max(150, espera / 3)));
+        const mais = await page.evaluate(lerPagina);
+        for (const l of mais.links) d.links.push(l);
+        for (const l of mais.pdfs) d.pdfs.push(l);
+        if (juntar(d, mais) === 0) break;
+      }
       paginas.push({ url, ...d, links: undefined, pdfs: d.pdfs });
       for (const l of d.links) { const u = semHash(l); if (!vistos.has(u) && permitido(u)) { vistos.add(u); fila.push(u); } }
       for (const l of d.pdfs) if (l.startsWith(origem) && !PERIGOSO.test(l) && !pdfs.has(l)) pdfs.set(l, null);
@@ -147,7 +194,12 @@ async function main() {
   const saida = iSaida > 0 ? process.argv[iSaida + 1] : '.';
   const pasta = path.resolve(saida, `captura-${new URL(inicio).hostname}-${new Date().toISOString().slice(0, 10)}`);
   console.log(`\nCopiando a partir de ${inicio}\nNão mexa no navegador até terminar.\n`);
-  const r = await capturar(context, { inicio, pasta, tudo: process.argv.includes('--tudo') });
+  let tudo = process.argv.includes('--tudo');
+  if (!tudo) {
+    const resp = (await rl.question('Copiar o SISTEMA INTEIRO (todas as telas do menu: contratos, clientes, processos, financeiro, leads…)? [S/n] ')).trim().toLowerCase();
+    tudo = resp !== 'n' && resp !== 'nao' && resp !== 'não';
+  }
+  const r = await capturar(context, { inicio, pasta, tudo });
   console.log(`\nPronto! ${r.paginas} páginas, ${r.pdfs} PDFs.\nPasta: ${pasta}\nEnvie o arquivo "captura.json" no painel (Contratos antigos → Importar).\nSe algo faltar, me mande só o "mapa.txt" (não tem dados de clientes).`);
   await browser.close();
   rl.close();
