@@ -15,11 +15,11 @@ const plusMonths = (n) => {
   const d = new Date(b.getFullYear(), b.getMonth() + n, b.getDate());
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
-const SOURCE_ICON = { whatsapp: '💬', instagram: '📸', instagram_ads: '📣', whatsapp_ads: '📣', manual: '✍️', indicacao: '🤝', site: '🌐', evento: '🎪' };
-const TEMP = { quente: { icon: '🔥', label: 'Quente' }, morno: { icon: '🌤️', label: 'Morno' }, frio: { icon: '❄️', label: 'Frio' } };
+const SOURCE_ICON = { whatsapp: '', instagram: '', instagram_ads: '', whatsapp_ads: '', manual: '', indicacao: '', site: '', evento: '' };
+const TEMP = { quente: { icon: '', label: 'Quente' }, morno: { icon: '', label: 'Morno' }, frio: { icon: '', label: 'Frio' } };
 const MONEY_LABEL = { sim: 'Tem o valor para começar', parcial: 'Tem parte do valor', nao: 'Ainda não tem o valor', nao_informou: 'Não informou' };
-const DUE_LABEL = { atrasado: '⚠️ Atrasado', hoje: '🔔 Hoje', agendado: '📅' };
-const TL_ICON = { criado: '✨', etapa: '➡️', retorno: '📅', nota: '📝', dono: '👤', ia: '🧠', aviso: '🔔', mensagem: '💬' };
+const DUE_LABEL = { atrasado: 'Atrasado', hoje: 'Hoje', agendado: '' };
+const TL_ICON = { criado: '', etapa: '', retorno: '', nota: '', dono: '', ia: '', aviso: '', mensagem: '' };
 
 const crmState = { stages: [], packages: [], users: [], view: 'board', current: null };
 const isAdmin = () => window.currentUser?.role === 'admin';
@@ -123,7 +123,7 @@ loaders.sales = async () => {
     kpi('Prospectos novos', s.newLeads, 'no período', '', 'userPlus'),
     kpi('Em negociação', money(s.openValue), `${s.openLeads} prospecto(s) em aberto`, '', 'briefcase'),
     kpi('Retornos', `${s.followUps.today} hoje`,
-      s.followUps.overdue ? `<span class="status-warn">⚠️ ${s.followUps.overdue} atrasado(s)</span> · ${s.followUps.next30} nos próximos 30 dias` : `${s.followUps.next30} nos próximos 30 dias · ${s.followUps.later} depois`,
+      s.followUps.overdue ? `<span class="status-warn">${s.followUps.overdue} atrasado(s)</span> · ${s.followUps.next30} nos próximos 30 dias` : `${s.followUps.next30} nos próximos 30 dias · ${s.followUps.later} depois`,
       s.followUps.overdue ? 'warn' : '', 'followups'),
   ].join('');
 
@@ -143,7 +143,7 @@ loaders.sales = async () => {
       <td><b>${esc(r.name)}</b>${r.active === false ? ' <span class="muted">(inativo)</span>' : ''}</td>
       <td>${r.leads}</td><td>${r.open}</td><td>${r.won}</td><td>${r.lost}</td>
       <td>${r.conversion === null ? '—' : `${r.conversion}%`}</td><td>${money(r.wonValue)}</td>
-      <td>${r.overdue ? `<span class="status-warn">⚠️ ${r.overdue}</span>` : '0'}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum prospecto ainda.</td></tr>'}</tbody>`;
+      <td>${r.overdue ? `<span class="status-warn">${r.overdue}</span>` : '0'}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum prospecto ainda.</td></tr>'}</tbody>`;
   renderInsights(insights);
   crmState.handoffs = await api(`/api/crm/handoffs?${q}`).catch(() => []);
   renderHandoffs();
@@ -164,7 +164,7 @@ function renderHandoffs() {
       <td><span class="chip small ${r.stage === 'ganho' ? 'good' : r.stage === 'perdido' ? 'muted' : ''}">${esc(r.stageLabel)}</span>${r.closedAt ? `<div class="hint">fechou ${when(r.closedAt)} · ${money(r.value)}</div>` : ''}</td>
       <td>${esc(r.lostReason || r.difficulty || '—')}</td>
       <td>${r.followUpAt ? `${when(`${r.followUpAt}T12:00:00`)}${r.followUpReason ? `<div class="hint">${esc(r.followUpReason)}</div>` : ''}` : '—'}</td>
-      <td>${r.idleDays === null ? '—' : r.idleDays >= 2 ? `<span class="status-warn">⚠️ há ${r.idleDays} dias</span>` : r.lastSellerAt ? 'em dia' : '<span class="status-warn">ainda não mexeu</span>'}</td>
+      <td>${r.idleDays === null ? '—' : r.idleDays >= 2 ? `<span class="status-warn">há ${r.idleDays} dias</span>` : r.lastSellerAt ? 'em dia' : '<span class="status-warn">ainda não mexeu</span>'}</td>
     </tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum cliente com vendedor neste período.</td></tr>'}</tbody>`;
 }
 $('#handoffFilter').addEventListener('change', renderHandoffs);
@@ -172,7 +172,7 @@ $('#handoffFilter').addEventListener('change', renderHandoffs);
 async function digestProgress() {
   const r = await api('/api/handoffs/digest').catch(() => null);
   if (!r) return;
-  $('#digestStatus').textContent = r.running ? `📤 Enviando resumos: ${r.done} de ${r.total}${r.failed ? ` (${r.failed} com erro)` : ''}… pode deixar esta tela.` : r.total ? `✅ Último envio: ${r.done} de ${r.total} resumos enviados.` : '';
+  $('#digestStatus').textContent = r.running ? `Enviando resumos: ${r.done} de ${r.total}${r.failed ? ` (${r.failed} com erro)` : ''}… pode deixar esta tela.` : r.total ? `Último envio: ${r.done} de ${r.total} resumos enviados.` : '';
   if (r.running) setTimeout(digestProgress, 5000);
 }
 $('#btnDigest').addEventListener('click', async () => {
@@ -208,7 +208,7 @@ $('#salesOwner').addEventListener('change', () => loaders.sales());
 $('#btnInsights').addEventListener('click', async (e) => {
   e.target.disabled = true;
   $('#insightsText').className = 'insights muted';
-  $('#insightsText').textContent = '🧠 Analisando os números… (leva alguns segundos)';
+  $('#insightsText').textContent = 'Analisando os números… (leva alguns segundos)';
   try {
     renderInsights(await api('/api/crm/insights', { method: 'POST', body: periodRange() }));
   } catch (err) {
@@ -236,9 +236,9 @@ function leadCard(l) {
     ${l.interest ? `<div class="lead-meta">${esc(l.interest)}${l.people > 1 ? ` · ${l.people} pessoas` : ''}</div>` : ''}
     ${l.value ? `<div class="lead-value">${money(l.stage === 'ganho' ? l.closedValue : l.value)}</div>` : ''}
     ${l.followUpAt && l.due ? `<div class="lead-due ${l.due}">${DUE_LABEL[l.due]} ${dateBR(l.followUpAt)}${l.followUpReason ? ` · ${esc(l.followUpReason)}` : ''}</div>` : ''}
-    ${l.stage === 'perdido' && l.lostReason ? `<div class="lead-meta">✖ ${esc(l.lostReason)}</div>` : ''}
-    ${l.stage === 'ganho' && !l.closedConfirmed ? '<div class="lead-meta">⏳ aguardando confirmação</div>' : ''}
-    <div class="lead-owner">${l.ownerName ? `👤 ${esc(l.ownerName)}` : '<span class="free">Disponível</span>'} <span class="lead-code">${esc(l.code || '')}</span></div>
+    ${l.stage === 'perdido' && l.lostReason ? `<div class="lead-meta">${esc(l.lostReason)}</div>` : ''}
+    ${l.stage === 'ganho' && !l.closedConfirmed ? '<div class="lead-meta">aguardando confirmação</div>' : ''}
+    <div class="lead-owner">${l.ownerName ? `${esc(l.ownerName)}` : '<span class="free">Disponível</span>'} <span class="lead-code">${esc(l.code || '')}</span></div>
   </article>`;
 }
 
@@ -398,17 +398,17 @@ function fillLead(l) {
 
   const t = TEMP[l.qualification?.temperature];
   $('#leadBadges').innerHTML = l.id ? [
-    l.code && `<span class="chip">🔖 ${esc(l.code)}</span>`,
+    l.code && `<span class="chip">${esc(l.code)}</span>`,
     t && `<span class="chip temp-${esc(l.qualification.temperature)}">${t.icon} ${t.label}</span>`,
-    l.adTitle && `<span class="chip">📣 Anúncio: ${esc(l.adTitle)}</span>`,
-    l.affiliateName && `<span class="chip">🤝 Indicado por ${esc(l.affiliateName)}</span>`,
-    l.category === 'imoveis' && '<span class="chip">🏠 Imóveis</span>',
-    l.stage === 'ganho' && (l.closedConfirmed ? '<span class="chip ok">✅ Venda confirmada</span>' : '<span class="chip warn">⏳ Venda aguardando confirmação do administrador</span>'),
+    l.adTitle && `<span class="chip">Anúncio: ${esc(l.adTitle)}</span>`,
+    l.affiliateName && `<span class="chip">Indicado por ${esc(l.affiliateName)}</span>`,
+    l.category === 'imoveis' && '<span class="chip">Imóveis</span>',
+    l.stage === 'ganho' && (l.closedConfirmed ? '<span class="chip ok">Venda confirmada</span>' : '<span class="chip warn">Venda aguardando confirmação do administrador</span>'),
   ].filter(Boolean).join('') : '';
   const q = l.qualification;
   $('#leadQual').hidden = !q;
   if (q) {
-    $('#leadQual').innerHTML = `<b>🔎 Peneira da IA</b>
+    $('#leadQual').innerHTML = `<b>Peneira da IA</b>
       <dl>
         ${t ? `<dt>Temperatura</dt><dd>${t.icon} ${t.label}</dd>` : ''}
         ${q.money ? `<dt>Dinheiro</dt><dd>${esc(MONEY_LABEL[q.money] || q.money)}${q.moneyEvidence ? `<br><i>"${esc(q.moneyEvidence)}"</i>` : ''}</dd>` : ''}
@@ -421,7 +421,7 @@ function fillLead(l) {
   renderLeadClosing(l);
   $('#btnLeadPlan').hidden = !l.id;
 
-  const ai = [l.aiSummary && `🧠 <b>Resumo da IA:</b> ${esc(l.aiSummary)}`, l.objective && `🎯 <b>Objetivo:</b> ${esc(l.objective)}`].filter(Boolean);
+  const ai = [l.aiSummary && `<b>Resumo da IA:</b> ${esc(l.aiSummary)}`, l.objective && `<b>Objetivo:</b> ${esc(l.objective)}`].filter(Boolean);
   $('#leadAi').hidden = !ai.length;
   $('#leadAi').innerHTML = ai.join('<br>');
 
@@ -503,7 +503,7 @@ $('#formLead').addEventListener('submit', async (e) => {
         body: { stage, lostReason: f.lostReason.value.trim(), closedValue: Number(f.closedValue.value || body.value) },
       });
     }
-    toast('Prospecto salvo ✅');
+    toast('Prospecto salvo ');
     $('#leadDialog').close();
     refreshCrmViews();
   } catch (err) {
@@ -532,7 +532,7 @@ $('#leadNote').addEventListener('keydown', (e) => {
 $('#btnTakeLead').addEventListener('click', async () => {
   try {
     await api(`/api/leads/${crmState.current.id}/assign`, { method: 'POST', body: { ownerId: window.currentUser.id } });
-    toast('Agora este prospecto é seu 🙋');
+    toast('Agora este prospecto é seu ');
     openLead(crmState.current.id);
     refreshCrmViews();
   } catch (err) {
@@ -542,7 +542,7 @@ $('#btnTakeLead').addEventListener('click', async () => {
 $('#btnConfirmSale').addEventListener('click', async () => {
   try {
     await api(`/api/leads/${crmState.current.id}/confirm`, { method: 'POST' });
-    toast('Venda confirmada: já conta no ranking 🏆');
+    toast('Venda confirmada: já conta no ranking ');
     openLead(crmState.current.id);
     refreshCrmViews();
   } catch (err) {
@@ -559,7 +559,7 @@ $('#btnLeadAi').addEventListener('click', async (e) => {
   e.target.disabled = true;
   try {
     const r = await api(`/api/leads/${crmState.current.id}/ai`, { method: 'POST' });
-    toast(r.info ? 'A IA leu a conversa e atualizou o que faltava 🧠' : 'A IA não encontrou informações novas', !r.info);
+    toast(r.info ? 'A IA leu a conversa e atualizou o que faltava ' : 'A IA não encontrou informações novas', !r.info);
     openLead(crmState.current.id);
   } catch (err) {
     toast(err.message, true);
@@ -576,17 +576,17 @@ loaders.followups = async () => {
       <h2>${title} <span class="muted">${list.length}</span></h2>
       ${list.map((l) => `<div class="item fu-item" data-id="${esc(l.id)}">
         <div class="grow"><b>${esc(l.name || fmtPhone(l.phone) || `@${l.instagram}`)}</b> <span class="muted">${esc(fmtPhone(l.phone) || '')}</span>
-          <div class="meta">📅 ${dateBR(l.followUpAt)}${l.followUpReason ? ` · ${esc(l.followUpReason)}` : ''}${l.interest ? ` · ${esc(l.interest)}` : ''}${isAdmin() ? ` · 👤 ${esc(l.ownerName || 'sem responsável')}` : ''}</div></div>
-        ${l.phone ? `<a class="btn small" href="https://wa.me/${esc(l.phone)}" target="_blank" rel="noopener">💬 Chamar</a>` : ''}
+          <div class="meta">${dateBR(l.followUpAt)}${l.followUpReason ? ` · ${esc(l.followUpReason)}` : ''}${l.interest ? ` · ${esc(l.interest)}` : ''}${isAdmin() ? ` · ${esc(l.ownerName || 'sem responsável')}` : ''}</div></div>
+        ${l.phone ? `<a class="btn small" href="https://wa.me/${esc(l.phone)}" target="_blank" rel="noopener">Chamar</a>` : ''}
         <button class="btn small" data-open="${esc(l.id)}">Abrir ficha</button>
       </div>`).join('') || `<p class="muted">${empty}</p>`}
     </div>`;
   if (isAdmin()) renderReconfirm().catch(() => {});
   $('#followupsBox').innerHTML = [
-    a.atrasados.length ? group('⚠️ Atrasados', a.atrasados, 'warn', '') : '',
-    group('🔔 Hoje', a.hoje, 'today', 'Nenhum retorno para hoje.'),
-    group('📅 Próximos 30 dias', a.proximos, '', 'Nada nos próximos 30 dias.'),
-    group('🗓️ Mais para frente', a.futuros, '', 'Nenhum retorno distante (ex.: "ano que vem", "daqui 2 anos").'),
+    a.atrasados.length ? group('Atrasados', a.atrasados, 'warn', '') : '',
+    group('Hoje', a.hoje, 'today', 'Nenhum retorno para hoje.'),
+    group('Próximos 30 dias', a.proximos, '', 'Nada nos próximos 30 dias.'),
+    group('Mais para frente', a.futuros, '', 'Nenhum retorno distante (ex.: "ano que vem", "daqui 2 anos").'),
   ].join('');
 };
 $('#followupsBox').addEventListener('click', (e) => {
@@ -606,7 +606,7 @@ async function refreshDueBadge() {
 }
 
 // ---------- EQUIPE ----------
-const SECTOR_BTNS = [['documentacao', '🛂 Documentação'], ['loteamentos', '🏡 Terrenos'], ['veiculos', '🚗 Veículos']];
+const SECTOR_BTNS = [['documentacao', 'Documentação'], ['loteamentos', 'Terrenos'], ['veiculos', 'Veículos']];
 loaders.team = async () => {
   const [users, settings, myLines] = await Promise.all([api('/api/users'), api('/api/settings'), api('/api/lines').catch(() => [])]);
   const lineOf = (u) => myLines.find((l) => l.ownerId === u.id);
@@ -614,29 +614,29 @@ loaders.team = async () => {
   const inRotation = active.filter((u) => u.whatsapp && u.receivesLeads)
     .sort((a, b) => (a.rotationSeq || 0) - (b.rotationSeq || 0) || a.name.localeCompare(b.name));
   $('#rotationInfo').innerHTML = inRotation.length
-    ? `🔄 <b>Rodízio:</b> ${inRotation.map((u, i) => `${i === 0 ? '<b>➡️ ' : ''}${esc(u.name)}${i === 0 ? ' (próximo)</b>' : ''}`).join(' → ')}`
-    : '⚠️ Ninguém no rodízio. Cadastre vendedores com WhatsApp e marque "Entra no rodízio" para a IA poder encaminhar clientes.';
+    ? `<b>Rodízio:</b> ${inRotation.map((u, i) => `${i === 0 ? '<b>' : ''}${esc(u.name)}${i === 0 ? ' (próximo)</b>' : ''}`).join(' → ')}`
+    : 'Ninguém no rodízio. Cadastre vendedores com WhatsApp e marque "Entra no rodízio" para a IA poder encaminhar clientes.';
   const pending = users.filter((u) => u.pending);
   $('#teamPending').hidden = !pending.length;
   $('#teamPending').innerHTML = pending.length ? `<h3>🆕 Aguardando liberação (${pending.length})</h3><p class="hint">Libere só quem você conhece. No primeiro acesso, a pessoa liga a verificação em duas etapas.</p>${pending.map((u) => `
     <div class="item" data-user="${esc(u.id)}"><div class="grow"><b>${esc(u.name)}</b><div class="meta">login: ${esc(u.login)} · WhatsApp ${esc(fmtPhone(u.whatsapp))} · pediu em ${fmtDate(u.requestedAt)}</div></div>
-      <button class="btn small primary" data-act="approve">✅ Liberar</button><button class="btn small danger" data-act="reject">Recusar</button></div>`).join('')}` : '';
+      <button class="btn small primary" data-act="approve">Liberar</button><button class="btn small danger" data-act="reject">Recusar</button></div>`).join('')}` : '';
   $('#teamList').innerHTML = users.filter((u) => !u.pending).map((u) => `
     <div class="item ${u.active ? '' : 'disabled'}" data-user="${esc(u.id)}">
       <div class="grow"><b>${esc(u.name)}</b> ${u.role === 'admin' ? '<span class="badge running">Administrador</span>' : '<span class="badge pending">Vendedor</span>'}
-        ${u.active ? '' : '<span class="badge canceled">Inativo</span>'} ${u.twoFactor ? '<span class="badge done">🔐 2 etapas</span>' : '<span class="badge paused">só senha</span>'}
+        ${u.active ? '' : '<span class="badge canceled">Inativo</span>'} ${u.twoFactor ? '<span class="badge done">2 etapas</span>' : '<span class="badge paused">só senha</span>'}
         <div class="meta">login: ${esc(u.login)}${u.whatsapp ? ` · WhatsApp ${esc(fmtPhone(u.whatsapp))}` : ' · sem WhatsApp (fora do rodízio)'}
-          · ${u.receivesLeads && u.whatsapp ? `🔄 no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : '⏸️ fora do rodízio'}
-          · ${u.receivesAffiliateLeads ? '🤝 recebe indicações de parceiros' : '🚫 não recebe indicações de parceiros'}
-          · ${(() => { const l = lineOf(u); return !l ? '📵 WhatsApp não conectado' : l.status === 'connected' ? `🟢 WhatsApp conectado · ${l.agent !== false ? '🤖 IA atendendo' : '🤖 IA desligada'}` : `🟡 WhatsApp ${(LINE_STATUS[l.status] || l.status).toLowerCase()}`; })()}</div></div>
+          · ${u.receivesLeads && u.whatsapp ? `no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : 'fora do rodízio'}
+          · ${u.receivesAffiliateLeads ? 'recebe indicações de parceiros' : 'não recebe indicações de parceiros'}
+          · ${(() => { const l = lineOf(u); return !l ? 'WhatsApp não conectado' : l.status === 'connected' ? `WhatsApp conectado · ${l.agent !== false ? 'IA atendendo' : 'IA desligada'}` : `WhatsApp ${(LINE_STATUS[l.status] || l.status).toLowerCase()}`; })()}</div></div>
       ${u.active ? `<div class="sector-btns" title="Em que áreas esta pessoa atende">${SECTOR_BTNS.map(([id, label]) => `<button class="btn small ${(u.sectors || []).includes(id) ? 'primary' : ''}" data-act="sector" data-sector="${id}" aria-pressed="${(u.sectors || []).includes(id)}">${label}</button>`).join('')}</div>` : ''}
-      ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? '⏸️ Pausar rodízio' : '▶️ Pôr no rodízio'}</button>
-        <button class="btn small" data-act="affleads" title="Indicações de parceiros pagam comissão menor ao vendedor">${u.receivesAffiliateLeads ? '🤝 Parar indicações' : '🤝 Receber indicações'}</button>
-        ${u.role !== 'admin' ? `<button class="btn small ${u.manager ? 'primary' : ''}" data-act="manager" title="Gerente cadastra mapas, lotes, veículos e alunos (nunca exclui)">${u.manager ? '🧑‍💼 É gerente' : '🧑‍💼 Tornar gerente'}</button>` : ''}` : ''}
-      <button class="btn small" data-act="edit">✏️ Editar</button>
-      <button class="btn small" data-act="password">🔑 Senha</button>
+      ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? 'Pausar rodízio' : '▶Pôr no rodízio'}</button>
+        <button class="btn small" data-act="affleads" title="Indicações de parceiros pagam comissão menor ao vendedor">${u.receivesAffiliateLeads ? 'Parar indicações' : 'Receber indicações'}</button>
+        ${u.role !== 'admin' ? `<button class="btn small ${u.manager ? 'primary' : ''}" data-act="manager" title="Gerente cadastra mapas, lotes, veículos e alunos (nunca exclui)">${u.manager ? 'É gerente' : 'Tornar gerente'}</button>` : ''}` : ''}
+      <button class="btn small" data-act="edit">Editar</button>
+      <button class="btn small" data-act="password">Senha</button>
       ${u.id === window.currentUser.id ? '' : `<button class="btn small ${u.active ? 'danger' : ''}" data-act="toggle">${u.active ? 'Desativar' : 'Reativar'}</button>`}
-      <button class="btn small" data-act="transfer" title="Passar os prospectos em aberto para outra pessoa">🔁 Passar carteira</button>
+      <button class="btn small" data-act="transfer" title="Passar os prospectos em aberto para outra pessoa">Passar carteira</button>
     </div>`).join('');
   $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads, receivesAffiliateLeads, sectors, manager }) => ({ id, name, receivesLeads, receivesAffiliateLeads, sectors, manager })));
   renderSystemLinks().catch(() => {});
@@ -790,12 +790,12 @@ loaders.ranking = async () => {
   const me = window.currentUser.id;
   const team = r.team;
   $('#rankTeam').innerHTML = team.target
-    ? `<div class="conv-header"><h2>🤝 Meta da equipe: ${goalText(r.metric, team.achieved)} de ${goalText(r.metric, team.target)}</h2><b>${team.percent}%</b></div>
+    ? `<div class="conv-header"><h2>Meta da equipe: ${goalText(r.metric, team.achieved)} de ${goalText(r.metric, team.target)}</h2><b>${team.percent}%</b></div>
        ${progressBar(team.percent, [{ name: 'Meta', percent: 100 }])}
-       <p class="hint">${team.percent >= 100 ? '🎉 Meta da equipe batida!' : 'Faltam ' + goalText(r.metric, Math.max(0, team.target - team.achieved)) + '.'}${team.reward ? ` Prêmio para todos: <b>${esc(team.reward)}</b>` : ''}</p>`
+       <p class="hint">${team.percent >= 100 ? 'Meta da equipe batida!' : 'Faltam ' + goalText(r.metric, Math.max(0, team.target - team.achieved)) + '.'}${team.reward ? ` Prêmio para todos: <b>${esc(team.reward)}</b>` : ''}</p>`
     : '<p class="muted">Sem meta de equipe definida.</p>';
 
-  const medals = ['🥇', '🥈', '🥉'];
+  const medals = ['1º', '2º', '3º'];
   const top = r.rows.slice(0, 3);
   $('#rankPodium').innerHTML = top.length && top[0].points > 0 ? top.map((x, i) => `
     <div class="podium-card p${i + 1}${x.id === me ? ' me' : ''}">
@@ -803,7 +803,7 @@ loaders.ranking = async () => {
       <b>${esc(x.name)}</b>
       <div class="pts">${x.points} pts</div>
       <div class="muted small">${goalText('sales', x.sales)} · ${money(x.revenue)}</div>
-    </div>`).join('') : '<p class="muted">O pódio aparece quando alguém marcar pontos neste mês. Bora! 💪</p>';
+    </div>`).join('') : '<p class="muted">O pódio aparece quando alguém marcar pontos neste mês. Bora! </p>';
 
   $('#rankTable').innerHTML = `<thead><tr><th>#</th><th>Vendedor</th><th>Pontos</th><th>Vendas</th><th>Vendido</th><th>Propostas</th><th>Conversão</th><th>Clientes recebidos</th><th>Meta</th><th>Conquistas</th></tr></thead>
     <tbody>${r.rows.map((x) => {
@@ -812,24 +812,24 @@ loaders.ranking = async () => {
         <td>${medals[x.position - 1] || x.position}</td>
         <td><b>${esc(x.name)}</b>${x.id === me ? ' <span class="muted">(você)</span>' : ''}</td>
         <td><b>${x.points}</b></td>
-        <td>${x.sales}${x.pendingConfirmation ? ` <span class="muted" title="aguardando confirmação">+${x.pendingConfirmation} ⏳</span>` : ''}</td>
+        <td>${x.sales}${x.pendingConfirmation ? ` <span class="muted" title="aguardando confirmação">+${x.pendingConfirmation} </span>` : ''}</td>
         <td>${money(x.revenue)}</td><td>${x.proposals}</td>
         <td>${x.conversion === null ? '—' : `${x.conversion}%`}</td>
         <td>${x.received}</td>
         <td class="goal-cell">${g.target ? `${progressBar(g.percent, r.tiers)}<div class="small">${goalText(r.metric, g.achieved)} de ${goalText(r.metric, g.target)} · ${g.percent}%
-          ${g.tier ? ` · <b>${esc(g.tier.name)}</b>` : ''}${g.nextTier ? `<br><span class="muted">Faltam ${goalText(r.metric, g.missing)} para ${esc(g.nextTier.name)} (${esc(g.nextTier.reward || '')})</span>` : g.tier ? ' 🎉' : ''}</div>` : '—'}</td>
+          ${g.tier ? ` · <b>${esc(g.tier.name)}</b>` : ''}${g.nextTier ? `<br><span class="muted">Faltam ${goalText(r.metric, g.missing)} para ${esc(g.nextTier.name)} (${esc(g.nextTier.reward || '')})</span>` : g.tier ? ' ' : ''}</div>` : '—'}</td>
         <td>${x.badges.map((b) => `<span title="${esc(b.label)}" class="badge-ico">${b.icon}</span>`).join(' ') || '<span class="muted">—</span>'}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="10" class="muted">Nenhum vendedor cadastrado ainda.</td></tr>'}</tbody>`;
 
   const P = r.rules.points;
   $('#rankRules').innerHTML = [
-    `🏆 Venda fechada${r.rules.requireConfirmation ? ' (confirmada pelo administrador)' : ''}: <b>+${P.sale}</b>`,
-    `💰 Cada R$ 1.000 vendidos: <b>+${P.perThousand}</b>`,
-    `📨 Proposta enviada (mover para "Proposta enviada"): <b>+${P.proposal}</b>`,
-    `⚠️ Cada retorno atrasado na carteira: <b>${P.overdue}</b>`,
-    ...r.tiers.map((t) => `🎁 <b>${esc(t.name)}</b>: ${t.percent}% da meta → ${esc(t.reward || '')}`),
-    '🎯 🏆 📅 🎓 📨 Conquistas: primeira venda, meta batida, carteira em dia, melhor conversão e mais propostas.',
+    `Venda fechada${r.rules.requireConfirmation ? ' (confirmada pelo administrador)' : ''}: <b>+${P.sale}</b>`,
+    `Cada R$ 1.000 vendidos: <b>+${P.perThousand}</b>`,
+    `Proposta enviada (mover para "Proposta enviada"): <b>+${P.proposal}</b>`,
+    `Cada retorno atrasado na carteira: <b>${P.overdue}</b>`,
+    ...r.tiers.map((t) => `<b>${esc(t.name)}</b>: ${t.percent}% da meta → ${esc(t.reward || '')}`),
+    'Conquistas: primeira venda, meta batida, carteira em dia, melhor conversão e mais propostas.',
   ].map((t) => `<li>${t}</li>`).join('');
 
   if (isAdmin()) fillGoalsForm(r);
@@ -853,7 +853,7 @@ function renderTiers(tiers) {
     <label>Nível <input data-k="name" value="${esc(t.name)}" placeholder="Ouro" /></label>
     <label>% da meta <input data-k="percent" type="number" min="1" value="${esc(t.percent)}" /></label>
     <label class="grow">Bonificação <input data-k="reward" value="${esc(t.reward || '')}" placeholder="ex.: R$ 500, folga, viagem" /></label>
-    <button type="button" class="btn small danger" data-del-tier>✕</button></div>`).join('');
+    <button type="button" class="btn small danger" data-del-tier></button></div>`).join('');
 }
 const readTiers = () => $$('#goalTiers .tier-row').map((row) => ({
   name: $('[data-k="name"]', row).value.trim(),
@@ -876,7 +876,7 @@ $('#formGoals').addEventListener('submit', withBusy($('#formGoals'), async (e) =
       goals: { metric: f.metric.value, target: Number(f.target.value || 0), perUser, tiers: readTiers(), team: { target: Number(f.teamTarget.value || 0), reward: f.teamReward.value.trim() } },
     } },
   });
-  toast('Metas salvas 🎯');
+  toast('Metas salvas ');
   loaders.ranking();
 }));
 
@@ -896,12 +896,12 @@ function onCrmEvent() {
   }, 600);
 }
 function onCrmDue() {
-  toast('🔔 Chegou o dia de um retorno — veja em "Retornos"');
+  toast('Chegou o dia de um retorno — veja em "Retornos"');
   refreshDueBadge();
 }
 
 function onCrmAssigned(data) {
-  if (data.ownerId === window.currentUser?.id) toast('🎯 Novo cliente encaminhado para você! Veja em Prospectos.');
+  if (data.ownerId === window.currentUser?.id) toast('Novo cliente encaminhado para você! Veja em Prospectos.');
   onCrmEvent();
 }
 
@@ -936,7 +936,7 @@ async function runCalc() {
     calc.text = r.text;
     $('#calcResult').innerHTML = `
       <div class="calc-total"><div><span>Valor total</span><b>${brl2(p.total)}</b><small>${brl2(r.price)} × ${p.people} pessoa(s)</small></div><div><span>Entrada na assinatura</span><b>${brl2(p.entry)}</b><small>${brl2(p.base)} de sinal + ${brl2(p.perAdult)} × ${p.adults} adulto(s) das certidões (Interpol e Polícia Nacional) · ${diaSemana(p.start)}</small></div></div>
-      <ol class="calc-steps">${p.parcels.map((x, i) => `<li><span class="calc-dot">${i === p.parcels.length - 1 ? '🪪' : '✈️'}</span><div><b>${brl2(x.value)}</b> · ${esc(x.label)} (${x.pct}% do saldo)<div class="hint">${esc(diaSemana(x.date))} · ${esc(x.when.toLowerCase())} · ${esc(x.note)}${x.moved ? ' · <b>caiu no fim de semana, passou para segunda</b>' : ''}</div></div></li>`).join('')}</ol>
+      <ol class="calc-steps">${p.parcels.map((x, i) => `<li><span class="calc-dot">${i + 1}</span><div><b>${brl2(x.value)}</b> · ${esc(x.label)} (${x.pct}% do saldo)<div class="hint">${esc(diaSemana(x.date))} · ${esc(x.when.toLowerCase())} · ${esc(x.note)}${x.moved ? ' · <b>caiu no fim de semana, passou para segunda</b>' : ''}</div></div></li>`).join('')}</ol>
       <p class="hint">Saldo depois da entrada: ${brl2(p.balance)}. As datas das viagens e da retirada são confirmadas pela equipe.</p>`;
   } catch (err) {
     $('#calcResult').innerHTML = `<p class="err">${esc(err.message)}</p>`;
@@ -979,7 +979,7 @@ $('#calcQuoteSend').addEventListener('click', () => makeQuote(true));
 $('#btnLeadPlan').addEventListener('click', () => crmState.current?.id && openCalc(crmState.current));
 
 // ---------- VISITAS AO ESCRITÓRIO ----------
-const VISIT_STATUS = { aguardando_taxa: '<span class="badge pending">💳 Aguardando a taxa</span>', pendente: '<span class="badge paused">⏳ Aguardando você</span>', confirmada: '<span class="badge done">✅ Confirmada</span>', remarcar: '<span class="badge pending">🔁 Remarcando</span>', cancelada: '<span class="badge canceled">Cancelada</span>', realizada: '<span class="badge running">Realizada</span>' };
+const VISIT_STATUS = { aguardando_taxa: '<span class="badge pending">Aguardando a taxa</span>', pendente: '<span class="badge paused">Aguardando você</span>', confirmada: '<span class="badge done">Confirmada</span>', remarcar: '<span class="badge pending">Remarcando</span>', cancelada: '<span class="badge canceled">Cancelada</span>', realizada: '<span class="badge running">Realizada</span>' };
 loaders.visits = async () => {
   const [list, settings, users] = await Promise.all([api('/api/visits'), api('/api/settings').catch(() => ({})), api('/api/users').catch(() => [])]);
   // Todo vendedor ativo da aba Equipe aparece aqui; quem está sem WhatsApp aparece apagado (não tem como receber).
@@ -989,13 +989,13 @@ loaders.visits = async () => {
   $('#visitTable').innerHTML = `<thead><tr><th>Pedido</th><th>Cliente</th><th>Preferência</th><th>Assunto</th><th>Vem preparado?</th><th>Situação</th><th></th></tr></thead><tbody>${list.map((v) => `
     <tr data-visit="${esc(v.id)}"><td>${fmtDate(v.createdAt)}</td>
       <td><b>${esc(v.name || 'Cliente')}</b><div class="hint">${v.phone ? esc(fmtPhone(v.phone)) : ''}${v.leadCode ? ` · ${esc(v.leadCode)}` : ''} · ${v.people} pessoa(s)</div>
-        <div class="hint">${v.forwardedTo ? `📤 Passado para <b>${esc(v.forwardedTo)}</b>` : v.ownerName ? `👤 Com <b>${esc(v.ownerName)}</b>` : '<span class="status-warn">Sem vendedor</span>'}</div>
-        ${v.status !== 'cancelada' && sellerOptions ? `<div class="visit-actions"><select data-f="seller"><option value="">Escolha o vendedor…</option>${sellerOptions}</select><button class="btn small" data-act="forward">📤 Passar para o vendedor</button></div>` : ''}</td>
+        <div class="hint">${v.forwardedTo ? `Passado para <b>${esc(v.forwardedTo)}</b>` : v.ownerName ? `Com <b>${esc(v.ownerName)}</b>` : '<span class="status-warn">Sem vendedor</span>'}</div>
+        ${v.status !== 'cancelada' && sellerOptions ? `<div class="visit-actions"><select data-f="seller"><option value="">Escolha o vendedor…</option>${sellerOptions}</select><button class="btn small" data-act="forward">Passar para o vendedor</button></div>` : ''}</td>
       <td>${esc(v.preferred || '—')}${v.period ? `<div class="hint">${esc(v.period)}</div>` : ''}</td>
       <td>${esc(v.subject || '—')}</td><td class="small">${esc(v.prepared || '—')}</td>
-      <td>${VISIT_STATUS[v.status] || esc(v.status)}${v.feePaidAt ? `<div class="hint">💳 Taxa paga (${cashMoney(v.feeAmount || 150)})${v.refundedAt ? ' · ✅ estornada' : ''}</div>` : ''}${v.refundDue ? '<div class="status-warn">💸 Fechou com a Migra: estornar a taxa</div>' : ''}${v.status === 'confirmada' ? `<div class="hint">${esc(v.date.split('-').reverse().join('/'))} às ${esc(v.time)}</div>` : ''}</td>
+      <td>${VISIT_STATUS[v.status] || esc(v.status)}${v.feePaidAt ? `<div class="hint">Taxa paga (${cashMoney(v.feeAmount || 150)})${v.refundedAt ? ' · estornada' : ''}</div>` : ''}${v.refundDue ? '<div class="status-warn">Fechou com a Migra: estornar a taxa</div>' : ''}${v.status === 'confirmada' ? `<div class="hint">${esc(v.date.split('-').reverse().join('/'))} às ${esc(v.time)}</div>` : ''}</td>
       <td>${['pendente', 'remarcar'].includes(v.status) ? `<div class="visit-actions"><input type="date" data-f="date" min="${today}" /><input type="time" data-f="time" step="900" /><button class="btn small primary" data-act="confirm">Confirmar</button><button class="btn small" data-act="reschedule">Propor outro dia</button><button class="btn small danger" data-act="cancel">Recusar</button></div>`
-        : v.status === 'confirmada' ? '<button class="btn small" data-act="done">Marcar como realizada</button>' : ''}${v.refundDue ? '<button class="btn small primary" data-act="refunded">💸 Marcar como estornada</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum pedido de visita ainda.</td></tr>'}</tbody>`;
+        : v.status === 'confirmada' ? '<button class="btn small" data-act="done">Marcar como realizada</button>' : ''}${v.refundDue ? '<button class="btn small primary" data-act="refunded">Marcar como estornada</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum pedido de visita ainda.</td></tr>'}</tbody>`;
   const pend = list.filter((v) => v.status === 'pendente').length;
   $('#visitBadge').hidden = !pend;
   $('#visitBadge').textContent = pend;
@@ -1014,12 +1014,12 @@ async function renderFeeNotice() {
   const run = d.run;
   box.hidden = !(d.count || run);
   if (box.hidden) return;
-  box.innerHTML = `<h2>📣 Avisar quem já pediu visita sobre a taxa de ${cashMoney(d.fee)}</h2>
+  box.innerHTML = `<h2>Avisar quem já pediu visita sobre a taxa de ${cashMoney(d.fee)}</h2>
     ${run?.running ? `<p><b>Enviando…</b> ${run.sent} de ${run.total} enviados${run.failed ? ` · ${run.failed} falharam` : ''} (uma pessoa por vez, com intervalo).</p>` : run ? `<p class="hint">Último envio: ${run.sent} enviados${run.failed ? `, ${run.failed} falharam` : ''}.</p>` : ''}
     ${d.count ? `<p><b>${d.count}</b> pessoa(s) ainda não foram avisadas: ${d.targets.slice(0, 12).map((t) => esc(t.name || fmtPhone(t.phone))).join(', ')}${d.count > 12 ? '…' : ''}. Quem já é cliente da Migra ou já pagou a taxa não recebe.</p>
       <details><summary>Ver a mensagem que cada pessoa recebe</summary><pre class="notice-sample">${esc(d.sample)}</pre></details>
       <p class="hint">Sai pelo WhatsApp principal da Migra (nunca pelo celular pessoal do Marcos), uma pessoa por vez, com 7 a 13 segundos entre cada uma, e cada pessoa recebe uma única vez. Quem responder que quer seguir recebe o Pix da taxa da atendente.</p>
-      <button class="btn primary" id="btnFeeNoticeSend" ${run?.running ? 'disabled' : ''}>📤 Enviar o aviso para ${d.count} pessoa(s)</button>` : ''}`;
+      <button class="btn primary" id="btnFeeNoticeSend" ${run?.running ? 'disabled' : ''}>Enviar o aviso para ${d.count} pessoa(s)</button>` : ''}`;
   if (run?.running) setTimeout(() => $('#tab-visits').classList.contains('active') && renderFeeNotice().catch(() => {}), 5000);
 }
 document.addEventListener('click', async (e) => {
@@ -1089,8 +1089,8 @@ async function renderLeadClosing(l) {
   box.hidden = !l.id;
   if (!l.id) return;
   const f = await api(`/api/leads/${l.id}/closing`).catch(() => null);
-  const step = (ok, label, extra = '') => `<li class="${ok ? 'done' : ''}">${ok ? '✅' : '⚪'} ${label}${extra}</li>`;
-  box.innerHTML = `<b>📝 Fechamento da reserva</b>
+  const step = (ok, label, extra = '') => `<li class="${ok ? 'done' : ''}">${ok ? '●' : '○'} ${label}${extra}</li>`;
+  box.innerHTML = `<b>Fechamento da reserva</b>
     <ol class="closing-steps">
       ${step(Boolean(f), 'Ficha de dados enviada', f ? ` <a href="${esc(f.formUrl)}" target="_blank" rel="noopener">abrir</a>` : '')}
       ${step(f?.status === 'preenchida', 'Ficha preenchida pelo cliente', f?.filledAt ? ` · ${fmtDate(f.filledAt)}` : '')}
@@ -1120,12 +1120,12 @@ const initials = (name) => String(name || '?').split(' ').filter(Boolean).slice(
 function numberCheck(l) {
   if (!l.phone) return '';
   const phone = esc(fmtPhone(l.phone));
-  if (l.verified === true) return `<p class="num-check ok">✅ WhatsApp ${phone} confere com o cadastro de ${esc(l.ownerName || l.label)}</p>`;
+  if (l.verified === true) return `<p class="num-check ok">WhatsApp ${phone} confere com o cadastro de ${esc(l.ownerName || l.label)}</p>`;
   if (l.verified === false) {
-    return `<p class="num-check warn">⚠️ Conectado com ${phone}, mas o cadastro de ${esc(l.ownerName)} tem ${esc(fmtPhone(l.ownerWhatsapp))}.
+    return `<p class="num-check warn">Conectado com ${phone}, mas o cadastro de ${esc(l.ownerName)} tem ${esc(fmtPhone(l.ownerWhatsapp))}.
       ${isAdmin() ? '<button type="button" class="btn small" data-act="usephone">Usar o número conectado no cadastro</button>' : 'Avise o administrador.'}</p>`;
   }
-  return `<p class="num-check">📱 WhatsApp ${phone} conectado. Ninguém da equipe tem esse número no cadastro.</p>`;
+  return `<p class="num-check">WhatsApp ${phone} conectado. Ninguém da equipe tem esse número no cadastro.</p>`;
 }
 const lineCard = (l, people) => `
     <article class="panel line-card" data-line="${esc(l.id)}">
@@ -1147,7 +1147,7 @@ const lineCard = (l, people) => `
         <div class="row"><label>Ou conecte com código (sem câmera) <input data-field="phone" placeholder="+55 11 98765-4321" value="${esc(l.ownerWhatsapp ? `+${l.ownerWhatsapp}` : '')}" /></label><button type="button" class="btn small" data-act="pair">Gerar código</button></div>
         <div class="pairing-code" data-code hidden></div>` : ''}
       ${l.status === 'connecting' || (l.status === 'qr' && !l.qr) ? '<p class="hint">Gerando o QR Code… aguarde alguns segundos.</p>' : ''}
-      ${l.status !== 'connected' && l.lastError ? `<p class="err">⚠️ ${esc(l.lastError)}</p>` : ''}
+      ${l.status !== 'connected' && l.lastError ? `<p class="err">${esc(l.lastError)}</p>` : ''}
       <div class="row">
         <button type="button" class="btn small" data-act="restart">Reconectar</button>
         ${l.status === 'connected' ? '<button type="button" class="btn small danger" data-act="logout">Desconectar</button>' : ''}
@@ -1174,10 +1174,10 @@ loaders.lines = async () => {
     if (!typing) grid.innerHTML = html;
   });
   $('#btnAddLine').hidden = !isAdmin();
-  if ($('#teamLinesSummary')) $('#teamLinesSummary').innerHTML = `<span>${list.filter((l) => l.status === 'connected').length} de ${list.length + waiting.length} conectados</span><span>🤖 IA ligada em ${list.filter((l) => l.agent !== false).length}</span>`;
+  if ($('#teamLinesSummary')) $('#teamLinesSummary').innerHTML = `<span>${list.filter((l) => l.status === 'connected').length} de ${list.length + waiting.length} conectados</span><span>IA ligada em ${list.filter((l) => l.agent !== false).length}</span>`;
   if ($('#connSummary')) {
     const on = list.filter((l) => l.status === 'connected').length;
-    $('#connSummary').innerHTML = `<span><i class="ldot disponivel"></i>${on} de ${list.length + waiting.length} vendedores conectados</span><span>🤖 IA ligada em ${list.filter((l) => l.agent !== false).length}</span>${list.some((l) => l.verified === false) ? '<span>⚠️ número diferente do cadastro</span>' : ''}`;
+    $('#connSummary').innerHTML = `<span><i class="ldot disponivel"></i>${on} de ${list.length + waiting.length} vendedores conectados</span><span>IA ligada em ${list.filter((l) => l.agent !== false).length}</span>${list.some((l) => l.verified === false) ? '<span>número diferente do cadastro</span>' : ''}`;
   }
 };
 async function addLine(ownerId = null) {
@@ -1213,7 +1213,7 @@ document.addEventListener('click', async (e) => {
     if (act === 'ai') {
       const on = btn.getAttribute('aria-pressed') !== 'true';
       await api(`/api/lines/${id}`, { method: 'PATCH', body: { agent: on } });
-      toast(on ? '🤖 IA ligada: ela responde os clientes deste WhatsApp' : 'IA desligada neste WhatsApp');
+      toast(on ? 'IA ligada: ela responde os clientes deste WhatsApp' : 'IA desligada neste WhatsApp');
     }
     if (act === 'usephone') {
       const line = (await api('/api/lines')).find((l) => l.id === id);
@@ -1260,9 +1260,9 @@ function onLineStatus() {
 
 // ---------- PAGAMENTOS (Pix) ----------
 const PAY_STATUS = {
-  pending: '<span class="badge paused">⏳ Aguardando</span>',
-  paid: '<span class="badge done">✅ Pago</span>',
-  canceled: '<span class="badge canceled">✖ Cancelado</span>',
+  pending: '<span class="badge paused">Aguardando</span>',
+  paid: '<span class="badge done">Pago</span>',
+  canceled: '<span class="badge canceled">Cancelado</span>',
 };
 const brl = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 loaders.payments = async () => {
@@ -1272,7 +1272,7 @@ loaders.payments = async () => {
   const pending = list.filter((p) => p.status === 'pending');
   $('#payKpis').innerHTML = [
     ['Recebido no mês', brl(paidMonth.reduce((s, p) => s + p.amount, 0)), `${paidMonth.length} Pix confirmado(s)`, 'money'],
-    ['Aguardando pagamento', brl(pending.reduce((s, p) => s + p.amount, 0)), `${pending.length} cobrança(s)${pending.some((p) => p.claimedAt) ? ' · 🔔 tem cliente dizendo que pagou' : ''}`, 'schedules'],
+    ['Aguardando pagamento', brl(pending.reduce((s, p) => s + p.amount, 0)), `${pending.length} cobrança(s)${pending.some((p) => p.claimedAt) ? ' · tem cliente dizendo que pagou' : ''}`, 'schedules'],
   ].map(([l, v, sub, ico]) => `<div class="card kpi"><div class="kpi-head"><span class="label">${l}</span><span class="kpi-ico">${icon(ico, 16)}</span></div><div class="value">${v}</div><div class="sub">${sub}</div></div>`).join('');
   $('#payTable').innerHTML = `<thead><tr><th>Data</th><th>Cliente</th><th>Valor</th><th>Referente a</th><th>Situação</th><th>Vendedor</th><th></th></tr></thead><tbody>${list.map((p) => `
     <tr data-pay="${esc(p.id)}">
@@ -1280,14 +1280,14 @@ loaders.payments = async () => {
       <td><b>${esc(p.payerName || p.leadName || '—')}</b>${p.leadCode ? ` <span class="lead-code">${esc(p.leadCode)}</span>` : ''}</td>
       <td><b>${brl(p.amount)}</b></td>
       <td class="small">${esc(p.description)}</td>
-      <td>${PAY_STATUS[p.status] || p.status}${p.status === 'pending' && p.claimedAt ? '<br><span class="status-warn small">🔔 cliente disse que pagou</span>' : ''}${p.status === 'paid' ? `<br><span class="hint">${fmtDate(p.paidAt)} · ${esc(p.confirmedBy || '')}</span>` : ''}${p.receipt ? `<br><span class="hint">${p.receipt.auto ? '🔎 Lido do comprovante' : '📎 Comprovante recebido'} · <a href="/api/payments/${esc(p.id)}/proof" target="_blank" rel="noopener">ver arquivo</a></span>` : ''}${p.status === 'pending' && p.receiptReview ? `<br><span class="status-warn small">⚠️ conferir: ${esc(p.receiptReview.problems.join('; '))}</span>` : ''}</td>
+      <td>${PAY_STATUS[p.status] || p.status}${p.status === 'pending' && p.claimedAt ? '<br><span class="status-warn small">cliente disse que pagou</span>' : ''}${p.status === 'paid' ? `<br><span class="hint">${fmtDate(p.paidAt)} · ${esc(p.confirmedBy || '')}</span>` : ''}${p.receipt ? `<br><span class="hint">${p.receipt.auto ? 'Lido do comprovante' : 'Comprovante recebido'} · <a href="/api/payments/${esc(p.id)}/proof" target="_blank" rel="noopener">ver arquivo</a></span>` : ''}${p.status === 'pending' && p.receiptReview ? `<br><span class="status-warn small">conferir: ${esc(p.receiptReview.problems.join('; '))}</span>` : ''}</td>
       <td>${esc(p.ownerName || '—')}</td>
       <td class="row">
         ${p.status === 'pending' ? `<a class="btn small" href="/api/payments/${esc(p.id)}/qr" target="_blank" rel="noopener">QR</a>
           ${p.convKey ? '<button class="btn small" data-act="resend">Reenviar</button>' : ''}
           ${isAdmin() ? '<button class="btn small primary" data-act="confirm">Confirmar</button>' : ''}
           <button class="btn small danger" data-act="cancel">Cancelar</button>` : ''}
-        ${p.status === 'paid' ? `<a class="btn small" href="/api/payments/${esc(p.id)}/receipt" target="_blank" rel="noopener">🧾 Recibo nº ${String(p.receiptNo).padStart(4, '0')}</a>` : ''}
+        ${p.status === 'paid' ? `<a class="btn small" href="/api/payments/${esc(p.id)}/receipt" target="_blank" rel="noopener">Recibo nº ${String(p.receiptNo).padStart(4, '0')}</a>` : ''}
       </td>
     </tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum Pix gerado ainda.</td></tr>'}</tbody>`;
   $('#btnNotifyPerm').hidden = !('Notification' in window) || Notification.permission === 'granted';
@@ -1300,7 +1300,7 @@ $('#payTable').addEventListener('click', async (e) => {
     if (act === 'confirm') {
       if (!confirm('Confirmar que o Pix caiu na conta? A venda fecha, o recibo vai para o cliente e o aviso para o WhatsApp.')) return;
       await api(`/api/payments/${id}/confirm`, { method: 'POST' });
-      toast('✅ Pagamento confirmado e recibo enviado');
+      toast('Pagamento confirmado e recibo enviado');
     }
     if (act === 'cancel') {
       if (!confirm('Cancelar esta cobrança?')) return;
@@ -1317,7 +1317,7 @@ $('#payTable').addEventListener('click', async (e) => {
 });
 $('#btnNotifyPerm').addEventListener('click', async () => {
   const r = await Notification.requestPermission();
-  toast(r === 'granted' ? '🔔 Pronto: este aparelho avisa quando cair um Pix (com o painel aberto)' : 'O navegador não liberou as notificações', r !== 'granted');
+  toast(r === 'granted' ? 'Pronto: este aparelho avisa quando cair um Pix (com o painel aberto)' : 'O navegador não liberou as notificações', r !== 'granted');
   loaders.payments();
 });
 
@@ -1337,7 +1337,7 @@ $('#btnLeadPix').addEventListener('click', async () => {
 });
 
 function onPaymentPaid(d) {
-  const text = `💰 Pix confirmado: ${brl(d.amount)}${d.name ? ` de ${d.name}` : ''}`;
+  const text = `Pix confirmado: ${brl(d.amount)}${d.name ? ` de ${d.name}` : ''}`;
   toast(text);
   try {
     if ('Notification' in window && Notification.permission === 'granted') new Notification('Venda fechada! Pix confirmado', { body: `${text}\n${d.description || ''}`, icon: '/img/migra-emblema.png' });
@@ -1373,15 +1373,15 @@ function quoteItemRow(name = '', qty = 1) {
   div.className = 'quote-item';
   div.innerHTML = `<select data-q="pkg">${quoteState.packages.map((p) => `<option value="${esc(p.name)}"${p.name === name ? ' selected' : ''}>${esc(p.name)} · ${brl2(p.price)}/pessoa</option>`).join('')}</select>
     <input data-q="qty" type="number" min="1" max="50" value="${qty}" title="Pessoas neste pacote" />
-    <button type="button" class="btn small" data-q="del" title="Remover">✕</button>`;
+    <button type="button" class="btn small" data-q="del" title="Remover"></button>`;
   $('#quoteItems').append(div);
 }
 function quoteParcelRows(list) {
   $('#quoteParcels').innerHTML = `${list.map((p, i) => `<div class="quote-parcel"><b>${i + 1}ª</b>
       <label class="inline"><span>% do saldo</span> <input data-p="pct" type="number" min="1" max="100" step="0.5" value="${p.pct}" placeholder="%" aria-label="Percentual do saldo" /></label>
       <input data-p="date" type="date" value="${p.date}" />
-      <button type="button" class="btn small" data-p="del" title="Remover">✕</button></div>`).join('')}
-    <button type="button" class="btn small" id="btnQuoteAddParcel">➕ Adicionar parcela</button>`;
+      <button type="button" class="btn small" data-p="del" title="Remover"></button></div>`).join('')}
+    <button type="button" class="btn small" id="btnQuoteAddParcel">Adicionar parcela</button>`;
 }
 function quoteBody() {
   const f = qf();
@@ -1415,8 +1415,8 @@ async function loadQuoteList() {
       <td><b>${brl2(q.total)}</b></td>${admin ? `<td>${esc(q.createdBy || q.consultant)}</td>` : ''}
       <td>${q.expired ? '<span class="badge canceled">Vencido</span>' : `<span class="badge done">até ${esc(q.validUntil.split('-').reverse().join('/'))}</span>`}</td>
       <td><a class="btn small" href="${q.url}" target="_blank" rel="noopener">Abrir PDF</a> <a class="btn small" href="${q.url}?download=1">Baixar</a>
-        ${q.sale ? `<span class="badge done">💼 ${esc(q.sale)}</span>` : `<button type="button" class="btn small" data-sale="${esc(q.id)}" data-number="${esc(q.number)}">💼 Lançar venda</button>`}
-        <button type="button" class="btn small${q.hasContract ? '' : ' primary'}" data-contract="${esc(q.id)}" data-number="${esc(q.number)}">${q.contractSigned ? '✍️ Contrato assinado' : q.hasContract ? '📝 Contrato ✓' : '📝 Contrato'}</button></td></tr>`).join('') || `<tr><td colspan="${admin ? 8 : 7}" class="muted">Nenhum orçamento ainda.</td></tr>`}</tbody>`;
+        ${q.sale ? `<span class="badge done">${esc(q.sale)}</span>` : `<button type="button" class="btn small" data-sale="${esc(q.id)}" data-number="${esc(q.number)}">Lançar venda</button>`}
+        <button type="button" class="btn small${q.hasContract ? '' : ' primary'}" data-contract="${esc(q.id)}" data-number="${esc(q.number)}">${q.contractSigned ? 'Contrato assinado' : q.hasContract ? 'Contrato ✓' : 'Contrato'}</button></td></tr>`).join('') || `<tr><td colspan="${admin ? 8 : 7}" class="muted">Nenhum orçamento ainda.</td></tr>`}</tbody>`;
 }
 loaders.quotes = async () => {
   if (!quoteState.packages.length) {
@@ -1464,11 +1464,11 @@ $('#btnQuoteCreate').addEventListener('click', async (e) => {
   try {
     const q = await api('/api/quotes', { method: 'POST', body: b });
     const phone = String(b.phone || '').replace(/\D/g, '');
-    $('#quoteResult').innerHTML = `<div class="quote-result"><b>✅ Orçamento ${esc(q.number)} gerado · ${brl2(q.total)}</b>
+    $('#quoteResult').innerHTML = `<div class="quote-result"><b>Orçamento ${esc(q.number)} gerado · ${brl2(q.total)}</b>
       <div class="row"><a class="btn primary small" href="${q.url}" target="_blank" rel="noopener">Abrir PDF</a><a class="btn small" href="${q.url}?download=1">Baixar PDF</a>
       <button type="button" class="btn small" id="btnQuoteCopy">Copiar mensagem</button>
       ${phone ? `<a class="btn small" href="https://wa.me/${phone}?text=${encodeURIComponent(q.text)}" target="_blank" rel="noopener">Abrir WhatsApp do cliente</a>` : ''}
-      <button type="button" class="btn small" id="btnQuoteContract">📝 Gerar contrato</button></div>
+      <button type="button" class="btn small" id="btnQuoteContract">Gerar contrato</button></div>
       <p class="hint">Baixe o PDF e envie junto com a mensagem pelo seu WhatsApp.</p></div>`;
     $('#btnQuoteContract').addEventListener('click', () => openContract(q.id, q.number));
     $('#btnQuoteCopy').addEventListener('click', async () => {
@@ -1491,7 +1491,7 @@ $('#btnQuoteFicha').addEventListener('click', async (e) => {
   try {
     const r = await api('/api/closing/link', { method: 'POST', body: { client: b.client, phone: b.phone, adults: b.adults, servico: b.items.map((i) => `${i.pacote} × ${i.quantidade}`).join(', ') } });
     const phone = b.phone.replace(/\D/g, '');
-    $('#quoteResult').innerHTML = `<div class="quote-result"><b>📝 Ficha de dados pronta para o cliente</b>
+    $('#quoteResult').innerHTML = `<div class="quote-result"><b>Ficha de dados pronta para o cliente</b>
       <p class="hint">O cliente toca no link, preenche os campos no celular e toca em "Enviar meus dados". Depois disso, o sistema manda sozinho a confirmação, o orçamento com o nome completo dele, o Pix e o termo da reserva.</p>
       <div class="row"><a class="btn primary small" href="https://wa.me/${phone}?text=${encodeURIComponent(r.text)}" target="_blank" rel="noopener">Abrir WhatsApp do cliente com a mensagem</a>
       <button type="button" class="btn small" id="btnFichaCopy">Copiar mensagem</button></div></div>`;
@@ -1519,9 +1519,9 @@ async function openContract(id, number) {
     const r = await api(`/api/quotes/${id}/contract-data`);
     for (const [k, v] of Object.entries(r.client)) if (f[k]) f[k].value = v;
     $('#contractInfo').textContent = r.signed
-      ? '✅ Este contrato já foi assinado pelo cliente. Abra a via assinada abaixo.'
+      ? 'Este contrato já foi assinado pelo cliente. Abra a via assinada abaixo.'
       : r.fromForm
-      ? '✅ Dados puxados da ficha que o cliente preencheu. Confira e gere o contrato.'
+      ? 'Dados puxados da ficha que o cliente preencheu. Confira e gere o contrato.'
       : 'Preencha os dados do cliente, ou cole a mensagem dele (copiada do WhatsApp) que o sistema preenche sozinho.';
     if (r.hasContract) {
       $('#contractOpen').href = `/api/quotes/${id}/contract.pdf`;
@@ -1590,7 +1590,7 @@ loaders.contracts = async () => {
     kpi(admin ? 'Vendido no período' : 'Minhas vendas no período', brl2(sum.sold), `${sum.sales} contrato(s)`),
     kpi('Recebido no período', brl2(sum.received), 'entradas e parcelas confirmadas'),
     kpi('A receber', brl2(sum.toReceive), 'parcelas em aberto'),
-    kpi('Em atraso', brl2(sum.overdue), sum.overdue ? '<span class="status-warn">⚠️ cobrar os clientes</span>' : 'nenhuma parcela atrasada', sum.overdue ? 'warn' : ''),
+    kpi('Em atraso', brl2(sum.overdue), sum.overdue ? '<span class="status-warn">cobrar os clientes</span>' : 'nenhuma parcela atrasada', sum.overdue ? 'warn' : ''),
     kpi(admin ? 'Comissões a pagar' : 'Minhas comissões a receber', brl2(sum.commissionOpen), `${brl2(sum.commissionPaid)} pagas no período`),
   ].join('');
   if (admin) {
@@ -1599,7 +1599,7 @@ loaders.contracts = async () => {
       $('#salesFilterSeller').innerHTML = `<option value="">Toda a equipe</option>${saleState.users.map((u) => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}`;
     }
     $('#salesBySeller').innerHTML = `<thead><tr><th>Vendedor</th><th>Vendas</th><th>Vendido</th><th>Recebido</th><th>Comissão a pagar</th><th>Paga</th></tr></thead><tbody>${sum.bySeller.map((b) => `<tr><td><b>${esc(b.name)}</b></td><td>${b.sales}</td><td>${brl2(b.sold)}</td><td>${brl2(b.received)}</td><td>${brl2(b.commissionOpen)}</td><td>${brl2(b.commissionPaid)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Nenhuma venda ainda.</td></tr>'}</tbody>`;
-    $('#salesStock').innerHTML = (sum.stock || []).map((d) => `<div class="stock-row"><b>${esc(d.name)}</b><span>🟢 ${d.disponivel || 0} disponíveis</span><span>🟡 ${d.reservado || 0} reservados</span><span>🔴 ${d.vendido || 0} vendidos</span><span>⚪ ${d.loteadora || 0} da loteadora</span><span class="muted">${d.total} lotes</span></div>`).join('') || 'Nenhum loteamento cadastrado (aba Loteamentos).';
+    $('#salesStock').innerHTML = (sum.stock || []).map((d) => `<div class="stock-row"><b>${esc(d.name)}</b><span>${d.disponivel || 0} disponíveis</span><span>${d.reservado || 0} reservados</span><span>${d.vendido || 0} vendidos</span><span>${d.loteadora || 0} da loteadora</span><span class="muted">${d.total} lotes</span></div>`).join('') || 'Nenhum loteamento cadastrado (aba Loteamentos).';
     $('#commissionDefault').value = sum.defaultPct;
     $('#commissionAffiliate').value = sum.affiliateSellerPct ?? '';
     $('#commissionPartnerInfo').innerHTML = 'A comissão do parceiro (indicador) fica em <b>Indicadores → Regras do programa</b>. Deixe um campo do vendedor vazio para usar o padrão.';
@@ -1612,7 +1612,7 @@ loaders.contracts = async () => {
       <td>${esc(v.client.nome)}<div class="hint">${v.client.phone ? esc(fmtPhone(v.client.phone)) : ''}</div></td>${admin ? `<td>${esc(v.sellerName || '—')}</td>` : ''}
       <td><b>${brl2(v.total)}</b></td>
       <td>${brl2(v.received)}<div class="progress"><span style="width:${Math.min(100, Math.round((v.received / (v.total || 1)) * 100))}%"></span></div></td>
-      <td>${v.next ? `${esc(v.next.label)} · ${brl2(v.next.value)}<div class="hint">${v.next.late ? '<span class="status-warn">⚠️ atrasada desde ' : ''}${dBr(v.next.due)}${v.next.late ? '</span>' : ''}</div>` : '—'}</td>
+      <td>${v.next ? `${esc(v.next.label)} · ${brl2(v.next.value)}<div class="hint">${v.next.late ? '<span class="status-warn">atrasada desde ' : ''}${dBr(v.next.due)}${v.next.late ? '</span>' : ''}</div>` : '—'}</td>
       <td>${brl2(v.commission.value)}<div class="hint">${v.commission.pct}% · ${v.commission.status === 'paga' ? `paga ${dBr(v.commission.paidAt)}` : 'a pagar'}</div></td>
       <td>${SALE_STATUS[v.status] || ''}${v.overdue ? ' <span class="badge paused">atraso</span>' : ''}</td></tr>`).join('') || `<tr><td colspan="${admin ? 9 : 8}" class="muted">Nenhuma venda ainda.</td></tr>`}</tbody>`;
 };
@@ -1632,7 +1632,7 @@ $('#btnCommissionSave').addEventListener('click', async () => {
 async function openSale(id) {
   const admin = window.currentUser?.role === 'admin';
   const v = await api(`/api/sales/${id}`);
-  $('#saleTitle').textContent = `💼 ${v.number} · ${v.client.nome}`;
+  $('#saleTitle').textContent = `${v.number} · ${v.client.nome}`;
   $('#saleBody').innerHTML = `
     <div class="sale-head"><div><span class="hint">Total</span><b>${brl2(v.total)}</b></div><div><span class="hint">Recebido</span><b>${brl2(v.received)}</b></div><div><span class="hint">Em aberto</span><b>${brl2(v.open)}</b></div><div><span class="hint">Vendedor</span><b>${esc(v.sellerName || '—')}</b></div></div>
     <p class="hint">${v.items.map((i) => `${esc(i.name)} × ${i.qty}`).join(' · ')} · orçamento ${esc(v.quoteNumber)} · ${SALE_STATUS[v.status] || ''}</p>
@@ -1640,15 +1640,15 @@ async function openSale(id) {
     <div class="table-wrap"><table><thead><tr><th>Parcela</th><th>Valor</th><th>Vencimento</th><th>Situação</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>
       ${v.parcels.map((p, i) => `<tr><td><b>${esc(p.label)}</b></td><td>${brl2(p.value)}</td><td>${dBr(p.due)}</td>
         <td>${p.status === 'pago' ? `<span class="badge done">Recebida ${dBr(p.paidAt)}</span><div class="hint">${esc(p.method || '')}${p.confirmedBy ? ` · por ${esc(p.confirmedBy)}` : ''}</div>` : p.due && p.due < new Date().toISOString().slice(0, 10) ? '<span class="badge paused">Atrasada</span>' : '<span class="badge pending">A receber</span>'}</td>
-        ${admin && v.status !== 'cancelada' ? `<td>${p.status === 'pago' ? `<button class="btn small" data-parcel="${i}" data-paid="0">Desfazer</button>` : `<button class="btn small primary" data-parcel="${i}" data-paid="1">✅ Confirmar recebimento</button>`}</td>` : admin ? '<td></td>' : ''}</tr>`).join('')}
+        ${admin && v.status !== 'cancelada' ? `<td>${p.status === 'pago' ? `<button class="btn small" data-parcel="${i}" data-paid="0">Desfazer</button>` : `<button class="btn small primary" data-parcel="${i}" data-paid="1">Confirmar recebimento</button>`}</td>` : admin ? '<td></td>' : ''}</tr>`).join('')}
     </tbody></table></div>
     <h3>Comissão</h3>
     <div class="sale-commission">
       <span><b>${brl2(v.commission.value)}</b> (${v.commission.pct}%) · ${v.commission.status === 'paga' ? `<span class="badge done">paga em ${dBr(v.commission.paidAt)}</span>` : '<span class="badge paused">a pagar</span>'}${v.commission.note ? ` · ${esc(v.commission.note)}` : ''}</span>
-      ${v.affiliate ? `<div class="hint">🤝 Venda indicada por <b>${esc(v.affiliate.name)}</b>: o vendedor recebe o percentual "com indicação" e a comissão do parceiro (estimada em ${brl2(v.affiliate.value)}) é paga em Indicadores.</div>` : ''}
+      ${v.affiliate ? `<div class="hint">Venda indicada por <b>${esc(v.affiliate.name)}</b>: o vendedor recebe o percentual "com indicação" e a comissão do parceiro (estimada em ${brl2(v.affiliate.value)}) é paga em Indicadores.</div>` : ''}
       ${admin && v.status !== 'cancelada' ? `<div class="row"><label class="inline">% <input id="saleCommPct" type="number" min="0" max="100" step="0.1" value="${v.commission.pct}" /></label><label class="inline">ou valor R$ <input id="saleCommValue" type="number" min="0" step="0.01" placeholder="${v.commission.value}" /></label>
         <button class="btn small" id="btnSaleComm">Salvar comissão</button>
-        <button class="btn small ${v.commission.status === 'paga' ? '' : 'primary'}" id="btnSaleCommPaid">${v.commission.status === 'paga' ? 'Marcar como a pagar' : '💸 Marcar comissão como paga'}</button></div>` : ''}
+        <button class="btn small ${v.commission.status === 'paga' ? '' : 'primary'}" id="btnSaleCommPaid">${v.commission.status === 'paga' ? 'Marcar como a pagar' : 'Marcar comissão como paga'}</button></div>` : ''}
     </div>
     ${admin && v.status !== 'cancelada' ? `<div class="row"><label class="inline">Vendedor <select id="saleSeller">${saleState.users.map((u) => `<option value="${esc(u.id)}" ${u.id === v.sellerId ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select></label><button class="btn small" id="btnSaleSeller">Trocar vendedor</button>
       <button class="btn small danger" id="btnSaleCancel">Cancelar venda</button></div>` : ''}
@@ -1704,7 +1704,7 @@ $('#btnContractSign').addEventListener('click', async (e) => {
   try {
     const r = await api(`/api/quotes/${contractState.id}/contract/sign-link`, { method: 'POST', body: { client, send: true } });
     const phone = String(client.whatsapp || '').replace(/\D/g, '');
-    $('#contractSignResult').innerHTML = `<div class="quote-result">${r.sent ? '<b>✅ Link de assinatura enviado no WhatsApp do cliente.</b>' : '<b>Link pronto. Envie para o cliente:</b>'}
+    $('#contractSignResult').innerHTML = `<div class="quote-result">${r.sent ? '<b>Link de assinatura enviado no WhatsApp do cliente.</b>' : '<b>Link pronto. Envie para o cliente:</b>'}
       <div class="row">${phone ? `<a class="btn small primary" href="https://wa.me/${phone}?text=${encodeURIComponent(r.text)}" target="_blank" rel="noopener">Abrir WhatsApp do cliente com a mensagem</a>` : ''}
       <button type="button" class="btn small" id="btnSignCopy">Copiar mensagem</button></div>
       <p class="hint">Assim que ele assinar, a via assinada chega para ele e para vocês, e o contrato aparece como "assinado".</p></div>`;
@@ -1725,7 +1725,7 @@ async function renderSystemLinks() {
   if (!box) return;
   const l = await api('/api/system/links');
   if (!l.base) {
-    box.innerHTML = `<h2>🔗 Links para convidar</h2><p class="status-warn">⚠️ O sistema ainda não tem endereço na internet. Vá em <b>Conexões WhatsApp → Acesso pela internet → Criar endereço</b> (ou publique na VPS). Depois os links aparecem aqui.</p>`;
+    box.innerHTML = `<h2>Links para convidar</h2><p class="status-warn">O sistema ainda não tem endereço na internet. Vá em <b>Conexões WhatsApp → Acesso pela internet → Criar endereço</b> (ou publique na VPS). Depois os links aparecem aqui.</p>`;
     return;
   }
   const msgs = {
@@ -1736,12 +1736,12 @@ async function renderSystemLinks() {
   const row = (title, url, key) => `<div class="item"><div class="grow"><b>${title}</b><div class="meta"><code>${esc(url)}</code></div></div>
     <button class="btn small" data-copy-text="${esc(url)}">Copiar link</button>
     <a class="btn small primary" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msgs[key])}">Enviar no WhatsApp</a></div>`;
-  box.innerHTML = `<h2>🔗 Links para convidar</h2>
-    ${l.fixed ? '' : '<p class="hint">⚠️ Este endereço é provisório (túnel): muda quando o computador reinicia. Para um endereço fixo, publique na VPS com um domínio.</p>'}
+  box.innerHTML = `<h2>Links para convidar</h2>
+    ${l.fixed ? '' : '<p class="hint">Este endereço é provisório (túnel): muda quando o computador reinicia. Para um endereço fixo, publique na VPS com um domínio.</p>'}
     ${row('Marcos (administrador): painel', l.panel, 'marcos')}
     ${row('Equipe: criar acesso de vendedor (você libera depois)', l.signup, 'team')}
     ${row('Parceiros: cadastro de indicador', l.partners, 'partners')}
-    <p class="hint">O Marcos não se cadastra pelo link: crie o acesso dele no formulário <b>Cadastrar vendedor</b> com o tipo <b>Administrador</b> e mande só o link do painel. Ele mesmo cria a senha definitiva (botão 🔑) e liga a verificação em duas etapas.</p>`;
+    <p class="hint">O Marcos não se cadastra pelo link: crie o acesso dele no formulário <b>Cadastrar vendedor</b> com o tipo <b>Administrador</b> e mande só o link do painel. Ele mesmo cria a senha definitiva (botão ) e liga a verificação em duas etapas.</p>`;
 }
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-copy-text]');
@@ -1799,9 +1799,9 @@ async function renderReconfirm() {
   box.hidden = false;
   const j = r.job;
   const status = j ? (j.running
-    ? `⏳ Em andamento: ${j.sent} de ${j.total} enviados (uma mensagem por minuto, para não bloquear o WhatsApp).`
-    : `✅ Última retomada: ${j.sent} enviado(s)${j.skipped?.length ? `, ${j.skipped.length} pulado(s)` : ''}${j.erro ? ` · ${esc(j.erro)}` : ''}.`) : '';
-  box.innerHTML = `<h2>🤖 Retomar quem marcou para o futuro</h2>
+    ? `Em andamento: ${j.sent} de ${j.total} enviados (uma mensagem por minuto, para não bloquear o WhatsApp).`
+    : `Última retomada: ${j.sent} enviado(s)${j.skipped?.length ? `, ${j.skipped.length} pulado(s)` : ''}${j.erro ? ` · ${esc(j.erro)}` : ''}.`) : '';
+  box.innerHTML = `<h2>Retomar quem marcou para o futuro</h2>
     <p class="hint">A atendente de IA chama um por um, no WhatsApp, quem marcou retorno para frente: confirma a data combinada e mostra por que vale adiantar o início. Só das 8h às 20h, até 25 por vez, uma mensagem por minuto. Pula quem um atendente assumiu e quem só falou pelo Instagram.</p>
     <div class="row">
       <button type="button" class="btn primary" data-reconfirm="far" ${j?.running || !r.far ? 'disabled' : ''}>Retomar os de "Mais para frente" (${r.far})</button>
@@ -1859,7 +1859,7 @@ loaders.cash = async () => {
         <div class="card kpi"><div class="kpi-head"><span class="label">A pagar</span></div><div class="value">${cashMoney(s.aPagar, c)}</div>${s.aReceber ? `<div class="sub">a receber ${cashMoney(s.aReceber, c)}</div>` : ''}</div>
       </div>
       ${Object.keys(d.summary.byScope || {}).length > 1 || (d.summary.byScope?.pessoal || d.summary.byScope?.dizimo) ? `<p class="hint">Saídas por tipo: ${Object.entries(d.summary.byScope).map(([sc, cur]) => `<b>${esc(d.scopes[sc] || sc)}</b> ${cashMoney(cur[c]?.saidas || 0, c)}`).join(' · ')}</p>` : ''}
-      ${d.tithe?.[c]?.renda ? `<p class="hint">🙏 Dízimo (${10}% da renda pessoal + retiradas de sócio): devido ${cashMoney(d.tithe[c].devido, c)} · já dado ${cashMoney(d.tithe[c].pago, c)} · ${d.tithe[c].falta > 0 ? `falta ${cashMoney(d.tithe[c].falta, c)}` : 'em dia ✅'}</p>` : ''}
+      ${d.tithe?.[c]?.renda ? `<p class="hint">Dízimo (${10}% da renda pessoal + retiradas de sócio): devido ${cashMoney(d.tithe[c].devido, c)} · já dado ${cashMoney(d.tithe[c].pago, c)} · ${d.tithe[c].falta > 0 ? `falta ${cashMoney(d.tithe[c].falta, c)}` : 'em dia '}</p>` : ''}
       ${spend.length ? `<h3>Para onde está indo o dinheiro</h3>${spend.map((x) => `<div class="cash-row"><span style="min-width:200px">${esc(x.category)}</span><div class="progress grow"><span style="width:${Math.max(4, Math.round((x.total / top) * 100))}%"></span></div><b>${cashMoney(x.total, c)}</b></div>`).join('')}` : '<p class="hint">Nenhuma saída neste período.</p>'}
     </div>`;
   }).join('');
@@ -1871,7 +1871,7 @@ loaders.cash = async () => {
       <td>${esc([e.account, e.method].filter(Boolean).join(' · ') || '—')}</td>
       <td style="color:${e.kind === 'entrada' ? '#17803d' : '#b42318'};font-weight:600;white-space:nowrap">${e.kind === 'entrada' ? '+' : '−'} ${cashMoney(e.amount, e.currency)}</td>
       <td>${e.status === 'a_pagar' ? `<span class="badge paused">${e.kind === 'saida' ? 'a pagar' : 'a receber'}${e.dueDate ? ` até ${dBr(e.dueDate)}` : ''}</span>` : '<span class="badge done">pago</span>'}</td>
-      <td class="row">${e.source === 'manual' ? `${e.status === 'a_pagar' ? '<button class="btn small primary" data-act="paid">Pago</button>' : ''}<button class="btn small" data-act="edit">✏️</button><button class="btn small" data-act="history" title="Histórico">🕘</button><button class="btn small danger" data-act="delete">🗑️</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum lançamento neste período.</td></tr>'}</tbody>`;
+      <td class="row">${e.source === 'manual' ? `${e.status === 'a_pagar' ? '<button class="btn small primary" data-act="paid">Pago</button>' : ''}<button class="btn small" data-act="edit"></button><button class="btn small" data-act="history" title="Histórico"></button><button class="btn small danger" data-act="delete"></button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum lançamento neste período.</td></tr>'}</tbody>`;
   const cf = $('#formCashConfig');
   cf.categories.value = (settingsCache?.cash?.categories?.length ? settingsCache.cash.categories : d.categories).join('\n');
   loadNina().catch(() => {});
@@ -1953,9 +1953,9 @@ async function loadNina() {
   f.lineId.innerHTML = `<option value="">Usar o número principal</option>${n.lines.map((l) => `<option value="${esc(l.id)}">${esc(l.label)}</option>`).join('')}`;
   f.lineId.value = n.lineId || '';
   $('#ninaVoice').textContent = n.sttReady && n.ttsReady
-    ? `✅ Voz ligada: ela entende áudios e responde falando.${n.selfChatHint || ''}`
-    : n.sttReady ? '⚠️ Ela entende áudios, mas a voz de resposta não está ligada (responde por texto).'
-      : 'ℹ️ Ela ainda não consegue ouvir áudios: escolha o provedor Google Gemini com a chave preenchida (aba Agente IA) ou instale o serviço de voz na VPS. Por texto ela já atende.';
+    ? `Voz ligada: ela entende áudios e responde falando.${n.selfChatHint || ''}`
+    : n.sttReady ? 'Ela entende áudios, mas a voz de resposta não está ligada (responde por texto).'
+      : 'ℹEla ainda não consegue ouvir áudios: escolha o provedor Google Gemini com a chave preenchida (aba Agente IA) ou instale o serviço de voz na VPS. Por texto ela já atende.';
 }
 $('#formNina').addEventListener('submit', withBusy($('#formNina'), async (ev) => {
   const f = ev.target;
@@ -1971,11 +1971,11 @@ $('#btnNinaTest')?.addEventListener('click', async (e) => {
   try {
     const r = await api('/api/cash/assistant/test', { method: 'POST', body: { text: $('#ninaTestText').value } });
     out.innerHTML = `<p><b>Ela respondeu:</b> ${esc(r.reply)}</p>
-      <p>👂 Ouvir áudio: ${r.hears ? '✅ pronto' : '❌ não disponível (use o provedor Gemini com a chave preenchida)'}</p>
-      <p>🗣️ Voz: ${r.voice ? '✅ gerada, toque abaixo' : `❌ ${esc(r.voiceError || 'não disponível')}`}</p>
+      <p>Ouvir áudio: ${r.hears ? 'pronto' : 'não disponível (use o provedor Gemini com a chave preenchida)'}</p>
+      <p>Voz: ${r.voice ? 'gerada, toque abaixo' : `${esc(r.voiceError || 'não disponível')}`}</p>
       ${r.voice ? `<audio controls autoplay src="data:${esc(r.voice.mimetype.split(';')[0])};base64,${r.voice.base64}"></audio>` : ''}`;
   } catch (err) {
-    out.textContent = `❌ ${err.message}`;
+    out.textContent = `${err.message}`;
   } finally {
     e.target.disabled = false;
   }
@@ -1988,12 +1988,12 @@ async function loadHealth() {
   out.textContent = 'Verificando…';
   try {
     const r = await api('/api/health/detail');
-    const ico = { ok: '✅', warn: '⚠️', bad: '❌' };
-    out.innerHTML = `<p><b>${r.ok ? '✅ Tudo certo no que dá para medir' : '❌ Há algo para resolver'}</b> · ligado há ${r.uptimeMin} min · memória ${r.memoryMb} MB</p>
+    const ico = { ok: '', warn: '', bad: '' };
+    out.innerHTML = `<p><b>${r.ok ? 'Tudo certo no que dá para medir' : 'Há algo para resolver'}</b> · ligado há ${r.uptimeMin} min · memória ${r.memoryMb} MB</p>
       <ul>${r.tips.map((t) => `<li>${ico[t.level] || '•'} ${esc(t.text)}</li>`).join('')}</ul>
       ${r.drops.length ? `<details><summary>Últimas quedas do WhatsApp (${r.drops.length})</summary><ul>${r.drops.slice(0, 8).map((d) => `<li>${fmtDate(d.at)} · código ${esc(String(d.code ?? '-'))} · ${esc(d.reason || '')}</li>`).join('')}</ul></details>` : ''}`;
   } catch (e) {
-    out.textContent = `❌ ${e.message}`;
+    out.textContent = `${e.message}`;
   }
 }
 $('#btnHealth')?.addEventListener('click', loadHealth);

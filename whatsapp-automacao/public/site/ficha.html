@@ -84,7 +84,7 @@
           <div class="steps-bar">${STEPS.map((x, i) => `<span class="${i <= step ? 'on' : ''}"></span>`).join('')}</div>
           <p class="eyebrow-s">Passo ${step + 1} de ${STEPS.length}</p>
           <h1>${esc(s.title)}</h1>
-          <p class="reassure"><span aria-hidden="true">🔒</span> ${esc(s.hint)}</p>
+          <p class="reassure"><span aria-hidden="true"></span> ${esc(s.hint)}</p>
           <form id="f" class="fields" novalidate>${s.fields.map(field).join('')}
             <p class="err" id="err" role="alert"></p>
             <div class="flow-actions">

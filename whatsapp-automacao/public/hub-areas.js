@@ -20,7 +20,7 @@
 
   // ================= FINANCIAMENTO DE LOTES =================
   const fin = section('finance', `
-    <div class="page-head"><h1>🧮 Financiamento de lotes</h1></div>
+    <div class="page-head"><h1>Financiamento de lotes</h1></div>
     <p class="hint">Simule a entrada, as parcelas e os juros (quanto mais parcelas, maior o percentual), e gere a <b>proposta de reserva</b> em PDF. A proposta <b>só vale depois que a taxa de reserva for paga</b>.</p>
     <div class="panel" id="finCfgBox" hidden></div>
     <div class="panel"><h2>Simulador</h2>
@@ -38,7 +38,7 @@
       <form id="finClient" class="grid-form">
         ${field('Nome completo *', 'name')}${field('Documento (CI/CPF) *', 'doc')}${field('Telefone *', 'phone')}
         ${field('E-mail', 'email')}${field('Endereço *', 'address')}${field('Nacionalidade', 'nationality')}${field('Estado civil', 'civil')}
-        <div class="row"><button class="btn primary">📄 Gerar proposta de reserva</button></div>
+        <div class="row"><button class="btn primary">Gerar proposta de reserva</button></div>
       </form>
     </div>
     <div class="panel"><h2>Propostas</h2><div id="finReport" class="hint"></div><div class="table-wrap"><table id="finProps"></table></div></div>`);
@@ -54,7 +54,7 @@
     const box = fin.querySelector('#finCfgBox');
     const { config: c, configured } = await api('/api/finance/config');
     box.hidden = false;
-    const warn = configured ? '' : '<p class="err">⚠️ Os juros ainda estão em 0%. O Marcos precisa definir as faixas abaixo antes de usar com clientes.</p>';
+    const warn = configured ? '' : '<p class="err">Os juros ainda estão em 0%. O Marcos precisa definir as faixas abaixo antes de usar com clientes.</p>';
     if (!isAdmin()) {
       box.innerHTML = `${warn}<h2>Regras vigentes</h2><p class="hint">Entrada mínima ${c.minEntryPct}% · até ${c.maxInstallments} parcelas · ${c.bands.map((b) => `até ${b.upTo}x: ${b.interestPct}%`).join(' · ')}</p>`;
       return;
@@ -66,9 +66,9 @@
         ${field('Validade da proposta (dias)', 'validDays', `type="number" value="${c.validDays}"`)}
       </form>
       <h3>Juros por número de parcelas (% sobre o saldo financiado)</h3>
-      <div id="finBands">${c.bands.map((b) => `<div class="row band"><span>até</span><input class="bUp" type="number" min="1" value="${b.upTo}" style="width:90px" /><span>parcelas →</span><input class="bPct" value="${b.interestPct}" style="width:90px" /><span>% de juros</span><button type="button" class="btn small danger bDel">✕</button></div>`).join('')}</div>
-      <div class="row"><button type="button" class="btn small" id="bAdd">➕ Faixa</button><button type="button" class="btn primary" id="finCfgSave">Salvar regras</button></div>`;
-    box.querySelector('#bAdd').onclick = () => box.querySelector('#finBands').insertAdjacentHTML('beforeend', '<div class="row band"><span>até</span><input class="bUp" type="number" min="1" style="width:90px" /><span>parcelas →</span><input class="bPct" value="0" style="width:90px" /><span>% de juros</span><button type="button" class="btn small danger bDel">✕</button></div>');
+      <div id="finBands">${c.bands.map((b) => `<div class="row band"><span>até</span><input class="bUp" type="number" min="1" value="${b.upTo}" style="width:90px" /><span>parcelas →</span><input class="bPct" value="${b.interestPct}" style="width:90px" /><span>% de juros</span><button type="button" class="btn small danger bDel"></button></div>`).join('')}</div>
+      <div class="row"><button type="button" class="btn small" id="bAdd">Faixa</button><button type="button" class="btn primary" id="finCfgSave">Salvar regras</button></div>`;
+    box.querySelector('#bAdd').onclick = () => box.querySelector('#finBands').insertAdjacentHTML('beforeend', '<div class="row band"><span>até</span><input class="bUp" type="number" min="1" style="width:90px" /><span>parcelas →</span><input class="bPct" value="0" style="width:90px" /><span>% de juros</span><button type="button" class="btn small danger bDel"></button></div>');
     box.querySelector('#finBands').onclick = (e) => { if (e.target.classList.contains('bDel')) e.target.closest('.band').remove(); };
     box.querySelector('#finCfgSave').onclick = async () => {
       const f = box.querySelector('#finCfg');
@@ -89,7 +89,7 @@
       const [{ sim, configured }, { options }] = await Promise.all([api('/api/finance/simulate', { method: 'POST', body }), api('/api/finance/options', { method: 'POST', body })]);
       lastSim = body;
       const cur = CUR[finDevs.find((x) => x.id === body.devId)?.currency] || 'R$';
-      fin.querySelector('#finResult').innerHTML = `${configured ? '' : '<p class="err">⚠️ Juros não definidos (0%).</p>'}
+      fin.querySelector('#finResult').innerHTML = `${configured ? '' : '<p class="err">Juros não definidos (0%).</p>'}
         <div class="cards"><div class="card"><b>${money(sim.entry, cur)}</b><span>entrada (${sim.entryPct}%)${sim.entryParts > 1 ? ` em ${sim.entryParts}x de ${money(sim.entryPart, cur)}` : ''}</span></div>
         <div class="card"><b>${sim.installments}x ${money(sim.installment, cur)}</b><span>juros ${sim.interestPct}% sobre ${money(sim.balance, cur)}</span></div>
         <div class="card"><b>${money(sim.total, cur)}</b><span>total a pagar</span></div></div>
@@ -107,7 +107,7 @@
       loadProposals();
     } catch (e) { toast(e.message, true); }
   });
-  const PST = { aberta: '🟡 Aguardando reserva', reservada: '🟢 Reserva paga', vencida: '⚪ Vencida', cancelada: '🔴 Cancelada' };
+  const PST = { aberta: 'Aguardando reserva', reservada: 'Reserva paga', vencida: 'Vencida', cancelada: 'Cancelada' };
   async function loadProposals() {
     const list = await api('/api/finance/proposals');
     if (isStaff()) {
@@ -145,18 +145,18 @@
 
   // ================= MIGRA MOTORS =================
   const mot = section('motors', `
-    <div class="page-head"><h1>🚗 Migra Motors</h1></div>
+    <div class="page-head"><h1>Migra Motors</h1></div>
     <p class="hint">Estoque de veículos e comparação de financiamento. As <b>taxas dos bancos/consórcios são cadastradas pelo Marcos</b> abaixo; o sistema só faz a conta com o que foi cadastrado (não inventa taxa).</p>
     <div class="panel"><h2>Comparar financiamento</h2>
       <form id="motCmp" class="grid-form"><label>Veículo<select name="vehicleId"></select></label>${field('Ou valor', 'price', 'inputmode="decimal"')}${field('Entrada', 'entry', 'inputmode="decimal"')}${field('Meses', 'months', 'type="number" value="48"')}<div class="row"><button class="btn primary">Comparar</button></div></form>
       <div id="motCmpOut"></div></div>
-    <div class="panel"><div class="page-head"><h2>Veículos</h2><button class="btn primary" id="vNew" data-staff hidden>➕ Novo veículo</button></div>
+    <div class="panel"><div class="page-head"><h2>Veículos</h2><button class="btn primary" id="vNew" data-staff hidden>Novo veículo</button></div>
       <form id="vForm" class="grid-form" hidden>${field('Marca *', 'brand')}${field('Modelo *', 'model')}${field('Versão', 'version')}${field('Ano', 'year', 'type="number"')}${field('Km', 'km', 'type="number"')}${field('Preço', 'price', 'inputmode="decimal"')}
         <label>Moeda<select name="currency"><option value="USD">US$</option><option value="PYG">Gs.</option><option value="BRL">R$</option></select></label>${field('Combustível', 'fuel')}${field('Câmbio', 'transmission')}${field('Cor', 'color')}
         <label class="wide">Fotos (um link por linha)<textarea name="images" rows="2"></textarea></label><label><input type="checkbox" name="published" /> Publicar no site</label>
         <div class="row"><button class="btn primary">Salvar</button><button type="button" class="btn" id="vCancel">Cancelar</button></div></form>
       <div class="table-wrap"><table id="vTable"></table></div></div>
-    <div class="panel"><div class="page-head"><h2>Bancos, financeiras e consórcios</h2><button class="btn primary" id="lNew" data-staff hidden>➕ Nova instituição</button></div>
+    <div class="panel"><div class="page-head"><h2>Bancos, financeiras e consórcios</h2><button class="btn primary" id="lNew" data-staff hidden>Nova instituição</button></div>
       <form id="lForm" class="grid-form" hidden>${field('Nome *', 'name')}<label>Tipo<select name="type"><option value="banco">Banco</option><option value="financeira">Financeira</option><option value="consorcio">Consórcio</option><option value="proprio">Financiamento próprio</option></select></label>
         ${field('Juros ao mês (%)', 'ratePctMonth', 'inputmode="decimal"')}${field('Taxa de administração total (% consórcio)', 'adminFeePct', 'inputmode="decimal"')}${field('Entrada mínima (%)', 'minEntryPct', 'inputmode="decimal"')}${field('Prazo máximo (meses)', 'maxMonths', 'type="number" value="60"')}${field('Idade máx. do veículo (anos, 0 = sem limite)', 'maxVehicleAgeYears', 'type="number" value="0"')}
         <label class="wide">Exigências / observações<textarea name="requirements" rows="2"></textarea></label><div class="row"><button class="btn primary">Salvar</button><button type="button" class="btn" id="lCancel">Cancelar</button></div></form>
@@ -208,14 +208,14 @@
     const f = e.target;
     try {
       const r = await api('/api/motors/compare', { method: 'POST', body: { vehicleId: f.vehicleId.value || undefined, price: num(f.price.value), entry: num(f.entry.value), months: f.months.value } });
-      mot.querySelector('#motCmpOut').innerHTML = `${r.configured ? '' : '<p class="err">⚠️ Nenhuma taxa cadastrada ainda: os valores abaixo estão sem juros.</p>'}<div class="table-wrap"><table><thead><tr><th>Instituição</th><th>Entrada</th><th>Parcela</th><th>Custo dos juros/taxas</th><th>Total</th></tr></thead><tbody>${r.results.map((x) => `<tr><td><b>${esc(x.lender)}</b><div class="hint">${esc(x.note)}</div></td><td>${money(x.entry)}</td><td><b>${x.months}x ${money(x.installment)}</b></td><td>${money(x.cost)}</td><td>${money(x.total)}</td></tr>`).join('')}</tbody></table></div>${r.skipped.length ? `<p class="hint">Não atendem: ${r.skipped.map((s) => esc(s.reason)).join(' · ')}</p>` : ''}`;
+      mot.querySelector('#motCmpOut').innerHTML = `${r.configured ? '' : '<p class="err">Nenhuma taxa cadastrada ainda: os valores abaixo estão sem juros.</p>'}<div class="table-wrap"><table><thead><tr><th>Instituição</th><th>Entrada</th><th>Parcela</th><th>Custo dos juros/taxas</th><th>Total</th></tr></thead><tbody>${r.results.map((x) => `<tr><td><b>${esc(x.lender)}</b><div class="hint">${esc(x.note)}</div></td><td>${money(x.entry)}</td><td><b>${x.months}x ${money(x.installment)}</b></td><td>${money(x.cost)}</td><td>${money(x.total)}</td></tr>`).join('')}</tbody></table></div>${r.skipped.length ? `<p class="hint">Não atendem: ${r.skipped.map((s) => esc(s.reason)).join(' · ')}</p>` : ''}`;
     } catch (err) { toast(err.message, true); }
   });
   loaders.motors = loadMotors;
 
   // ================= MIGRA SCHOOL =================
   const sch = section('school', `
-    <div class="page-head"><h1>🎓 Migra School</h1><button class="btn primary" id="sNew">➕ Novo aluno</button></div>
+    <div class="page-head"><h1>Migra School</h1><button class="btn primary" id="sNew">Novo aluno</button></div>
     <div id="sSummary" class="cards"></div>
     <form id="sForm" class="panel grid-form" hidden>${field('Nome *', 'name')}${field('WhatsApp', 'phone')}${field('E-mail', 'email')}${field('Idioma', 'language', 'value="Espanhol"')}${field('Professor(a)', 'teacher')}
       <label>Nível<select name="level">${['Iniciante', 'Básico', 'Intermediário', 'Avançado', 'Fluente'].map((x) => `<option>${x}</option>`).join('')}</select></label><div class="row"><button class="btn primary">Salvar</button><button type="button" class="btn" id="sCancel">Cancelar</button></div></form>
@@ -259,7 +259,7 @@
 
   // ================= AUDITORIA =================
   const aud = section('audit', `
-    <div class="page-head"><h1>🕵️ Auditoria: quem mexeu em quê</h1></div>
+    <div class="page-head"><h1>Auditoria: quem mexeu em quê</h1></div>
     <p class="hint">Todo cadastro, alteração e exclusão de lotes, preços, juros, veículos, alunos, propostas e perfis de equipe fica aqui, com quem fez, quando e o valor <b>antes e depois</b>. Ninguém consegue apagar este registro pelo painel.</p>
     <div class="panel"><div class="row"><select id="aUser"><option value="">Todas as pessoas</option></select><select id="aAction"><option value="">Tudo</option><option value="criou">Criou</option><option value="alterou">Alterou</option><option value="excluiu">Excluiu</option></select>
       <label><input type="checkbox" id="aSens" /> só dinheiro, juros e exclusões</label><input id="aQ" placeholder="Buscar (lote, nome, valor…)" /></div>
@@ -273,7 +273,7 @@
     const { items, users } = await api(`/api/audit?${q}`);
     const sel = aud.querySelector('#aUser'); const keep = sel.value;
     sel.innerHTML = `<option value="">Todas as pessoas</option>${users.map((n) => `<option ${n === keep ? 'selected' : ''}>${esc(n)}</option>`).join('')}`;
-    aud.querySelector('#aTable').innerHTML = `<thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Mudanças</th></tr></thead><tbody>${items.map((e) => `<tr${e.sensitive ? ' style="background:rgba(212,175,55,.12)"' : ''}><td>${fmtDate(e.at)}</td><td><b>${esc(e.user)}</b><div class="hint">${esc(e.role || '')} ${esc(e.ip || '')}</div></td><td>${{ criou: '🆕 criou', alterou: '✏️ alterou', excluiu: '🗑️ excluiu' }[e.action] || esc(e.action)} ${esc(e.entity)}<div><b>${esc(e.label)}</b></div></td>
+    aud.querySelector('#aTable').innerHTML = `<thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Mudanças</th></tr></thead><tbody>${items.map((e) => `<tr${e.sensitive ? ' style="background:rgba(212,175,55,.12)"' : ''}><td>${fmtDate(e.at)}</td><td><b>${esc(e.user)}</b><div class="hint">${esc(e.role || '')} ${esc(e.ip || '')}</div></td><td>${{ criou: '🆕 criou', alterou: 'alterou', excluiu: 'excluiu' }[e.action] || esc(e.action)} ${esc(e.entity)}<div><b>${esc(e.label)}</b></div></td>
       <td>${e.changes.map((c) => `<div>${esc(c.label)}: <s>${esc(c.from || '—')}</s> → <b>${esc(c.to || '—')}</b></div>`).join('') || esc(e.note || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Nada registrado ainda.</td></tr>'}</tbody>`;
   }
   for (const id of ['#aUser', '#aAction', '#aSens']) aud.querySelector(id).onchange = loadAudit;

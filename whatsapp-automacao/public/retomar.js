@@ -6,7 +6,7 @@
   sec.id = 'tab-reengage';
   sec.className = 'tab';
   sec.innerHTML = `
-    <div class="page-head"><h1>📨 Retomar contatos</h1></div>
+    <div class="page-head"><h1>Retomar contatos</h1></div>
     <p class="hint">Pessoas que pediram atendimento pelo Instagram, Facebook, site ou quiz e ainda não foram atendidas. O sistema cruza com as conversas do WhatsApp e com o CRM: quem <b>já falou</b> com a gente <b>não recebe nada</b>. Quem <b>não falou</b> aparece aqui para você conferir e aprovar. Nada é enviado sem a sua aprovação.</p>
     <div id="rgCards" class="cards"></div>
     <div class="panel"><h2>1. Trazer os contatos</h2>
@@ -19,12 +19,12 @@
     <div class="panel"><h2>3. Conferir e aprovar</h2>
       <div class="row"><select id="rgStatus"><option value="novo">Ainda não atendidos (novos)</option><option value="ja_atendido">Já falaram com a gente</option><option value="enviado">Mensagem enviada</option><option value="respondeu">Responderam</option><option value="nao_incomodar">Não incomodar</option><option value="ignorado">Ignorados</option><option value="">Todos</option></select>
         <select id="rgSrcFilter"><option value="">Todas as origens</option></select><input id="rgQ" placeholder="Buscar nome ou telefone" />
-        <button class="btn" id="rgAll">☑️ Marcar todos da lista</button><button class="btn primary" id="rgSend">📨 Enviar aos marcados</button><button class="btn danger" id="rgStop" hidden>⏹️ Parar</button></div>
+        <button class="btn" id="rgAll">Marcar todos da lista</button><button class="btn primary" id="rgSend">Enviar aos marcados</button><button class="btn danger" id="rgStop" hidden>Parar</button></div>
       <p id="rgRun" class="hint"></p>
       <div class="table-wrap"><table id="rgTable"></table></div></div>`;
   host.appendChild(sec);
   const SRC = { instagram: 'Instagram', facebook: 'Facebook', site: 'Cadastro no site', quiz: 'Quiz', grupo: 'Grupo', outro: 'Outro' };
-  const ST = { novo: '🟡 Novo', ja_atendido: '✅ Já falou conosco', enviado: '📨 Enviada', respondeu: '💬 Respondeu', nao_incomodar: '🚫 Não incomodar', ignorado: '⚪ Ignorado' };
+  const ST = { novo: 'Novo', ja_atendido: 'Já falou conosco', enviado: 'Enviada', respondeu: 'Respondeu', nao_incomodar: 'Não incomodar', ignorado: 'Ignorado' };
   let items = []; let templates = {};
   const q = (s) => sec.querySelector(s);
   async function load() {

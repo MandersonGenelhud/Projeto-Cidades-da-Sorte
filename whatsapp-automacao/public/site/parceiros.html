@@ -85,7 +85,7 @@
       setHeaderWhatsapp(c.whatsapp);
       $('#cookieDays').textContent = c.affiliates.cookieDays;
       const rates = Object.entries(c.affiliates.rates || {}).filter(([, r]) => Number(r.percent) || Number(r.fixed));
-      $('#ratesBox').innerHTML = rates.map(([k, r]) => `<span>💰 ${LABEL[k] || k}: <b>${[Number(r.percent) ? `${r.percent}%` : '', Number(r.fixed) ? `R$ ${Number(r.fixed).toLocaleString('pt-BR')}` : ''].filter(Boolean).join(' + ')}</b> por venda fechada</span>`).join('');
+      $('#ratesBox').innerHTML = rates.map(([k, r]) => `<span>${LABEL[k] || k}: <b>${[Number(r.percent) ? `${r.percent}%` : '', Number(r.fixed) ? `R$ ${Number(r.fixed).toLocaleString('pt-BR')}` : ''].filter(Boolean).join(' + ')}</b> por venda fechada</span>`).join('');
       if (!c.affiliates.enabled) $('#signup').innerHTML = '<p>O programa de indicação está pausado no momento.</p>';
     }).catch(() => {});
     $('#country').addEventListener('change', (e) => { $('#payBR').hidden = e.target.value !== 'BR'; $('#payPY').hidden = e.target.value !== 'PY'; });

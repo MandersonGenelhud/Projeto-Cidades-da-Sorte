@@ -18,7 +18,7 @@ loaders.realty = async () => {
   $('#propTable').innerHTML = `<thead><tr><th></th><th>Imóvel</th><th>Tipo</th><th>Cidade</th><th>Preço</th><th>Situação</th><th></th></tr></thead><tbody>${propsCache.map((p) => `
     <tr data-prop="${esc(p.id)}">
       <td>${p.images?.[0] ? `<img src="${esc(p.images[0])}" alt="" class="thumb" loading="lazy" />` : '<span class="thumb"></span>'}</td>
-      <td><b>${esc(p.title)}</b>${p.featured ? ' <span class="chip small">⭐ destaque</span>' : ''}${p.hidden ? ' <span class="chip small">oculto</span>' : ''}<div class="hint">${p.deal === 'aluguel' ? 'Aluguel' : 'Venda'}${p.areaText ? ` · ${esc(p.areaText)}` : ''}</div></td>
+      <td><b>${esc(p.title)}</b>${p.featured ? ' <span class="chip small">destaque</span>' : ''}${p.hidden ? ' <span class="chip small">oculto</span>' : ''}<div class="hint">${p.deal === 'aluguel' ? 'Aluguel' : 'Venda'}${p.areaText ? ` · ${esc(p.areaText)}` : ''}</div></td>
       <td>${esc(REALTY_TYPES[p.type] || p.type)}</td>
       <td>${esc(p.city || '—')}</td>
       <td><b>${fmtPrice(p.price, p.currency, p.perMonth)}</b></td>
@@ -83,7 +83,7 @@ $('#formProp').addEventListener('submit', async (e) => {
   for (const k of ['perMonth', 'featured', 'hidden']) body[k] = f[k].checked;
   try {
     await api(propEditing ? `/api/realty/properties/${propEditing}` : '/api/realty/properties', { method: propEditing ? 'PATCH' : 'POST', body });
-    toast('Imóvel salvo ✅');
+    toast('Imóvel salvo ');
     $('#propDialog').close();
     loaders.realty();
   } catch (err) {
@@ -406,7 +406,7 @@ function showStripForm() {
       });
       toast(`${lots.length} lotes criados${block ? ` na quadra ${block}` : ''}`);
       setMode('strip');
-      $('#lotSide').insertAdjacentHTML('afterbegin', `<p class="ok-note">✅ ${lots.length} lotes criados. Marque a próxima quadra.</p>`);
+      $('#lotSide').insertAdjacentHTML('afterbegin', `<p class="ok-note">${lots.length} lotes criados. Marque a próxima quadra.</p>`);
       await openDev(devCurrent.id);
     } catch (err) {
       toast(err.message, true);
@@ -456,7 +456,7 @@ function showBlockForm(rect) {
         body: { ...rect, gap: 0, block: $('#bBlock').value, start: $('#bStart').value, rows: $('#bRows').value, cols: $('#bCols').value, area: $('#bArea').value, price: $('#bPrice').value },
       });
       dragRect = null;
-      $('#lotSide').innerHTML = `<p class="ok-note">✅ ${lots.length} lotes criados. Arraste outro retângulo para a próxima quadra.</p>`;
+      $('#lotSide').innerHTML = `<p class="ok-note">${lots.length} lotes criados. Arraste outro retângulo para a próxima quadra.</p>`;
       toast(`${lots.length} lotes criados`);
       openDev(devCurrent.id);
     } catch (err) {

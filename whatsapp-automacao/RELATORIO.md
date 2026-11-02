@@ -45,6 +45,7 @@ Atualizado em 31/10/2026. Tudo abaixo está no sistema depois de **Atualizar ago
 - **Captura do sistema inteiro:** o programa de cópia agora percorre todas as telas e clica em "Próxima" nas listas.
 - **Painel executivo** (primeira tela do Marcos): cobranças e vencimentos de hoje, da semana, do mês e do ano (vence, recebido, a receber, atrasado), recebido × vendido em 12 meses, o que deve entrar nas próximas 8 semanas, atrasos por faixa e maiores atrasos, vendedores do mês, origem dos clientes, funil e alertas. Visual escuro/futurista, com layout próprio para celular.
 - **Módulos (standby):** o administrador desliga telas que não usa (somem do menu, nada é apagado) e liga de volta quando quiser. A tela também mostra o que decidimos sobre cada parte do sistema antigo do Marcos.
+- **Visual executivo:** painel e sites sem emojis; ícones próprios da Migra (traço fino) em todas as telas; fundo próprio com curvas de nível e fios dourados que aparece através dos cartões de vidro; paleta sóbria (verde Migra, cinza e um fio dourado).
 - **Ainda falta:** endereço próprio de cada site (domínio por marca), pacote de documentos e legislação de imigração, painel consolidado por empresa, número de contrato compartilhado com o site do Marcos.
 
 ## 5. Pendências suas

@@ -35,13 +35,13 @@
         <div class="flow-card">
           <p class="eyebrow-s">${esc(info.number)}</p>
           <h1>Seu contrato</h1>
-          <p class="reassure"><span aria-hidden="true">📄</span> Montamos o contrato com os seus dados e as condições combinadas. Leia com calma e assine aqui mesmo, com o dedo.</p>
+          <p class="reassure"><span aria-hidden="true"></span> Montamos o contrato com os seus dados e as condições combinadas. Leia com calma e assine aqui mesmo, com o dedo.</p>
           <div class="ct-sum">
             <div><span>Serviços</span><b>${info.items.map(esc).join('<br>')}</b></div>
             <div><span>Valor total</span><b>${brl(info.total)}</b></div>
             <div><span>Entrada na reserva</span><b>${brl(info.entry)}</b></div>
           </div>
-          <a class="btn block" href="${esc(info.pdf)}" target="_blank" rel="noopener">📄 Ler o contrato completo (PDF)</a>
+          <a class="btn block" href="${esc(info.pdf)}" target="_blank" rel="noopener">Ler o contrato completo (PDF)</a>
           <p class="fine">Abre numa nova aba. Depois de ler, volte aqui para assinar.</p>
         </div>
         <form class="flow-card fields" id="f" novalidate>

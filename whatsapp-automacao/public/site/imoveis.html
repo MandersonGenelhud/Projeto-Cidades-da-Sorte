@@ -46,7 +46,7 @@
   <script>
     siteChrome('imoveis');
     let all = [];
-    const facts = (p) => [p.areaText && `📐 ${esc(p.areaText)}`, p.bedrooms ? `🛏️ ${p.bedrooms}` : '', p.bathrooms ? `🚿 ${p.bathrooms}` : ''].filter(Boolean).join('<span aria-hidden="true">·</span>');
+    const facts = (p) => [p.areaText && `${esc(p.areaText)}`, p.bedrooms ? `${p.bedrooms} quarto(s)` : '', p.bathrooms ? `${p.bathrooms} banheiro(s)` : ''].filter(Boolean).join('<span aria-hidden="true">·</span>');
     function card(p) {
       return `<a class="card" href="/imoveis/p/${encodeURIComponent(p.slug)}">
         <div class="ph">${p.images?.[0] ? `<img src="${esc(p.images[0])}" alt="${esc(p.title)}" loading="lazy" />` : ''}

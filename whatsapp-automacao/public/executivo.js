@@ -19,7 +19,7 @@
     return `<div class="xd-bars" role="img" aria-label="Gráfico de barras por mês">${items.map((i) => `<div class="xd-col" title="${esc(i.label)}: ${esc(label(i))}">
       <div class="xd-pair"><i class="xd-bar a" style="height:${Math.max(i[a] ? 3 : 0, Math.round((i[a] / max) * 100))}%"></i>${b ? `<i class="xd-bar b" style="height:${Math.max(i[b] ? 3 : 0, Math.round((i[b] / max) * 100))}%"></i>` : ''}</div><span>${esc(i.label)}</span></div>`).join('')}</div>`;
   };
-  const kpi = (icon, label, value, sub, tone = '') => `<div class="xd-kpi ${tone}"><span class="xd-ico">${icon}</span><small>${label}</small><b>${value}</b><em>${sub || ''}</em></div>`;
+  const kpi = (ic, label, value, sub, tone = '') => `<div class="xd-kpi ${tone}"><span class="xd-ico">${icon(ic, 18)}</span><small>${label}</small><b>${value}</b><em>${sub || ''}</em></div>`;
 
   function render() {
     const d = data;
@@ -27,21 +27,21 @@
     const k = d.kpis;
     const crm = d.crm || {};
     const alerts = [];
-    if (k.atrasadasQtd) alerts.push(`⚠️ ${k.atrasadasQtd} parcela(s) em atraso somando ${brl(k.atrasadoTotal)}`);
-    if (d.extras.esperando) alerts.push(`💬 ${d.extras.esperando} cliente(s) esperando resposta`);
-    if (d.extras.visitasAbertas) alerts.push(`🏢 ${d.extras.visitasAbertas} visita(s) para resolver`);
-    if (d.extras.retomarNovos) alerts.push(`📨 ${d.extras.retomarNovos} contato(s) para retomar`);
-    if (d.extras.whatsapp !== 'connected') alerts.push('📵 WhatsApp desconectado');
+    if (k.atrasadasQtd) alerts.push(`${k.atrasadasQtd} parcela(s) em atraso somando ${brl(k.atrasadoTotal)}`);
+    if (d.extras.esperando) alerts.push(`${d.extras.esperando} cliente(s) esperando resposta`);
+    if (d.extras.visitasAbertas) alerts.push(`${d.extras.visitasAbertas} visita(s) para resolver`);
+    if (d.extras.retomarNovos) alerts.push(`${d.extras.retomarNovos} contato(s) para retomar`);
+    if (d.extras.whatsapp !== 'connected') alerts.push('WhatsApp desconectado');
     ex.querySelector('#xd').innerHTML = `
-      <header class="xd-head"><div><small>${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</small><h1>Painel executivo</h1></div><button class="xd-btn" id="xdRefresh" type="button">↻ Atualizar</button></header>
-      ${alerts.length ? `<div class="xd-alerts">${alerts.map((a) => `<span>${esc(a)}</span>`).join('')}</div>` : '<div class="xd-alerts ok"><span>✅ Tudo em dia por aqui</span></div>'}
+      <header class="xd-head"><div><small>${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</small><h1>Painel executivo</h1></div><button class="xd-btn" id="xdRefresh" type="button">Atualizar</button></header>
+      ${alerts.length ? `<div class="xd-alerts">${alerts.map((a) => `<span>${icon('alert', 15)}${esc(a)}</span>`).join('')}</div>` : '<div class="xd-alerts ok"><span>Sem pendências no momento</span></div>'}
       <section class="xd-grid xd-kpis">
-        ${kpi('💰', 'Recebido no mês', brl(k.recebidoMes), `${d.months.at(-1).vendas} venda(s) no mês`, 'g')}
-        ${kpi('📥', 'A receber (total)', brl(k.aReceberTotal), `${k.contratosAtivos} contratos ativos`, 'c')}
-        ${kpi('🔥', 'Em atraso', brl(k.atrasadoTotal), `${k.atrasadasQtd} parcela(s)`, k.atrasadasQtd ? 'r' : 'g')}
-        ${kpi('🧾', 'Vendido no mês', brl(k.vendidoMes), `comissões em aberto: ${brl(k.comissaoAberta)}`, 'v')}
-        ${kpi('🧲', 'Leads novos no mês', crm.newLeads ?? 0, `${crm.openLeads ?? 0} em aberto`, 'c')}
-        ${kpi('🏆', 'Conversão', crm.conversion == null ? '—' : `${crm.conversion}%`, `${crm.won ?? 0} fechado(s) · ${brl(crm.wonValue)}`, 'g')}
+        ${kpi('wallet', 'Recebido no mês', brl(k.recebidoMes), `${d.months.at(-1).vendas} venda(s) no mês`, 'g')}
+        ${kpi('inbox', 'A receber (total)', brl(k.aReceberTotal), `${k.contratosAtivos} contratos ativos`, 'c')}
+        ${kpi('alert', 'Em atraso', brl(k.atrasadoTotal), `${k.atrasadasQtd} parcela(s)`, k.atrasadasQtd ? 'r' : 'g')}
+        ${kpi('trend', 'Vendido no mês', brl(k.vendidoMes), `comissões em aberto: ${brl(k.comissaoAberta)}`, 'v')}
+        ${kpi('attendants', 'Leads novos no mês', crm.newLeads ?? 0, `${crm.openLeads ?? 0} em aberto`, 'c')}
+        ${kpi('award', 'Conversão', crm.conversion == null ? '—' : `${crm.conversion}%`, `${crm.won ?? 0} fechado(s) · ${brl(crm.wonValue)}`, 'g')}
       </section>
       <section class="xd-card"><div class="xd-card-head"><h2>Cobranças e vencimentos</h2>
         <div class="xd-seg" role="tablist">${Object.entries(d.cobrancas).map(([key, v]) => `<button type="button" data-per="${key}" class="${key === per ? 'on' : ''}">${esc(v.label)}</button>`).join('')}</div></div>
@@ -59,7 +59,7 @@
       </section>
       <section class="xd-grid xd-two">
         <div class="xd-card"><h2>Atrasos por faixa</h2>${d.faixas.map((f) => `<div class="xd-row"><span>${esc(f.label)}</span><b>${f.quantidade}</b><em>${brl(f.valor)}</em></div>`).join('')}
-          <h3>Maiores atrasos</h3>${d.atrasadas.slice(0, 6).map((p) => `<div class="xd-row"><span>${esc(p.client || p.number)}<small>${esc(p.label)} · venceu ${dm(p.due)}</small></span><b>${p.daysLate}d</b><em>${brl2(p.value)}</em></div>`).join('') || '<p class="xd-muted">Nenhuma parcela em atraso. 🎉</p>'}</div>
+          <h3>Maiores atrasos</h3>${d.atrasadas.slice(0, 6).map((p) => `<div class="xd-row"><span>${esc(p.client || p.number)}<small>${esc(p.label)} · venceu ${dm(p.due)}</small></span><b>${p.daysLate}d</b><em>${brl2(p.value)}</em></div>`).join('') || '<p class="xd-muted">Nenhuma parcela em atraso. </p>'}</div>
         <div class="xd-card"><h2>Vendedores no mês</h2>${d.vendedores.map((v) => `<div class="xd-row"><span>${esc(v.name)}<small>${v.vendas} venda(s) · recebido ${brl(v.recebido)}</small></span><b>${brl(v.vendido)}</b><em>comissão ${brl(v.comissaoAberta)}</em></div>`).join('') || '<p class="xd-muted">Sem vendas ainda.</p>'}
           <h3>De onde vêm os clientes (mês)</h3><div class="xd-chips">${(crm.bySource || []).map((s) => `<span>${esc(s.label)} <b>${s.count}</b></span>`).join('') || '<span>Sem dados</span>'}</div></div>
       </section>`;
@@ -75,7 +75,7 @@
   const md = document.createElement('section');
   md.id = 'tab-modules';
   md.className = 'tab';
-  md.innerHTML = `<div class="page-head"><h1>🧩 Módulos (standby)</h1></div>
+  md.innerHTML = `<div class="page-head"><h1>Módulos (standby)</h1></div>
     <p class="hint">Telas que não usamos agora ficam em <b>standby</b>: somem do menu, mas nada é apagado, e é só ligar de novo quando precisar. Aqui também está o que decidimos sobre o sistema antigo do Marcos.</p>
     <div class="panel"><h2>Telas do nosso sistema</h2><div id="mdList" class="md-list"></div></div>
     <div class="panel"><h2>O que decidimos do sistema antigo do Marcos</h2><div class="table-wrap"><table id="mdPlan"></table></div></div>`;
@@ -101,7 +101,7 @@
     ['Leads do quiz e leads de grupos', 'standby', 'Standby: grupos não recebem mensagem automática; quiz entra pelo Retomar contatos.'],
     ['Curso, tutoriais e despachante (Motors)', 'standby', 'Standby: depois da cópia, trazemos os textos e as aulas.'],
   ];
-  const TAG = { agora: ['🟢 Feito agora', 'g'], ja: ['✅ Já temos', 'g'], proximo: ['🔜 Próxima etapa', 'c'], standby: ['⏸️ Standby', 'm'] };
+  const TAG = { agora: ['Feito agora', 'g'], ja: ['Já temos', 'g'], proximo: ['Próxima etapa', 'c'], standby: ['Standby', 'm'] };
   md.querySelector('#mdPlan').innerHTML = `<thead><tr><th>Do sistema antigo</th><th>Decisão</th><th>Detalhe</th></tr></thead><tbody>${PLAN.map(([n, t, d]) => `<tr><td><b>${esc(n)}</b></td><td><span class="xd-tag ${TAG[t][1]}">${TAG[t][0]}</span></td><td>${esc(d)}</td></tr>`).join('')}</tbody>`;
   async function loadModules() {
     const m = await api('/api/modules');

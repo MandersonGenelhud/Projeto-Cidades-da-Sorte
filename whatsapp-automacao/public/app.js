@@ -18,7 +18,7 @@ const STATUS_LABEL = {
   pending: 'Pendente', sent: 'Enviada', failed: 'Falhou', skipped: 'Ignorada',
 };
 const LOG_LABEL = {
-  sent: '📤 Enviada', received: '📥 Recebida', autoreply: '🤖 Resposta automática', error: '⚠️ Erro', system: 'ℹ️ Sistema',
+  sent: 'Enviada', received: 'Recebida', autoreply: 'Resposta automática', error: 'Erro', system: 'ℹSistema',
 };
 
 function toast(message, isError = false) {
@@ -107,18 +107,18 @@ function renderStatus(state) {
   $('#cloudPanel').hidden = mode !== 'cloud';
   if (mode === 'cloud') {
     $('#cloudStatus').innerHTML = state.status === 'connected'
-      ? `<p>✅ Conectado à API oficial: <b>${esc(state.me?.name || '')}</b> ${esc(fmtPhone(state.me?.phone))}</p>`
-      : `<p>⚠️ ${esc(state.error || 'Não conectado')}</p>`;
+      ? `<p>Conectado à API oficial: <b>${esc(state.me?.name || '')}</b> ${esc(fmtPhone(state.me?.phone))}</p>`
+      : `<p>${esc(state.error || 'Não conectado')}</p>`;
   }
 
   $('#pairingBox').hidden = state.status === 'connected';
   const area = $('#qrArea');
   if (state.status === 'connected') {
-    area.innerHTML = `<div class="ok">✅</div><h2>WhatsApp conectado</h2><p>${esc(state.me?.name || '')} · ${esc(fmtPhone(state.me?.phone))}</p>`;
+    area.innerHTML = `<div class="ok"></div><h2>WhatsApp conectado</h2><p>${esc(state.me?.name || '')} · ${esc(fmtPhone(state.me?.phone))}</p>`;
   } else if (state.status === 'qr' && state.qr) {
     area.innerHTML = `<img src="${state.qr}" alt="QR Code" /><p>Escaneie com o WhatsApp do celular</p>`;
   } else {
-    area.innerHTML = `<p class="muted">Conectando ao WhatsApp… o QR Code aparecerá aqui.</p>${state.lastError ? `<p class="err">⚠️ Última tentativa: ${esc(state.lastError)}. O sistema tenta de novo sozinho.</p><p class="hint">Se continuar sem QR Code: clique em "Desconectar número" (gera uma sessão nova) ou use "Conecte por código" logo abaixo.</p>` : ''}`;
+    area.innerHTML = `<p class="muted">Conectando ao WhatsApp… o QR Code aparecerá aqui.</p>${state.lastError ? `<p class="err">Última tentativa: ${esc(state.lastError)}. O sistema tenta de novo sozinho.</p><p class="hint">Se continuar sem QR Code: clique em "Desconectar número" (gera uma sessão nova) ou use "Conecte por código" logo abaixo.</p>` : ''}`;
   }
 }
 
@@ -177,8 +177,8 @@ loaders.contacts = async () => {
       <td>${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</td>
       <td>${c.blocked ? '<span class="badge failed">Descadastrado</span>' : '<span class="badge sent">Ativo</span>'}</td>
       <td>
-        <button class="btn small" data-edit="${esc(c.id)}">✏️</button>
-        <button class="btn small danger" data-del="${esc(c.id)}">🗑️</button>
+        <button class="btn small" data-edit="${esc(c.id)}"></button>
+        <button class="btn small danger" data-del="${esc(c.id)}"></button>
       </td>
     </tr>`).join('');
   $('#contactsCount').textContent = `${contactsCache.length} contato(s)${contactsCache.length > 1000 ? ' — mostrando os 1000 primeiros' : ''}`;
@@ -327,7 +327,7 @@ $('#formCampaign').addEventListener('submit', withBusy($('#formCampaign'), async
       startNow,
     },
   });
-  toast(startNow ? 'Campanha iniciada 🚀' : 'Rascunho salvo');
+  toast(startNow ? 'Campanha iniciada ' : 'Rascunho salvo');
   f.reset();
   $('#campMessages').innerHTML = $('#campMessages label').outerHTML;
   $('#campPreview').innerHTML = '';
@@ -340,16 +340,16 @@ function campaignCard(c) {
   const done = c.counts.sent + c.counts.failed + c.counts.skipped;
   const pct = c.total ? Math.round((done / c.total) * 100) : 0;
   const actions = [];
-  if (['draft', 'paused'].includes(c.status)) actions.push(`<button class="btn small primary" data-act="start">▶️ ${c.status === 'draft' ? 'Iniciar' : 'Retomar'}</button>`);
-  if (c.status === 'running') actions.push('<button class="btn small" data-act="pause">⏸️ Pausar</button>');
-  if (!['done', 'canceled'].includes(c.status)) actions.push('<button class="btn small danger" data-act="cancel">⏹️ Cancelar</button>');
-  if (c.counts.failed) actions.push('<button class="btn small" data-act="retry-failed">🔁 Reenviar falhas</button>');
-  actions.push('<button class="btn small" data-act="detail">📋 Detalhes</button>');
-  actions.push('<button class="btn small danger" data-act="delete">🗑️</button>');
+  if (['draft', 'paused'].includes(c.status)) actions.push(`<button class="btn small primary" data-act="start">▶${c.status === 'draft' ? 'Iniciar' : 'Retomar'}</button>`);
+  if (c.status === 'running') actions.push('<button class="btn small" data-act="pause">Pausar</button>');
+  if (!['done', 'canceled'].includes(c.status)) actions.push('<button class="btn small danger" data-act="cancel">Cancelar</button>');
+  if (c.counts.failed) actions.push('<button class="btn small" data-act="retry-failed">Reenviar falhas</button>');
+  actions.push('<button class="btn small" data-act="detail">Detalhes</button>');
+  actions.push('<button class="btn small danger" data-act="delete"></button>');
   return `<div class="item" data-id="${esc(c.id)}">
     <div class="grow">
       <b>${esc(c.name)}</b> <span class="badge ${c.status}">${STATUS_LABEL[c.status]}</span>
-      <div class="meta">✅ ${c.counts.sent} enviadas · ❌ ${c.counts.failed} falhas · ⏭️ ${c.counts.skipped} ignoradas · ⏳ ${c.counts.pending} pendentes — total ${c.total}
+      <div class="meta">${c.counts.sent} enviadas · ${c.counts.failed} falhas · ${c.counts.skipped} ignoradas · ${c.counts.pending} pendentes — total ${c.total}
 Intervalo ${c.delayMin}-${c.delayMax}s · criada em ${fmtDate(c.createdAt)}</div>
       <div class="progress"><div style="width:${pct}%"></div></div>
     </div>
@@ -392,7 +392,7 @@ async function showCampaign(id) {
   const c = await api(`/api/campaigns/${id}`);
   $('#campaignDetail').innerHTML = `<h2>${esc(c.name)} <span class="badge ${c.status}">${STATUS_LABEL[c.status]}</span></h2>
     ${c.messages.map((m) => `<div class="bubble">${esc(m)}</div>`).join('')}
-    ${c.media ? `<p class="muted">📎 ${esc(c.media.fileName)}</p>` : ''}
+    ${c.media ? `<p class="muted">${esc(c.media.fileName)}</p>` : ''}
     <div class="table-wrap"><table><thead><tr><th>Contato</th><th>Status</th><th>Quando</th><th>Erro</th></tr></thead><tbody>
     ${c.recipients.map((r) => `<tr><td>${esc(r.name)} ${esc(fmtPhone(r.phone))}</td><td><span class="badge ${r.status}">${STATUS_LABEL[r.status]}</span></td>
       <td>${fmtDate(r.at)}</td><td class="muted">${esc(r.error || '')}</td></tr>`).join('')}
@@ -410,13 +410,13 @@ loaders.rules = async () => {
     <div class="item ${r.enabled ? '' : 'disabled'}" data-id="${esc(r.id)}">
       <div class="grow">
         <b>${esc(r.name)}</b> ${r.enabled ? '' : '<span class="badge draft">Desativada</span>'}
-        <div class="meta">Quando ${MATCH_LABEL[r.matchType]} ${r.matchType === 'any' ? '' : `<b>${esc(r.keywords.join(', '))}</b>`}${r.addTag ? ` · etiqueta: ${esc(r.addTag)}` : ''}${r.media ? ` · 📎 ${esc(r.media.fileName)}` : ''}</div>
+        <div class="meta">Quando ${MATCH_LABEL[r.matchType]} ${r.matchType === 'any' ? '' : `<b>${esc(r.keywords.join(', '))}</b>`}${r.addTag ? ` · etiqueta: ${esc(r.addTag)}` : ''}${r.media ? ` · ${esc(r.media.fileName)}` : ''}</div>
         <div class="bubble">${esc(r.response)}</div>
       </div>
       <div class="row">
-        <button class="btn small" data-act="toggle">${r.enabled ? '⏸️ Desativar' : '▶️ Ativar'}</button>
-        <button class="btn small" data-act="edit">✏️ Editar</button>
-        <button class="btn small danger" data-act="delete">🗑️</button>
+        <button class="btn small" data-act="toggle">${r.enabled ? 'Desativar' : '▶Ativar'}</button>
+        <button class="btn small" data-act="edit">Editar</button>
+        <button class="btn small danger" data-act="delete"></button>
       </div>
     </div>`).join('') || '<p class="muted">Nenhuma regra criada.</p>';
 };
@@ -489,13 +489,13 @@ $('#formRuleTest').addEventListener('submit', withBusy($('#formRuleTest'), async
 $('#btnMenuTemplate').addEventListener('click', async () => {
   const templates = [
     { name: 'Menu', matchType: 'contains', keywords: 'oi, olá, ola, menu, bom dia, boa tarde, boa noite', priority: 10,
-      response: '{Olá|Oi} {primeiro_nome}! 👋 Como posso ajudar?\n\n1️⃣ Preços\n2️⃣ Horário de atendimento\n3️⃣ Falar com um atendente\n\nResponda com o número da opção.' },
+      response: '{Olá|Oi} {primeiro_nome}! Como posso ajudar?\n\n1⃣ Preços\n2⃣ Horário de atendimento\n3⃣ Falar com um atendente\n\nResponda com o número da opção.' },
     { name: 'Opção 1 - Preços', matchType: 'exact', keywords: '1', priority: 1, addTag: 'interesse-precos',
-      response: '💰 Confira nossos preços e promoções: (coloque aqui seu link ou tabela)' },
+      response: 'Confira nossos preços e promoções: (coloque aqui seu link ou tabela)' },
     { name: 'Opção 2 - Horários', matchType: 'exact', keywords: '2', priority: 2,
-      response: '🕗 Atendemos de segunda a sexta, das 8h às 18h.' },
+      response: 'Atendemos de segunda a sexta, das 8h às 18h.' },
     { name: 'Opção 3 - Atendente', matchType: 'exact', keywords: '3', priority: 3, addTag: 'quer-atendente',
-      response: 'Certo! Um atendente vai falar com você em instantes. 🙋' },
+      response: 'Certo! Um atendente vai falar com você em instantes. ' },
   ];
   for (const t of templates) await api('/api/rules', { method: 'POST', body: t });
   toast('Menu de exemplo criado');
@@ -510,10 +510,10 @@ loaders.schedules = async () => {
     <div class="item ${s.enabled ? '' : 'disabled'}" data-id="${esc(s.id)}">
       <div class="grow">
         <b>${esc(s.name)}</b> ${s.enabled ? '' : '<span class="badge done">Concluído</span>'}
-        <div class="meta">📅 ${fmtDate(s.runAt)} · ${REPEAT_LABEL[s.repeat]} · ${s.target.type === 'all' ? 'todos os contatos' : s.target.type === 'tags' ? `etiquetas: ${esc(s.target.tags.join(', '))}` : `${s.target.phones.length} número(s)`}${s.lastRunAt ? ` · último envio ${fmtDate(s.lastRunAt)}` : ''}</div>
+        <div class="meta">${fmtDate(s.runAt)} · ${REPEAT_LABEL[s.repeat]} · ${s.target.type === 'all' ? 'todos os contatos' : s.target.type === 'tags' ? `etiquetas: ${esc(s.target.tags.join(', '))}` : `${s.target.phones.length} número(s)`}${s.lastRunAt ? ` · último envio ${fmtDate(s.lastRunAt)}` : ''}</div>
         <div class="bubble">${esc(s.message)}</div>
       </div>
-      <button class="btn small danger" data-act="delete">🗑️</button>
+      <button class="btn small danger" data-act="delete"></button>
     </div>`).join('') || '<p class="muted">Nenhum agendamento.</p>';
   loadTags();
 };
@@ -537,7 +537,7 @@ $('#formSchedule').addEventListener('submit', withBusy($('#formSchedule'), async
       mediaId,
     },
   });
-  toast('Mensagem agendada ⏰');
+  toast('Mensagem agendada ');
   f.reset();
   bindTargetToggle('sch');
   loaders.schedules();
@@ -548,7 +548,7 @@ $('#formSend').addEventListener('submit', withBusy($('#formSend'), async (e) => 
   const f = e.target;
   const mediaId = await uploadFrom(f.file);
   await api('/api/send', { method: 'POST', body: { to: f.to.value, message: f.message.value, mediaId } });
-  $('#sendResult').innerHTML = `<div class="bubble">${esc(f.message.value)}</div><p class="muted">✅ Enviada para ${esc(f.to.value)}</p>`;
+  $('#sendResult').innerHTML = `<div class="bubble">${esc(f.message.value)}</div><p class="muted">Enviada para ${esc(f.to.value)}</p>`;
   f.message.value = '';
   f.file.value = '';
 }));
@@ -557,7 +557,7 @@ $('#btnCheckNumber').addEventListener('click', async () => {
   if (!phone) return toast('Digite um número');
   try {
     const [r] = await api('/api/contacts/check', { method: 'POST', body: { phones: [phone] } });
-    toast(r.exists ? `✅ ${phone} tem WhatsApp` : `❌ ${r.error}`, !r.exists);
+    toast(r.exists ? `${phone} tem WhatsApp` : `${r.error}`, !r.exists);
   } catch (err) {
     toast(err.message, true);
   }
@@ -588,12 +588,12 @@ function applyDefaultDelays() {
 }
 
 // ---------- Segurança ----------
-const SEC_EVENTS = { entrou: '✅ Entrou', senha_errada: '❌ Senha errada', codigo_errado: '❌ Código errado', bloqueado: '🚫 Bloqueado (muitas tentativas)', '2fa_ligada': '🔐 Ligou 2 etapas', '2fa_desligada': '⚠️ Desligou 2 etapas', saiu_de_todos: '🚪 Saiu de todos os aparelhos', derrubou_todos: '🚨 Derrubou todos os acessos', baixou_backup: '💾 Baixou backup', viu_chave_backup: '🔑 Viu a chave do backup' };
+const SEC_EVENTS = { entrou: 'Entrou', senha_errada: 'Senha errada', codigo_errado: 'Código errado', bloqueado: 'Bloqueado (muitas tentativas)', '2fa_ligada': 'Ligou 2 etapas', '2fa_desligada': 'Desligou 2 etapas', saiu_de_todos: 'Saiu de todos os aparelhos', derrubou_todos: 'Derrubou todos os acessos', baixou_backup: 'Baixou backup', viu_chave_backup: 'Viu a chave do backup' };
 async function loadSecurity() {
   const me = await api('/api/me');
   $('#twofaBox').innerHTML = me.twoFactor
-    ? '<p>✅ Verificação em duas etapas <b>ligada</b> na sua conta.</p><button type="button" class="btn small" id="btn2faOff">Desligar</button>'
-    : '<p class="status-warn">⚠️ Sua conta está protegida só pela senha.</p><button type="button" class="btn primary" id="btn2faOn">🔐 Ligar verificação em duas etapas</button>';
+    ? '<p>Verificação em duas etapas <b>ligada</b> na sua conta.</p><button type="button" class="btn small" id="btn2faOff">Desligar</button>'
+    : '<p class="status-warn">Sua conta está protegida só pela senha.</p><button type="button" class="btn primary" id="btn2faOn">Ligar verificação em duas etapas</button>';
   $('#btn2faOn')?.addEventListener('click', async () => {
     const r = await api('/api/security/2fa/setup');
     $('#twofaBox').innerHTML = `<ol class="hint"><li>Instale o <b>Google Authenticator</b> (ou Microsoft Authenticator) no celular.</li><li>No app, toque em <b>+</b> e escaneie o QR Code abaixo (ou digite a chave).</li><li>Digite o código de 6 números que aparece no app.</li></ol>
@@ -623,7 +623,7 @@ async function loadSecurity() {
     return;
   }
   const r = await api('/api/security/log');
-  $('#securityUsers').innerHTML = r.users.filter((u) => u.active).map((u) => `${u.twoFactor ? '🔐' : '⚠️'} ${esc(u.name)} (${u.role === 'admin' ? 'administrador' : 'vendedor'}): ${u.twoFactor ? 'duas etapas ligada' : '<b>só senha</b>'}`).join('<br>');
+  $('#securityUsers').innerHTML = r.users.filter((u) => u.active).map((u) => `${u.twoFactor ? '' : ''} ${esc(u.name)} (${u.role === 'admin' ? 'administrador' : 'vendedor'}): ${u.twoFactor ? 'duas etapas ligada' : '<b>só senha</b>'}`).join('<br>');
   $('#backupDir').value = r.backupDir || '';
   $('#backupList').innerHTML = r.lastBackup
     ? `Último backup: ${new Date(r.lastBackup.at).toLocaleString('pt-BR')}${r.lastBackup.extra ? ' (com cópia extra)' : ''}. ${r.backups.map((b) => `<a href="/api/security/backup/${encodeURIComponent(b.name)}">${esc(b.name)}</a>`).join(' · ')}`
@@ -673,7 +673,7 @@ loaders.settings = async () => {
   f.bh_end.value = s.businessHours.end;
   f.bh_message.value = s.businessHours.message;
   $$('[name="bh_day"]', f).forEach((c) => (c.checked = s.businessHours.days.includes(Number(c.value))));
-  $('#blacklistChips').innerHTML = blacklist.map((p) => `<li>${esc(fmtPhone(p))} <button type="button" data-phone="${esc(p)}" title="Remover">✕</button></li>`).join('')
+  $('#blacklistChips').innerHTML = blacklist.map((p) => `<li>${esc(fmtPhone(p))} <button type="button" data-phone="${esc(p)}" title="Remover"></button></li>`).join('')
     || '<li class="muted">Nenhum</li>';
 };
 $('#blacklistChips').addEventListener('click', async (e) => {
@@ -726,8 +726,8 @@ function renderInstagram(st) {
   const box = $('#igStatus');
   if (!box) return;
   box.innerHTML = st.status === 'connected'
-    ? `<p>✅ Instagram conectado: <b>@${esc(st.me?.username || '')}</b></p>`
-    : st.error ? `<p>⚠️ ${esc(st.error)}</p>` : '<p class="muted">Instagram desligado.</p>';
+    ? `<p>Instagram conectado: <b>@${esc(st.me?.username || '')}</b></p>`
+    : st.error ? `<p>${esc(st.error)}</p>` : '<p class="muted">Instagram desligado.</p>';
 }
 
 // Quedas recentes do WhatsApp: mostra o motivo e o que fazer (só aparece se houve quedas na última hora).
@@ -782,11 +782,11 @@ function renderTunnel(st) {
   if (!box) return;
   const local = /localhost|127\.0\.0\.1/.test($('#igWebhookUrl').value);
   box.innerHTML = {
-    off: local ? '⚪ Desligado. Sem ele, o Instagram não consegue entregar as mensagens neste computador.' : '⚪ Desligado.',
-    downloading: '⏬ Baixando o túnel da Cloudflare (só na primeira vez, uns 30 MB)…',
-    starting: '⏳ Ligando… (leva uns 10 segundos)',
-    on: `✅ Ligado: <b>${esc(st.url || '')}</b>. A URL do webhook abaixo já está com este endereço.`,
-    error: `⚠️ ${esc(st.error || 'Erro no túnel')}`,
+    off: local ? 'Desligado. Sem ele, o Instagram não consegue entregar as mensagens neste computador.' : 'Desligado.',
+    downloading: 'Baixando o túnel da Cloudflare (só na primeira vez, uns 30 MB)…',
+    starting: 'Ligando… (leva uns 10 segundos)',
+    on: `Ligado: <b>${esc(st.url || '')}</b>. A URL do webhook abaixo já está com este endereço.`,
+    error: `${esc(st.error || 'Erro no túnel')}`,
   }[st.status] || '';
   $('#btnTunnelStart').hidden = st.status === 'on' || st.status === 'starting' || st.status === 'downloading';
   $('#btnTunnelStop').hidden = st.status !== 'on';
@@ -814,7 +814,7 @@ $('#btnTunnelStop').addEventListener('click', async () => {
 for (const id of ['#igWebhookUrl', '#igPrivacyUrl']) {
   $(id).addEventListener('click', (e) => {
     e.target.select();
-    navigator.clipboard?.writeText(e.target.value).then(() => toast('Copiado ✅')).catch(() => {});
+    navigator.clipboard?.writeText(e.target.value).then(() => toast('Copiado ')).catch(() => {});
   });
 }
 
@@ -870,10 +870,10 @@ const BUSINESS_FIELDS = ['name', 'segment', 'description', 'services', 'prices',
 function renderAiBanner(st) {
   const prov = { openrouter: 'OpenRouter', openai: 'ChatGPT (OpenAI)', anthropic: 'Claude' }[st.provider] || 'Google Gemini';
   let html = '';
-  if (!st.configured) html = `<b>🧠 A IA ainda não tem chave.</b> Cole a chave do ${esc(prov)} na aba Agente IA e clique em Salvar. <button type="button" class="btn small" data-go="agent">Abrir Agente IA</button>`;
-  else if (!st.enabled) html = '<b>🧠 A chave da IA está salva, mas o agente está desligado.</b> Por isso ele não responde ninguém. <button type="button" class="btn small primary" data-ai-on>Ligar a IA agora</button>';
-  else if (st.audience === 'test' && !st.testNumbers) html = '<b>🧪 A IA está ligada em modo de teste, sem números de teste.</b> Ela não responde ninguém. <button type="button" class="btn small primary" data-ai-all>Colocar no ar para todos</button> <button type="button" class="btn small" data-go="agent">Cadastrar números de teste</button>';
-  else if (st.audience === 'test') html = `🧪 A IA está em <b>modo de teste</b>: só responde ${st.testNumbers} número(s) de teste. <button type="button" class="btn small" data-ai-all>Colocar no ar para todos</button>`;
+  if (!st.configured) html = `<b>A IA ainda não tem chave.</b> Cole a chave do ${esc(prov)} na aba Agente IA e clique em Salvar. <button type="button" class="btn small" data-go="agent">Abrir Agente IA</button>`;
+  else if (!st.enabled) html = '<b>A chave da IA está salva, mas o agente está desligado.</b> Por isso ele não responde ninguém. <button type="button" class="btn small primary" data-ai-on>Ligar a IA agora</button>';
+  else if (st.audience === 'test' && !st.testNumbers) html = '<b>A IA está ligada em modo de teste, sem números de teste.</b> Ela não responde ninguém. <button type="button" class="btn small primary" data-ai-all>Colocar no ar para todos</button> <button type="button" class="btn small" data-go="agent">Cadastrar números de teste</button>';
+  else if (st.audience === 'test') html = `A IA está em <b>modo de teste</b>: só responde ${st.testNumbers} número(s) de teste. <button type="button" class="btn small" data-ai-all>Colocar no ar para todos</button>`;
   const blocked = !st.active || (st.audience === 'test' && !st.testNumbers);
   $$('[data-ai-banner]').forEach((b) => { b.hidden = !html; b.innerHTML = html; b.classList.toggle('warn', blocked); });
 }
@@ -885,7 +885,7 @@ document.addEventListener('click', async (e) => {
   try {
     const st = await api('/api/agent/enable', { method: 'POST', body: t.hasAttribute('data-ai-all') ? { enabled: true, audience: 'all' } : { enabled: true } });
     renderAiBanner(st);
-    toast(st.active ? '🧠 IA ligada' : 'Salvo');
+    toast(st.active ? 'IA ligada' : 'Salvo');
     renderAgentStatus();
   } catch (err) {
     toast(err.message, true);
@@ -898,12 +898,12 @@ async function renderAgentStatus() {
   const box = $('#agentStatusBox');
   if (!box) return;
   const who = st.audience === 'test'
-    ? `🧪 <b>modo de teste</b> (${st.testNumbers} número(s))`
-    : '🟢 <b>no ar</b> para todos os clientes';
+    ? `<b>modo de teste</b> (${st.testNumbers} número(s))`
+    : '<b>no ar</b> para todos os clientes';
   box.innerHTML = (st.active
-    ? `<p>🧠 Agente de <b>${esc(st.business)}</b> ligado · ${who} · modelo <code>${esc(st.model)}</code></p>`
-    : `<p class="muted">🧠 Agente IA desligado${st.configured ? '' : ' (falta a chave da IA)'}.</p>`)
-    + (st.lastError ? `<p class="ai-error">⚠️ <b>A IA falhou</b> (${fmtDate(st.lastError.at)}): ${esc(st.lastError.message)}<br>Os clientes não receberam mensagem de erro: eles estão em <b>Conversas → Clientes esperando resposta</b>. Clique em "Testar a IA agora" depois de corrigir.</p>` : '');
+    ? `<p>Agente de <b>${esc(st.business)}</b> ligado · ${who} · modelo <code>${esc(st.model)}</code></p>`
+    : `<p class="muted">Agente IA desligado${st.configured ? '' : ' (falta a chave da IA)'}.</p>`)
+    + (st.lastError ? `<p class="ai-error"><b>A IA falhou</b> (${fmtDate(st.lastError.at)}): ${esc(st.lastError.message)}<br>Os clientes não receberam mensagem de erro: eles estão em <b>Conversas → Clientes esperando resposta</b>. Clique em "Testar a IA agora" depois de corrigir.</p>` : '');
 }
 $('#btnAgentCheck').addEventListener('click', async (e) => {
   e.target.disabled = true;
@@ -911,8 +911,8 @@ $('#btnAgentCheck').addEventListener('click', async (e) => {
   e.target.textContent = 'Testando…';
   try {
     const r = await api('/api/agent/check', { method: 'POST' });
-    if (r.ok) toast(`✅ A IA respondeu em ${(r.ms / 1000).toFixed(1)}s com o modelo ${r.model}${r.fallback ? ' (o modelo escolhido falhou; use este na aba Agente IA)' : ''}`);
-    else toast(`❌ ${r.error}`, true);
+    if (r.ok) toast(`A IA respondeu em ${(r.ms / 1000).toFixed(1)}s com o modelo ${r.model}${r.fallback ? ' (o modelo escolhido falhou; use este na aba Agente IA)' : ''}`);
+    else toast(`${r.error}`, true);
     renderAgentStatus();
   } catch (err) {
     toast(err.message, true);
@@ -988,12 +988,12 @@ $('#formAgent').addEventListener('submit', withBusy($('#formAgent'), async (e) =
     },
   });
   const st = await api('/api/agent/status');
-  let msg = 'Agente salvo 🧠';
+  let msg = 'Agente salvo ';
   const provName = { openrouter: 'OpenRouter', openai: 'ChatGPT (OpenAI)', anthropic: 'Claude' }[st.provider] || 'Google Gemini';
-  if (st.enabled && !st.configured) msg = `⚠️ Salvo, mas falta a chave do ${provName}`;
-  else if (!st.enabled && st.configured) msg = '⚠️ Salvo, mas o agente está DESLIGADO: marque "Agente ligado" e salve de novo';
-  else if (st.enabled && st.audience === 'test' && !st.testNumbers) msg = '⚠️ Modo de teste sem números: o agente não vai responder ninguém';
-  toast(msg, msg.startsWith('⚠️'));
+  if (st.enabled && !st.configured) msg = `Salvo, mas falta a chave do ${provName}`;
+  else if (!st.enabled && st.configured) msg = 'Salvo, mas o agente está DESLIGADO: marque "Agente ligado" e salve de novo';
+  else if (st.enabled && st.audience === 'test' && !st.testNumbers) msg = 'Modo de teste sem números: o agente não vai responder ninguém';
+  toast(msg, msg.startsWith(''));
   loaders.agent();
 }));
 
@@ -1004,7 +1004,7 @@ $('#btnApplyPreset').addEventListener('click', async () => {
   try {
     await api(`/api/agent/presets/${sel.value}/apply`, { method: 'POST' });
     $('#stressList').innerHTML = '';
-    toast('Perfil carregado ✅');
+    toast('Perfil carregado ');
     loaders.agent();
   } catch (err) {
     toast(err.message, true);
@@ -1027,22 +1027,22 @@ $('#btnShowPrompt').addEventListener('click', async () => {
 let simSession = `s${Date.now()}`;
 const nowTime = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const TOOL_LABEL = {
-  consultar_horarios_disponiveis: '🔎 consultou a agenda',
-  agendar_horario: '📅 agendou',
-  listar_meus_agendamentos: '📋 listou agendamentos',
-  cancelar_agendamento: '❌ cancelou agendamento',
-  transferir_para_humano: '🙋 transferiu para humano',
-  enviar_ficha_de_dados: '📝 enviou a ficha de dados',
-  gerar_pix: '💳 gerou o Pix',
-  cliente_informou_pagamento: '🧾 avisou a equipe do pagamento',
-  encaminhar_para_vendedor: '🤝 passou para o consultor',
-  encaminhar_para_especialista: '🏠 passou para o especialista',
-  direcionar_para_setor: '🏷️ direcionou para o setor',
-  gerar_orcamento: '🧾 gerou o orçamento',
-  avisar_marcos: '📌 avisou o Marcos',
-  agendar_retorno: '📅 marcou o retorno',
-  agendar_visita_escritorio: '🏢 pediu a visita ao Marcos',
-  enviar_etapas_pagamento: '📋 enviou as etapas de pagamento',
+  consultar_horarios_disponiveis: 'consultou a agenda',
+  agendar_horario: 'agendou',
+  listar_meus_agendamentos: 'listou agendamentos',
+  cancelar_agendamento: 'cancelou agendamento',
+  transferir_para_humano: 'transferiu para humano',
+  enviar_ficha_de_dados: 'enviou a ficha de dados',
+  gerar_pix: 'gerou o Pix',
+  cliente_informou_pagamento: 'avisou a equipe do pagamento',
+  encaminhar_para_vendedor: 'passou para o consultor',
+  encaminhar_para_especialista: 'passou para o especialista',
+  direcionar_para_setor: 'direcionou para o setor',
+  gerar_orcamento: 'gerou o orçamento',
+  avisar_marcos: 'avisou o Marcos',
+  agendar_retorno: 'marcou o retorno',
+  agendar_visita_escritorio: 'pediu a visita ao Marcos',
+  enviar_etapas_pagamento: 'enviou as etapas de pagamento',
 };
 function chatBubble(role, text, at) {
   return `<div class="msg ${role}">${esc(text)}<time>${at ? fmtDate(at) : nowTime()}</time></div>`;
@@ -1183,19 +1183,19 @@ async function loadPending() {
   $('#pendingList').innerHTML = r.items.map((p) => `
     <label class="pending-item ${p.queued ? 'queued' : ''}">
       <input type="checkbox" class="pendingCheck" value="${esc(p.jid)}" ${checked.has(p.jid) ? 'checked' : ''} />
-      <div>${p.channel === 'instagram' ? '📸' : '💬'} <b>${esc(p.name || fmtPhone(p.phone) || 'Contato')}</b> <span class="muted">${esc(p.name ? fmtPhone(p.phone) || '' : '')}</span> <span class="chip small">${esc(p.channelLabel || '')}</span>
+      <div><span class="chan">${p.channel === 'instagram' ? 'IG' : 'WA'}</span> <b>${esc(p.name || fmtPhone(p.phone) || 'Contato')}</b> <span class="muted">${esc(p.name ? fmtPhone(p.phone) || '' : '')}</span> <span class="chip small">${esc(p.channelLabel || '')}</span>
         <div class="txt">${esc(p.texts.join(' · '))}</div></div>
-      <span class="when">${p.queued ? '⏳ na fila' : ago(p.at)}</span>
-    </label>`).join('') || '<p class="muted">Ninguém esperando resposta. 🎉</p>';
+      <span class="when">${p.queued ? 'na fila' : ago(p.at)}</span>
+    </label>`).join('') || '<p class="muted">Ninguém esperando resposta. </p>';
   const hhmm = (ms) => (ms ? new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—');
   $('#pendingStatus').innerHTML = r.running
-    ? `🤖 <b>Respondendo com cuidado</b> para proteger o número: no máximo <b>${r.perHour} por hora</b>, das ${r.from ?? 7}h às ${r.to ?? 21}h, uma de cada vez (45 a 90 s entre uma e outra).<br>
-       ${r.queue} na fila · ${r.sentLastHour ?? 0} respondidas na última hora · última resposta enviada às ${hhmm(r.lastSentAt)}${r.etaMin ? ` · tempo estimado: cerca de ${Math.ceil(r.etaMin / 60)} h` : ''}${r.waiting ? `<br>⏸️ Esperando: ${esc(r.waiting)}.` : ''}<br>
+    ? `<b>Respondendo com cuidado</b> para proteger o número: no máximo <b>${r.perHour} por hora</b>, das ${r.from ?? 7}h às ${r.to ?? 21}h, uma de cada vez (45 a 90 s entre uma e outra).<br>
+       ${r.queue} na fila · ${r.sentLastHour ?? 0} respondidas na última hora · última resposta enviada às ${hhmm(r.lastSentAt)}${r.etaMin ? ` · tempo estimado: cerca de ${Math.ceil(r.etaMin / 60)} h` : ''}${r.waiting ? `<br>Esperando: ${esc(r.waiting)}.` : ''}<br>
        <span class="muted">Não é falha: é de propósito, para o WhatsApp não bloquear o número. Pode fechar esta tela; a fila continua. Para responder mais rápido, aumente "Respostas por hora" aqui em cima (com cuidado).</span>`
-    : (r.lastError ? `⚠️ A fila parou: ${esc(r.lastError.message)}. Veja Conexões → Saúde do sistema.` : '');
+    : (r.lastError ? `A fila parou: ${esc(r.lastError.message)}. Veja Conexões → Saúde do sistema.` : '');
   const pp = $('#pendingPaused');
   pp.hidden = !r.paused;
-  pp.innerHTML = r.paused ? `⏸️ <b>${r.paused} cliente(s) esperando estão com a IA pausada</b>${r.pausedByOwner ? ` (${r.pausedByOwner} porque você respondeu pelo celular)` : ''}. A fila pula essas conversas. ${r.pausedByOwner ? '<button type="button" class="btn small primary" id="btnResumePaused">▶️ Retomar com a IA</button>' : ''}` : '';
+  pp.innerHTML = r.paused ? `<b>${r.paused} cliente(s) esperando estão com a IA pausada</b>${r.pausedByOwner ? ` (${r.pausedByOwner} porque você respondeu pelo celular)` : ''}. A fila pula essas conversas. ${r.pausedByOwner ? '<button type="button" class="btn small primary" id="btnResumePaused">▶Retomar com a IA</button>' : ''}` : '';
   $('#btnPendingCancel').hidden = !r.running;
 }
 $('#pendingPerHour').addEventListener('change', async (e) => {
@@ -1270,9 +1270,9 @@ loaders.conversations = async () => {
   const list = all.filter((c) => (!convChannel || (convChannel === 'ig') === String(c.key).startsWith('ig:')) && (!convAttendant || c.attendantId === convAttendant));
   const item = (c) => `
     <div class="conv-item ${c.key === currentConv ? 'active' : ''}" data-key="${esc(c.key)}">
-      ${String(c.key).startsWith('ig:') ? '📸' : '💬'} <b>${esc(c.name || fmtPhone(c.phone) || c.key)}</b> ${c.handoff ? '<span class="badge paused">humano</span>' : ''}
+      <span class="chan">${String(c.key).startsWith('ig:') ? 'IG' : 'WA'}</span> <b>${esc(c.name || fmtPhone(c.phone) || c.key)}</b> ${c.handoff ? '<span class="badge paused">humano</span>' : ''}
       ${c.attendantId ? '' : `<span class="chip small">${esc(c.channelLabel || '')}</span>`}
-      <div class="last">${c.last ? `${c.last.role === 'user' ? '' : '🤖 '}${esc(c.last.content)}` : ''}</div>
+      <div class="last">${c.last ? `${c.last.role === 'user' ? '' : 'IA: '}${esc(c.last.content)}` : ''}</div>
     </div>`;
   const admin = window.currentUser?.role === 'admin';
   // Administrador: um botão por atendente e a lista separada por pessoa. Vendedor: só as conversas dele.
@@ -1286,7 +1286,7 @@ loaders.conversations = async () => {
   const groups = new Map();
   if (admin) for (const c of list) groups.set(c.attendantId, [...(groups.get(c.attendantId) || []), c]);
   $('#convList').innerHTML = (admin && !convAttendant
-    ? [...groups].map(([id, items]) => `<h3 class="conv-group">👤 ${esc(items[0].attendantName)} <span class="badge pending">${items.length}</span></h3>${items.map(item).join('')}`).join('')
+    ? [...groups].map(([id, items]) => `<h3 class="conv-group">${esc(items[0].attendantName)} <span class="badge pending">${items.length}</span></h3>${items.map(item).join('')}`).join('')
     : list.map(item).join('')) || '<p class="muted">Nenhuma conversa ainda. Quando clientes falarem com o agente, elas aparecem aqui.</p>';
   if (currentConv) openConversation(currentConv);
 };
@@ -1345,11 +1345,11 @@ async function openConversation(key) {
   const c = await api(`/api/conversations/${encodeURIComponent(key)}`);
   $('#convHeader').className = 'conv-header';
   $('#convHeader').innerHTML = `<div><b>${esc(c.name || '')}</b> ${esc(fmtPhone(c.phone) || '')}
-      ${c.handoff ? `<div class="hint">🙋 Atendimento humano${c.handoffReason ? `: ${esc(c.handoffReason)}` : ''} — o robô está pausado</div>` : '<div class="hint">🤖 Robô atendendo</div>'}</div>
+      ${c.handoff ? `<div class="hint">Atendimento humano${c.handoffReason ? `: ${esc(c.handoffReason)}` : ''} — o robô está pausado</div>` : '<div class="hint">Robô atendendo</div>'}</div>
     <div class="row">
-      <button class="btn small" id="btnConvLead">🗂️ Ver prospecto</button>
-      <button class="btn small" id="btnHandoff">${c.handoff ? '🤖 Devolver para o robô' : '🙋 Assumir conversa'}</button>
-      <button class="btn small danger" id="btnConvClear" title="Apagar memória" data-admin>🗑️</button>
+      <button class="btn small" id="btnConvLead">Ver prospecto</button>
+      <button class="btn small" id="btnHandoff">${c.handoff ? 'Devolver para o robô' : 'Assumir conversa'}</button>
+      <button class="btn small danger" id="btnConvClear" title="Apagar memória" data-admin></button>
     </div>`;
   renderClosingBar(key).catch(() => {});
   $('#convChat').innerHTML = c.messages.map((m) => chatBubble(m.role, m.content, m.at)).join('');
@@ -1459,7 +1459,7 @@ $('#formAppt').date.addEventListener('change', async (e) => {
 $('#formAppt').addEventListener('submit', withBusy($('#formAppt'), async (e) => {
   const f = e.target;
   await api('/api/appointments', { method: 'POST', body: { date: f.date.value, time: f.time.value, name: f.name.value, phone: f.phone.value, service: f.service.value } });
-  toast('Agendado 📅');
+  toast('Agendado ');
   f.reset();
   loaders.agenda();
 }));
@@ -1481,7 +1481,7 @@ $('#btnUpdateCheck').addEventListener('click', async () => {
     const when = r.latest.date ? new Date(r.latest.date).toLocaleString('pt-BR') : '';
     $('#updateStatus').textContent = (r.updateAvailable
       ? `Há uma versão nova (${when}): ${r.latest.message}`
-      : `Você já está com a versão mais nova (${when}).`) + (r.vps && !r.watcherAlive ? ' ⚠️ A atualização pelo painel ainda não está ativada na VPS (veja o aviso ao clicar em Atualizar).' : '');
+      : `Você já está com a versão mais nova (${when}).`) + (r.vps && !r.watcherAlive ? ' A atualização pelo painel ainda não está ativada na VPS (veja o aviso ao clicar em Atualizar).' : '');
   } catch (err) {
     $('#updateStatus').textContent = `Não foi possível verificar: ${err.message}`;
   }
@@ -1493,7 +1493,7 @@ $('#btnUpdateNow').addEventListener('click', async (e) => {
     const up = await api('/api/update', { method: 'POST' });
     if (up.requested) {
       // VPS: a atualização roda no servidor em até 1 minuto; o painel cai por instantes e volta sozinho.
-      $('#updateStatus').textContent = '⏳ Pedido enviado. A VPS atualiza em até 1 minuto e reinicia (leva uns 3 a 6 minutos). A página recarrega sozinha quando voltar.';
+      $('#updateStatus').textContent = 'Pedido enviado. A VPS atualiza em até 1 minuto e reinicia (leva uns 3 a 6 minutos). A página recarrega sozinha quando voltar.';
       let wentDown = false;
       const t0 = Date.now();
       setTimeout(function wait() {
@@ -1504,7 +1504,7 @@ $('#btnUpdateNow').addEventListener('click', async (e) => {
       }, 20000);
       return;
     }
-    $('#updateStatus').textContent = '✅ Atualizado! Reiniciando… a página recarrega sozinha.';
+    $('#updateStatus').textContent = 'Atualizado! Reiniciando… a página recarrega sozinha.';
     // Espera o programa voltar e recarrega a página.
     setTimeout(function wait() {
       fetch('/api/status').then((r) => (r.ok ? location.reload() : setTimeout(wait, 1500))).catch(() => setTimeout(wait, 1500));
@@ -1538,7 +1538,7 @@ function connectEvents() {
   });
   es.addEventListener('message', (e) => {
     const m = JSON.parse(e.data);
-    if (!m.isGroup) toast(`💬 ${m.name || fmtPhone(m.phone)}: ${m.text.slice(0, 80)}`);
+    if (!m.isGroup) toast(`${m.name || fmtPhone(m.phone)}: ${m.text.slice(0, 80)}`);
   });
   const refreshIfActive = (tab) => () => {
     if ($(`#tab-${tab}`).classList.contains('active')) loaders[tab]();
@@ -1552,7 +1552,7 @@ function connectEvents() {
   es.addEventListener('visits', (e) => {
     if (!isAdmin()) return;
     loaders.visits?.().catch(() => {});
-    if (JSON.parse(e.data || '{}').new) toast('🏢 Novo pedido de visita ao escritório');
+    if (JSON.parse(e.data || '{}').new) toast('Novo pedido de visita ao escritório');
   });
   es.addEventListener('tunnel', (e) => renderTunnel(JSON.parse(e.data)));
   es.addEventListener('crm', () => onCrmEvent());
@@ -1560,7 +1560,7 @@ function connectEvents() {
   es.addEventListener('payment', () => onPaymentEvent());
   es.addEventListener('lineStatus', () => onLineStatus());
   es.addEventListener('agentError', (e) => {
-    toast(`⚠️ A IA falhou: ${JSON.parse(e.data).message}`, true);
+    toast(`A IA falhou: ${JSON.parse(e.data).message}`, true);
     renderAgentStatus();
   });
   es.addEventListener('crmAssigned', (e) => onCrmAssigned(JSON.parse(e.data)));
@@ -1631,11 +1631,11 @@ $('#formPay').addEventListener('submit', withBusy($('#formPay'), async (e) => {
 $('#btnPixTest').addEventListener('click', async () => {
   try {
     const p = await api('/api/payments', { method: 'POST', body: { amount: 1, description: 'teste do Pix', send: false } });
-    $('#pixTestBox').innerHTML = `<p>✅ Pix de teste gerado. Pague R$ 1,00 com o app do banco para conferir se o nome e a chave estão certos:</p>
+    $('#pixTestBox').innerHTML = `<p>Pix de teste gerado. Pague R$ 1,00 com o app do banco para conferir se o nome e a chave estão certos:</p>
       <img src="/api/payments/${esc(p.id)}/qr" alt="QR Code Pix" width="200" height="200" />
       <p><code class="pix-code">${esc(p.brcode)}</code></p>`;
   } catch (err) {
-    $('#pixTestBox').textContent = `❌ ${err.message}`;
+    $('#pixTestBox').textContent = `${err.message}`;
   }
 });
 
@@ -1731,7 +1731,7 @@ function applyTheme(t) {
   document.documentElement.dataset.theme = t;
   const b = $('#btnTheme');
   if (b) {
-    b.textContent = t === 'dark' ? '☀️' : '🌙';
+    b.innerHTML = icon(t === 'dark' ? 'sun' : 'moon', 18);
     b.title = t === 'dark' ? 'Modo claro' : 'Modo noite';
   }
   try { localStorage.setItem('migraTheme', t); } catch {}
@@ -1741,13 +1741,13 @@ $('#btnTheme')?.addEventListener('click', () => applyTheme(document.documentElem
 
 // ---------- Fechamento na conversa: um botão por etapa, com o que já foi feito ----------
 const CLOSE_STEPS = [
-  { act: 'quote', label: 'Orçamento', icon: '🧾', done: (s) => Boolean(s.quote), info: (s) => s.quote?.number || 'faça na aba Orçamentos', confirm: 'Enviar o orçamento (PDF) para o cliente?' },
-  { act: 'ficha', label: 'Ficha de dados', icon: '📝', done: (s) => s.ficha === 'preenchida', info: (s) => (s.ficha === 'preenchida' ? 'preenchida' : s.ficha ? 'enviada, aguardando' : 'não enviada'), confirm: 'Enviar o link da ficha para o cliente preencher?' },
-  { act: 'pix', label: 'Pix da entrada', icon: '💳', done: (s) => Boolean(s.pix), info: (s) => (s.paid ? 'pago' : s.pix ? 'enviado' : 'não enviado'), confirm: 'Gerar e enviar o Pix da entrada para o cliente?' },
-  { act: 'contract', label: 'Contrato', icon: '📄', done: (s) => s.contract === 'assinado', info: (s) => (s.contract === 'assinado' ? 'assinado pelo cliente' : s.contract === 'enviado' ? 'enviado p/ assinar' : 'ficha + orçamento'), confirm: 'Gerar o contrato com os dados do cliente e enviar o link para ele assinar pelo celular?' },
-  { act: 'term', label: 'Termo p/ assinar', icon: '✍️', done: (s) => s.term === 'assinado', info: (s) => (s.term === 'assinado' ? 'assinado' : s.term ? 'enviado' : 'após a ficha'), confirm: 'Enviar o termo da reserva para o cliente assinar no celular?' },
-  { act: 'paid', label: 'Pagou → recibo', icon: '✅', done: (s) => s.paid, info: (s) => (s.paid ? 'recibo enviado' : s.admin ? 'confirma e manda o recibo' : 'avisa o Marcos'), confirm: 'O cliente pagou? Confirme no extrato antes.' },
-  { act: 'plan', label: 'Etapas de pagamento', icon: '📋', done: () => false, info: () => 'datas e valores', confirm: 'Enviar o passo a passo do pagamento?' },
+  { act: 'quote', label: 'Orçamento', icon: '', done: (s) => Boolean(s.quote), info: (s) => s.quote?.number || 'faça na aba Orçamentos', confirm: 'Enviar o orçamento (PDF) para o cliente?' },
+  { act: 'ficha', label: 'Ficha de dados', icon: '', done: (s) => s.ficha === 'preenchida', info: (s) => (s.ficha === 'preenchida' ? 'preenchida' : s.ficha ? 'enviada, aguardando' : 'não enviada'), confirm: 'Enviar o link da ficha para o cliente preencher?' },
+  { act: 'pix', label: 'Pix da entrada', icon: '', done: (s) => Boolean(s.pix), info: (s) => (s.paid ? 'pago' : s.pix ? 'enviado' : 'não enviado'), confirm: 'Gerar e enviar o Pix da entrada para o cliente?' },
+  { act: 'contract', label: 'Contrato', icon: '', done: (s) => s.contract === 'assinado', info: (s) => (s.contract === 'assinado' ? 'assinado pelo cliente' : s.contract === 'enviado' ? 'enviado p/ assinar' : 'ficha + orçamento'), confirm: 'Gerar o contrato com os dados do cliente e enviar o link para ele assinar pelo celular?' },
+  { act: 'term', label: 'Termo p/ assinar', icon: '', done: (s) => s.term === 'assinado', info: (s) => (s.term === 'assinado' ? 'assinado' : s.term ? 'enviado' : 'após a ficha'), confirm: 'Enviar o termo da reserva para o cliente assinar no celular?' },
+  { act: 'paid', label: 'Pagou → recibo', icon: '', done: (s) => s.paid, info: (s) => (s.paid ? 'recibo enviado' : s.admin ? 'confirma e manda o recibo' : 'avisa o Marcos'), confirm: 'O cliente pagou? Confirme no extrato antes.' },
+  { act: 'plan', label: 'Etapas de pagamento', icon: '', done: () => false, info: () => 'datas e valores', confirm: 'Enviar o passo a passo do pagamento?' },
 ];
 async function renderClosingBar(key) {
   let bar = $('#convClosing');

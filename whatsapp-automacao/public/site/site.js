@@ -68,7 +68,7 @@ function openInterest({ title, kind, slug, lotId }) {
           <p class="muted small">Seus dados são usados só para o atendimento da Migra.</p>
         </form>
         <div id="interestOk" hidden class="form">
-          <h3 style="margin:0">Recebemos seu interesse ✅</h3>
+          <h3 style="margin:0">Recebemos seu interesse </h3>
           <p>Seu código de atendimento é <b id="interestCode"></b>. Toque no botão para falar agora com a equipe.</p>
           <a class="btn wa" id="interestWa" target="_blank" rel="noopener">Abrir o WhatsApp</a>
           <button class="btn" type="button" onclick="this.closest('dialog').close()">Fechar</button>
