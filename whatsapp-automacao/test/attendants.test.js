@@ -21,10 +21,9 @@ test('separa conversas e funil por atendente, com canais sem dono e origem dos c
   const by = Object.fromEntries(r.attendants.map((a) => [a.id, a]));
   assert.equal(by.f.funnel.conversas, 2);
   assert.equal(by.e.funnel.conversas, 2, 'o Instagram com vendedor cai no vendedor');
-  assert.equal(by.main.funnel.conversas, 1);
-  assert.equal(by.ig.funnel.conversas, 1);
+  assert.equal(by.triagem.funnel.conversas, 2, 'quem a IA ainda não direcionou fica em triagem, junto (WhatsApp e Instagram)');
   assert.deepEqual([by.f.funnel.prospectos, by.f.funnel.contato, by.f.funnel.proposta, by.f.funnel.fechados, by.f.funnel.valorFechado], [2, 2, 2, 1, 1000]);
-  assert.equal(by.ig.funnel.perdidos, 1, 'lead sem dono do Instagram vai para o canal Instagram');
+  assert.equal(by.triagem.funnel.perdidos, 1);
   assert.equal(by.f.sources.find((s) => s.label === 'Instagram').fechados, 1);
   assert.equal(r.total.conversas, 6);
   assert.equal(r.total.fechados, 1);

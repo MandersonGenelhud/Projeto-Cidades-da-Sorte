@@ -38,7 +38,7 @@
   const convItem = (a, c) => `<button type="button" class="att-conv" data-att="${esc(a.id)}" data-key="${esc(c.key)}">
       <div class="att-conv-top"><b>${c.channel === 'ig' ? '📸' : '💬'} ${esc(c.name || c.phone || c.key)}</b><small>${esc(ago(c.updatedAt))}</small></div>
       <div class="att-last">${c.lastRole === 'user' ? '' : '🤖 '}${esc(c.lastText)}</div>${c.handoff ? '<span class="badge paused">humano</span>' : ''}</button>`;
-  const kindLabel = { admin: 'Administrador', vendedor: 'Vendedor', canal: 'Canal' };
+  const kindLabel = { admin: 'Administrador', vendedor: 'Vendedor', canal: 'Triagem' };
 
   function chat(c) {
     return `<div class="att-chatbar"><b>${esc(c.name || fmtPhone(c.phone) || '')}</b> <small>${esc(fmtPhone(c.phone) || '')}</small>

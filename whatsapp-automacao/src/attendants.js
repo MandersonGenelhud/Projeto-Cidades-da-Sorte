@@ -27,12 +27,13 @@ export function byAttendant({ conversations, leads, users, lineOwner, findLead }
     return buckets.get(id);
   };
   for (const u of users) if (u.active !== false) bucket(u.id, u.name, u.role === 'admin' ? 'admin' : 'vendedor');
-  bucket('main', 'Número principal (Marcos)', 'canal');
-  bucket('ig', 'Instagram (ainda sem vendedor)', 'canal');
+  // Toda conversa vai para um atendente. Só fica aqui quem acabou de chegar e a IA ainda está
+  // conversando para descobrir o assunto (terreno → Diego/Gabriel, migração → equipe, veículo → Marcos).
+  bucket('triagem', 'IA conversando (ainda não direcionada)', 'canal');
 
   const leadBucket = (lead) => {
     if (lead.ownerId && buckets.has(lead.ownerId)) return lead.ownerId;
-    return /instagram/.test(lead.source || '') ? 'ig' : 'main';
+    return 'triagem';
   };
   for (const lead of leads) {
     const b = buckets.get(leadBucket(lead));
@@ -49,7 +50,7 @@ export function byAttendant({ conversations, leads, users, lineOwner, findLead }
     if (line) id = line.ownerId && buckets.has(line.ownerId) ? line.ownerId : bucket(`line:${line.label}`, line.label || 'Número da equipe', 'vendedor').id;
     else {
       const lead = findLead(c);
-      id = lead?.ownerId && buckets.has(lead.ownerId) ? lead.ownerId : String(c.key).startsWith('ig:') ? 'ig' : 'main';
+      id = lead?.ownerId && buckets.has(lead.ownerId) ? lead.ownerId : 'triagem';
     }
     const b = buckets.get(id);
     b.funnel.conversas += 1;
