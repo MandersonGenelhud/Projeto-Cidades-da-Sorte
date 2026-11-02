@@ -9,6 +9,9 @@
     <div class="page-head"><h1>Retomar contatos</h1></div>
     <p class="hint">Pessoas que pediram atendimento pelo Instagram, Facebook, site ou quiz e ainda não foram atendidas. O sistema cruza com as conversas do WhatsApp e com o CRM: quem <b>já falou</b> com a gente <b>não recebe nada</b>. Quem <b>não falou</b> aparece aqui para você conferir e aprovar. Nada é enviado sem a sua aprovação.</p>
     <div id="rgCards" class="cards"></div>
+    <div class="panel"><h2>Ritmo de envio</h2>
+      <div class="row"><label class="inline">Mensagens por dia <select id="rgLimit"><option>10</option><option>15</option><option>20</option><option>25</option><option>30</option></select></label></div>
+      <p class="hint">Comece com <b>10 a 15 por dia</b> e acompanhe quantos respondem (cartão "responderam"). Só aumente se as pessoas estiverem respondendo bem e ninguém reclamar. O teto é 30 por dia, sempre uma por vez, de 8h às 20h.</p></div>
     <div class="panel"><h2>1. Trazer os contatos</h2>
       <div class="row"><input type="file" id="rgFile" accept=".csv,.json,.txt" />
         <select id="rgSource"><option value="">Descobrir a origem sozinho</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="site">Cadastro no site</option><option value="quiz">Quiz</option><option value="grupo">Grupo de WhatsApp</option><option value="outro">Outro</option></select>
@@ -35,7 +38,8 @@
     const r = await api(`/api/reengage?${p}`);
     items = r.items; templates = r.templates;
     const s = r.summary;
-    q('#rgCards').innerHTML = `<div class="card"><b>${s.novo}</b><span>ainda não atendidos</span></div><div class="card"><b>${s.jaAtendido}</b><span>já falaram conosco</span></div><div class="card"><b>${s.enviado}</b><span>mensagens enviadas</span></div><div class="card"><b>${s.respondeu}</b><span>responderam</span></div><div class="card"><b>${s.sentToday}/${s.perDay}</b><span>enviadas hoje</span></div>`;
+    q('#rgCards').innerHTML = `<div class="card"><b>${s.novo}</b><span>ainda não atendidos</span></div><div class="card"><b>${s.jaAtendido}</b><span>já falaram conosco</span></div><div class="card"><b>${s.enviado}</b><span>mensagens enviadas</span></div><div class="card"><b>${s.respondeu}</b><span>responderam</span></div><div class="card"><b>${s.sentToday}/${s.perDay}</b><span>enviadas hoje</span></div><div class="card"><b>${s.taxaResposta == null ? '—' : `${s.taxaResposta}%`}</b><span>responderam (de ${s.enviadosTotal} enviadas)</span></div>`;
+    q('#rgLimit').value = String(s.perDay);
     if (!q('#rgSrcFilter').dataset.ok) { q('#rgSrcFilter').insertAdjacentHTML('beforeend', Object.entries(SRC).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')); q('#rgSrcFilter').dataset.ok = '1'; }
     q('#rgTpl').innerHTML = ['instagram', 'facebook', 'site', 'quiz'].map((k) => `<details><summary><b>${SRC[k]}</b></summary><textarea data-tpl="${k}" rows="5" style="width:100%">${esc(templates[k] || '')}</textarea></details>`).join('') + '<div class="row"><button class="btn small" id="rgSaveTpl">Salvar os textos</button><span class="hint">{nome} vira o primeiro nome da pessoa.</span></div>';
     q('#rgSaveTpl').onclick = async () => { try { await api('/api/reengage/templates', { method: 'PUT', body: Object.fromEntries([...sec.querySelectorAll('[data-tpl]')].map((t) => [t.dataset.tpl, t.value])) }); toast('Textos salvos'); } catch (e) { toast(e.message, true); } };
@@ -56,6 +60,7 @@
       load();
     } catch (e) { q('#rgImportOut').textContent = e.message; }
   };
+  q('#rgLimit').onchange = async () => { try { await api('/api/reengage/limit', { method: 'PUT', body: { perDay: Number(q('#rgLimit').value) } }); toast('Limite salvo'); load(); } catch (e) { toast(e.message, true); } };
   q('#rgAll').onclick = () => sec.querySelectorAll('.rgChk').forEach((c) => (c.checked = true));
   q('#rgSend').onclick = async () => {
     const ids = [...sec.querySelectorAll('.rgChk:checked')].map((c) => c.closest('tr').dataset.id);

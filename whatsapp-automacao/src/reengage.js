@@ -9,6 +9,7 @@ const err = (status, message) => Object.assign(new Error(message), { status });
 const SOURCES = { instagram: 'Instagram', facebook: 'Facebook', site: 'Cadastro no site', quiz: 'Quiz', grupo: 'Grupo de WhatsApp', outro: 'Outro' };
 const OPEN_STATUS = new Set(['novo']);
 const DAY = 86400000;
+export const MAX_PER_DAY = 30;
 
 export const TEMPLATES = {
   instagram: 'Oi, {nome}! Vi que você entrou em contato com a gente lá no Instagram da Migra, para ver a possibilidade de migrar para o Paraguai. O nosso Instagram está com um probleminha no momento. Podemos dar continuidade ao seu atendimento por aqui? 😊\n\nSe preferir não receber mensagens nossas, é só me avisar que eu paro.',
@@ -84,7 +85,9 @@ export class Reengage {
   }
 
   get config() {
-    return { perDay: 30, from: 8, to: 20, minDelayMs: 30_000, maxDelayMs: 65_000, templates: {}, ...(this.store.settings.reengage || {}) };
+    const c = { perDay: 15, from: 8, to: 20, minDelayMs: 30_000, maxDelayMs: 65_000, templates: {}, ...(this.store.settings.reengage || {}) };
+    // Teto de proteção do número: nunca passa de 30 por dia, mesmo que alguém grave um valor maior.
+    return { ...c, perDay: Math.min(MAX_PER_DAY, Math.max(1, Math.floor(Number(c.perDay)) || 15)) };
   }
 
   template(source) {
@@ -154,7 +157,9 @@ export class Reengage {
     this.refresh();
     const count = (s) => this.contacts.filter((c) => c.status === s).length;
     const sentToday = this.#sentToday();
-    return { total: this.contacts.length, novo: count('novo'), jaAtendido: count('ja_atendido'), enviado: count('enviado'), respondeu: count('respondeu'), naoIncomodar: count('nao_incomodar'), ignorado: count('ignorado'), sentToday, perDay: this.config.perDay, run: this.store.data.reengage.run };
+    const sentAll = this.contacts.filter((c) => c.status === 'enviado' || c.status === 'respondeu').length;
+    const answered = count('respondeu');
+    return { enviadosTotal: sentAll, taxaResposta: sentAll ? Math.round((answered / sentAll) * 100) : null, total: this.contacts.length, novo: count('novo'), jaAtendido: count('ja_atendido'), enviado: count('enviado'), respondeu: count('respondeu'), naoIncomodar: count('nao_incomodar'), ignorado: count('ignorado'), sentToday, perDay: this.config.perDay, run: this.store.data.reengage.run };
   }
 
   #sentToday() {
@@ -171,6 +176,14 @@ export class Reengage {
     if (status === 'nao_incomodar' && c.phone) this.store.addToBlacklist(c.phone);
     this.store.save();
     return c;
+  }
+
+  setLimit(n) {
+    const v = Math.floor(Number(n));
+    if (!(v >= 1)) throw err(400, 'Informe quantas mensagens por dia');
+    const perDay = Math.min(MAX_PER_DAY, v);
+    this.store.updateSettings({ reengage: { perDay } });
+    return perDay;
   }
 
   inHours() {

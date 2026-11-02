@@ -17,7 +17,7 @@ function setup({ hour = 10 } = {}) {
   const sent = [];
   const d = new Date(); d.setHours(hour, 0, 0, 0);
   const r = new Reengage({ store, crm, agent, send: async (to, p) => { if (to === '595981000009') throw new Error('falha simulada'); sent.push({ to, text: p.text }); }, now: () => d.getTime() });
-  assert.equal(r.config.perDay, 30);
+  assert.equal(r.config.perDay, 15, 'começa devagar: 15 por dia');
   assert.deepEqual([r.config.minDelayMs, r.config.maxDelayMs], [30_000, 65_000]);
   store.updateSettings({ reengage: { perDay: 3 } });
   return { store, crm, agent, r, sent };
@@ -67,6 +67,21 @@ test('envio: só aprovados, mensagem do canal com o nome, conversa e prospecto c
   // respondeu
   store.data.conversations['595981000010@s.whatsapp.net'].messages.push({ role: 'user', content: 'Oi, quero sim', at: new Date(Date.now() + 5000).toISOString() });
   assert.equal(r.summary().respondeu, 1);
+});
+
+test('limite diário: ajustável, com teto de 30 e taxa de resposta na tela', async () => {
+  const { r, store } = setup();
+  assert.equal(r.setLimit(10), 10);
+  assert.equal(r.setLimit(500), 30, 'nunca passa de 30');
+  assert.throws(() => r.setLimit(0), /quantas/);
+  store.updateSettings({ reengage: { perDay: 999 } });
+  assert.equal(r.config.perDay, 30, 'mesmo gravado errado, o teto vale');
+  r.setLimit(10);
+  r.import(rowsFrom('Nome;Telefone;Origem\nAna;+595981000010;Instagram\nBeto;+595981000011;Instagram'));
+  await r.sendApproved(r.list({ status: 'novo' }).map((c) => c.id), { sleep: async () => {} });
+  store.data.conversations['595981000010@s.whatsapp.net'].messages.push({ role: 'user', content: 'oi', at: new Date(Date.now() + 5000).toISOString() });
+  const s = r.summary();
+  assert.deepEqual([s.enviadosTotal, s.respondeu, s.taxaResposta], [2, 1, 50]);
 });
 
 test('fora do horário não envia; falha de um contato não derruba os outros; "não incomodar" entra na lista de bloqueio', async () => {

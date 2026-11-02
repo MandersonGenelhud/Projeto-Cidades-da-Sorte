@@ -2362,6 +2362,12 @@ app.post('/api/reengage/send', (req, res) => {
   reengage.sendApproved(ids, { by: req.user.name }).catch((e) => store.addLog({ type: 'error', message: `Retomada de contatos: ${e.message}` }));
   res.json({ ok: true });
 });
+app.put('/api/reengage/limit', (req, res) => {
+  const before = reengage.config.perDay;
+  const perDay = reengage.setLimit(req.body?.perDay);
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'retomada de contatos', label: 'Limite de mensagens por dia', changes: [{ field: 'perDay', label: 'Mensagens por dia', from: String(before), to: String(perDay), sensitive: true }] });
+  res.json({ perDay });
+});
 app.post('/api/reengage/stop', (_req, res) => res.json(reengage.stop() || { running: false }));
 app.patch('/api/reengage/:id', (req, res) => res.json(reengage.mark(req.params.id, req.body?.status)));
 app.put('/api/reengage/templates', (req, res) => {
