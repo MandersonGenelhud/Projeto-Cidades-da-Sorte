@@ -372,7 +372,7 @@ export class Quotes {
     c.rect(M, boxY, cw, 128, { fill: C.soft, radius: 12 });
     c.text('DOCUMENTOS PARA COMEÇAR', M + 16, boxY + 16, { size: 7.5, bold: true, color: C.green, spacing: 0.9 });
     const docs = cfg.docs?.length ? cfg.docs : [
-      'Foto do RG (frente e verso) ou do passaporte',
+      'Foto do RG (frente e verso)',
       'Foto de meio corpo, bem nítida, fundo claro',
       'Seus dados na ficha (o link chega no WhatsApp)',
       'O restante, a equipe orienta passo a passo',

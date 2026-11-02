@@ -317,3 +317,22 @@ test('oferta de Natal já vem configurada até 25/12/2026 e some sozinha depois'
   assert.match(await run(new Date(2026, 11, 25, 20, 0)), /até 25\/12\/2026/, 'no dia 25 ainda vale');
   assert.doesNotMatch(await run(new Date(2026, 11, 26, 9, 0)), /Oferta especial do aplicativo/, 'dia 26: acabou');
 });
+
+test('atendente: o RG é essencial (nunca "não precisa") e o suporte da fronteira à chegada está nos fatos, sem ensinar a mentir', async () => {
+  const { Agent } = await import('../src/agent/agent.js');
+  const store = tempStore();
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  let system = '';
+  const llm = { configured: true, chat: async ({ messages }) => { system = messages[0].content; return { content: 'Oi!', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm });
+  const conv = agent.conversation('5511999990000@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Tenho o passaporte, preciso renovar o RG?');
+  await agent.think(conv);
+  assert.match(system, /O RG é ESSENCIAL/);
+  assert.match(system, /NUNCA diga que ele é dispensável, que o passaporte o substitui, nem que "não precisa renovar"/);
+  assert.match(system, /a Migra pode AUXILIAR a providenciar/);
+  assert.match(system, /Precisa de ajuda com o RG/);
+  assert.match(system, /orienta o cliente desde o início até a ponte/);
+  assert.match(system, /busca o cliente de van na fronteira/);
+  assert.match(system, /NUNCA ensine ninguém a mentir ou a burlar regra/);
+});
