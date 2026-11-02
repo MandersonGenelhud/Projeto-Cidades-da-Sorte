@@ -33,6 +33,8 @@ import { Nina } from './assistant.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
+import { Audit } from './audit.js';
+import { Proposals, simulate as finSimulate, options as finOptions, schedule as finSchedule, isConfigured as finConfigured } from './finance.js';
 import { Affiliates } from './affiliates.js';
 import { LineManager, lineKey, matchSeller, parseLineKey } from './lines.js';
 import { Closing, DEFAULT_TERM } from './closing.js';
@@ -231,6 +233,8 @@ agent.scheduleReturn = (conv, args, opts) => followups.schedule(conv, args, opts
 setInterval(() => followups.run().catch((e) => store.addLog({ type: 'error', message: `Retornos combinados: ${e.message}` })), 10 * 60_000).unref();
 // Migra Imóveis (catálogo e loteamentos) e programa de indicação.
 const realty = new Realty({ store, dataDir: DATA_DIR });
+const audit = new Audit({ store });
+const proposals = new Proposals({ store, realty, audit });
 const affiliates = new Affiliates({
   store,
   crm,
@@ -1459,6 +1463,8 @@ const SELLER_ROUTES = [
   ['*', /^\/payments(\/|$)/],
   ['GET', /^\/realty\//],
   ['PATCH', /^\/realty\/developments\/[^/]+\/lots\/[^/]+$/],
+  ['GET', /^\/finance\/(config|proposals(\/[a-f0-9]+\/(pdf|schedule))?)$/],
+  ['POST', /^\/finance\/(simulate|options|proposals)$/],
   ['POST', /^\/conversations\/[^/]+\/(reply|handoff)$/],
   ['*', /^\/conversations\/[^/]+\/closing(\/[a-z]+)?$/],
   ['*', /^\/security\/(2fa\/(setup|enable|disable)|logout-all)$/],
@@ -1483,10 +1489,29 @@ app.use('/api', (req, res, next) => {
   if (user.role === 'admin') return next();
   // Quem cuida das visitas (Silvani) confirma, remarca e cancela pela aba Visitas.
   if (/^\/visits(\/[a-f0-9]+\/(confirm|reschedule|cancel|done))?$/.test(req.path) && isVisitDesk(user)) return next();
+  // Gerente: cadastra mapas, lotes e produtos (criar e editar, nunca excluir).
+  if (user.manager && ['POST', 'PATCH'].includes(req.method) && /^\/(realty|motors|finance)\//.test(req.path)) return next();
   const ok = SELLER_ROUTES.some(([method, re]) => (method === '*' || method === req.method) && re.test(req.path));
   if (!ok) return res.status(403).json({ error: 'Esta área é só do administrador' });
   if (req.method === 'DELETE' && !req.path.startsWith('/leads')) return res.status(403).json({ error: 'Esta área é só do administrador' });
   next();
+});
+// Auditoria: registra quem criou, alterou ou excluiu preços, lotes, juros, vendedores…
+const lotOf = (m) => realty.development(m[1])?.lots.find((l) => l.id === m[2]);
+const devOf = (m) => { const d = realty.development(m[1]); return d ? { ...d, lots: undefined } : null; };
+app.use('/api', audit.middleware([
+  { methods: ['PATCH', 'DELETE'], re: /^\/realty\/developments\/([^/]+)\/lots\/([^/]+)$/, entity: 'lote', get: lotOf, label: (m, o) => `${realty.development(m[1])?.name || 'Loteamento'} · ${o.code || m[2]}` },
+  { methods: ['POST'], re: /^\/realty\/developments\/([^/]+)\/(lots|lots\/bulk|block)$/, entity: 'lote', label: (m, o, b) => `${realty.development(m[1])?.name || 'Loteamento'} · ${m[2] === 'lots' ? (o.code || 'novo lote') : 'vários lotes'}` },
+  { methods: ['PATCH', 'DELETE'], re: /^\/realty\/developments\/([^/]+)$/, entity: 'loteamento', get: devOf, label: (m, o) => o.name || m[1] },
+  { methods: ['POST'], re: /^\/realty\/developments$/, entity: 'loteamento', label: (m, o) => o.name || '' },
+  { methods: ['PATCH', 'DELETE'], re: /^\/realty\/properties\/([^/]+)$/, entity: 'imóvel', get: (m) => realty.listProperties().find((p) => p.id === m[1]), label: (m, o) => o.title || m[1] },
+  { methods: ['POST'], re: /^\/realty\/properties$/, entity: 'imóvel', label: (m, o) => o.title || '' },
+  { methods: ['PUT'], re: /^\/finance\/config$/, entity: 'juros e regras', get: () => proposals.config, label: () => 'Financiamento de lotes' },
+  { methods: ['PATCH', 'DELETE'], re: /^\/users\/([a-f0-9]+)$/, entity: 'usuário', get: (m) => { const u = auth.get(m[1]); return u && { name: u.name, role: u.role, active: u.active !== false, manager: Boolean(u.manager), sectors: u.sectors || [], whatsapp: u.whatsapp || '' }; }, label: (m, o) => o.name || m[1] },
+]));
+app.get('/api/audit', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador vê a auditoria');
+  res.json({ items: audit.list(req.query), users: [...new Set(audit.log.map((e) => e.user))].sort() });
 });
 app.get('/api/me', (req, res) => res.json(publicUser(req.user)));
 // Preferências que o próprio vendedor controla.
@@ -2195,6 +2220,59 @@ const imageExt = (file) => {
   if (!file || !/^image\/(png|jpeg|webp)$/.test(file.mimetype)) throw httpError(400, 'Envie uma imagem PNG, JPG ou WEBP');
   return { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' }[file.mimetype];
 };
+// Financiamento de lotes: simulador, propostas de reserva e relatório de parcelas.
+const isManagerOrAdmin = (u) => u.role === 'admin' || u.manager;
+const lotPrice = (b) => {
+  if (b.devId && b.lotId) {
+    const lot = realty.development(b.devId)?.lots.find((l) => l.id === b.lotId);
+    if (!lot) throw httpError(404, 'Lote não encontrado');
+    return lot.price;
+  }
+  return b.price;
+};
+app.get('/api/finance/config', (_req, res) => res.json({ config: proposals.config, configured: finConfigured(proposals.config) }));
+app.put('/api/finance/config', (req, res) => {
+  const config = proposals.saveConfig(req.body || {});
+  res.json({ config, configured: finConfigured(config) });
+});
+app.post('/api/finance/simulate', (req, res) => {
+  const b = req.body || {};
+  const sim = finSimulate(proposals.config, { price: lotPrice(b), entry: b.entry, installments: b.installments, entryParts: b.entryParts });
+  res.json({ sim, configured: finConfigured(proposals.config) });
+});
+app.post('/api/finance/options', (req, res) => {
+  const b = req.body || {};
+  res.json({ options: finOptions(proposals.config, { price: lotPrice(b), entry: b.entry, entryParts: b.entryParts }), configured: finConfigured(proposals.config) });
+});
+app.post('/api/finance/proposals', (req, res) => {
+  const b = req.body || {};
+  res.json(proposals.create({ devId: b.devId, lotId: b.lotId, client: b.client, entry: b.entry, installments: b.installments, entryParts: b.entryParts, user: req.user }));
+});
+const mineOrAll = (u, p) => isManagerOrAdmin(u) || p.sellerId === u.id;
+app.get('/api/finance/proposals', (req, res) => res.json(proposals.list(req.query).filter((p) => mineOrAll(req.user, p))));
+app.get('/api/finance/proposals/:id/pdf', (req, res) => {
+  const p = proposals.get(req.params.id);
+  if (!p || !mineOrAll(req.user, p)) throw httpError(404, 'Proposta não encontrada');
+  res.type('application/pdf').set('Content-Disposition', `inline; filename="${p.number}.pdf"`).send(proposals.pdf(p, store.settings.business?.name || 'Migra Imobiliária'));
+});
+app.get('/api/finance/proposals/:id/schedule', (req, res) => {
+  const p = proposals.get(req.params.id);
+  if (!p || !mineOrAll(req.user, p)) throw httpError(404, 'Proposta não encontrada');
+  res.json(finSchedule(p.sim, p.paidAt || new Date()));
+});
+app.post('/api/finance/proposals/:id/paid', (req, res) => {
+  if (!isManagerOrAdmin(req.user)) throw httpError(403, 'Só o administrador ou o gerente confirma a reserva');
+  res.json(proposals.markPaid(req.params.id, req.user));
+});
+app.post('/api/finance/proposals/:id/cancel', (req, res) => {
+  if (!isManagerOrAdmin(req.user)) throw httpError(403, 'Só o administrador ou o gerente cancela a proposta');
+  res.json(proposals.cancel(req.params.id, req.user));
+});
+app.get('/api/finance/report', (req, res) => {
+  if (!isManagerOrAdmin(req.user)) throw httpError(403, 'Só o administrador ou o gerente');
+  res.json(proposals.report());
+});
+
 app.get('/api/realty/properties', (_req, res) => res.json(realty.listProperties()));
 app.post('/api/realty/properties', (req, res) => res.json(realty.saveProperty(null, req.body)));
 app.patch('/api/realty/properties/:id', (req, res) => res.json(realty.saveProperty(req.params.id, req.body)));

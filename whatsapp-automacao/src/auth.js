@@ -31,6 +31,7 @@ const publicUser = (u) => (u ? {
   receivesLeads: u.receivesLeads ?? u.role === 'seller', leadsReceived: u.leadsReceived || 0, lastLeadAt: u.lastLeadAt || null, rotationSeq: u.rotationSeq || 0,
   twoFactor: Boolean(u.totpEnabled), pending: Boolean(u.pending), requestedAt: u.requestedAt || null, commissionPct: u.commissionPct ?? null, affiliateCommissionPct: u.affiliateCommissionPct ?? null,
   receivesAffiliateLeads: Boolean(u.receivesAffiliateLeads), refCode: u.refCode || '', sectors: cleanSectors(u.sectors),
+  manager: Boolean(u.manager) && u.role !== 'admin',
 } : null);
 
 export class Auth {
@@ -104,6 +105,7 @@ export class Auth {
     }
     if (patch.receivesLeads !== undefined) u.receivesLeads = Boolean(patch.receivesLeads);
     if (patch.sectors !== undefined) u.sectors = cleanSectors(patch.sectors);
+    if (patch.manager !== undefined) u.manager = Boolean(patch.manager);
     if (patch.receivesAffiliateLeads !== undefined) u.receivesAffiliateLeads = Boolean(patch.receivesAffiliateLeads);
     if (patch.password) {
       if (String(patch.password).length < 6) throw Object.assign(new Error('A senha precisa ter pelo menos 6 caracteres'), { status: 400 });
