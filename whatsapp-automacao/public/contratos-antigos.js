@@ -7,8 +7,19 @@
   sec.className = 'tab';
   sec.innerHTML = `
     <div class="page-head"><h1>📁 Contratos antigos</h1><a class="btn" href="/api/legacy/export.csv">⬇️ Baixar planilha</a></div>
-    <p class="hint">Contratos do sistema anterior do Marcos. A ferramenta <b>tools/capturar-sistema</b> (CAPTURAR.bat) copia tudo sozinha do computador, sem tirar print. Depois é só enviar o arquivo <b>captura.json</b> aqui.</p>
-    <div class="panel"><h2>Importar</h2>
+    <div class="panel"><h2>Passo 1: copiar os contratos do sistema do Marcos (automático)</h2>
+      <ol class="legacy-steps">
+        <li>Clique em <b>Baixar o programa de cópia</b>. Vai baixar o arquivo <b>CAPTURAR-CONTRATOS.bat</b> (fica na pasta Downloads).</li>
+        <li>Dê <b>dois cliques</b> nele. Se o Windows avisar "proteção do computador", clique em <b>Mais informações</b> e depois em <b>Executar assim mesmo</b> (o arquivo é nosso, saiu deste painel).</li>
+        <li>Na janela preta, digite o <b>endereço do sistema do Marcos</b> e aperte Enter. Vai abrir o navegador.</li>
+        <li><b>No navegador</b>, entre no sistema do Marcos digitando o login e a senha <b>lá</b>, e abra a tela que mostra a <b>lista de contratos</b>.</li>
+        <li>Volte na janela preta e aperte <b>Enter</b>. Espere terminar, sem mexer no navegador (pode levar vários minutos).</li>
+        <li>Quando acabar, abre sozinha uma pasta na sua <b>Área de Trabalho</b> chamada <b>captura-...</b>. Dentro dela está o arquivo <b>captura.json</b>.</li>
+      </ol>
+      <a class="btn primary legacy-dl" href="/api/legacy/ferramenta.bat">⬇️ Baixar o programa de cópia</a>
+      <p class="hint">Se o Node.js não estiver instalado, o programa instala sozinho (se pedir permissão, clique em Sim) e pede para você abrir o arquivo de novo. Ele só lê o sistema do Marcos: não clica em botões, não apaga nada e a senha nunca passa por aqui.</p>
+    </div>
+    <div class="panel"><h2>Passo 2: importar o arquivo captura.json</h2>
       <div class="row"><input type="file" id="lgFile" accept=".json" /><button class="btn" id="lgPreview">1) Conferir o arquivo</button><button class="btn primary" id="lgImport" disabled>2) Importar</button></div>
       <div id="lgOut" class="hint"></div></div>
     <div class="panel"><div class="row"><input id="lgQ" placeholder="Buscar por número, cliente, documento…" /><span id="lgInfo" class="hint"></span></div>

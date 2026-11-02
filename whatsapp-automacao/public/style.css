@@ -1060,3 +1060,6 @@ tbody tr:hover td { background: color-mix(in srgb, var(--blue) 6%, transparent);
 .conv-group { margin: 14px 0 6px; font-size: 16px; position: sticky; top: 0; background: var(--panel); padding: 6px 0; z-index: 1; }
 #convAttendants { flex-wrap: wrap; margin-bottom: 10px; }
 @media (max-width: 800px) { #convAttendants .btn { min-height: 46px; font-size: 16px; } .conv-group { font-size: 19px; } }
+.legacy-steps { font-size: 17px; line-height: 1.6; padding-left: 22px; max-width: 75ch; }
+.legacy-steps li { margin-bottom: 8px; }
+.legacy-dl { font-size: 18px; padding: 14px 22px; min-height: 52px; }

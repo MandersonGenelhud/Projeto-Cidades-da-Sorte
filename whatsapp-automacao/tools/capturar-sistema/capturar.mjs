@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
+import { spawn } from 'node:child_process';
 
 const PERIGOSO = /(logout|log-out|signout|sign-out|sair|deslog|exit|excluir|delete|destroy|remover|remove|apagar|cancelar|cancel|desativar|inativar|reset|senha|password)/i;
 const ARQUIVO = /\.(css|js|mjs|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|eot|mp4|mp3|zip|rar|xlsx?|docx?)(\?|$)/i;
@@ -140,11 +141,14 @@ async function main() {
   console.log('2) Depois abra a tela que lista os CONTRATOS.');
   await rl.question('3) Volte aqui e aperte ENTER para eu copiar tudo sozinha… ');
   const inicio = page.url();
-  const pasta = path.resolve(`captura-${new URL(inicio).hostname}-${new Date().toISOString().slice(0, 10)}`);
+  const iSaida = process.argv.indexOf('--saida');
+  const saida = iSaida > 0 ? process.argv[iSaida + 1] : '.';
+  const pasta = path.resolve(saida, `captura-${new URL(inicio).hostname}-${new Date().toISOString().slice(0, 10)}`);
   console.log(`\nCopiando a partir de ${inicio}\nNão mexa no navegador até terminar.\n`);
   const r = await capturar(context, { inicio, pasta, tudo: process.argv.includes('--tudo') });
   console.log(`\nPronto! ${r.paginas} páginas, ${r.pdfs} PDFs.\nPasta: ${pasta}\nEnvie o arquivo "captura.json" no painel (Contratos antigos → Importar).\nSe algo faltar, me mande só o "mapa.txt" (não tem dados de clientes).`);
   await browser.close();
   rl.close();
+  if (process.platform === 'win32') spawn('explorer.exe', [pasta], { detached: true, stdio: 'ignore' }).unref();
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) main().catch((e) => { console.error(`\nErro: ${e.message}`); process.exit(1); });

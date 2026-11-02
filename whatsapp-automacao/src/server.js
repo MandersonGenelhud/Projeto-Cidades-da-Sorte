@@ -36,6 +36,7 @@ import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Audit } from './audit.js';
 import { byAttendant, attendantOf } from './attendants.js';
 import { LegacyContracts } from './legacy-import.js';
+import { buildBat } from './legacy-tool.js';
 import { Motors } from './motors.js';
 import { School } from './school.js';
 import { Proposals, simulate as finSimulate, options as finOptions, schedule as finSchedule, isConfigured as finConfigured } from './finance.js';
@@ -2314,6 +2315,10 @@ app.post('/api/legacy/import', legacyUpload, (req, res) => {
   const r = legacy.import(readCapture(req), req.user);
   audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'contratos antigos', label: `Importação: ${r.added} novo(s), ${r.updated} atualizado(s)` });
   res.json(r);
+});
+app.get('/api/legacy/ferramenta.bat', (req, res) => {
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'contratos antigos', label: 'Baixou a ferramenta de cópia (CAPTURAR-CONTRATOS.bat)' });
+  res.type('application/octet-stream').set('Content-Disposition', 'attachment; filename="CAPTURAR-CONTRATOS.bat"').send(buildBat());
 });
 app.get('/api/legacy', (req, res) => res.json({ items: legacy.search(req.query).map(({ raw, source, ...r }) => r), total: legacy.list.length, ultimoNumero: legacy.search({ limit: 1 })[0]?.number || '' }));
 app.get('/api/legacy/export.csv', (req, res) => {
