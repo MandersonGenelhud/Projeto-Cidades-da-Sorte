@@ -35,6 +35,7 @@ import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Audit } from './audit.js';
 import { byAttendant, attendantOf } from './attendants.js';
+import { LegacyContracts } from './legacy-import.js';
 import { Motors } from './motors.js';
 import { School } from './school.js';
 import { Proposals, simulate as finSimulate, options as finOptions, schedule as finSchedule, isConfigured as finConfigured } from './finance.js';
@@ -237,6 +238,7 @@ setInterval(() => followups.run().catch((e) => store.addLog({ type: 'error', mes
 // Migra Imóveis (catálogo e loteamentos) e programa de indicação.
 const realty = new Realty({ store, dataDir: DATA_DIR });
 const audit = new Audit({ store });
+const legacy = new LegacyContracts({ store });
 const motors = new Motors({ store });
 const school = new School({ store });
 const proposals = new Proposals({ store, realty, audit });
@@ -1118,7 +1120,7 @@ if (PANEL_PASSWORD) {
 }
 
 // O painel (página e programas) só é entregue a quem está logado: sem sessão, vai direto para o login (sem mostrar a casca da tela).
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -2301,6 +2303,30 @@ const imageExt = (file) => {
   if (!file || !/^image\/(png|jpeg|webp)$/.test(file.mimetype)) throw httpError(400, 'Envie uma imagem PNG, JPG ou WEBP');
   return { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' }[file.mimetype];
 };
+// Contratos do sistema antigo (importados pela ferramenta tools/capturar-sistema). Só administrador.
+const legacyUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 80_000_000 } }).single('file');
+const readCapture = (req) => {
+  if (!req.file) throw httpError(400, 'Escolha o arquivo captura.json');
+  try { return JSON.parse(req.file.buffer.toString('utf8')); } catch { throw httpError(400, 'Este arquivo não é o captura.json gerado pela ferramenta.'); }
+};
+app.post('/api/legacy/preview', legacyUpload, (req, res) => res.json(legacy.preview(readCapture(req))));
+app.post('/api/legacy/import', legacyUpload, (req, res) => {
+  const r = legacy.import(readCapture(req), req.user);
+  audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'contratos antigos', label: `Importação: ${r.added} novo(s), ${r.updated} atualizado(s)` });
+  res.json(r);
+});
+app.get('/api/legacy', (req, res) => res.json({ items: legacy.search(req.query).map(({ raw, source, ...r }) => r), total: legacy.list.length, ultimoNumero: legacy.search({ limit: 1 })[0]?.number || '' }));
+app.get('/api/legacy/export.csv', (req, res) => {
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'contratos antigos', label: 'Baixou a planilha de contratos antigos' });
+  res.type('text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="contratos-antigos.csv"').send(legacy.csv());
+});
+app.get('/api/legacy/:id', (req, res) => {
+  const r = legacy.get(req.params.id);
+  if (!r) throw httpError(404, 'Contrato não encontrado');
+  const { source, ...rest } = r;
+  res.json(rest);
+});
+
 // Migra Motors: veículos, bancos/consórcios e comparação de financiamento.
 app.get('/api/motors/vehicles', (_req, res) => res.json(motors.vehicles()));
 app.post('/api/motors/vehicles', (req, res) => res.json(motors.saveVehicle(null, req.body || {})));
