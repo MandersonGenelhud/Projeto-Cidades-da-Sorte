@@ -1262,19 +1262,40 @@ $('#btnPendingCancel').addEventListener('click', async () => {
 // ---------- Conversas ----------
 let currentConv = null;
 let convChannel = '';
+let convAttendant = '';
 loaders.conversations = async () => {
   loadPending();
   if (window.currentUser?.role === 'admin') loadIgManual().catch(() => {});
   const all = await api('/api/conversations');
-  const list = all.filter((c) => !convChannel || (convChannel === 'ig') === String(c.key).startsWith('ig:'));
-  $('#convList').innerHTML = list.map((c) => `
+  const list = all.filter((c) => (!convChannel || (convChannel === 'ig') === String(c.key).startsWith('ig:')) && (!convAttendant || c.attendantId === convAttendant));
+  const item = (c) => `
     <div class="conv-item ${c.key === currentConv ? 'active' : ''}" data-key="${esc(c.key)}">
       ${String(c.key).startsWith('ig:') ? '📸' : '💬'} <b>${esc(c.name || fmtPhone(c.phone) || c.key)}</b> ${c.handoff ? '<span class="badge paused">humano</span>' : ''}
-      <span class="chip small">${esc(c.channelLabel || '')}</span>
+      ${c.attendantId ? '' : `<span class="chip small">${esc(c.channelLabel || '')}</span>`}
       <div class="last">${c.last ? `${c.last.role === 'user' ? '' : '🤖 '}${esc(c.last.content)}` : ''}</div>
-    </div>`).join('') || '<p class="muted">Nenhuma conversa ainda. Quando clientes falarem com o agente, elas aparecem aqui.</p>';
+    </div>`;
+  const admin = window.currentUser?.role === 'admin';
+  // Administrador: um botão por atendente e a lista separada por pessoa. Vendedor: só as conversas dele.
+  const chips = $('#convAttendants');
+  chips.hidden = !admin;
+  if (admin) {
+    const people = new Map();
+    for (const c of all) if (c.attendantId) people.set(c.attendantId, { name: c.attendantName, n: (people.get(c.attendantId)?.n || 0) + 1 });
+    chips.innerHTML = `<button type="button" class="btn small ${convAttendant ? '' : 'primary'}" data-att="">Todos (${all.length})</button>${[...people].sort((a, b) => b[1].n - a[1].n).map(([id, p]) => `<button type="button" class="btn small ${convAttendant === id ? 'primary' : ''}" data-att="${esc(id)}">${esc(p.name)} (${p.n})</button>`).join('')}`;
+  }
+  const groups = new Map();
+  if (admin) for (const c of list) groups.set(c.attendantId, [...(groups.get(c.attendantId) || []), c]);
+  $('#convList').innerHTML = (admin && !convAttendant
+    ? [...groups].map(([id, items]) => `<h3 class="conv-group">👤 ${esc(items[0].attendantName)} <span class="badge pending">${items.length}</span></h3>${items.map(item).join('')}`).join('')
+    : list.map(item).join('')) || '<p class="muted">Nenhuma conversa ainda. Quando clientes falarem com o agente, elas aparecem aqui.</p>';
   if (currentConv) openConversation(currentConv);
 };
+$('#convAttendants').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-att]');
+  if (!b) return;
+  convAttendant = b.dataset.att;
+  loaders.conversations();
+});
 $('#convFilter').addEventListener('click', (e) => {
   const b = e.target.closest('[data-channel]');
   if (!b) return;

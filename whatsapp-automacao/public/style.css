@@ -1057,3 +1057,6 @@ tbody tr:hover td { background: color-mix(in srgb, var(--blue) 6%, transparent);
   #attOpenConv { width: 100%; min-height: 52px; font-size: 17px; }
 }
 @media (max-width: 1000px) { .att-summary-grid { grid-template-columns: 1fr; } }
+.conv-group { margin: 14px 0 6px; font-size: 16px; position: sticky; top: 0; background: var(--panel); padding: 6px 0; z-index: 1; }
+#convAttendants { flex-wrap: wrap; margin-bottom: 10px; }
+@media (max-width: 800px) { #convAttendants .btn { min-height: 46px; font-size: 16px; } .conv-group { font-size: 19px; } }

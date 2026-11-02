@@ -20,6 +20,14 @@ function addLead(f, lead) {
  * conversations: lista de listConversations(); leads: crm.leads; users: auth users ativos;
  * lineOwner(key) → { ownerId, label } | null (conversa de número de vendedor); findLead(conv) → lead | null.
  */
+/** De quem é esta conversa? id do atendente (ou 'triagem' enquanto a IA ainda não direcionou). */
+export function attendantOf(c, { ids, lineOwner, findLead }) {
+  const line = lineOwner(c.key);
+  if (line) return line.ownerId && ids.has(line.ownerId) ? line.ownerId : `line:${line.label}`;
+  const lead = findLead(c);
+  return lead?.ownerId && ids.has(lead.ownerId) ? lead.ownerId : 'triagem';
+}
+
 export function byAttendant({ conversations, leads, users, lineOwner, findLead }) {
   const buckets = new Map();
   const bucket = (id, name, kind) => {
@@ -45,13 +53,9 @@ export function byAttendant({ conversations, leads, users, lineOwner, findLead }
     b.sources.set(label, s);
   }
   for (const c of conversations) {
-    const line = lineOwner(c.key);
-    let id;
-    if (line) id = line.ownerId && buckets.has(line.ownerId) ? line.ownerId : bucket(`line:${line.label}`, line.label || 'Número da equipe', 'vendedor').id;
-    else {
-      const lead = findLead(c);
-      id = lead?.ownerId && buckets.has(lead.ownerId) ? lead.ownerId : 'triagem';
-    }
+    const ids = new Set(users.map((u) => u.id));
+    let id = attendantOf(c, { ids, lineOwner, findLead });
+    if (id.startsWith('line:')) id = bucket(id, id.slice(5) || 'Número da equipe', 'vendedor').id;
     const b = buckets.get(id);
     b.funnel.conversas += 1;
     if (b.conversations.length < MAX_ITEMS) {

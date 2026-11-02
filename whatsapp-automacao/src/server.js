@@ -34,7 +34,7 @@ import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Audit } from './audit.js';
-import { byAttendant } from './attendants.js';
+import { byAttendant, attendantOf } from './attendants.js';
 import { Motors } from './motors.js';
 import { School } from './school.js';
 import { Proposals, simulate as finSimulate, options as finOptions, schedule as finSchedule, isConfigured as finConfigured } from './finance.js';
@@ -2181,11 +2181,23 @@ app.get('/api/attendants', (_req, res) => {
     conversations: agent.listConversations(),
     leads: crm.leads,
     users: auth.users,
-    lineOwner: (key) => { const l = parseLineKey(key); const line = l && lines.get(l.id); return line ? { ownerId: line.ownerId || null, label: line.label } : null; },
+    lineOwner: lineOwnerOf,
     findLead: (c) => crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }),
   }));
 });
-app.get('/api/conversations', (req, res) => res.json(agent.listConversations().filter((c) => canSeeConv(req.user, c.key)).map((c) => ({ ...c, channelLabel: convLabel(c.key) }))));
+const lineOwnerOf = (key) => { const l = parseLineKey(key); const line = l && lines.get(l.id); return line ? { ownerId: line.ownerId || null, label: line.label } : null; };
+// Administrador: cada conversa vem com o atendente responsável, para a tela separar por pessoa.
+app.get('/api/conversations', (req, res) => {
+  const ids = new Set(auth.users.map((u) => u.id));
+  const names = new Map(auth.users.map((u) => [u.id, u.name]));
+  const admin = req.user.role === 'admin';
+  res.json(agent.listConversations().filter((c) => canSeeConv(req.user, c.key)).map((c) => {
+    const base = { ...c, channelLabel: convLabel(c.key) };
+    if (!admin) return base;
+    const id = attendantOf(c, { ids, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) });
+    return { ...base, attendantId: id, attendantName: names.get(id) || (id.startsWith('line:') ? id.slice(5) : 'IA conversando (ainda não direcionada)') };
+  }));
+});
 app.use('/api/conversations/:key', (req, _res, next) => {
   if (!canSeeConv(req.user, req.params.key)) throw httpError(403, 'Esta conversa é de outro vendedor');
   next();
