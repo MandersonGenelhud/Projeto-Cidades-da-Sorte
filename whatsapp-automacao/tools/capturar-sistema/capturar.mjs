@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const PERIGOSO = /(logout|log-out|signout|sign-out|sair|deslog|exit|excluir|delete|destroy|remover|remove|apagar|cancelar|cancel|desativar|inativar|reset|senha|password)/i;
 const ARQUIVO = /\.(css|js|mjs|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|eot|mp4|mp3|zip|rar|xlsx?|docx?)(\?|$)/i;
@@ -127,6 +128,7 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
 }
 
 async function main() {
+  console.log('Programa de cópia de contratos iniciado.');
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const url = process.argv[2] || (await rl.question('Endereço do sistema do Marcos (ex.: https://sistema.exemplo.com): ')).trim();
   let pw;
@@ -151,4 +153,4 @@ async function main() {
   rl.close();
   if (process.platform === 'win32') spawn('explorer.exe', [pasta], { detached: true, stdio: 'ignore' }).unref();
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) main().catch((e) => { console.error(`\nErro: ${e.message}`); process.exit(1); });
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) main().catch((e) => { console.error(`\nErro: ${e.message}`); process.exit(1); });

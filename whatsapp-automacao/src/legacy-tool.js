@@ -23,6 +23,7 @@ const HEAD = [
   'if not exist "%DIR%\\node_modules\\playwright-core" call npm install --no-audit --no-fund',
   'echo.',
   'node capturar.mjs --saida "%USERPROFILE%\\Desktop"',
+  'if errorlevel 1 echo Ocorreu um erro. Tire uma foto desta tela e me mande.',
   'echo.',
   'pause',
   'exit /b 0',

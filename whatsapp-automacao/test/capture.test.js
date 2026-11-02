@@ -89,3 +89,19 @@ test('ferramenta de captura: percorre a lista e as páginas, lê fichas e PDFs, 
   assert.match(c.doc, /^123\.456\.789/);
   assert.equal(lastNumber(recs), 506);
 });
+
+test('o programa de cópia realmente inicia quando chamado pela linha de comando (no Windows o caminho do arquivo é diferente)', async () => {
+  const { spawn } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const src = fs.readFileSync(fileURLToPath(new URL('../tools/capturar-sistema/capturar.mjs', import.meta.url)), 'utf8');
+  assert.ok(src.includes('fileURLToPath(import.meta.url)'), 'compara o caminho com fileURLToPath, não com URL.pathname (quebra no Windows)');
+  const out = await new Promise((resolve) => {
+    const p = spawn(process.execPath, [fileURLToPath(new URL('../tools/capturar-sistema/capturar.mjs', import.meta.url)), 'http://127.0.0.1:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let buf = '';
+    p.stdout.on('data', (d) => (buf += d));
+    p.stderr.on('data', (d) => (buf += d));
+    const t = setTimeout(() => p.kill(), 5000);
+    p.on('close', () => { clearTimeout(t); resolve(buf); });
+  });
+  assert.match(out, /Programa de cópia de contratos iniciado/);
+});
