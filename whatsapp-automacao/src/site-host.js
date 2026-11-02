@@ -2,8 +2,10 @@
 // as páginas públicas. O painel, o login e a API da equipe NÃO existem nesse endereço (404).
 import fs from 'node:fs';
 
-export const siteHostsFrom = (env = process.env) => new Set(String(env.SITE_HOSTS || '').split(/[,\s]+/).map((h) => h.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, '')).filter(Boolean));
+export const siteHostsFrom = (env = process.env) => new Set([...siteOfficeMap(env).keys()].filter(Boolean));
 
+/** SITE_HOSTS aceita "dominio" ou "dominio=escritorio" (py ou pr): o escritório do domínio marca de onde veio cada cliente. */
+export const siteOfficeMap = (env = process.env) => new Map(String(env.SITE_HOSTS || '').split(/[,\s]+/).map((t) => t.trim().toLowerCase()).filter(Boolean).map((t) => { const [h, o] = t.split('='); return [h.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, ''), o === 'pr' ? 'pr' : 'py']; }));
 export const hostOf = (req) => String(req.get?.('host') || req.headers?.host || '').toLowerCase().replace(/:\d+$/, '');
 
 // O que o domínio do site pode mostrar (tudo o mais dá 404).

@@ -37,7 +37,8 @@ import { Audit } from './audit.js';
 import { byAttendant, attendantOf } from './attendants.js';
 import { LegacyContracts } from './legacy-import.js';
 import { buildBat } from './legacy-tool.js';
-import { siteGuard, siteHostsFrom, hostOf } from './site-host.js';
+import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
+import { siteGuard, siteHostsFrom, siteOfficeMap, hostOf } from './site-host.js';
 import { mergeContent, sanitizeContent, renderHome } from './site-content.js';
 import { buildExecutive, periods as execPeriods, dayStr } from './executive.js';
 import { Reengage, rowsFrom, TEMPLATES as REENGAGE_TEMPLATES } from './reengage.js';
@@ -192,6 +193,18 @@ const sectors = new Sectors({
 });
 agent.routeSector = (conv, args, opts) => sectors.route(conv, args, opts);
 sectors.migrate();
+// Escritório de uma conversa: pelo número de WhatsApp (cada número pertence a um escritório); o Instagram atual e o número principal são do Paraguai.
+const officeOfKey = (key) => {
+  const l = parseLineKey(key);
+  if (l) { const line = lines.get(l.id); return normOffice(line?.office) || officeOfUser(auth.get(line?.ownerId)); }
+  return normOffice(store.data.conversations?.[key]?.office) || 'py';
+};
+crm.officeOfKey = officeOfKey;
+sectors.officeOfKey = officeOfKey;
+/** Com um escritório escolhido (administrador geral) ou fixo (equipe), mostra só ele; 'all' mostra os dois. */
+const inOffice = (req, office) => !req.office || req.office === 'all' || req.office === (normOffice(office) || 'py');
+// Cada escritório pode ter a própria IA: nome da atendente, texto do negócio e instruções próprias.
+agent.officeSettingsFor = (conv) => store.settings.offices?.[officeOfKey(conv.key)]?.overrides || null;
 // Link do WhatsApp da Migra com o código do cliente (para quem conversa no Instagram escolher tocar em vez de digitar o número).
 agent.whatsappLink = (conv) => {
   if (!String(conv.key).startsWith('ig:')) return '';
@@ -1127,6 +1140,7 @@ if (PANEL_PASSWORD) {
 // O painel (página e programas) só é entregue a quem está logado: sem sessão, vai direto para o login (sem mostrar a casca da tela).
 // Domínio próprio do site público (SITE_HOSTS): só páginas públicas; o painel não existe nesse endereço.
 const SITE_HOSTS = siteHostsFrom();
+const SITE_OFFICES = siteOfficeMap();
 const siteContent = () => mergeContent(store.settings.site);
 app.use(siteGuard({ hosts: SITE_HOSTS, homeFile: path.join(ROOT, 'public', 'site', 'home.html'), render: (html, origin) => renderHome(html, siteContent(), origin) }));
 app.get('/robots.txt', (req, res) => {
@@ -1140,7 +1154,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1316,9 +1330,10 @@ app.post('/api/public/lead', async (req, res) => {
   if (!phone) throw httpError(400, 'Informe um WhatsApp válido, com DDD');
   const item = String(b.item || brand.label).slice(0, 120);
   const message = String(b.message || '').trim().slice(0, 400);
-  const person = sectors.next(brand.sector);
+  const office = SITE_OFFICES.get(hostOf(req)) || 'py';
+  const person = sectors.next(brand.sector, office);
   const existing = crm.leads.find((l) => l.phone === phone && !['ganho', 'perdido'].includes(l.stage));
-  const lead = existing || crm.byId(crm.create({ name: 'Site', role: 'admin' }, { name, phone, email: String(b.email || '').slice(0, 120), source: 'site', interest: item, ownerId: person?.id || null }).id);
+  const lead = existing || crm.byId(crm.create({ name: 'Site', role: 'admin' }, { name, phone, email: String(b.email || '').slice(0, 120), source: 'site', interest: item, ownerId: person?.id || null, office }).id);
   const aff = affiliates.refFromRequest(req);
   if (aff && !existing) affiliates.attach(lead, aff, 'link do site');
   crm.addNote({ name: 'Site', role: 'admin' }, lead.id, `${brand.label}: ${item}${message ? ` · mensagem: ${message}` : ''}`);
@@ -1528,7 +1543,14 @@ app.post('/api/auth/logout', (_req, res) => {
 });
 
 // O que um vendedor pode acessar (o resto é só do administrador).
+const OFFICE_ADMIN_ROUTES = [
+  ['GET', /^\/(attendants|executive)$/],
+  ['POST', /^\/users$/],
+  ['PATCH', /^\/users\/[a-z0-9]+$/],
+  ['POST', /^\/users\/[a-z0-9]+\/(approve|reject)$/],
+];
 const SELLER_ROUTES = [
+  ['GET', /^\/offices$/],
   ['GET', /^\/(modules|status|events|me|users|pending|agent\/status|instagram\/status|crm\/agenda|crm\/stats|crm\/stages|crm\/ranking)$/],
   ['*', /^\/leads(\/|$)/],
   ['GET', /^\/conversations(\/|$)/],
@@ -1557,6 +1579,8 @@ app.use('/api', (req, res, next) => {
   const user = auth.fromRequest(req);
   if (!user) return res.status(401).json({ error: auth.needsSetup ? 'Crie o administrador para começar' : 'Entre com seu login', login: true });
   req.user = user;
+  // Administrador geral escolhe o escritório (cabeçalho X-Office); a equipe fica sempre no próprio.
+  req.office = user.role === 'admin' ? normOffice(req.get('x-office')) || 'all' : officeOfUser(user);
   // Sem a verificação em duas etapas ligada, só dá para configurá-la.
   if (require2fa() && !user.totpEnabled && !/^\/(me|security\/2fa\/(setup|enable)|brand)$/.test(req.path)) {
     return res.status(403).json({ error: 'Ligue a verificação em duas etapas para usar o sistema.', setup2fa: true });
@@ -1564,6 +1588,8 @@ app.use('/api', (req, res, next) => {
   if (user.role === 'admin') return next();
   // Quem cuida das visitas (Silvani) confirma, remarca e cancela pela aba Visitas.
   if (/^\/visits(\/[a-f0-9]+\/(confirm|reschedule|cancel|done))?$/.test(req.path) && isVisitDesk(user)) return next();
+  // Administrador do escritório: cuida da equipe, das conversas e dos resultados SÓ do próprio escritório (cada rota confere o escritório).
+  if (user.officeAdmin && OFFICE_ADMIN_ROUTES.some(([method, re]) => method === req.method && re.test(req.path))) return next();
   // Gerente: cadastra mapas, lotes e produtos (criar e editar, nunca excluir).
   if (user.manager && ['POST', 'PATCH'].includes(req.method) && /^\/(realty|motors|finance|school)\//.test(req.path)) return next();
   const ok = SELLER_ROUTES.some(([method, re]) => (method === '*' || method === req.method) && re.test(req.path));
@@ -2236,30 +2262,37 @@ app.get('/api/agent/prompt', (_req, res) => {
 function canSeeConv(user, key) {
   if (user.role === 'admin') return true;
   const line = parseLineKey(key);
-  if (line) return lines.get(line.id)?.ownerId === user.id;
-  return crm.leads.some((l) => l.ownerId === user.id && (l.conversationKey === key || l.whatsappKey === key));
+  if (line) return lines.get(line.id)?.ownerId === user.id || (Boolean(user.officeAdmin) && officeOfKey(key) === officeOfUser(user));
+  return crm.leads.some((l) => (l.ownerId === user.id || (user.officeAdmin && crm.officeOf(l) === officeOfUser(user))) && (l.conversationKey === key || l.whatsappKey === key));
 }
 const convLabel = (key) => {
   const line = parseLineKey(key);
   return line ? lines.get(line.id)?.label || 'Número da equipe' : String(key).startsWith('ig:') ? 'Instagram' : 'Principal';
 };
 // Conversas e funil separados por atendente (só administrador).
-app.get('/api/attendants', (_req, res) => {
+app.get('/api/attendants', (req, res) => {
   res.json(byAttendant({
-    conversations: agent.listConversations(),
-    leads: crm.leads,
-    users: auth.users,
+    conversations: agent.listConversations().filter((c) => inOffice(req, conversationOffice(c))),
+    leads: crm.leads.filter((l) => inOffice(req, crm.officeOf(l))),
+    users: auth.users.filter((u) => inOffice(req, u.role === 'admin' ? 'py' : u.office)),
     lineOwner: lineOwnerOf,
     findLead: (c) => crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }),
   }));
 });
+/** Escritório de uma conversa (pelo número ou pelo prospecto dono). */
+const conversationOffice = (c) => {
+  const l = parseLineKey(c.key);
+  if (l) return officeOfKey(c.key);
+  const lead = crm.findForConversation({ key: c.key, phone: c.phone, username: c.username });
+  return lead ? crm.officeOf(lead) : officeOfKey(c.key);
+};
 const lineOwnerOf = (key) => { const l = parseLineKey(key); const line = l && lines.get(l.id); return line ? { ownerId: line.ownerId || null, label: line.label } : null; };
 // Administrador: cada conversa vem com o atendente responsável, para a tela separar por pessoa.
 app.get('/api/conversations', (req, res) => {
   const ids = new Set(auth.users.map((u) => u.id));
   const names = new Map(auth.users.map((u) => [u.id, u.name]));
   const admin = req.user.role === 'admin';
-  res.json(agent.listConversations().filter((c) => canSeeConv(req.user, c.key)).map((c) => {
+  res.json(agent.listConversations().filter((c) => canSeeConv(req.user, c.key) && inOffice(req, conversationOffice(c))).map((c) => {
     const base = { ...c, channelLabel: convLabel(c.key) };
     if (!admin) return base;
     const id = attendantOf(c, { ids, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) });
@@ -2297,7 +2330,7 @@ app.delete('/api/conversations/:key', (req, res) => {
 
 // Conversas sem resposta
 app.get('/api/pending', (req, res) => {
-  const items = pending.list().filter((p) => canSeeConv(req.user, p.jid)).map((p) => {
+  const items = pending.list().filter((p) => canSeeConv(req.user, p.jid) && inOffice(req, officeOfKey(p.jid))).map((p) => {
     const conv = agent.conversation(p.jid, { create: false });
     return { ...p, channelLabel: convLabel(p.jid), pausedReason: conv?.handoff ? conv.handoffReason || 'um humano assumiu' : '' };
   });
@@ -2324,16 +2357,60 @@ const imageExt = (file) => {
   return { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' }[file.mimetype];
 };
 // Painel executivo (só administrador): cobranças, vencimentos, recebimentos, vendas e funil.
-app.get('/api/executive', (_req, res) => {
+const execFor = (office) => {
   const now = Date.now();
   const today = dayStr(now);
   const month = execPeriods(today).mes;
-  const stats = crm.stats({ from: month.from, to: month.to });
+  const only = office && office !== 'all' ? office : '';
+  const stats = crm.stats({ from: month.from, to: month.to, office: only });
   const open = visits.list.filter((v) => ['pendente', 'aguardando_taxa', 'remarcar'].includes(v.status)).length;
-  res.json(buildExecutive({
-    sales: sales.list, now,
+  return buildExecutive({
+    sales: sales.list.filter((s) => !only || sales.officeOf(s) === only), now,
     crm: { newLeads: stats.newLeads, openLeads: stats.openLeads, openValue: stats.openValue, won: stats.won, wonValue: stats.wonValue, lost: stats.lost, conversion: stats.conversion, avgTicket: stats.avgTicket, followUps: stats.followUps, byStage: stats.byStage, bySource: stats.bySource, months: stats.months },
-    extras: { visitasAbertas: open, retomarNovos: reengage.summary().novo, esperando: pending.list().length, whatsapp: wa.status },
+    extras: { visitasAbertas: only && only !== 'py' ? 0 : open, retomarNovos: only && only !== 'py' ? 0 : reengage.summary().novo, esperando: pending.list().filter((p) => !only || officeOfKey(p.jid) === only).length, whatsapp: wa.status },
+  });
+};
+app.get('/api/executive', (req, res) => res.json(execFor(req.office)));
+// Escritórios: nomes, IA própria de cada um e comparativo de resultados.
+app.get('/api/offices', (req, res) => res.json({ offices: officeList(store.settings), mine: { office: req.user.role === 'admin' ? null : officeOfUser(req.user), global: req.user.role === 'admin', officeAdmin: Boolean(req.user.officeAdmin) }, current: req.office }));
+const cleanText = (v, max) => String(v ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, max);
+app.get('/api/offices/:id', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador geral');
+  if (!OFFICE_IDS.includes(req.params.id)) throw httpError(404, 'Escritório não encontrado');
+  res.json({ ...officeList(store.settings).find((o) => o.id === req.params.id), overrides: store.settings.offices?.[req.params.id]?.overrides || {} });
+});
+app.put('/api/offices/:id', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador geral');
+  const id = req.params.id;
+  if (!OFFICE_IDS.includes(id)) throw httpError(404, 'Escritório não encontrado');
+  const b = req.body || {};
+  const cur = store.settings.offices?.[id] || {};
+  const ov = b.overrides || {};
+  const next = {
+    name: cleanText(b.name ?? cur.name ?? officeList(store.settings).find((o) => o.id === id).name, 60),
+    place: cleanText(b.place ?? cur.place ?? '', 40),
+    overrides: {
+      business: Object.fromEntries(['name', 'description', 'services', 'prices', 'hours', 'address'].filter((k) => ov.business?.[k] !== undefined || cur.overrides?.business?.[k] !== undefined).map((k) => [k, cleanText(ov.business?.[k] ?? cur.overrides?.business?.[k], 4000)]).filter(([, v]) => v)),
+      agent: Object.fromEntries(['agentName', 'instructions'].filter((k) => ov.agent?.[k] !== undefined || cur.overrides?.agent?.[k] !== undefined).map((k) => [k, cleanText(ov.agent?.[k] ?? cur.overrides?.agent?.[k], 6000)]).filter(([, v]) => v)),
+    },
+  };
+  store.data.settings.offices = { ...(store.settings.offices || {}), [id]: next };
+  store.save();
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'escritório', label: `${next.name}: nome e IA própria`, changes: [{ field: 'office', label: 'Configuração do escritório', from: '', to: JSON.stringify(next).slice(0, 160), sensitive: false }] });
+  res.json({ ok: true });
+});
+app.get('/api/offices-compare', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador geral');
+  res.json(officeList(store.settings).map((o) => {
+    const e = execFor(o.id);
+    const team = auth.users.filter((u) => u.role !== 'admin' && u.active !== false && officeOfUser(u) === o.id);
+    return {
+      id: o.id, name: o.name, place: o.place,
+      equipe: team.length, numeros: lines.list().filter((l) => (normOffice(l.office) || officeOfUser(auth.get(l.ownerId))) === o.id).length,
+      conversas: agent.listConversations().filter((c) => conversationOffice(c) === o.id).length,
+      leadsMes: e.crm.newLeads, abertos: e.crm.openLeads, fechadosMes: e.crm.won, valorFechadoMes: e.crm.wonValue, conversao: e.crm.conversion,
+      vendasMes: e.kpis.vendasMes, vendidoMes: e.kpis.vendidoMes, recebidoMes: e.kpis.recebidoMes, aReceber: e.kpis.aReceberTotal, atrasado: e.kpis.atrasadoTotal,
+    };
   }));
 });
 // Módulos: o administrador coloca telas em "standby" (somem do menu, nada é apagado) e liga de volta quando quiser.
@@ -2571,13 +2648,13 @@ app.post('/api/affiliates-commissions/:id/paid', (req, res) => res.json(affiliat
 app.post('/api/affiliates-commissions/:id/cancel', (req, res) => res.json(affiliates.cancelCommission(req.params.id)));
 
 // Pagamentos (Pix)
-const canSeePayment = (user, p) => user.role === 'admin' || (p.leadId && crm.leads.some((l) => l.id === p.leadId && l.ownerId === user.id));
+const canSeePayment = (user, p) => user.role === 'admin' || Boolean(p.leadId && crm.leads.some((l) => l.id === p.leadId && (l.ownerId === user.id || (user.officeAdmin && crm.officeOf(l) === officeOfUser(user)))));
 const publicPayment = (p) => {
   const lead = p.leadId ? crm.leads.find((l) => l.id === p.leadId) : null;
   return { ...p, leadName: lead?.name || '', leadCode: lead?.code || '', ownerName: crm.ownerName(lead?.ownerId), receiptUrl: p.status === 'paid' ? payments.receiptUrl(p) : '' };
 };
 app.get('/api/payments', (req, res) => {
-  res.json(payments.list.filter((p) => canSeePayment(req.user, p)).map(publicPayment).reverse());
+  res.json(payments.list.filter((p) => canSeePayment(req.user, p) && inOffice(req, crm.leads.find((l) => l.id === p.leadId) ? crm.officeOf(crm.leads.find((l) => l.id === p.leadId)) : 'py')).map(publicPayment).reverse());
 });
 app.post('/api/payments', async (req, res) => {
   const lead = req.body.leadId ? crm.get(req.user, req.body.leadId) : null;
@@ -2624,7 +2701,7 @@ app.get('/api/payments/:id/receipt', (req, res) => {
 const myLine = (user, id) => {
   const line = lines.get(id);
   if (!line) throw httpError(404, 'Número não encontrado');
-  if (user.role !== 'admin' && line.ownerId !== user.id) throw httpError(403, 'Este número é de outro vendedor');
+  if (user.role !== 'admin' && line.ownerId !== user.id && !(user.officeAdmin && sees(user, line.office || officeOfUser(auth.get(line.ownerId))))) throw httpError(403, 'Este número é de outro vendedor');
   return line;
 };
 const publicLine = (l) => {
@@ -2632,18 +2709,23 @@ const publicLine = (l) => {
   return { ...l, label: owner?.name || l.label, ownerName: owner?.name || '', ownerWhatsapp: owner?.whatsapp || '' };
 };
 app.get('/api/lines', (req, res) => {
-  res.json(lines.list().filter((l) => req.user.role === 'admin' || l.ownerId === req.user.id).map(publicLine));
+  const lineOffice = (l) => normOffice(l.office) || officeOfUser(auth.get(l.ownerId));
+  res.json(lines.list().filter((l) => (req.user.role === 'admin' ? inOffice(req, lineOffice(l)) : l.ownerId === req.user.id || (req.user.officeAdmin && lineOffice(l) === officeOfUser(req.user)))).map((l) => ({ ...publicLine(l), office: lineOffice(l) })));
 });
 app.post('/api/lines', (req, res) => {
   // O vendedor conecta o próprio WhatsApp; o administrador conecta o de qualquer pessoa da equipe.
-  const ownerId = req.user.role === 'admin' ? req.body.ownerId || null : req.user.id;
+  const canPick = req.user.role === 'admin' || req.user.officeAdmin;
+  const ownerId = canPick ? req.body.ownerId || null : req.user.id;
   const owner = ownerId ? auth.get(ownerId) : null;
   if (ownerId && !owner) throw httpError(404, 'Vendedor não encontrado');
-  res.json(publicLine(lines.add({ label: owner?.name || req.body.label, ownerId })));
+  if (owner && !sees(req.user, owner.office)) throw httpError(403, 'Esta pessoa é de outro escritório');
+  const office = owner ? officeOfUser(owner) : req.user.role === 'admin' ? normOffice(req.body.office) || (req.office !== 'all' ? req.office : 'py') : officeOfUser(req.user);
+  res.json(publicLine(lines.add({ label: owner?.name || req.body.label, ownerId, office })));
 });
 app.patch('/api/lines/:id', (req, res) => {
   myLine(req.user, req.params.id);
   const patch = req.user.role === 'admin' ? req.body : { agent: req.body.agent, agentName: req.body.agentName };
+  if (req.user.role !== 'admin') delete patch.office;
   res.json(lines.update(req.params.id, patch));
 });
 app.delete('/api/lines/:id', async (req, res) => {
@@ -2703,23 +2785,42 @@ app.post('/api/update', async (req, res) => {
 });
 
 // Equipe (usuários)
+const sameOfficeUser = (req, u) => req.user.role === 'admin' || (officeOfUser(u) === officeOfUser(req.user) && u.role !== 'admin');
 app.get('/api/users', (req, res) => {
   const list = auth.list();
-  res.json(req.user.role === 'admin' ? list : list.filter((u) => u.active).map(({ id, name }) => ({ id, name })));
+  if (req.user.role === 'admin') return res.json(list.filter((u) => u.role === 'admin' || inOffice(req, u.office)));
+  const mine = list.filter((u) => u.role !== 'admin' && u.office === officeOfUser(req.user));
+  res.json(req.user.officeAdmin ? mine : mine.filter((u) => u.active).map(({ id, name }) => ({ id, name })));
 });
-app.post('/api/users', (req, res) => res.json(auth.create(req.body)));
+app.post('/api/users', (req, res) => {
+  const b = { ...(req.body || {}) };
+  if (req.user.role !== 'admin') Object.assign(b, { role: 'seller', office: officeOfUser(req.user), officeAdmin: false, pending: false });
+  else if (!normOffice(b.office)) b.office = req.office !== 'all' ? req.office : 'py';
+  res.json(auth.create(b));
+});
 app.patch('/api/users/:id', (req, res) => {
-  const user = auth.update(req.params.id, req.body);
+  const target = auth.get(req.params.id);
+  if (!target) throw httpError(404, 'Usuário não encontrado');
+  if (!sameOfficeUser(req, target)) throw httpError(403, 'Esta pessoa é de outro escritório');
+  let body = req.body || {};
+  if (req.user.role !== 'admin') {
+    if (target.id === req.user.id) throw httpError(403, 'Peça ao administrador para mudar o seu próprio acesso');
+    body = Object.fromEntries(Object.entries(body).filter(([k]) => ['name', 'whatsapp', 'active', 'receivesLeads', 'sectors', 'password'].includes(k)));
+  }
+  const user = auth.update(req.params.id, body);
   // A conexão do vendedor leva o nome dele.
   const line = lines.byOwner(user.id);
   if (line && line.label !== user.name) lines.update(line.id, { label: user.name });
   // Trocou o WhatsApp do cadastro: confere de novo com o número conectado.
   if (line?.phone && req.body.whatsapp !== undefined) lines.update(line.id, { verified: user.whatsapp ? samePhone(user.whatsapp, line.phone) : null });
+  // Trocou de escritório: o número de WhatsApp dele vai junto.
+  if (line && body.office !== undefined && req.user.role === 'admin') lines.update(line.id, { office: user.office || 'py' });
   res.json(user);
 });
 app.post('/api/users/:id/approve', async (req, res) => {
   const u = auth.get(req.params.id);
   if (!u) throw httpError(404, 'Usuário não encontrado');
+  if (!sameOfficeUser(req, u)) throw httpError(403, 'Esta pessoa é de outro escritório');
   const user = auth.update(u.id, { active: true });
   securityEvent('cadastro_liberado', req.user, req, u.name);
   const base = publicBase();
@@ -2732,6 +2833,7 @@ app.post('/api/users/:id/approve', async (req, res) => {
 app.post('/api/users/:id/reject', (req, res) => {
   const u = auth.get(req.params.id);
   if (!u) throw httpError(404, 'Usuário não encontrado');
+  if (!sameOfficeUser(req, u)) throw httpError(403, 'Esta pessoa é de outro escritório');
   if (!u.pending) throw httpError(400, 'Só dá para recusar cadastros que aguardam liberação');
   auth.remove(u.id);
   securityEvent('cadastro_recusado', req.user, req, u.name);
@@ -2742,7 +2844,7 @@ app.post('/api/users/:id/transfer', (req, res) => res.json(crm.transfer(req.user
 
 // CRM: prospectos
 app.get('/api/crm/stages', (_req, res) => res.json({ stages: STAGES, packages: store.settings.crm?.packages || [] }));
-app.get('/api/leads', (req, res) => res.json(crm.list(req.user, req.query)));
+app.get('/api/leads', (req, res) => res.json(crm.list(req.user, req.query).filter((l) => inOffice(req, l.office || crm.officeOf(l)))));
 app.post('/api/leads', (req, res) => res.json(crm.create(req.user, req.body)));
 app.post('/api/leads/from-conversation', (req, res) => {
   const conv = agent.conversation(String(req.body.key || ''), { create: false });
@@ -2935,7 +3037,8 @@ closing.onFilled = async (f) => {
   return null;
 };
 // Orçamentos: cada vendedor vê os dele; o administrador vê todos.
-const canSeeQuote = (user, q) => user.role === 'admin' || q.createdBy?.id === user.id;
+const quoteOffice = (q) => normOffice(q.office) || officeOfUser(auth.get(q.createdBy?.id));
+const canSeeQuote = (user, q) => user.role === 'admin' || (sees(user, quoteOffice(q)) && (Boolean(user.officeAdmin) || q.createdBy?.id === user.id));
 const quoteView = (q) => ({
   id: q.id, number: q.number, client: q.client, phone: q.phone, consultant: q.consultant, total: q.plan.total, entry: q.plan.entry,
   items: q.items.map((r) => ({ name: r.name, qty: r.qty })), issued: q.issued, validUntil: q.validUntil, leadId: q.leadId,
@@ -2945,7 +3048,7 @@ const quoteView = (q) => ({
 });
 app.get('/api/quotes', (req, res) => {
   const term = String(req.query.q || '').toLowerCase().trim();
-  const list = quotes.list.filter((q) => canSeeQuote(req.user, q))
+  const list = quotes.list.filter((q) => canSeeQuote(req.user, q) && inOffice(req, quoteOffice(q)))
     .filter((q) => !term || [q.number, q.client, q.phone, q.consultant].some((x) => String(x || '').toLowerCase().includes(term)))
     .slice(-300).reverse().map(quoteView);
   res.json(list);
@@ -3238,9 +3341,9 @@ app.post('/api/conversations/:key/closing/:action', async (req, res) => {
 });
 // ---------- Contratos e vendas ----------
 const lotStock = () => realty.listDevelopments().map((d) => ({ name: d.name, ...d.summary }));
-app.get('/api/sales', (req, res) => res.json(sales.listFor(req.user, req.query)));
+app.get('/api/sales', (req, res) => res.json(sales.listFor(req.user, req.query).filter((s) => inOffice(req, sales.officeOf(s)))));
 app.get('/api/sales/summary', (req, res) => {
-  const out = sales.summary(req.user, req.query);
+  const out = sales.summary(req.user, { ...req.query, office: req.office !== 'all' ? req.office : '' });
   if (req.user.role === 'admin') out.stock = lotStock();
   out.defaultPct = Number(store.settings.sales?.commissionPct) || 0;
   out.affiliateSellerPct = store.settings.sales?.affiliateSellerPct ?? null;
@@ -3531,7 +3634,7 @@ app.get('/api/crm/handoffs', (req, res) => {
 });
 app.get('/api/crm/stats', (req, res) => {
   const ownerId = req.user.role === 'admin' ? req.query.owner || undefined : req.user.id;
-  res.json(crm.stats({ from: req.query.from, to: req.query.to, ownerId }));
+  res.json(crm.stats({ from: req.query.from, to: req.query.to, ownerId, office: req.office !== 'all' ? req.office : '' }));
 });
 // Dados de exemplo (só o administrador)
 app.get('/api/demo', (_req, res) => res.json({ loaded: hasDemo(store) }));
@@ -3547,7 +3650,8 @@ app.delete('/api/demo', (_req, res) => {
 });
 app.get('/api/crm/ranking', (req, res) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? req.query.month : currentMonth();
-  res.json(buildRanking({ leads: crm.leads, users: auth.users, settings: store.settings, month, today: toDateStr(new Date()) }));
+  // Cada escritório tem o próprio ranking (a equipe de um não vê os números do outro).
+  res.json(buildRanking({ leads: crm.leads.filter((l) => inOffice(req, crm.officeOf(l))), users: auth.users.filter((u) => inOffice(req, u.role === 'admin' ? 'py' : u.office)), settings: store.settings, month, today: toDateStr(new Date()) }));
 });
 app.post('/api/brand/logo', multer({ storage: multer.memoryStorage(), limits: { fileSize: 2_000_000 } }).single('file'), (req, res) => {
   if (!req.file || !/^image\/(png|jpeg|webp|svg\+xml)$/.test(req.file.mimetype)) throw httpError(400, 'Envie uma imagem PNG, JPG, WEBP ou SVG');

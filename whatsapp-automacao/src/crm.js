@@ -4,6 +4,7 @@
 import { normalizePhone, uid } from './utils.js';
 import { toDateStr } from './agent/calendar.js';
 
+import { normOffice, officeOfUser, sees } from './offices.js';
 export const STAGES = [
   { id: 'novo', label: 'Novo' },
   { id: 'em_contato', label: 'Em contato' },
@@ -68,8 +69,15 @@ export class Crm {
   }
 
   // ---------- Permissões ----------
+  /** Escritório do prospecto: o marcado, ou o do vendedor dono, ou o Paraguai. */
+  officeOf(lead) {
+    return normOffice(lead.office) || (lead.ownerId && this.auth.get(lead.ownerId) ? officeOfUser(this.auth.get(lead.ownerId)) : 'py');
+  }
+
   canSee(user, lead) {
-    return user.role === 'admin' || !lead.ownerId || lead.ownerId === user.id;
+    if (user.role === 'admin') return true;
+    if (!sees(user, this.officeOf(lead))) return false;
+    return Boolean(user.officeAdmin) || !lead.ownerId || lead.ownerId === user.id;
   }
 
   #mustSee(user, id) {
@@ -171,6 +179,7 @@ export class Crm {
       followUpReason: '',
       lostReason: '',
       conversationKey: input.conversationKey || null,
+      office: normOffice(input.office) || normOffice(this.officeOfKey?.(input.conversationKey)) || (user.role === 'admin' ? 'py' : officeOfUser(user)),
       aiSummary: '',
       timeline: [],
       createdAt: new Date().toISOString(),
@@ -273,6 +282,7 @@ export class Crm {
     if (ownerId && !owner) throw err(400, 'Vendedor não encontrado');
     if ((lead.ownerId || null) === (ownerId || null)) return;
     lead.ownerId = ownerId || null;
+    if (owner) lead.office = officeOfUser(owner); // o prospecto passa a ser do escritório de quem o recebeu
     lead.assignedAt = new Date().toISOString();
     this.#log(lead, user, 'dono', owner ? `Responsável: ${owner.name}${how ? ` (${how})` : ''}` : 'Sem responsável (disponível para a equipe)', { toId: ownerId || null });
   }
@@ -296,15 +306,15 @@ export class Crm {
 
   // ---------- Rodízio de vendedores ----------
   /** Quem está no rodízio: ativo, com WhatsApp e com "recebe clientes" ligado. */
-  rotation() {
-    // Quem foi marcado só para terrenos ou veículos não recebe o rodízio da migração.
-    return this.auth.users.filter((u) => u.active !== false && u.whatsapp && (u.receivesLeads ?? u.role === 'seller') && (!u.sectors?.length || u.sectors.includes('documentacao')));
+  rotation(office = null) {
+    // Quem foi marcado só para terrenos ou veículos não recebe o rodízio da migração. Cada escritório roda só com a própria equipe.
+    return this.auth.users.filter((u) => (!office || officeOfUser(u) === office) && u.active !== false && u.whatsapp && (u.receivesLeads ?? u.role === 'seller') && (!u.sectors?.length || u.sectors.includes('documentacao')));
   }
 
   /** Próximo da vez: quem recebeu cliente há mais tempo (ou nunca recebeu). */
-  nextSeller(pool = null) {
+  nextSeller(pool = null, office = null) {
     // Com "pool", vale só quem passa no filtro (ex.: quem aceita indicações de parceiros), dentro ou fora do rodízio comum.
-    const list = pool ? this.auth.users.filter((u) => u.active !== false && !u.pending && u.whatsapp && pool(u)) : this.rotation();
+    const list = pool ? this.auth.users.filter((u) => u.active !== false && !u.pending && u.whatsapp && (!office || officeOfUser(u) === office) && pool(u)) : this.rotation(office);
     if (!list.length) return null;
     return [...list].sort((a, b) => (a.rotationSeq || 0) - (b.rotationSeq || 0) || a.name.localeCompare(b.name))[0];
   }
@@ -313,7 +323,7 @@ export class Crm {
   routeLead(lead, { reason = 'rodízio', pool = null } = {}) {
     const current = lead.ownerId ? this.auth.get(lead.ownerId) : null;
     if (current && current.active !== false && current.whatsapp) return current;
-    const seller = this.nextSeller(pool);
+    const seller = this.nextSeller(pool, this.officeOf(lead));
     if (!seller) return null;
     this.#assign('Sistema', lead, seller.id, reason);
     seller.lastLeadAt = new Date().toISOString();
@@ -529,9 +539,9 @@ export class Crm {
       .sort((a, b) => String(b.at).localeCompare(String(a.at)));
   }
 
-  stats({ from, to, ownerId } = {}) {
+  stats({ from, to, ownerId, office = '' } = {}) {
     const inRange = (iso) => (!from || iso.slice(0, 10) >= from) && (!to || iso.slice(0, 10) <= to);
-    const all = this.leads.filter((l) => !ownerId || l.ownerId === ownerId);
+    const all = this.leads.filter((l) => (!ownerId || l.ownerId === ownerId) && (!office || this.officeOf(l) === office));
     const created = all.filter((l) => inRange(l.createdAt));
     const won = all.filter((l) => l.stage === 'ganho' && l.closedAt && inRange(l.closedAt));
     const lostInRange = all.filter((l) => l.stage === 'perdido' && inRange(l.updatedAt));

@@ -3,6 +3,7 @@
 // e entra em contato. Com mais de um atendente no setor, vai um de cada vez (rodízio).
 import { chatPreview, REPEAT_MS } from './routing.js';
 import { normalizePhone, samePhone } from './utils.js';
+import { officeOfUser } from './offices.js';
 
 export const SECTORS = {
   loteamentos: {
@@ -63,10 +64,10 @@ export class Sectors {
    * Quem atende o setor: as pessoas da Equipe marcadas com essa área (ativas e com WhatsApp)
    * e, por compatibilidade, nomes antigos da lista de Regras que não têm cadastro na Equipe.
    */
-  people(id) {
+  people(id, office = null) {
     const users = this.auth?.users || [];
-    const flagged = users.filter((u) => u.active !== false && !u.pending && u.whatsapp && (u.sectors || []).includes(id)).map((u) => ({ name: u.name, whatsapp: u.whatsapp }));
-    const legacy = resolvePeople(this.config[id]?.people, users).filter((p) => !flagged.some((f) => samePhone(f.whatsapp, p.whatsapp)));
+    const flagged = users.filter((u) => u.active !== false && !u.pending && u.whatsapp && (u.sectors || []).includes(id) && (!office || officeOfUser(u) === office)).map((u) => ({ name: u.name, whatsapp: u.whatsapp }));
+    const legacy = (office && office !== 'py' ? [] : resolvePeople(this.config[id]?.people, users)).filter((p) => !flagged.some((f) => samePhone(f.whatsapp, p.whatsapp)));
     return [...flagged, ...legacy];
   }
 
@@ -88,8 +89,8 @@ export class Sectors {
   }
 
   /** Próximo atendente do setor (rodízio). Devolve { name, whatsapp, id } (id = usuário do painel com o mesmo WhatsApp). */
-  next(id) {
-    const list = this.people(id);
+  next(id, office = null) {
+    const list = this.people(id, office);
     if (!list.length) return null;
     const i = (this.store.data.sectorSeq[id] || 0) % list.length;
     this.store.data.sectorSeq[id] = i + 1;
@@ -114,7 +115,7 @@ export class Sectors {
     if (lead?.handoff?.sector === id && Date.now() - Date.parse(lead.handoff.at || 0) < REPEAT_MS) {
       return { ok: true, setor: label, jaEncaminhado: true, instrucao: 'Este cliente já foi direcionado para o setor e o atendente já recebeu o resumo. NÃO chame esta ferramenta de novo. Diga só, em uma frase, que o correspondente vai chamar por aqui e agradeça a paciência.' };
     }
-    const person = this.next(id);
+    const person = this.next(id, this.officeOfKey?.(conv.key) || null);
     const phone = conv.phone || normalizePhone(args.telefone) || lead?.phone || '';
     const who = args.nome || lead?.name || conv.name || (phone ? `+${phone}` : conv.username ? `@${conv.username}` : 'Cliente');
     const preview = chatPreview(conv, 8);

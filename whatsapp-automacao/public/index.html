@@ -23,7 +23,8 @@
     </div>
     <nav>
       <div class="nav-group" data-admin>Visão geral</div>
-      <button data-tab="executive" data-admin>Painel executivo</button>
+      <button data-tab="executive" data-admin data-officeadmin>Painel executivo</button>
+      <button data-tab="offices" data-admin>Escritórios</button>
       <button data-tab="modules" data-admin>Módulos (standby)</button>
       <div class="nav-group">Vendas</div>
       <button data-tab="sales" data-admin>Vendas</button>
@@ -37,10 +38,10 @@
       <button data-tab="payments">Pagamentos</button>
       <button data-tab="visits" data-admin data-visitdesk>Visitas <span class="nav-badge" id="visitBadge" hidden>0</span></button>
       <button data-tab="ranking">Ranking</button>
-      <button data-tab="attendants" data-admin>Atendentes (funil)</button>
+      <button data-tab="attendants" data-admin data-officeadmin>Atendentes (funil)</button>
       <button data-tab="conversations">Conversas</button>
       <button data-tab="lines">Meu WhatsApp</button>
-      <button data-tab="team" data-admin>Equipe</button>
+      <button data-tab="team" data-admin data-officeadmin>Equipe</button>
       <div class="nav-group">Imóveis e parceiros</div>
       <button data-tab="site" data-admin>Site da Migra</button>
       <button data-tab="realty" data-admin>Imóveis</button>
@@ -741,8 +742,12 @@
             <label class="check"><input type="checkbox" name="sec_veiculos" /> Veículos (Migra Motors)</label>
             <p class="hint">Ela recebe só os clientes dessas áreas: da Nina, do Instagram, do atendimento e das indicações de parceiros. Dá para mudar a qualquer hora na lista da Equipe.</p>
           </fieldset>
-          <label>Tipo de acesso
-            <select name="role"><option value="seller">Vendedor (vê os próprios prospectos)</option><option value="admin">Administrador (vê tudo)</option></select>
+          <label data-admin-only>Escritório
+            <select name="office"><option value="py">Migra Paraguai</option><option value="pr">Migra Paraná</option></select>
+          </label>
+          <label class="check" data-admin-only><input type="checkbox" name="officeAdmin" /> Administrador do escritório (cuida da equipe e dos resultados só do escritório dele)</label>
+          <label data-admin-only>Tipo de acesso
+            <select name="role"><option value="seller">Vendedor (vê os próprios prospectos)</option><option value="admin">Administrador geral (vê os dois escritórios)</option></select>
           </label>
           <button class="btn primary">Cadastrar</button>
         </form>
@@ -1656,5 +1661,6 @@
   <script src="retomar.js"></script>
   <script src="executivo.js"></script>
   <script src="site-admin.js"></script>
+  <script src="escritorios.js"></script>
 </body>
 </html>

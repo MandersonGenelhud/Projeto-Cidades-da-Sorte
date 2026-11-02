@@ -23,6 +23,7 @@ export function checkPassword(password, stored) {
 }
 
 /** Áreas em que a pessoa atende (recebe clientes da IA, da Nina, do Instagram e das indicações). */
+import { normOffice } from './offices.js';
 export const SECTOR_IDS = ['documentacao', 'loteamentos', 'veiculos'];
 const cleanSectors = (v) => [...new Set((Array.isArray(v) ? v : []).filter((x) => SECTOR_IDS.includes(x)))];
 
@@ -32,6 +33,8 @@ const publicUser = (u) => (u ? {
   twoFactor: Boolean(u.totpEnabled), pending: Boolean(u.pending), requestedAt: u.requestedAt || null, commissionPct: u.commissionPct ?? null, affiliateCommissionPct: u.affiliateCommissionPct ?? null,
   receivesAffiliateLeads: Boolean(u.receivesAffiliateLeads), refCode: u.refCode || '', sectors: cleanSectors(u.sectors),
   manager: Boolean(u.manager) && u.role !== 'admin',
+  office: u.role === 'admin' ? null : normOffice(u.office) || 'py',
+  officeAdmin: Boolean(u.officeAdmin) && u.role !== 'admin',
 } : null);
 
 export class Auth {
@@ -41,6 +44,10 @@ export class Auth {
     const secretFile = path.join(dataDir, 'secret.key');
     if (!fs.existsSync(secretFile)) fs.writeFileSync(secretFile, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
     this.secret = fs.readFileSync(secretFile, 'utf8').trim();
+    // Quem já existia (antes dos escritórios) é do Paraguai.
+    let changed = false;
+    for (const u of this.users) if (u.role !== 'admin' && !normOffice(u.office)) { u.office = 'py'; changed = true; }
+    if (changed) store.save();
   }
 
   get users() {
@@ -63,7 +70,7 @@ export class Auth {
     return this.users.filter((u) => u.active !== false);
   }
 
-  create({ name, login, password, role = 'seller', whatsapp = '', receivesLeads, pending = false, sectors = [] }) {
+  create({ name, login, password, role = 'seller', whatsapp = '', receivesLeads, pending = false, sectors = [], office = 'py', officeAdmin = false }) {
     name = String(name || '').trim();
     login = String(login || '').trim().toLowerCase();
     if (!name) throw Object.assign(new Error('Informe o nome'), { status: 400 });
@@ -80,6 +87,8 @@ export class Auth {
       receivesLeads: receivesLeads === undefined ? role !== 'admin' : Boolean(receivesLeads),
       active: !pending,
       sectors: cleanSectors(sectors),
+      office: role === 'admin' ? null : normOffice(office) || 'py',
+      officeAdmin: role !== 'admin' && Boolean(officeAdmin),
       ...(pending ? { pending: true, requestedAt: new Date().toISOString() } : {}),
       createdAt: new Date().toISOString(),
     };
@@ -106,6 +115,8 @@ export class Auth {
     if (patch.receivesLeads !== undefined) u.receivesLeads = Boolean(patch.receivesLeads);
     if (patch.sectors !== undefined) u.sectors = cleanSectors(patch.sectors);
     if (patch.manager !== undefined) u.manager = Boolean(patch.manager);
+    if (patch.office !== undefined && u.role !== 'admin') u.office = normOffice(patch.office) || u.office || 'py';
+    if (patch.officeAdmin !== undefined) u.officeAdmin = u.role !== 'admin' && Boolean(patch.officeAdmin);
     if (patch.receivesAffiliateLeads !== undefined) u.receivesAffiliateLeads = Boolean(patch.receivesAffiliateLeads);
     if (patch.password) {
       if (String(patch.password).length < 6) throw Object.assign(new Error('A senha precisa ter pelo menos 6 caracteres'), { status: 400 });

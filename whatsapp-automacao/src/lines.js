@@ -75,14 +75,14 @@ export class LineManager extends EventEmitter {
     return ownerId ? this.lines.find((l) => l.ownerId === ownerId) || null : null;
   }
 
-  add({ label, ownerId = null }) {
+  add({ label, ownerId = null, office = null }) {
     const existing = this.byOwner(ownerId);
     if (existing) {
       if (!this.clients.has(existing.id)) this.start(existing.id).catch((err) => this.emit('log', { type: 'error', message: `${existing.label}: ${err.message}` }));
       return existing;
     }
     if (this.lines.length >= MAX_LINES) throw Object.assign(new Error(`O limite é de ${MAX_LINES} números da equipe`), { status: 400 });
-    const line = { id: crypto.randomBytes(4).toString('hex'), label: String(label || `Número ${this.lines.length + 1}`).trim(), ownerId: ownerId || null, agent: true, createdAt: new Date().toISOString() };
+    const line = { id: crypto.randomBytes(4).toString('hex'), label: String(label || `Número ${this.lines.length + 1}`).trim(), ownerId: ownerId || null, ...(office ? { office } : {}), agent: true, createdAt: new Date().toISOString() };
     this.#save([...this.lines, line]);
     this.start(line.id).catch((err) => this.emit('log', { type: 'error', message: `${line.label}: ${err.message}` }));
     return line;
@@ -95,6 +95,7 @@ export class LineManager extends EventEmitter {
     if (patch.label !== undefined) next.label = String(patch.label).trim() || line.label;
     if (patch.ownerId !== undefined) next.ownerId = patch.ownerId || null;
     if (patch.agent !== undefined) next.agent = Boolean(patch.agent);
+    if (patch.office !== undefined) next.office = patch.office === 'pr' ? 'pr' : 'py';
     if (patch.agentName !== undefined) next.agentName = cleanAgentName(patch.agentName);
     // Número que conectou e se ele confere com o cadastro do vendedor (true, false ou null = sem cadastro).
     if (patch.phone !== undefined) next.phone = patch.phone || '';

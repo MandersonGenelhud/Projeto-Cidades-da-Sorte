@@ -142,7 +142,10 @@ export class Agent {
     const closing = Boolean(this.sendForm) && settings.closing?.enabled !== false;
     // Cada WhatsApp de vendedor pode ter o nome da própria atendente (assim ninguém confunde uma com a outra).
     const nameHere = this.agentNameFor ? this.agentNameFor(conv) : '';
-    const promptSettings = nameHere ? { ...settings, agent: { ...settings.agent, agentName: nameHere } } : settings;
+    // IA própria do escritório (Paraná tem a sua): nome, texto do negócio e instruções; o nome do número, se houver, vale mais.
+    const ov = this.officeSettingsFor ? this.officeSettingsFor(conv) : null;
+    const base = ov ? { ...settings, business: { ...settings.business, ...(ov.business || {}) }, agent: { ...settings.agent, ...(ov.agent || {}) } } : settings;
+    const promptSettings = nameHere ? { ...base, agent: { ...base.agent, agentName: nameHere } } : base;
     let system = buildSystemPrompt(promptSettings, { now: this.now(), contactName: conv.name, channel, routing, closing });
     if (note) system += `\n\n# Este WhatsApp\n${note}`;
     const known = this.contextFor ? this.contextFor(conv) : '';

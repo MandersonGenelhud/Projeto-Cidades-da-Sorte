@@ -2,6 +2,7 @@
 // e a comissão do vendedor. O administrador vê e edita tudo; o vendedor vê só as vendas dele.
 // Toda alteração fica no histórico da venda (quem, quando e o que mudou).
 import crypto from 'node:crypto';
+import { normOffice, officeOfUser, sees } from './offices.js';
 
 const err = (status, message) => Object.assign(new Error(message), { status });
 const cents = (v) => Math.round(Number(v || 0) * 100) / 100;
@@ -28,8 +29,13 @@ export class Sales {
     return this.list.find((s) => s.id === id) || null;
   }
 
+  officeOf(sale) {
+    return normOffice(sale.office) || officeOfUser(this.auth.get(sale.sellerId));
+  }
+
   canSee(user, sale) {
-    return user.role === 'admin' || sale.sellerId === user.id;
+    if (user.role === 'admin') return true;
+    return sees(user, this.officeOf(sale)) && (Boolean(user.officeAdmin) || sale.sellerId === user.id);
   }
 
   #mustSee(user, id) {
@@ -101,6 +107,7 @@ export class Sales {
       // Parceiro que indicou: a comissão dele é paga em Indicadores (aqui fica só a referência).
       affiliate: ref ? { id: ref.id, name: ref.name, percent: ref.percent, fixed: ref.fixed, value: cents((p.total * (ref.percent || 0)) / 100 + (ref.fixed || 0)) } : null,
       status: 'ativa',
+      office: normOffice(quote.office) || officeOfUser(seller),
       createdAt: new Date().toISOString(),
       createdBy: by?.name || by || 'Sistema',
       history: [],
@@ -221,9 +228,9 @@ export class Sales {
   }
 
   /** Números do painel: vendas do período e recebimentos do período. */
-  summary(user, { from = '', to = '', seller = '' } = {}) {
+  summary(user, { from = '', to = '', seller = '', office = '' } = {}) {
     const inRange = (iso) => Boolean(iso) && (!from || iso.slice(0, 10) >= from) && (!to || iso.slice(0, 10) <= to);
-    const all = this.list.filter((s) => this.canSee(user, s) && s.status !== 'cancelada' && (!seller || s.sellerId === seller));
+    const all = this.list.filter((s) => this.canSee(user, s) && s.status !== 'cancelada' && (!seller || s.sellerId === seller) && (!office || this.officeOf(s) === office));
     const sold = all.filter((s) => inRange(s.createdAt));
     const t = today();
     const sum = (arr, fn) => cents(arr.reduce((x, y) => x + fn(y), 0));

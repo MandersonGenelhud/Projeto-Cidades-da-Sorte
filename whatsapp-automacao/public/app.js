@@ -31,6 +31,8 @@ function toast(message, isError = false) {
 
 async function api(url, { method = 'GET', body, form } = {}) {
   const opts = { method, headers: {} };
+  // Administrador geral: o escritório escolhido no topo vai junto em cada pedido.
+  try { const off = window.currentUser?.role === 'admin' ? localStorage.getItem('migraOffice') : ''; if (off === 'py' || off === 'pr') opts.headers['X-Office'] = off; } catch { /* sem armazenamento */ }
   if (form) opts.body = form;
   else if (body !== undefined) {
     opts.headers['Content-Type'] = 'application/json';
@@ -77,7 +79,7 @@ const lines = (text) => String(text || '').split(/[\n,;]+/).map((s) => s.trim())
 const loaders = {};
 function showTab(name) {
   const btn = $(`nav button[data-tab="${name}"]`);
-  if (!btn || (btn.hasAttribute('data-admin') && window.currentUser?.role !== 'admin')) name = window.currentUser?.role === 'admin' ? 'sales' : 'leads';
+  if (!btn || (btn.hasAttribute('data-admin') && window.currentUser?.role !== 'admin' && !(btn.hasAttribute('data-officeadmin') && window.currentUser?.officeAdmin))) name = window.currentUser?.role === 'admin' ? 'sales' : 'leads';
   $$('nav button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   $$('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
   location.hash = name;
@@ -1683,12 +1685,27 @@ $('#btnSignOut').addEventListener('click', async () => {
   window.currentUser = state.user;
   const admin = state.user.role === 'admin';
   document.body.classList.toggle('seller', !admin);
+  document.body.classList.toggle('office-admin', Boolean(state.user.officeAdmin));
   // Quem cuida das visitas (ex.: Silvani) vê a aba Visitas mesmo sem ser administrador.
   // Caixa: só aparece para o administrador liberado.
   if (state.user.cashAccess) $$('[data-cash]').forEach((el) => (el.hidden = false));
   if (admin || state.user.manager) $$('[data-staff]').forEach((el) => (el.hidden = false));
   if (state.user.visitDesk) $$('[data-visitdesk]').forEach((el) => el.removeAttribute('data-admin'));
   $('#userName').textContent = state.user.name;
+  // Escritório: o administrador geral escolhe qual enxergar; a equipe vê só o próprio.
+  try {
+    const o = await api('/api/offices');
+    const names = Object.fromEntries(o.offices.map((x) => [x.id, x.name]));
+    window.officeNames = names;
+    const slot = $('.user-menu');
+    if (admin) {
+      const cur = localStorage.getItem('migraOffice') || '';
+      slot.insertAdjacentHTML('afterbegin', `<select id="officeSwitch" class="office-switch" aria-label="Escritório"><option value="">Todos os escritórios</option>${o.offices.map((x) => `<option value="${x.id}" ${cur === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`);
+      $('#officeSwitch').addEventListener('change', (e) => { try { localStorage.setItem('migraOffice', e.target.value); } catch { /* ok */ } location.reload(); });
+    } else if (state.user.office) {
+      slot.insertAdjacentHTML('afterbegin', `<span class="office-chip">${esc(names[state.user.office] || '')}</span>`);
+    }
+  } catch { /* sem escritórios, segue como antes */ }
   $('#userAvatar').textContent = state.user.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
   $('#userAvatar').title = admin ? 'Administrador' : 'Vendedor';
   $('#topSearch').addEventListener('submit', (e) => {

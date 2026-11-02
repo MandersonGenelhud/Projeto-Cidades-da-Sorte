@@ -1139,3 +1139,11 @@ tbody tr:hover td { background: color-mix(in srgb, var(--blue) 6%, transparent);
 
 /* ---------- Fundo da Migra: curvas de nível e fios dourados, para o vidro mostrar o que há por trás ---------- */
 body { background: url('img/fundo-migra.svg') center / cover no-repeat fixed, var(--app-bg); background-attachment: fixed; }
+
+/* ---------- Escritórios ---------- */
+.office-switch { font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--glass-border, var(--border)); background: var(--panel); color: var(--text); max-width: 190px; min-height: 40px; }
+.office-chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--blue, #2f7fd1) 14%, transparent); color: var(--blue, #2f7fd1); white-space: nowrap; }
+body.seller.office-admin [data-officeadmin] { display: flex !important; }
+.office-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.office-cmp td, .office-cmp th { white-space: nowrap; }
+@media (max-width: 800px) { .office-switch { max-width: 120px; font-size: 13px; } }

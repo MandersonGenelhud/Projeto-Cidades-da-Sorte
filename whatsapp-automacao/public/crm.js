@@ -608,7 +608,8 @@ async function refreshDueBadge() {
 // ---------- EQUIPE ----------
 const SECTOR_BTNS = [['documentacao', 'Documentação'], ['loteamentos', 'Terrenos'], ['veiculos', 'Veículos']];
 loaders.team = async () => {
-  const [users, settings, myLines] = await Promise.all([api('/api/users'), api('/api/settings'), api('/api/lines').catch(() => [])]);
+  const [users, settings, myLines] = await Promise.all([api('/api/users'), api('/api/settings').catch(() => ({})), api('/api/lines').catch(() => [])]);
+  $$('#formUser [data-admin-only]').forEach((el) => (el.hidden = window.currentUser?.role !== 'admin'));
   const lineOf = (u) => myLines.find((l) => l.ownerId === u.id);
   const active = users.filter((u) => u.active);
   const inRotation = active.filter((u) => u.whatsapp && u.receivesLeads)
@@ -623,7 +624,7 @@ loaders.team = async () => {
       <button class="btn small primary" data-act="approve">Liberar</button><button class="btn small danger" data-act="reject">Recusar</button></div>`).join('')}` : '';
   $('#teamList').innerHTML = users.filter((u) => !u.pending).map((u) => `
     <div class="item ${u.active ? '' : 'disabled'}" data-user="${esc(u.id)}">
-      <div class="grow"><b>${esc(u.name)}</b> ${u.role === 'admin' ? '<span class="badge running">Administrador</span>' : '<span class="badge pending">Vendedor</span>'}
+      <div class="grow"><b>${esc(u.name)}</b> ${u.role === 'admin' ? '<span class="badge running">Administrador geral</span>' : `<span class="badge pending">${u.officeAdmin ? 'Administrador do escritório' : 'Vendedor'}</span> <span class="office-chip">${esc((window.officeNames || {})[u.office] || '')}</span>`}
         ${u.active ? '' : '<span class="badge canceled">Inativo</span>'} ${u.twoFactor ? '<span class="badge done">2 etapas</span>' : '<span class="badge paused">só senha</span>'}
         <div class="meta">login: ${esc(u.login)}${u.whatsapp ? ` · WhatsApp ${esc(fmtPhone(u.whatsapp))}` : ' · sem WhatsApp (fora do rodízio)'}
           · ${u.receivesLeads && u.whatsapp ? `no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : 'fora do rodízio'}
@@ -632,13 +633,14 @@ loaders.team = async () => {
       ${u.active ? `<div class="sector-btns" title="Em que áreas esta pessoa atende">${SECTOR_BTNS.map(([id, label]) => `<button class="btn small ${(u.sectors || []).includes(id) ? 'primary' : ''}" data-act="sector" data-sector="${id}" aria-pressed="${(u.sectors || []).includes(id)}">${label}</button>`).join('')}</div>` : ''}
       ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? 'Pausar rodízio' : '▶Pôr no rodízio'}</button>
         <button class="btn small" data-act="affleads" title="Indicações de parceiros pagam comissão menor ao vendedor">${u.receivesAffiliateLeads ? 'Parar indicações' : 'Receber indicações'}</button>
+        ${u.role !== 'admin' && window.currentUser?.role === 'admin' ? `<button class="btn small ${u.officeAdmin ? 'primary' : ''}" data-act="officeadmin" title="Administrador do escritório cuida da equipe e dos resultados só do escritório dele">${u.officeAdmin ? 'É admin do escritório' : 'Tornar admin do escritório'}</button><button class="btn small" data-act="office">Mudar de escritório</button>` : ''}
         ${u.role !== 'admin' ? `<button class="btn small ${u.manager ? 'primary' : ''}" data-act="manager" title="Gerente cadastra mapas, lotes, veículos e alunos (nunca exclui)">${u.manager ? 'É gerente' : 'Tornar gerente'}</button>` : ''}` : ''}
       <button class="btn small" data-act="edit">Editar</button>
       <button class="btn small" data-act="password">Senha</button>
       ${u.id === window.currentUser.id ? '' : `<button class="btn small ${u.active ? 'danger' : ''}" data-act="toggle">${u.active ? 'Desativar' : 'Reativar'}</button>`}
       <button class="btn small" data-act="transfer" title="Passar os prospectos em aberto para outra pessoa">Passar carteira</button>
     </div>`).join('');
-  $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads, receivesAffiliateLeads, sectors, manager }) => ({ id, name, receivesLeads, receivesAffiliateLeads, sectors, manager })));
+  $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads, receivesAffiliateLeads, sectors, manager, officeAdmin, office }) => ({ id, name, receivesLeads, receivesAffiliateLeads, sectors, manager, officeAdmin, office })));
   renderSystemLinks().catch(() => {});
   loaders.lines().catch(() => {});
 
@@ -686,6 +688,14 @@ $('#teamList').addEventListener('click', async (e) => {
       const now = new Set(u?.sectors || []);
       if (now.has(sec)) now.delete(sec); else now.add(sec);
       await api(`/api/users/${id}`, { method: 'PATCH', body: { sectors: [...now] } });
+    } else if (act === 'officeadmin') {
+      const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
+      await api(`/api/users/${id}`, { method: 'PATCH', body: { officeAdmin: !u?.officeAdmin } });
+    } else if (act === 'office') {
+      const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
+      const to = u?.office === 'pr' ? 'py' : 'pr';
+      if (!confirm(`Passar ${u?.name} para ${(window.officeNames || {})[to]}? O número de WhatsApp dela vai junto.`)) return;
+      await api(`/api/users/${id}`, { method: 'PATCH', body: { office: to } });
     } else if (act === 'manager') {
       const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
       await api(`/api/users/${id}`, { method: 'PATCH', body: { manager: !u?.manager } });
@@ -725,7 +735,7 @@ $('#teamList').addEventListener('click', async (e) => {
 
 $('#formUser').addEventListener('submit', withBusy($('#formUser'), async (e) => {
   const f = e.target;
-  await api('/api/users', { method: 'POST', body: { ...Object.fromEntries(new FormData(f)), receivesLeads: f.receivesLeads.checked, sectors: ['documentacao', 'loteamentos', 'veiculos'].filter((id) => f[`sec_${id}`].checked) } });
+  await api('/api/users', { method: 'POST', body: { ...Object.fromEntries(new FormData(f)), receivesLeads: f.receivesLeads.checked, officeAdmin: f.officeAdmin?.checked || false, sectors: ['documentacao', 'loteamentos', 'veiculos'].filter((id) => f[`sec_${id}`].checked) } });
   toast(`Cadastrado! Passe o login "${f.login.value}" e a senha. A pessoa já aparece em Conexões WhatsApp para conectar o WhatsApp dela.`);
   f.reset();
   crmState.stages = [];
