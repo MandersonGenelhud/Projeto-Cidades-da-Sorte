@@ -58,6 +58,9 @@ test('perfis na prática: vendedor não exclui, gerente cadastra mas não exclui
   assert.equal((await seller('/api/finance/config', 'PUT', { minEntryPct: 1 })).status, 403);
   assert.equal((await seller('/api/audit')).status, 403);
   assert.equal((await seller('/api/school/summary')).status, 403);
+  assert.equal((await seller('/api/attendants')).status, 403);
+  assert.equal((await manager('/api/attendants')).status, 403);
+  assert.equal((await admin('/api/attendants')).status, 200);
   assert.equal((await seller('/api/realty/developments', 'POST', { name: 'Invasão' })).status, 403);
 
   // Reserva: faltando dados → 400; completa → 200; vendedor não confirma o próprio pagamento.

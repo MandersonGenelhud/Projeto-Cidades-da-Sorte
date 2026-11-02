@@ -1013,3 +1013,47 @@ tbody tr:hover td { background: color-mix(in srgb, var(--blue) 6%, transparent);
 .sector-pick legend{font-weight:600;padding:0 6px}
 
 .notice-sample{white-space:pre-wrap;background:rgba(0,0,0,.04);border-radius:8px;padding:10px;font:inherit;font-size:.9em}
+
+/* ---------- Atendentes (funil por pessoa) ---------- */
+.att-intro { max-width: 70ch; }
+.att-funnel { display: grid; gap: 10px; margin: 10px 0; }
+.att-step-top { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; }
+.att-step-top b { font-size: 20px; }
+.att-bar { height: 14px; background: var(--border); border-radius: 8px; overflow: hidden; }
+.att-bar i { display: block; height: 100%; background: var(--green); border-radius: 8px; }
+.att-step small { color: var(--muted); font-size: 12px; }
+.att-foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-weight: 600; }
+.att-sources { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.att-summary-grid { display: grid; grid-template-columns: minmax(280px, 1fr) 1fr; gap: 24px; }
+.att-cols { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(320px, 360px); gap: 14px; overflow-x: auto; padding-bottom: 12px; align-items: start; }
+.att-col { margin: 0; }
+.att-col-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.att-convs { display: grid; gap: 8px; max-height: 520px; overflow-y: auto; }
+.att-conv { text-align: left; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+.att-conv:hover, .att-conv.active { border-color: var(--green); }
+.att-conv-top { display: flex; justify-content: space-between; gap: 8px; }
+.att-conv-top small { color: var(--muted); white-space: nowrap; }
+.att-last { color: var(--muted); font-size: 13px; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.att-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100vw); background: var(--panel); border-left: 1px solid var(--border); box-shadow: -8px 0 24px rgba(0,0,0,.18); padding: 16px; overflow-y: auto; z-index: 40; }
+.att-chat { height: 62vh; overflow-y: auto; margin: 10px 0; }
+.att-chatbar { margin-top: 10px; }
+.att-h2 { margin: 18px 0 8px; font-size: 20px; }
+@media (max-width: 800px) {
+  /* Celular: letras grandes, um toque por vez, sem nada espremido. */
+  #tab-attendants { font-size: 18px; }
+  #tab-attendants .hint, .att-last, .att-step small { font-size: 16px; }
+  .att-m-list { display: grid; gap: 12px; }
+  .att-m-card { text-align: left; font: inherit; font-size: 20px; color: inherit; background: var(--panel); border: 2px solid var(--border); border-radius: 16px; padding: 16px; display: grid; gap: 6px; min-height: 72px; cursor: pointer; }
+  .att-m-card small { font-size: 16px; color: var(--muted); }
+  .att-m-total { border-color: var(--green); background: var(--green-soft); }
+  .att-m-nums { display: flex; gap: 18px; font-size: 22px; font-weight: 700; }
+  .att-back { width: 100%; min-height: 52px; font-size: 18px; margin-bottom: 12px; }
+  .att-step-top { font-size: 18px; } .att-step-top b { font-size: 26px; }
+  .att-bar { height: 18px; }
+  .att-conv { padding: 14px; font-size: 18px; min-height: 72px; }
+  .att-convs { max-height: none; }
+  .att-chat { height: auto; max-height: 60vh; }
+  #tab-attendants .chat .msg { font-size: 18px; max-width: 92%; }
+  #attOpenConv { width: 100%; min-height: 52px; font-size: 17px; }
+}
+@media (max-width: 1000px) { .att-summary-grid { grid-template-columns: 1fr; } }

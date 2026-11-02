@@ -38,6 +38,7 @@ Atualizado em 31/10/2026. Tudo abaixo está no sistema depois de **Atualizar ago
 - **Perfis:** vendedor reserva e muda a situação do lote, nunca exclui nem muda preço; **gerente** (botão na Equipe) cadastra mapas, lotes, veículos e alunos e confirma reservas, mas não exclui nem mexe em juros; só o Marcos exclui, muda juros e vê a auditoria.
 - **Migra Motors:** estoque de veículos e comparação de financiamento entre bancos, financeiras e consórcios. **As taxas são cadastradas pelo Marcos** (o sistema não inventa taxa).
 - **Migra School:** alunos, etapa, nível, frequência de acesso por semana e quem sumiu há 14+ dias.
+- **Atendentes (funil)** (menu Vendas, só Marcos): conversas e prospectos separados por pessoa (Marcos, Fran, Eliezer…), número principal e Instagram sem vendedor, com funil conversas → prospecto → contato → proposta → fechamento e de onde veio cada cliente. No computador, uma coluna por pessoa numa tela só; no celular, cartões grandes: toca na pessoa e depois na conversa.
 - **Ainda falta:** sites públicos por marca, pacote de documentos e legislação de imigração, painel consolidado por empresa, número de contrato compartilhado com o site do Marcos.
 
 ## 5. Pendências suas

@@ -34,6 +34,7 @@ import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Audit } from './audit.js';
+import { byAttendant } from './attendants.js';
 import { Motors } from './motors.js';
 import { School } from './school.js';
 import { Proposals, simulate as finSimulate, options as finOptions, schedule as finSchedule, isConfigured as finConfigured } from './finance.js';
@@ -1117,7 +1118,7 @@ if (PANEL_PASSWORD) {
 }
 
 // O painel (página e programas) só é entregue a quem está logado: sem sessão, vai direto para o login (sem mostrar a casca da tela).
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -2174,6 +2175,16 @@ const convLabel = (key) => {
   const line = parseLineKey(key);
   return line ? lines.get(line.id)?.label || 'Número da equipe' : String(key).startsWith('ig:') ? 'Instagram' : 'Principal';
 };
+// Conversas e funil separados por atendente (só administrador).
+app.get('/api/attendants', (_req, res) => {
+  res.json(byAttendant({
+    conversations: agent.listConversations(),
+    leads: crm.leads,
+    users: auth.users,
+    lineOwner: (key) => { const l = parseLineKey(key); const line = l && lines.get(l.id); return line ? { ownerId: line.ownerId || null, label: line.label } : null; },
+    findLead: (c) => crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }),
+  }));
+});
 app.get('/api/conversations', (req, res) => res.json(agent.listConversations().filter((c) => canSeeConv(req.user, c.key)).map((c) => ({ ...c, channelLabel: convLabel(c.key) }))));
 app.use('/api/conversations/:key', (req, _res, next) => {
   if (!canSeeConv(req.user, req.params.key)) throw httpError(403, 'Esta conversa é de outro vendedor');
