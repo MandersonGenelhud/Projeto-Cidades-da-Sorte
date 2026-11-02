@@ -47,6 +47,7 @@ Atualizado em 31/10/2026. Tudo abaixo está no sistema depois de **Atualizar ago
 - **Módulos (standby):** o administrador desliga telas que não usa (somem do menu, nada é apagado) e liga de volta quando quiser. A tela também mostra o que decidimos sobre cada parte do sistema antigo do Marcos.
 - **Visual executivo:** painel e sites sem emojis; ícones próprios da Migra (traço fino) em todas as telas; fundo próprio com curvas de nível e fios dourados que aparece através dos cartões de vidro; paleta sóbria (verde Migra, cinza e um fio dourado).
 - **Site da Migra (página inicial)** em domínio próprio, separado do painel: início com as 4 empresas, como funciona, destaques ao vivo (lotes, imóveis, veículos), programa de indicação com as comissões vigentes, perguntas frequentes e WhatsApp. Pronto para buscadores (título, descrição, sitemap, robots). Para ligar: registrar o domínio, apontar o DNS e rodar `deploy/adicionar-site.sh`.
+- **Site: identidade e conteúdo editável.** A página inicial usa o verde e o dourado da Migra com títulos serifados. A aba **Site da Migra** (painel) edita título, números de destaque (vazio até confirmar), vídeos de depoimento (YouTube ou .mp4) e perguntas frequentes. A página é montada no servidor (rápida, boa para o Google, com dados estruturados das perguntas).
 - **Ainda falta:** endereço próprio de cada site (domínio por marca), pacote de documentos e legislação de imigração, painel consolidado por empresa, número de contrato compartilhado com o site do Marcos.
 
 ## 5. Pendências suas

@@ -66,6 +66,10 @@ test('perfis na prática: vendedor não exclui, gerente cadastra mas não exclui
   const ex = await (await admin('/api/executive')).json();
   assert.deepEqual(Object.keys(ex.cobrancas), ['hoje', 'semana', 'mes', 'ano']);
   assert.equal(ex.months.length, 12);
+  assert.equal((await seller('/api/site')).status, 403);
+  assert.equal((await manager('/api/site', 'PUT', { heroTitle: 'x' })).status, 403);
+  assert.equal((await admin('/api/site', 'PUT', { videos: [{ title: 'v', url: 'http://x.com/a.mp4' }] })).status, 400);
+  assert.equal((await (await admin('/api/site', 'PUT', { heroTitle: 'Título do site', stats: [{ value: '10', label: 'testes' }] })).json()).heroTitle, 'Título do site');
   assert.equal((await seller('/api/modules')).status, 200);
   assert.equal((await seller('/api/modules', 'PUT', { standby: ['motors'] })).status, 403);
   const mods = await (await admin('/api/modules', 'PUT', { standby: ['motors', 'school', 'executive', 'team', 'x y', 'audit'] })).json();

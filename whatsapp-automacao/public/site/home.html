@@ -15,23 +15,25 @@
   <meta name="theme-color" content="#0c2418" />
   <link rel="icon" href="/img/migra-emblema.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" />
   <link rel="stylesheet" href="/site/site.css" />
   <link rel="stylesheet" href="/site/home.css" />
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"Migra Paraguai","url":"{{ORIGIN}}/","logo":"{{ORIGIN}}/img/migra-logo.png"}</script>
+  <script type="application/ld+json">{{FAQ_LD}}</script>
 </head>
 <body>
   <a class="skip" href="#conteudo">Ir para o conteúdo</a>
   <main id="conteudo">
     <section class="hero-home">
       <div class="wrap">
-        <span class="eyebrow">Migra Paraguai</span>
-        <h1>Seu projeto no Paraguai começa aqui</h1>
-        <p class="lead">Residência, cédula, abertura de empresa, terrenos, imóveis, veículos e idiomas, com o acompanhamento de uma equipe que já fez esse caminho.</p>
+        <span class="eyebrow">{{HERO_KICKER}}</span>
+        <h1>{{HERO_TITLE}}</h1>
+        <p class="lead">{{HERO_TEXT}}</p>
         <div class="cta">
           <button class="btn wa" id="heroWa" type="button">Falar com a equipe</button>
           <a class="btn ghost" href="/parceiros">Quero indicar e ganhar</a>
         </div>
+        {{STATS}}
         <div class="trust"><span>Atendimento pelo WhatsApp</span><span>Equipe por área, com um responsável para cada cliente</span><span>Acompanhamento do início ao fim</span></div>
       </div>
     </section>
@@ -71,12 +73,11 @@
       </div>
     </section>
 
+    {{VIDEOS}}
+
     <section class="section wrap faq" id="duvidas">
       <div class="sec-title"><span class="eyebrow" style="color:var(--leaf)">Perguntas frequentes</span><h2>Antes de falar com a gente</h2></div>
-      <details><summary>Quais documentos preciso para começar?</summary><p>O principal é o RG, emitido de 10 anos para cá (um RG com mais de 10 anos não serve). Também pedimos uma foto sua de meio corpo. O passaporte não é necessário nesta etapa: ele só entra mais adiante, se você contratar o serviço de empresa com benefícios. Se o seu RG estiver vencido ou você não tiver, a equipe orienta o melhor caminho.</p></details>
-      <details><summary>Como é o atendimento?</summary><p>Pelo WhatsApp. Uma atendente virtual responde as primeiras dúvidas e, conforme o assunto, você é direcionado a uma pessoa da equipe responsável pela área.</p></details>
-      <details><summary>Posso indicar amigos e ganhar?</summary><p>Sim. No programa de indicação você se cadastra de graça, recebe um link pessoal e ganha comissão quando uma pessoa indicada fecha negócio. Você acompanha tudo no seu painel.</p></details>
-      <details><summary>A Migra também vende imóveis e veículos?</summary><p>Sim. A Migra Imobiliária tem terrenos, loteamentos e imóveis, e a Migra Motors tem veículos com simulação de financiamento. Também temos a Migra School, para idiomas.</p></details>
+      {{FAQ}}
     </section>
 
     <section class="section wrap final">
@@ -88,6 +89,14 @@
   <script src="/site/site.js"></script>
   <script>
     siteChrome('home');
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-yt]');
+      if (!b) return;
+      const f = document.createElement('iframe');
+      f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(b.dataset.yt)}?autoplay=1&rel=0`;
+      f.allow = 'autoplay; encrypted-media; picture-in-picture'; f.allowFullscreen = true; f.title = 'Depoimento';
+      b.replaceWith(f);
+    });
     const LABEL = { migracao: 'Documentação e migração', imoveis: 'Imóveis e terrenos', veiculos: 'Veículos' };
     const ask = () => openInterest({ title: 'Migra Paraguai: atendimento geral', kind: 'migracao', slug: '', lotId: '' });
     $('#heroWa').onclick = ask; $('#finalWa').onclick = ask;

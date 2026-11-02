@@ -38,6 +38,7 @@ import { byAttendant, attendantOf } from './attendants.js';
 import { LegacyContracts } from './legacy-import.js';
 import { buildBat } from './legacy-tool.js';
 import { siteGuard, siteHostsFrom, hostOf } from './site-host.js';
+import { mergeContent, sanitizeContent, renderHome } from './site-content.js';
 import { buildExecutive, periods as execPeriods, dayStr } from './executive.js';
 import { Reengage, rowsFrom, TEMPLATES as REENGAGE_TEMPLATES } from './reengage.js';
 import { Motors } from './motors.js';
@@ -1126,7 +1127,8 @@ if (PANEL_PASSWORD) {
 // O painel (página e programas) só é entregue a quem está logado: sem sessão, vai direto para o login (sem mostrar a casca da tela).
 // Domínio próprio do site público (SITE_HOSTS): só páginas públicas; o painel não existe nesse endereço.
 const SITE_HOSTS = siteHostsFrom();
-app.use(siteGuard({ hosts: SITE_HOSTS, homeFile: path.join(ROOT, 'public', 'site', 'home.html') }));
+const siteContent = () => mergeContent(store.settings.site);
+app.use(siteGuard({ hosts: SITE_HOSTS, homeFile: path.join(ROOT, 'public', 'site', 'home.html'), render: (html, origin) => renderHome(html, siteContent(), origin) }));
 app.get('/robots.txt', (req, res) => {
   const site = SITE_HOSTS.has(hostOf(req));
   res.type('text/plain').send(site ? `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: https://${hostOf(req)}/sitemap.xml\n` : 'User-agent: *\nDisallow: /\n');
@@ -1138,7 +1140,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -2391,6 +2393,18 @@ app.put('/api/reengage/templates', (req, res) => {
   store.updateSettings({ reengage: { templates: t } });
   audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'retomada de contatos', label: 'Mudou os textos da primeira mensagem' });
   res.json({ ok: true });
+});
+
+// Conteúdo da página inicial do site (editável pelo administrador).
+app.get('/api/site', (_req, res) => res.json(siteContent()));
+app.put('/api/site', (req, res) => {
+  const patch = sanitizeContent(req.body || {});
+  const before = siteContent();
+  store.data.settings.site = { ...(store.settings.site || {}), ...patch };
+  store.save();
+  const after = siteContent();
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'site', label: `Página inicial: ${Object.keys(patch).join(', ') || 'sem mudanças'}`, changes: Object.keys(patch).map((k) => ({ field: k, label: k, from: JSON.stringify(before[k]).slice(0, 120), to: JSON.stringify(after[k]).slice(0, 120), sensitive: false })) });
+  res.json(after);
 });
 
 // Contratos do sistema antigo (importados pela ferramenta tools/capturar-sistema). Só administrador.

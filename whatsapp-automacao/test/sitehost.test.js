@@ -48,3 +48,25 @@ test('no domínio do site só há páginas públicas; no endereço do sistema o 
   assert.equal((await get('sistema.test', '/sitemap.xml')).status === 200 && /<urlset/.test((await get('sistema.test', '/sitemap.xml')).body), false);
   assert.deepEqual(JSON.parse((await get('sistema.test', '/api/public/site')).body), { home: false });
 });
+
+import { mergeContent, sanitizeContent, renderHome, videoKind } from '../src/site-content.js';
+
+test('conteúdo do site: padrão sem números inventados, validação e desenho no servidor', () => {
+  const c = mergeContent({});
+  assert.deepEqual(c.stats, []);
+  assert.deepEqual(c.videos, []);
+  assert.match(c.faq[0].a, /RG, emitido de 10 anos para cá/);
+  assert.throws(() => sanitizeContent({ videos: [{ title: 'x', url: 'http://inseguro.com/a.mp4' }] }), /https/);
+  assert.throws(() => sanitizeContent({ videos: [{ title: 'x', url: 'javascript:alert(1)' }] }), /https/);
+  const ok = sanitizeContent({ heroTitle: '  Título novo  ', stats: [{ value: '1.500+', label: 'clientes' }, { value: '', label: 'vazio' }], videos: [{ title: 'Maria', url: 'https://youtu.be/abcDEF12345' }], faq: [{ q: 'P?', a: 'R.' }, { q: '', a: 'sem pergunta' }] });
+  assert.equal(ok.heroTitle, 'Título novo');
+  assert.equal(ok.stats.length, 1);
+  assert.equal(ok.faq.length, 1);
+  assert.deepEqual(videoKind('https://youtu.be/abcDEF12345'), { kind: 'youtube', id: 'abcDEF12345' });
+  assert.deepEqual(videoKind('https://www.youtube.com/shorts/abcDEF12345'), { kind: 'youtube', id: 'abcDEF12345' });
+  assert.equal(videoKind('https://x.com/a.mp4').kind, 'file');
+  const html = renderHome('<h1>{{HERO_TITLE}}</h1>{{STATS}}{{VIDEOS}}{{FAQ}}<script>{{FAQ_LD}}</script>', mergeContent({ heroTitle: 'A <b>b</b>', stats: ok.stats, videos: ok.videos, faq: [{ q: 'Q</script>', a: 'R' }] }), 'https://x.com');
+  assert.ok(html.includes('A &lt;b&gt;b&lt;/b&gt;'), 'texto sai escapado');
+  assert.ok(html.includes('1.500+') && html.includes('data-yt="abcDEF12345"'));
+  assert.ok(!html.includes('Q</script>'), 'nada fecha o script do JSON-LD');
+});

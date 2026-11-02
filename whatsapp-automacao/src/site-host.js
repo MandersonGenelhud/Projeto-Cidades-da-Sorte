@@ -25,7 +25,7 @@ export const siteAllows = (method, path) => {
 };
 
 /** Middleware: no domínio do site entrega a página inicial e bloqueia o resto. */
-export function siteGuard({ hosts, homeFile }) {
+export function siteGuard({ hosts, homeFile, render = (html, origin) => html.replaceAll('{{ORIGIN}}', origin) }) {
   const home = () => fs.readFileSync(homeFile, 'utf8');
   return (req, res, next) => {
     if (!hosts.size || !hosts.has(hostOf(req))) return next();
@@ -33,7 +33,7 @@ export function siteGuard({ hosts, homeFile }) {
     if (!siteAllows(req.method, req.path)) return res.status(404).type('text/plain').send('Página não encontrada');
     if (req.path === '/' && (req.method === 'GET' || req.method === 'HEAD')) {
       const origin = `https://${hostOf(req)}`;
-      return res.type('html').send(home().replaceAll('{{ORIGIN}}', origin));
+      return res.type('html').send(render(home(), origin));
     }
     next();
   };
