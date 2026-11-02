@@ -631,13 +631,14 @@ loaders.team = async () => {
           · ${(() => { const l = lineOf(u); return !l ? '📵 WhatsApp não conectado' : l.status === 'connected' ? `🟢 WhatsApp conectado · ${l.agent !== false ? '🤖 IA atendendo' : '🤖 IA desligada'}` : `🟡 WhatsApp ${(LINE_STATUS[l.status] || l.status).toLowerCase()}`; })()}</div></div>
       ${u.active ? `<div class="sector-btns" title="Em que áreas esta pessoa atende">${SECTOR_BTNS.map(([id, label]) => `<button class="btn small ${(u.sectors || []).includes(id) ? 'primary' : ''}" data-act="sector" data-sector="${id}" aria-pressed="${(u.sectors || []).includes(id)}">${label}</button>`).join('')}</div>` : ''}
       ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? '⏸️ Pausar rodízio' : '▶️ Pôr no rodízio'}</button>
-        <button class="btn small" data-act="affleads" title="Indicações de parceiros pagam comissão menor ao vendedor">${u.receivesAffiliateLeads ? '🤝 Parar indicações' : '🤝 Receber indicações'}</button>` : ''}
+        <button class="btn small" data-act="affleads" title="Indicações de parceiros pagam comissão menor ao vendedor">${u.receivesAffiliateLeads ? '🤝 Parar indicações' : '🤝 Receber indicações'}</button>
+        ${u.role !== 'admin' ? `<button class="btn small ${u.manager ? 'primary' : ''}" data-act="manager" title="Gerente cadastra mapas, lotes, veículos e alunos (nunca exclui)">${u.manager ? '🧑‍💼 É gerente' : '🧑‍💼 Tornar gerente'}</button>` : ''}` : ''}
       <button class="btn small" data-act="edit">✏️ Editar</button>
       <button class="btn small" data-act="password">🔑 Senha</button>
       ${u.id === window.currentUser.id ? '' : `<button class="btn small ${u.active ? 'danger' : ''}" data-act="toggle">${u.active ? 'Desativar' : 'Reativar'}</button>`}
       <button class="btn small" data-act="transfer" title="Passar os prospectos em aberto para outra pessoa">🔁 Passar carteira</button>
     </div>`).join('');
-  $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads, receivesAffiliateLeads, sectors }) => ({ id, name, receivesLeads, receivesAffiliateLeads, sectors })));
+  $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads, receivesAffiliateLeads, sectors, manager }) => ({ id, name, receivesLeads, receivesAffiliateLeads, sectors, manager })));
   renderSystemLinks().catch(() => {});
   loaders.lines().catch(() => {});
 
@@ -685,6 +686,9 @@ $('#teamList').addEventListener('click', async (e) => {
       const now = new Set(u?.sectors || []);
       if (now.has(sec)) now.delete(sec); else now.add(sec);
       await api(`/api/users/${id}`, { method: 'PATCH', body: { sectors: [...now] } });
+    } else if (act === 'manager') {
+      const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
+      await api(`/api/users/${id}`, { method: 'PATCH', body: { manager: !u?.manager } });
     } else if (act === 'affleads') {
       const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
       await api(`/api/users/${id}`, { method: 'PATCH', body: { receivesAffiliateLeads: !u?.receivesAffiliateLeads } });

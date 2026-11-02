@@ -1665,6 +1665,7 @@ $('#btnSignOut').addEventListener('click', async () => {
   // Quem cuida das visitas (ex.: Silvani) vê a aba Visitas mesmo sem ser administrador.
   // Caixa: só aparece para o administrador liberado.
   if (state.user.cashAccess) $$('[data-cash]').forEach((el) => (el.hidden = false));
+  if (admin || state.user.manager) $$('[data-staff]').forEach((el) => (el.hidden = false));
   if (state.user.visitDesk) $$('[data-visitdesk]').forEach((el) => el.removeAttribute('data-admin'));
   $('#userName').textContent = state.user.name;
   $('#userAvatar').textContent = state.user.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();

@@ -34,6 +34,8 @@ import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Audit } from './audit.js';
+import { Motors } from './motors.js';
+import { School } from './school.js';
 import { Proposals, simulate as finSimulate, options as finOptions, schedule as finSchedule, isConfigured as finConfigured } from './finance.js';
 import { Affiliates } from './affiliates.js';
 import { LineManager, lineKey, matchSeller, parseLineKey } from './lines.js';
@@ -234,6 +236,8 @@ setInterval(() => followups.run().catch((e) => store.addLog({ type: 'error', mes
 // Migra Imóveis (catálogo e loteamentos) e programa de indicação.
 const realty = new Realty({ store, dataDir: DATA_DIR });
 const audit = new Audit({ store });
+const motors = new Motors({ store });
+const school = new School({ store });
 const proposals = new Proposals({ store, realty, audit });
 const affiliates = new Affiliates({
   store,
@@ -1113,7 +1117,7 @@ if (PANEL_PASSWORD) {
 }
 
 // O painel (página e programas) só é entregue a quem está logado: sem sessão, vai direto para o login (sem mostrar a casca da tela).
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1465,6 +1469,8 @@ const SELLER_ROUTES = [
   ['PATCH', /^\/realty\/developments\/[^/]+\/lots\/[^/]+$/],
   ['GET', /^\/finance\/(config|proposals(\/[a-f0-9]+\/(pdf|schedule))?)$/],
   ['POST', /^\/finance\/(simulate|options|proposals)$/],
+  ['GET', /^\/motors\/(vehicles|lenders)$/],
+  ['POST', /^\/motors\/compare$/],
   ['POST', /^\/conversations\/[^/]+\/(reply|handoff)$/],
   ['*', /^\/conversations\/[^/]+\/closing(\/[a-z]+)?$/],
   ['*', /^\/security\/(2fa\/(setup|enable|disable)|logout-all)$/],
@@ -1490,7 +1496,7 @@ app.use('/api', (req, res, next) => {
   // Quem cuida das visitas (Silvani) confirma, remarca e cancela pela aba Visitas.
   if (/^\/visits(\/[a-f0-9]+\/(confirm|reschedule|cancel|done))?$/.test(req.path) && isVisitDesk(user)) return next();
   // Gerente: cadastra mapas, lotes e produtos (criar e editar, nunca excluir).
-  if (user.manager && ['POST', 'PATCH'].includes(req.method) && /^\/(realty|motors|finance)\//.test(req.path)) return next();
+  if (user.manager && ['POST', 'PATCH'].includes(req.method) && /^\/(realty|motors|finance|school)\//.test(req.path)) return next();
   const ok = SELLER_ROUTES.some(([method, re]) => (method === '*' || method === req.method) && re.test(req.path));
   if (!ok) return res.status(403).json({ error: 'Esta área é só do administrador' });
   if (req.method === 'DELETE' && !req.path.startsWith('/leads')) return res.status(403).json({ error: 'Esta área é só do administrador' });
@@ -1506,8 +1512,14 @@ app.use('/api', audit.middleware([
   { methods: ['POST'], re: /^\/realty\/developments$/, entity: 'loteamento', label: (m, o) => o.name || '' },
   { methods: ['PATCH', 'DELETE'], re: /^\/realty\/properties\/([^/]+)$/, entity: 'imóvel', get: (m) => realty.listProperties().find((p) => p.id === m[1]), label: (m, o) => o.title || m[1] },
   { methods: ['POST'], re: /^\/realty\/properties$/, entity: 'imóvel', label: (m, o) => o.title || '' },
+  { methods: ['PATCH', 'DELETE'], re: /^\/motors\/vehicles\/([a-f0-9]+)$/, entity: 'veículo', get: (m) => motors.vehicle(m[1]), label: (m, o) => o.title || m[1] },
+  { methods: ['POST'], re: /^\/motors\/vehicles$/, entity: 'veículo', label: (m, o) => o.title || '' },
+  { methods: ['PATCH', 'DELETE'], re: /^\/motors\/lenders\/([a-f0-9]+)$/, entity: 'banco/consórcio', get: (m) => motors.lenders().find((l) => l.id === m[1]), label: (m, o) => o.name || m[1] },
+  { methods: ['POST'], re: /^\/motors\/lenders$/, entity: 'banco/consórcio', label: (m, o) => o.name || '' },
+  { methods: ['PATCH', 'DELETE'], re: /^\/school\/students\/([a-f0-9]+)$/, entity: 'aluno', get: (m) => { const x = school.student(m[1]); return x && { ...x, accesses: undefined }; }, label: (m, o) => o.name || m[1] },
+  { methods: ['POST'], re: /^\/school\/students$/, entity: 'aluno', label: (m, o) => o.name || '' },
   { methods: ['PUT'], re: /^\/finance\/config$/, entity: 'juros e regras', get: () => proposals.config, label: () => 'Financiamento de lotes' },
-  { methods: ['PATCH', 'DELETE'], re: /^\/users\/([a-f0-9]+)$/, entity: 'usuário', get: (m) => { const u = auth.get(m[1]); return u && { name: u.name, role: u.role, active: u.active !== false, manager: Boolean(u.manager), sectors: u.sectors || [], whatsapp: u.whatsapp || '' }; }, label: (m, o) => o.name || m[1] },
+  { methods: ['PATCH', 'DELETE'], re: /^\/users\/([a-z0-9]+)$/, entity: 'usuário', get: (m) => { const u = auth.get(m[1]); return u && { name: u.name, role: u.role, active: u.active !== false, manager: Boolean(u.manager), sectors: u.sectors || [], whatsapp: u.whatsapp || '' }; }, label: (m, o) => o.name || m[1] },
 ]));
 app.get('/api/audit', (req, res) => {
   if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador vê a auditoria');
@@ -2220,6 +2232,34 @@ const imageExt = (file) => {
   if (!file || !/^image\/(png|jpeg|webp)$/.test(file.mimetype)) throw httpError(400, 'Envie uma imagem PNG, JPG ou WEBP');
   return { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' }[file.mimetype];
 };
+// Migra Motors: veículos, bancos/consórcios e comparação de financiamento.
+app.get('/api/motors/vehicles', (_req, res) => res.json(motors.vehicles()));
+app.post('/api/motors/vehicles', (req, res) => res.json(motors.saveVehicle(null, req.body || {})));
+app.patch('/api/motors/vehicles/:id', (req, res) => res.json(motors.saveVehicle(req.params.id, req.body || {})));
+app.delete('/api/motors/vehicles/:id', (req, res) => { motors.removeVehicle(req.params.id); res.json({ ok: true }); });
+app.get('/api/motors/lenders', (_req, res) => res.json(motors.lenders()));
+app.post('/api/motors/lenders', (req, res) => res.json(motors.saveLender(null, req.body || {})));
+app.patch('/api/motors/lenders/:id', (req, res) => res.json(motors.saveLender(req.params.id, req.body || {})));
+app.delete('/api/motors/lenders/:id', (req, res) => { motors.removeLender(req.params.id); res.json({ ok: true }); });
+app.post('/api/motors/compare', (req, res) => {
+  const b = req.body || {};
+  const v = b.vehicleId ? motors.vehicle(b.vehicleId) : null;
+  res.json(motors.compare({ price: v ? v.price : b.price, entry: b.entry, months: b.months, vehicleYear: v?.year || b.vehicleYear }));
+});
+// Migra School: alunos, etapa e frequência (administrador e gerente).
+const schoolStaff = (u) => u.role === 'admin' || u.manager;
+app.use('/api/school', (req, _res, next) => (schoolStaff(req.user) ? next() : next(httpError(403, 'Só o administrador ou o gerente'))));
+app.get('/api/school/summary', (_req, res) => res.json(school.summary()));
+app.get('/api/school/students', (req, res) => res.json(school.list(req.query)));
+app.post('/api/school/students', (req, res) => res.json(school.save(null, req.body || {})));
+app.patch('/api/school/students/:id', (req, res) => res.json(school.save(req.params.id, req.body || {})));
+app.delete('/api/school/students/:id', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador exclui');
+  school.remove(req.params.id);
+  res.json({ ok: true });
+});
+app.post('/api/school/students/:id/access', (req, res) => res.json({ ...school.access(req.params.id), accesses: undefined }));
+
 // Financiamento de lotes: simulador, propostas de reserva e relatório de parcelas.
 const isManagerOrAdmin = (u) => u.role === 'admin' || u.manager;
 const lotPrice = (b) => {
@@ -2300,9 +2340,10 @@ app.post('/api/realty/developments/:id/lots', (req, res) => res.json(realty.addL
 app.post('/api/realty/developments/:id/lots/bulk', (req, res) => res.json(realty.addLots(req.params.id, req.body.lots)));
 app.post('/api/realty/developments/:id/block', (req, res) => res.json(realty.generateBlock(req.params.id, req.body)));
 app.patch('/api/realty/developments/:id/lots/:lotId', (req, res) => {
-  // Vendedor só muda a situação (reservar/vender); o resto é do administrador.
-  const body = req.user.role === 'admin' ? req.body : { status: req.body.status };
-  if (req.user.role !== 'admin') {
+  // Vendedor só muda a situação (reservar/vender); preço e dados do lote são do administrador e do gerente.
+  const full = req.user.role === 'admin' || req.user.manager;
+  const body = full ? req.body : { status: req.body.status };
+  if (!full) {
     const lot = realty.development(req.params.id)?.lots.find((l) => l.id === req.params.lotId);
     if (body.status === 'loteadora' || lot?.status === 'loteadora') throw httpError(403, 'Só o administrador mexe nos lotes reservados da loteadora');
   }

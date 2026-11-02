@@ -32,6 +32,14 @@ Atualizado em 31/10/2026. Tudo abaixo está no sistema depois de **Atualizar ago
 - Atualizar na VPS: `bash deploy/atualizar-vps.sh`. Backup diário automático.
 - Passo a passo completo: `deploy/LEIA-ME-VPS.md`.
 
+## 4.1 Novidades: empresas, financiamento e auditoria (02/11/2026)
+- **Auditoria** (menu "Auditoria", só Marcos): quem criou, alterou ou excluiu lotes, preços, juros, veículos, alunos, propostas e perfis, com o valor de antes e depois. Não dá para apagar pelo painel.
+- **Financiamento de lotes** (menu "Financiamento de lotes"): simulador com entrada que abate o saldo, entrada em várias vezes e juros por faixa de parcelas (quanto mais parcelas, maior o %). **Os juros começam em 0%: o Marcos define as faixas.** Gera a **proposta de reserva em PDF**, que só vale com a reserva paga (antes sai com tarja "sem valor"); exige todos os dados do cliente; relatório de parcelas.
+- **Perfis:** vendedor reserva e muda a situação do lote, nunca exclui nem muda preço; **gerente** (botão na Equipe) cadastra mapas, lotes, veículos e alunos e confirma reservas, mas não exclui nem mexe em juros; só o Marcos exclui, muda juros e vê a auditoria.
+- **Migra Motors:** estoque de veículos e comparação de financiamento entre bancos, financeiras e consórcios. **As taxas são cadastradas pelo Marcos** (o sistema não inventa taxa).
+- **Migra School:** alunos, etapa, nível, frequência de acesso por semana e quem sumiu há 14+ dias.
+- **Ainda falta:** sites públicos por marca, pacote de documentos e legislação de imigração, painel consolidado por empresa, número de contrato compartilhado com o site do Marcos.
+
 ## 5. Pendências suas
 1. DNS: registro A `app` → 187.41.108.131 e conferir com `nslookup app.migraparaguai.tech`.
 2. Entrar na VPS e me avisar para eu passar o comando de instalação.
