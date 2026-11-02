@@ -95,3 +95,11 @@ Hoje o Marcos fala com a Nina pelo número principal da Migra, começando a fras
 3. No Migra Hub, em **Conexões WhatsApp**, crie um número da equipe com o nome "Nina" e leia o QR Code (é um aparelho conectado, como o WhatsApp Web).
 4. No **Caixa → ⚙️ → Nina**, escolha esse número em "Número só da Nina". Dali em diante o Marcos não precisa dizer "Nina".
 O número oficial pela API da Meta também serve, mas hoje o sistema usa a API oficial para o número principal inteiro; misturar exige uma mudança maior.
+
+
+## Domínio do site público
+Depois de registrar o domínio do site (ex.: meusite.com.br), crie no painel do registro dois registros A (`@` e `www`) apontando para o IP da VPS e rode, na VPS:
+
+    bash /opt/migra/app/whatsapp-automacao/deploy/adicionar-site.sh meusite.com.br
+
+Nesse endereço só aparecem as páginas públicas; o painel continua só no endereço do sistema.

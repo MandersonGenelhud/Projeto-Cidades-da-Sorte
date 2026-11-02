@@ -1,0 +1,50 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { siteAllows, siteHostsFrom } from '../src/site-host.js';
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+test('domínio do site: lista de hosts e o que é permitido', () => {
+  assert.deepEqual([...siteHostsFrom({ SITE_HOSTS: 'Site.com, https://www.site.com/ ,x.com:443' })], ['site.com', 'www.site.com', 'x.com']);
+  for (const [m, p] of [['GET', '/'], ['GET', '/imoveis/l/lago-azul'], ['GET', '/site/site.css'], ['GET', '/img/migra-logo.png'], ['GET', '/r/ABC123'], ['POST', '/api/public/lead'], ['POST', '/api/affiliate/signup'], ['GET', '/sitemap.xml']]) assert.equal(siteAllows(m, p), true, `${m} ${p}`);
+  for (const [m, p] of [['GET', '/login.html'], ['GET', '/app.js'], ['GET', '/index.html'], ['GET', '/api/auth/state'], ['POST', '/api/auth/login'], ['GET', '/api/leads'], ['GET', '/api/executive'], ['POST', '/imoveis'], ['GET', '/api/public/../leads'], ['GET', '/data/db.json']]) assert.equal(siteAllows(m, p), false, `${m} ${p}`);
+});
+
+test('no domínio do site só há páginas públicas; no endereço do sistema o painel continua fechado', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-site-'));
+  const port = 39700 + Math.floor(Math.random() * 200);
+  const proc = spawn(process.execPath, ['src/server.js'], { cwd: ROOT, env: { ...process.env, DATA_DIR: dir, PORT: String(port), TUNNEL: 'off', OPEN_BROWSER: '', SITE_HOSTS: 'meusite.test,www.meusite.test' }, stdio: 'ignore' });
+  t.after(() => proc.kill());
+  const get = (host, p, method = 'GET') => new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, path: p, method, headers: { Host: host } }, (res) => { let b = ''; res.on('data', (d) => (b += d)); res.on('end', () => resolve({ status: res.statusCode, body: b, loc: res.headers.location })); });
+    req.on('error', reject); req.end();
+  });
+  for (let i = 0; i < 60; i++) { try { await get('x', '/api/public/site'); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
+  const home = await get('meusite.test', '/');
+  assert.equal(home.status, 200);
+  assert.match(home.body, /Seu projeto no Paraguai começa aqui/);
+  assert.match(home.body, /<link rel="canonical" href="https:\/\/meusite\.test\/"/);
+  assert.ok(!home.body.includes('{{ORIGIN}}'));
+  assert.match(home.body, /RG, emitido de 10 anos para cá/);
+  for (const p of ['/login.html', '/app.js', '/index.html', '/api/auth/state', '/api/leads', '/api/executive', '/data/db.json']) assert.equal((await get('www.meusite.test', p)).status, 404, p);
+  assert.equal((await get('meusite.test', '/api/public/catalog')).status, 200);
+  assert.equal((await get('meusite.test', '/site/home.css')).status, 200);
+  assert.equal((await get('meusite.test', '/migra')).status, 200);
+  const sm = await get('meusite.test', '/sitemap.xml');
+  assert.match(sm.body, /<loc>https:\/\/meusite\.test\/migra<\/loc>/);
+  assert.match((await get('meusite.test', '/robots.txt')).body, /Sitemap: https:\/\/meusite\.test\/sitemap\.xml/);
+  assert.deepEqual(JSON.parse((await get('meusite.test', '/api/public/site')).body), { home: true });
+  // endereço do sistema: painel fechado, robôs de busca bloqueados e sem página inicial do site
+  const panel = await get('sistema.test', '/');
+  assert.equal(panel.status, 302);
+  assert.equal(panel.loc, '/login.html');
+  assert.match((await get('sistema.test', '/robots.txt')).body, /Disallow: \/\n/);
+  assert.equal((await get('sistema.test', '/sitemap.xml')).status === 200 && /<urlset/.test((await get('sistema.test', '/sitemap.xml')).body), false);
+  assert.deepEqual(JSON.parse((await get('sistema.test', '/api/public/site')).body), { home: false });
+});

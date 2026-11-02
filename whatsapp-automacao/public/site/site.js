@@ -22,6 +22,8 @@ const TYPES = { terreno: 'Terreno', lote: 'Lote', casa: 'Casa', departamento: 'A
 const STATUS = { disponivel: 'Disponível', reservado: 'Reservado', vendido: 'Vendido', alugado: 'Alugado', loteadora: 'Reservado pela loteadora' };
 
 function siteChrome(active) {
+  // No domínio do site, o logo leva à página inicial; no endereço do sistema leva à lista das empresas.
+  fetch('/api/public/site').then((r) => r.json()).then((c) => { const a = document.querySelector('.site-head .logo'); if (a && c.home) a.href = '/'; }).catch(() => {});
   document.body.insertAdjacentHTML('afterbegin', `
     <header class="site-head"><div class="wrap">
       <a class="logo" href="/marcas"><img src="/brand/logo" alt="Migra Paraguai" /></a>

@@ -37,6 +37,7 @@ import { Audit } from './audit.js';
 import { byAttendant, attendantOf } from './attendants.js';
 import { LegacyContracts } from './legacy-import.js';
 import { buildBat } from './legacy-tool.js';
+import { siteGuard, siteHostsFrom, hostOf } from './site-host.js';
 import { buildExecutive, periods as execPeriods, dayStr } from './executive.js';
 import { Reengage, rowsFrom, TEMPLATES as REENGAGE_TEMPLATES } from './reengage.js';
 import { Motors } from './motors.js';
@@ -1123,6 +1124,20 @@ if (PANEL_PASSWORD) {
 }
 
 // O painel (página e programas) só é entregue a quem está logado: sem sessão, vai direto para o login (sem mostrar a casca da tela).
+// Domínio próprio do site público (SITE_HOSTS): só páginas públicas; o painel não existe nesse endereço.
+const SITE_HOSTS = siteHostsFrom();
+app.use(siteGuard({ hosts: SITE_HOSTS, homeFile: path.join(ROOT, 'public', 'site', 'home.html') }));
+app.get('/robots.txt', (req, res) => {
+  const site = SITE_HOSTS.has(hostOf(req));
+  res.type('text/plain').send(site ? `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: https://${hostOf(req)}/sitemap.xml\n` : 'User-agent: *\nDisallow: /\n');
+});
+app.get('/sitemap.xml', (req, res, next) => {
+  if (!SITE_HOSTS.has(hostOf(req))) return next();
+  const origin = `https://${hostOf(req)}`;
+  const urls = ['/', '/migra', '/imoveis', '/motors', '/school', '/parceiros', ...realty.listDevelopments().filter((d) => !d.hidden).map((d) => `/imoveis/l/${d.slug}`), ...realty.listProperties({ publicOnly: true }).map((p) => `/imoveis/p/${p.slug}`)];
+  res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
+});
+app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
 const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
