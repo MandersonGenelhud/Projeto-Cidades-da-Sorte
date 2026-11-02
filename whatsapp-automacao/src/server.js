@@ -37,6 +37,7 @@ import { Audit } from './audit.js';
 import { byAttendant, attendantOf } from './attendants.js';
 import { LegacyContracts } from './legacy-import.js';
 import { buildBat } from './legacy-tool.js';
+import { buildExecutive, periods as execPeriods, dayStr } from './executive.js';
 import { Reengage, rowsFrom, TEMPLATES as REENGAGE_TEMPLATES } from './reengage.js';
 import { Motors } from './motors.js';
 import { School } from './school.js';
@@ -1122,7 +1123,7 @@ if (PANEL_PASSWORD) {
 }
 
 // O painel (página e programas) só é entregue a quem está logado: sem sessão, vai direto para o login (sem mostrar a casca da tela).
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1511,7 +1512,7 @@ app.post('/api/auth/logout', (_req, res) => {
 
 // O que um vendedor pode acessar (o resto é só do administrador).
 const SELLER_ROUTES = [
-  ['GET', /^\/(status|events|me|users|pending|agent\/status|instagram\/status|crm\/agenda|crm\/stats|crm\/stages|crm\/ranking)$/],
+  ['GET', /^\/(modules|status|events|me|users|pending|agent\/status|instagram\/status|crm\/agenda|crm\/stats|crm\/stages|crm\/ranking)$/],
   ['*', /^\/leads(\/|$)/],
   ['GET', /^\/conversations(\/|$)/],
   ['*', /^\/lines(\/|$)/],
@@ -2305,6 +2306,33 @@ const imageExt = (file) => {
   if (!file || !/^image\/(png|jpeg|webp)$/.test(file.mimetype)) throw httpError(400, 'Envie uma imagem PNG, JPG ou WEBP');
   return { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' }[file.mimetype];
 };
+// Painel executivo (só administrador): cobranças, vencimentos, recebimentos, vendas e funil.
+app.get('/api/executive', (_req, res) => {
+  const now = Date.now();
+  const today = dayStr(now);
+  const month = execPeriods(today).mes;
+  const stats = crm.stats({ from: month.from, to: month.to });
+  const open = visits.list.filter((v) => ['pendente', 'aguardando_taxa', 'remarcar'].includes(v.status)).length;
+  res.json(buildExecutive({
+    sales: sales.list, now,
+    crm: { newLeads: stats.newLeads, openLeads: stats.openLeads, openValue: stats.openValue, won: stats.won, wonValue: stats.wonValue, lost: stats.lost, conversion: stats.conversion, avgTicket: stats.avgTicket, followUps: stats.followUps, byStage: stats.byStage, bySource: stats.bySource, months: stats.months },
+    extras: { visitasAbertas: open, retomarNovos: reengage.summary().novo, esperando: pending.list().length, whatsapp: wa.status },
+  }));
+});
+// Módulos: o administrador coloca telas em "standby" (somem do menu, nada é apagado) e liga de volta quando quiser.
+const PROTECTED_TABS = new Set(['executive', 'modules', 'team', 'connection', 'settings', 'audit']);
+app.get('/api/modules', (_req, res) => res.json({ standby: store.settings.modules?.standby || [], protected: [...PROTECTED_TABS] }));
+app.put('/api/modules', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  const list = [...new Set((Array.isArray(req.body?.standby) ? req.body.standby : []).map(String))].filter((t) => /^[a-z]{2,30}$/.test(t) && !PROTECTED_TABS.has(t));
+  const before = store.settings.modules?.standby || [];
+  store.data.settings.modules = { standby: list };
+  store.save();
+  const added = list.filter((t) => !before.includes(t)); const removed = before.filter((t) => !list.includes(t));
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'módulos', label: `Standby: ${added.length ? `desativou ${added.join(', ')}` : ''}${added.length && removed.length ? ' · ' : ''}${removed.length ? `reativou ${removed.join(', ')}` : ''}` || 'sem mudanças', changes: [{ field: 'modules', label: 'Telas em standby', from: before.join(', '), to: list.join(', '), sensitive: false }] });
+  res.json({ standby: list });
+});
+
 // Retomada de contatos (Instagram/Facebook/site/quiz que ainda não foram atendidos). Só administrador.
 const reengage = new Reengage({ store, crm, agent, send: (to, payload) => wa.send(to, { ...payload, typing: false }) });
 const reengageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 80_000_000 } }).single('file');

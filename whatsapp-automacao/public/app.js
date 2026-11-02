@@ -1716,7 +1716,14 @@ $('#btnSignOut').addEventListener('click', async () => {
     openLead(decodeURIComponent(leadLink[1]));
     return;
   }
-  showTab(loaders[initial] || initial === 'send' ? initial : admin ? 'sales' : 'leads');
+  // Telas em standby (desativadas pelo administrador) somem do menu; nada é apagado.
+  try {
+    const m = await api('/api/modules');
+    window.standbyTabs = new Set(m.standby || []);
+    $$('nav button[data-tab]').forEach((b) => { if (window.standbyTabs.has(b.dataset.tab)) b.hidden = true; });
+  } catch { /* sem a lista, mostra tudo */ }
+  const wanted = loaders[initial] || initial === 'send' ? initial : admin ? 'executive' : 'leads';
+  showTab(window.standbyTabs?.has(wanted) ? (admin ? 'executive' : 'leads') : wanted);
 })();
 
 // Modo claro (padrão) / modo noite, guardado neste aparelho.

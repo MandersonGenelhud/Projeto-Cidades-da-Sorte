@@ -61,6 +61,17 @@ test('perfis na prática: vendedor não exclui, gerente cadastra mas não exclui
   assert.equal((await seller('/api/attendants')).status, 403);
   assert.equal((await manager('/api/attendants')).status, 403);
   assert.equal((await admin('/api/attendants')).status, 200);
+  // painel executivo: só administrador; módulos em standby: vendedor só lê
+  assert.equal((await seller('/api/executive')).status, 403);
+  const ex = await (await admin('/api/executive')).json();
+  assert.deepEqual(Object.keys(ex.cobrancas), ['hoje', 'semana', 'mes', 'ano']);
+  assert.equal(ex.months.length, 12);
+  assert.equal((await seller('/api/modules')).status, 200);
+  assert.equal((await seller('/api/modules', 'PUT', { standby: ['motors'] })).status, 403);
+  const mods = await (await admin('/api/modules', 'PUT', { standby: ['motors', 'school', 'executive', 'team', 'x y', 'audit'] })).json();
+  assert.deepEqual(mods.standby, ['motors', 'school'], 'telas essenciais e nomes inválidos são ignorados');
+  assert.deepEqual((await (await seller('/api/modules')).json()).standby, ['motors', 'school']);
+  await admin('/api/modules', 'PUT', { standby: [] });
   assert.equal((await seller('/api/realty/developments', 'POST', { name: 'Invasão' })).status, 403);
 
   // Reserva: faltando dados → 400; completa → 200; vendedor não confirma o próprio pagamento.
@@ -92,6 +103,7 @@ test('perfis na prática: vendedor não exclui, gerente cadastra mas não exclui
   assert.ok(items.some((e) => e.user === 'Marcos' && e.action === 'excluiu' && e.entity === 'lote'));
   assert.ok(items.some((e) => e.user === 'Gerente Ana' && e.action === 'criou' && e.entity === 'veículo'));
   assert.ok(items.some((e) => e.entity === 'juros e regras' && e.user === 'Marcos'));
+  assert.ok(items.some((e) => e.entity === 'módulos'), 'standby fica na auditoria');
   assert.ok(items.some((e) => e.entity === 'usuário' && e.changes.some((c) => c.field === 'manager')));
   assert.ok(!JSON.stringify(items).includes('segredo123'), 'senha nunca vai para o registro');
 });
