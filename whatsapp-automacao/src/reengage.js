@@ -11,11 +11,11 @@ const OPEN_STATUS = new Set(['novo']);
 const DAY = 86400000;
 
 export const TEMPLATES = {
-  instagram: 'Oi, {nome}! Eu vi que você entrou em contato com a gente lá no Instagram. O nosso Instagram está com um probleminha no momento, então, se você quiser, podemos dar continuidade ao seu atendimento por aqui mesmo. 😊 Como posso te ajudar?\n\nSe preferir não receber mensagens nossas, é só me avisar que eu paro.',
-  facebook: 'Oi, {nome}! Eu vi que você entrou em contato com a gente pelo Facebook. Para você não ficar esperando, podemos continuar o seu atendimento por aqui mesmo. 😊 Como posso te ajudar?\n\nSe preferir não receber mensagens nossas, é só me avisar que eu paro.',
-  site: 'Oi, {nome}! Eu vi que você se cadastrou no nosso site e queria te atender com calma por aqui. 😊 Como posso te ajudar?\n\nSe preferir não receber mensagens nossas, é só me avisar que eu paro.',
-  quiz: 'Oi, {nome}! Eu vi que você respondeu ao nosso questionário e queria te ajudar com os próximos passos por aqui. 😊 Posso te fazer uma pergunta rápida?\n\nSe preferir não receber mensagens nossas, é só me avisar que eu paro.',
-  outro: 'Oi, {nome}! Vi que você entrou em contato com a gente e quero continuar o seu atendimento por aqui. 😊 Como posso te ajudar?\n\nSe preferir não receber mensagens nossas, é só me avisar que eu paro.',
+  instagram: 'Oi, {nome}! Vi que você entrou em contato com a gente lá no Instagram da Migra, para ver a possibilidade de migrar para o Paraguai. O nosso Instagram está com um probleminha no momento. Podemos dar continuidade ao seu atendimento por aqui? 😊\n\nSe preferir não receber mensagens nossas, é só me avisar que eu paro.',
+  facebook: 'Oi, {nome}! Vi que você entrou em contato com a gente lá no Facebook da Migra, para ver a possibilidade de migrar para o Paraguai. Para você não ficar esperando, podemos dar continuidade ao seu atendimento por aqui? 😊\n\nSe preferir não receber mensagens nossas, é só me avisar que eu paro.',
+  site: 'Oi, {nome}! Vi que você se cadastrou no site da Migra, para ver a possibilidade de migrar para o Paraguai, e quero te atender com calma. Podemos dar continuidade ao seu atendimento por aqui? 😊\n\nSe preferir não receber mensagens nossas, é só me avisar que eu paro.',
+  quiz: 'Oi, {nome}! Vi que você respondeu ao questionário da Migra sobre a possibilidade de migrar para o Paraguai e quero te ajudar com os próximos passos. Podemos dar continuidade ao seu atendimento por aqui? 😊\n\nSe preferir não receber mensagens nossas, é só me avisar que eu paro.',
+  outro: 'Oi, {nome}! Vi que você entrou em contato com a Migra para ver a possibilidade de migrar para o Paraguai e quero continuar o seu atendimento. Podemos conversar por aqui? 😊\n\nSe preferir não receber mensagens nossas, é só me avisar que eu paro.',
 };
 // Quem só está em grupo nunca pediu atendimento: não recebe mensagem automática (só se o administrador incluir de propósito).
 const GROUP_NOTE = 'Participa de um grupo e não pediu atendimento: não é enviado automaticamente.';
@@ -84,7 +84,7 @@ export class Reengage {
   }
 
   get config() {
-    return { perDay: 40, from: 8, to: 20, minDelayMs: 25_000, maxDelayMs: 55_000, templates: {}, ...(this.store.settings.reengage || {}) };
+    return { perDay: 30, from: 8, to: 20, minDelayMs: 30_000, maxDelayMs: 65_000, templates: {}, ...(this.store.settings.reengage || {}) };
   }
 
   template(source) {

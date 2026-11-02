@@ -17,6 +17,8 @@ function setup({ hour = 10 } = {}) {
   const sent = [];
   const d = new Date(); d.setHours(hour, 0, 0, 0);
   const r = new Reengage({ store, crm, agent, send: async (to, p) => { if (to === '595981000009') throw new Error('falha simulada'); sent.push({ to, text: p.text }); }, now: () => d.getTime() });
+  assert.equal(r.config.perDay, 30);
+  assert.deepEqual([r.config.minDelayMs, r.config.maxDelayMs], [30_000, 65_000]);
   store.updateSettings({ reengage: { perDay: 3 } });
   return { store, crm, agent, r, sent };
 }
@@ -54,8 +56,8 @@ test('envio: só aprovados, mensagem do canal com o nome, conversa e prospecto c
   const run = await r.sendApproved(ids, { sleep: async (ms) => sleeps.push(ms), delay: () => 30_000 });
   assert.equal(run.sent, 3, 'limite do dia (3)');
   assert.equal(sleeps.length, 2);
-  assert.match(sent[0].text, /^Oi, Ana! Eu vi que você entrou em contato com a gente lá no Instagram\. O nosso Instagram está com um probleminha/);
-  assert.match(sent[0].text, /podemos dar continuidade ao seu atendimento por aqui/);
+  assert.match(sent[0].text, /^Oi, Ana! Vi que você entrou em contato com a gente lá no Instagram da Migra, para ver a possibilidade de migrar para o Paraguai\. O nosso Instagram está com um probleminha/);
+  assert.match(sent[0].text, /Podemos dar continuidade ao seu atendimento por aqui\?/);
   assert.match(sent[0].text, /é só me avisar que eu paro/);
   assert.equal(store.data.conversations['595981000010@s.whatsapp.net'].messages[0].role, 'assistant');
   const lead = crm.leads.find((l) => l.phone === '595981000010');
@@ -78,7 +80,7 @@ test('fora do horário não envia; falha de um contato não derruba os outros; "
   assert.deepEqual([run.sent, run.failed], [2, 1]);
   assert.equal(sent.length, 2);
   const c = r.list({ source: 'site' })[0];
-  assert.match(sent.at(-1).text, /cadastrou no nosso site/);
+  assert.match(sent.at(-1).text, /se cadastrou no site da Migra/);
   const again = setup();
   again.r.import(rowsFrom('Nome;Telefone;Origem\nZé;+595981000020;Instagram'));
   const z = again.r.list()[0];
