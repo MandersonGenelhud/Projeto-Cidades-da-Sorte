@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Migra Motors · Veículos</title>
+  <meta name="description" content="Carros e motos disponíveis com financiamento facilitado." />
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/site/site.css" />
+</head>
+<body>
+  <section class="hero"><div class="wrap">
+    <span class="eyebrow">Migra Motors</span>
+    <h1>Seu próximo veículo, com condições que cabem no seu bolso</h1>
+    <p>Veja os veículos disponíveis e fale com a equipe para simular financiamento ou consórcio.</p>
+    <button class="btn primary" id="heroCta" type="button">Quero simular um financiamento</button>
+  </div></section>
+  <section class="section wrap"><div class="section-head"><div><span class="eyebrow" style="color:var(--leaf)">Estoque</span><h2>Veículos disponíveis</h2></div></div>
+    <div class="grid" id="veh"></div></section>
+  <script src="/site/site.js"></script>
+  <script>
+    siteChrome('motors');
+    const ask = (t) => openInterest({ title: t, kind: 'veiculos', slug: '', lotId: '' });
+    $('#heroCta').onclick = () => ask('Migra Motors: simular financiamento');
+    api('/api/public/vehicles').then(({ whatsapp, vehicles }) => {
+      setHeaderWhatsapp(whatsapp);
+      $('#veh').innerHTML = vehicles.map((v, i) => `<div class="card">
+        <div class="ph">${v.images?.[0] ? `<img src="${esc(v.images[0])}" alt="${esc(v.title)}" loading="lazy" />` : ''}<div class="tag">${v.status !== 'disponivel' ? '<span class="st-reservado">Reservado</span>' : '<span>Disponível</span>'}</div></div>
+        <div class="body"><h3>${esc(v.title)}</h3><div class="loc">${esc([v.km ? `${Number(v.km).toLocaleString('pt-BR')} km` : '', v.fuel, v.transmission, v.color].filter(Boolean).join(' · '))}</div>
+          <div class="price">${price(v.price, v.currency)}</div><button class="btn small primary" data-i="${i}">Tenho interesse</button></div></div>`).join('')
+        || '<div class="empty">Estamos atualizando o estoque. Fale com a gente no WhatsApp que indicamos o veículo ideal para você.</div>';
+      $$('[data-i]').forEach((b) => (b.onclick = () => ask(vehicles[b.dataset.i].title)));
+    }).catch((e) => { $('#veh').innerHTML = `<div class="empty">Não foi possível carregar: ${esc(e.message)}</div>`; });
+  </script>
+</body>
+</html>

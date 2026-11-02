@@ -39,7 +39,8 @@ Atualizado em 31/10/2026. Tudo abaixo está no sistema depois de **Atualizar ago
 - **Migra Motors:** estoque de veículos e comparação de financiamento entre bancos, financeiras e consórcios. **As taxas são cadastradas pelo Marcos** (o sistema não inventa taxa).
 - **Migra School:** alunos, etapa, nível, frequência de acesso por semana e quem sumiu há 14+ dias.
 - **Atendentes (funil)** (menu Vendas, só Marcos): conversas e prospectos separados por pessoa (Marcos, Fran, Eliezer…), número principal e Instagram sem vendedor, com funil conversas → prospecto → contato → proposta → fechamento e de onde veio cada cliente. No computador, uma coluna por pessoa numa tela só; no celular, cartões grandes: toca na pessoa e depois na conversa.
-- **Ainda falta:** sites públicos por marca, pacote de documentos e legislação de imigração, painel consolidado por empresa, número de contrato compartilhado com o site do Marcos.
+- **Sites por marca** (públicos): `/marcas` (todas as empresas), `/migra` (documentação e migração), `/imoveis`, `/motors` (veículos publicados) e `/school` (idiomas). Quem preenche "Tenho interesse" vira prospecto e cai direto no atendente da área (Documentação, Terrenos ou Veículos, conforme a Equipe), que recebe o aviso no WhatsApp. Limite de 8 pedidos por hora por endereço contra spam.
+- **Ainda falta:** endereço próprio de cada site (domínio por marca), pacote de documentos e legislação de imigração, painel consolidado por empresa, número de contrato compartilhado com o site do Marcos.
 
 ## 5. Pendências suas
 1. DNS: registro A `app` → 187.41.108.131 e conferir com `nslookup app.migraparaguai.tech`.

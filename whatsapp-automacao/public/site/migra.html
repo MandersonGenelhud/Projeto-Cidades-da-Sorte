@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Migra Paraguai · Residência, cédula e empresa</title>
+  <meta name="description" content="Documentação e migração para o Paraguai com acompanhamento da Migra." />
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/site/site.css" />
+</head>
+<body>
+  <section class="hero"><div class="wrap">
+    <span class="eyebrow">Migra Paraguai · Documentação e migração</span>
+    <h1>Sua mudança para o Paraguai, com os documentos em ordem</h1>
+    <p>Cuidamos do processo de residência, da cédula paraguaia e da abertura de empresa, e acompanhamos você em cada etapa.</p>
+    <button class="btn primary" id="heroCta" type="button">Quero falar com a equipe</button>
+  </div></section>
+  <section class="section wrap"><div class="section-head"><div><span class="eyebrow" style="color:var(--leaf)">Serviços</span><h2>Como podemos ajudar</h2></div></div>
+    <div class="grid">
+      <div class="card"><div class="body"><h3>🪪 Residência e cédula paraguaia</h3><p>Orientação sobre os documentos necessários, agendamentos e acompanhamento do processo até a cédula.</p><button class="btn small primary" data-svc="Residência e cédula paraguaia">Tenho interesse</button></div></div>
+      <div class="card"><div class="body"><h3>🏢 Abrir empresa no Paraguai</h3><p>Abertura e regularização para quem quer empreender ou trabalhar por conta própria.</p><button class="btn small primary" data-svc="Abrir empresa no Paraguai">Tenho interesse</button></div></div>
+      <div class="card"><div class="body"><h3>🧭 Mentoria e mudança</h3><p>Conversa individual para planejar a mudança com segurança, do começo ao fim.</p><button class="btn small primary" data-svc="Mentoria e mudança">Tenho interesse</button></div></div>
+      <div class="card"><div class="body"><h3>🏡 Terreno ou imóvel</h3><p>Conheça a Migra Imobiliária para escolher onde morar ou investir.</p><a class="btn small" href="/imoveis">Ver imóveis</a></div></div>
+    </div></section>
+  <section class="section wrap"><div class="section-head"><div><span class="eyebrow" style="color:var(--leaf)">Como funciona</span><h2>Do primeiro contato à cédula</h2></div></div>
+    <div class="grid">
+      <div class="card"><div class="body"><h3>1. Conversa</h3><p>Você conta a sua situação e a equipe explica o caminho.</p></div></div>
+      <div class="card"><div class="body"><h3>2. Documentos</h3><p>Dizemos exatamente o que juntar e conferimos antes de começar.</p></div></div>
+      <div class="card"><div class="body"><h3>3. Acompanhamento</h3><p>Cuidamos das etapas e avisamos você a cada passo.</p></div></div>
+    </div></section>
+  <script src="/site/site.js"></script>
+  <script>
+    siteChrome('migra');
+    api('/api/public/catalog').then((c) => setHeaderWhatsapp(c.whatsapp)).catch(() => {});
+    const ask = (svc) => openInterest({ title: svc, kind: 'migracao', slug: '', lotId: '' });
+    $('#heroCta').onclick = () => ask('Migra Paraguai: atendimento geral');
+    $$('[data-svc]').forEach((b) => (b.onclick = () => ask(b.dataset.svc)));
+  </script>
+</body>
+</html>

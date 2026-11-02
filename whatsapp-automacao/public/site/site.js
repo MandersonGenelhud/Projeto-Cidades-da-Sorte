@@ -24,10 +24,12 @@ const STATUS = { disponivel: 'Disponível', reservado: 'Reservado', vendido: 'Ve
 function siteChrome(active) {
   document.body.insertAdjacentHTML('afterbegin', `
     <header class="site-head"><div class="wrap">
-      <a class="logo" href="/imoveis"><img src="/brand/logo" alt="Migra Paraguai" /></a>
+      <a class="logo" href="/marcas"><img src="/brand/logo" alt="Migra Paraguai" /></a>
       <nav class="site-nav">
+        <a href="/migra" class="${active === 'migra' ? 'on' : ''}">Migração</a>
         <a href="/imoveis" class="${active === 'imoveis' ? 'on' : ''}">Imóveis</a>
-        <a href="/imoveis#loteamentos" class="${active === 'lotes' ? 'on' : ''}">Loteamentos</a>
+        <a href="/motors" class="${active === 'motors' ? 'on' : ''}">Motors</a>
+        <a href="/school" class="${active === 'school' ? 'on' : ''}">School</a>
         <a href="/parceiros" class="${active === 'parceiros' ? 'on' : ''}">Indique e ganhe</a>
         <a href="#" class="cta" id="headWa" hidden>Falar no WhatsApp</a>
       </nav>
@@ -35,7 +37,7 @@ function siteChrome(active) {
   document.body.insertAdjacentHTML('beforeend', `
     <footer class="site-foot"><div class="wrap">
       <div><b style="color:#fff">Migra Paraguai</b><br />Seu projeto no Paraguai começa aqui: residência, empresa, terrenos e imóveis.</div>
-      <div><a href="/parceiros">Programa de indicação</a> · <a href="/privacidade.html">Privacidade</a></div>
+      <div><a href="/marcas">Nossas empresas</a> · <a href="/parceiros">Programa de indicação</a> · <a href="/privacidade.html">Privacidade</a></div>
     </div></footer>`);
 }
 
@@ -67,7 +69,7 @@ function openInterest({ title, kind, slug, lotId }) {
         </form>
         <div id="interestOk" hidden class="form">
           <h3 style="margin:0">Recebemos seu interesse ✅</h3>
-          <p>Seu código de atendimento é <b id="interestCode"></b>. Toque no botão para falar agora com o corretor.</p>
+          <p>Seu código de atendimento é <b id="interestCode"></b>. Toque no botão para falar agora com a equipe.</p>
           <a class="btn wa" id="interestWa" target="_blank" rel="noopener">Abrir o WhatsApp</a>
           <button class="btn" type="button" onclick="this.closest('dialog').close()">Fechar</button>
         </div>
@@ -79,7 +81,7 @@ function openInterest({ title, kind, slug, lotId }) {
       const f = e.target;
       $('#interestErr').textContent = '';
       try {
-        const r = await api('/api/public/interest', { method: 'POST', body: { ...dlg.dataset, ...Object.fromEntries(new FormData(f)) } });
+        const r = await api(['migracao', 'veiculos', 'school'].includes(dlg.dataset.kind) ? '/api/public/lead' : '/api/public/interest', { method: 'POST', body: { ...dlg.dataset, brand: dlg.dataset.kind, item: dlg.dataset.title, ...Object.fromEntries(new FormData(f)) } });
         $('#interestCode').textContent = r.code;
         $('#interestWa').href = r.whatsappUrl || '#';
         $('#interestWa').hidden = !r.whatsappUrl;
@@ -93,6 +95,7 @@ function openInterest({ title, kind, slug, lotId }) {
   dlg.dataset.kind = kind;
   dlg.dataset.slug = slug;
   dlg.dataset.lotId = lotId || '';
+  dlg.dataset.title = title;
   $('#interestTitle').textContent = title;
   $('#interestForm').hidden = false;
   $('#interestOk').hidden = true;

@@ -1263,6 +1263,52 @@ app.post('/api/public/interest', async (req, res) => {
   res.json({ ok: true, code: lead.code, whatsappUrl: target ? `https://wa.me/${target}?text=${encodeURIComponent(text)}` : '' });
 });
 
+// Sites das outras marcas (Migra Paraguai, Motors, School): catálogo de veículos e formulário de interesse.
+app.get('/migra', sitePage('migra'));
+app.get('/motors', sitePage('motors'));
+app.get('/school', sitePage('school'));
+app.get('/marcas', sitePage('marcas'));
+app.get('/api/public/vehicles', (_req, res) => {
+  res.json({
+    whatsapp: mainWhatsapp(),
+    vehicles: motors.vehicles({ publicOnly: true }).map(({ plate, createdAt, updatedAt, ...v }) => v),
+  });
+});
+const BRAND_LEADS = {
+  migracao: { sector: 'documentacao', icon: '🛂', label: 'Migra Paraguai (site)' },
+  veiculos: { sector: 'veiculos', icon: '🚗', label: 'Migra Motors (site)' },
+  school: { sector: 'documentacao', icon: '🎓', label: 'Migra School (site)' },
+};
+const leadHits = new Map();
+app.post('/api/public/lead', async (req, res) => {
+  const b = req.body || {};
+  const brand = BRAND_LEADS[b.brand];
+  if (!brand) throw httpError(400, 'Pedido inválido');
+  const ip = clientIp(req);
+  const recent = (leadHits.get(ip) || []).filter((t) => Date.now() - t < 3600_000);
+  if (recent.length >= 8) throw httpError(429, 'Muitos pedidos seguidos. Tente de novo mais tarde ou fale pelo WhatsApp.');
+  leadHits.set(ip, [...recent, Date.now()]);
+  const phone = normalizePhone(b.whatsapp);
+  const name = String(b.name || '').trim().slice(0, 80);
+  if (name.length < 2) throw httpError(400, 'Informe seu nome');
+  if (!phone) throw httpError(400, 'Informe um WhatsApp válido, com DDD');
+  const item = String(b.item || brand.label).slice(0, 120);
+  const message = String(b.message || '').trim().slice(0, 400);
+  const person = sectors.next(brand.sector);
+  const existing = crm.leads.find((l) => l.phone === phone && !['ganho', 'perdido'].includes(l.stage));
+  const lead = existing || crm.byId(crm.create({ name: 'Site', role: 'admin' }, { name, phone, email: String(b.email || '').slice(0, 120), source: 'site', interest: item, ownerId: person?.id || null }).id);
+  const aff = affiliates.refFromRequest(req);
+  if (aff && !existing) affiliates.attach(lead, aff, 'link do site');
+  crm.addNote({ name: 'Site', role: 'admin' }, lead.id, `${brand.label}: ${item}${message ? ` · mensagem: ${message}` : ''}`);
+  notify('crm', { id: lead.id });
+  const text = `${brand.icon} *Novo interessado pelo site* (${brand.label}) — ${lead.code}\n👤 ${name} · +${phone}\n📌 ${item}${message ? `\n📝 ${message}` : ''}\n💬 Chame agora: https://wa.me/${phone}`;
+  if (person?.whatsapp && wa.status === 'connected') wa.send(person.whatsapp, { text, typing: false }).catch(() => {});
+  else if (!person) notifyAdmins(`${text}\n\n⚠️ Ninguém está marcado para este assunto na Equipe.`).catch(() => {});
+  const target = person?.whatsapp || mainWhatsapp();
+  const hello = `Olá! Vim pelo site (${item}). Meu nome é ${name}. Código: ${lead.code}.`;
+  res.json({ ok: true, code: lead.code, whatsappUrl: target ? `https://wa.me/${target}?text=${encodeURIComponent(hello)}` : '' });
+});
+
 // Portal do indicador (login próprio, separado do painel da equipe).
 app.post('/api/affiliate/signup', (req, res) => {
   const a = affiliates.signup(req.body || {});

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Migra School · Idiomas</title>
+  <meta name="description" content="Aulas de espanhol e outros idiomas para quem vive ou vai viver no Paraguai." />
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/site/site.css" />
+</head>
+<body>
+  <section class="hero"><div class="wrap">
+    <span class="eyebrow">Migra School · Idiomas</span>
+    <h1>Aprenda o idioma e se sinta em casa no Paraguai</h1>
+    <p>Aulas de espanhol e outros idiomas, com acompanhamento do seu nível e da sua frequência.</p>
+    <button class="btn primary" id="heroCta" type="button">Quero me matricular</button>
+  </div></section>
+  <section class="section wrap"><div class="section-head"><div><span class="eyebrow" style="color:var(--leaf)">Por que estudar</span><h2>Do primeiro dia ao dia a dia</h2></div></div>
+    <div class="grid">
+      <div class="card"><div class="body"><h3>🗣️ Espanhol do dia a dia</h3><p>Para resolver documentos, trabalhar, fazer negócios e conversar com os vizinhos.</p></div></div>
+      <div class="card"><div class="body"><h3>📈 Seu progresso acompanhado</h3><p>Acompanhamos o seu nível e a sua frequência para você não ficar para trás.</p></div></div>
+      <div class="card"><div class="body"><h3>💬 Atendimento pelo WhatsApp</h3><p>Tire dúvidas, escolha o horário e se matricule sem burocracia.</p></div></div>
+    </div></section>
+  <script src="/site/site.js"></script>
+  <script>
+    siteChrome('school');
+    api('/api/public/catalog').then((c) => setHeaderWhatsapp(c.whatsapp)).catch(() => {});
+    $('#heroCta').onclick = () => openInterest({ title: 'Migra School: matrícula', kind: 'school', slug: '', lotId: '' });
+  </script>
+</body>
+</html>

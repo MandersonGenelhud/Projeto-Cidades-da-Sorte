@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Migra Paraguai · Nossas empresas</title>
+  <meta name="description" content="Migração, imóveis, veículos e idiomas: tudo para o seu projeto no Paraguai." />
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/site/site.css" />
+</head>
+<body>
+  <section class="hero"><div class="wrap">
+    <span class="eyebrow">Grupo Migra</span>
+    <h1>Tudo para o seu projeto no Paraguai</h1>
+    <p>Escolha o que você precisa. Em todas as empresas o atendimento é pelo WhatsApp, com uma pessoa da equipe para cuidar de você.</p>
+  </div></section>
+  <section class="section wrap"><div class="grid">
+    <a class="card" href="/migra"><div class="body"><h3>🛂 Migra Paraguai</h3><div class="loc">Documentação e migração</div><p>Residência, cédula paraguaia, abertura de empresa e a mudança com acompanhamento.</p></div></a>
+    <a class="card" href="/imoveis"><div class="body"><h3>🏡 Migra Imobiliária</h3><div class="loc">Terrenos, loteamentos e imóveis</div><p>Escolha seu lote no mapa, veja casas, apartamentos e galpões.</p></div></a>
+    <a class="card" href="/motors"><div class="body"><h3>🚗 Migra Motors</h3><div class="loc">Veículos</div><p>Carros e motos disponíveis, com opções de financiamento.</p></div></a>
+    <a class="card" href="/school"><div class="body"><h3>🎓 Migra School</h3><div class="loc">Idiomas</div><p>Aulas de espanhol e outros idiomas para quem vive ou vai viver no Paraguai.</p></div></a>
+  </div></section>
+  <script src="/site/site.js"></script>
+  <script>siteChrome('marcas'); api('/api/public/catalog').then((c) => setHeaderWhatsapp(c.whatsapp)).catch(() => {});</script>
+</body>
+</html>
