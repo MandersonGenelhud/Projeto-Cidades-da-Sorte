@@ -330,6 +330,9 @@ test('atendente: o RG é essencial (nunca "não precisa") e o suporte da frontei
   await agent.think(conv);
   assert.match(system, /O RG é ESSENCIAL/);
   assert.match(system, /NUNCA diga que ele é dispensável, que o passaporte o substitui, nem que "não precisa renovar"/);
+  assert.match(system, /NO MÁXIMO 10 ANOS/);
+  assert.match(system, /RG com MAIS de 10 anos NÃO dá/);
+  assert.match(system, /RG de 7, 8 ou 9 anos NÃO precisa renovar/);
   assert.match(system, /a Migra pode AUXILIAR a providenciar/);
   assert.match(system, /Precisa de ajuda com o RG/);
   assert.match(system, /orienta o cliente desde o início até a ponte/);
