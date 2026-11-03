@@ -115,3 +115,22 @@ test('o programa de cópia realmente inicia quando chamado pela linha de comando
   });
   assert.match(out, /Programa de cópia de contratos iniciado/);
 });
+
+test('o programa lê o endereço certo mesmo quando o .bat manda --saida primeiro (erro "invalid URL --saida")', async () => {
+  const { spawn } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const file = fileURLToPath(new URL('../tools/capturar-sistema/capturar.mjs', import.meta.url));
+  const src = fs.readFileSync(file, 'utf8');
+  assert.match(src, /startsWith\('--'\)/, 'ignora as opções ao procurar o endereço');
+  // Sem endereço e com --saida primeiro, ele precisa PERGUNTAR o endereço (e não tentar abrir "--saida").
+  const out = await new Promise((resolve) => {
+    const p = spawn(process.execPath, [file, '--saida', os.tmpdir()], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let buf = '';
+    p.stdout.on('data', (d) => { buf += d; if (/Endereço do sistema/.test(buf)) p.kill(); });
+    p.stderr.on('data', (d) => (buf += d));
+    const t = setTimeout(() => p.kill(), 6000);
+    p.on('close', () => { clearTimeout(t); resolve(buf); });
+  });
+  assert.match(out, /Endereço do sistema/);
+  assert.doesNotMatch(out, /invalid URL|--saida"/);
+});

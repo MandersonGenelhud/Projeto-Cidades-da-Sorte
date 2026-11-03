@@ -184,7 +184,12 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
 async function main() {
   console.log('Programa de cópia de contratos iniciado.');
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const url = process.argv[2] || (await rl.question('Endereço do sistema do Marcos (ex.: https://sistema.exemplo.com): ')).trim();
+  // O endereço é o primeiro argumento que NÃO é uma opção (o .bat passa --saida primeiro, e isso derrubava o programa).
+  const args = process.argv.slice(2);
+  const iS = args.indexOf('--saida');
+  const sobra = args.filter((x, i) => !x.startsWith('--') && !(iS >= 0 && i === iS + 1));
+  let url = (sobra[0] || (await rl.question('Endereço do sistema do Marcos (ex.: https://migrapyassessoria.com): '))).trim();
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
   let pw;
   try { pw = await import('playwright-core'); } catch { pw = await import('playwright'); }
   let browser;
