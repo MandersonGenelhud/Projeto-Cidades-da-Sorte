@@ -62,6 +62,7 @@ Atualizado em 31/10/2026. Tudo abaixo está no sistema depois de **Atualizar ago
 - **Cobrança e previsão:** lista de parcelas vencidas com faixa de atraso, mensagem educada por faixa, aprovação do administrador, fila com limite por dia e horário; previsão do que entra em cada mês.
 - **Ficha do cliente (360):** busca por nome, telefone ou CPF e visão única de contratos, parcelas, orçamentos, documentos, CRM, conversas e linha do tempo; detecção e junção de cadastros repetidos.
 - **Tarefas da equipe:** o que cada pessoa precisa fazer, com prazo, cliente e lembrete no WhatsApp no dia do prazo.
+- **Preços e pagamento antes:** visita ao escritório R$ 250, atendimento com o Marcos US$ 400 e videochamada de 40 min com o Eliezer R$ 200, sempre pagos antes (Pix) e confirmados só depois do comprovante; a IA explica com educação e prefere fechar pelo WhatsApp.
 - **Guia de Cidades:** cidades do Paraguai por departamento, contatos úteis por categoria (cadastrados pelo administrador ou colados de planilha), emergência nacional a conferir e envio do guia ao cliente.
 - **Marketing (Meta):** aba com gasto, contatos, custo por contato e custo por venda dos anúncios, em português simples, a partir da conta de anúncios (chave de leitura colada no painel).
 - **Cobrança / Vencimentos:** a cópia lê as parcelas em aberto de cada contrato (data, valor, vencida ou não) e o "Levar para Vendas" usa essas datas reais. Também copia o caixa e a contabilidade do sistema antigo.

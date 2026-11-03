@@ -18,6 +18,8 @@ export const DEFAULTS = {
   minAdvanceMin: 120,
   maxDaysAhead: 14,
   meetLink: '',
+  fee: 200, // valor (R$) da videochamada com o consultor, pago ANTES (0 = grátis); cliente da Migra não paga
+  holdMin: 180, // quanto tempo o horário fica reservado esperando o pagamento
   // 0 = domingo ... 6 = sábado. Domingo fechado; sábado até o meio-dia.
   hours: { 0: '', 1: '09:00-12:00, 14:00-18:00', 2: '09:00-12:00, 14:00-18:00', 3: '09:00-12:00, 14:00-18:00', 4: '09:00-12:00, 14:00-18:00', 5: '09:00-12:00, 14:00-18:00', 6: '09:00-12:00' },
 };
@@ -51,7 +53,7 @@ export class VideoCalls {
     // Trabalha numa cópia: se algo for inválido, nada é gravado.
     const c = structuredClone(this.data.config);
     if (patch.enabled !== undefined) c.enabled = Boolean(patch.enabled);
-    for (const [k, min, max] of [['durationMin', 10, 180], ['gapMin', 15, 480], ['minAdvanceMin', 0, 2880], ['maxDaysAhead', 1, 60]]) {
+    for (const [k, min, max] of [['durationMin', 10, 180], ['gapMin', 15, 480], ['minAdvanceMin', 0, 2880], ['maxDaysAhead', 1, 60], ['fee', 0, 5000], ['holdMin', 15, 1440]]) {
       if (patch[k] !== undefined) { const n = Math.round(Number(patch[k])); if (!Number.isFinite(n) || n < min || n > max) throw new Error(`${k}: use um número entre ${min} e ${max}`); c[k] = n; }
     }
     const cfg = { ...DEFAULTS, ...c };
@@ -121,6 +123,29 @@ export class VideoCalls {
   }
   forPhone(phone) { return phone ? this.upcoming().filter((b) => b.phone === phone) : []; }
 
+  /** O horário está ocupado? Confirmado, ou reservado esperando pagamento dentro do prazo. */
+  #holds(b) { return b.status === 'confirmed' || (b.status === 'aguardando_pagamento' && b.holdUntil && new Date(b.holdUntil) > this.now()); }
+  /** Reservas esperando pagamento que passaram do prazo voltam a ficar livres. */
+  expirePending() {
+    let n = 0;
+    for (const b of this.data.bookings) if (b.status === 'aguardando_pagamento' && !(b.holdUntil && new Date(b.holdUntil) > this.now())) { b.status = 'expirada'; n += 1; }
+    if (n) this.store.save();
+    return n;
+  }
+  pendingFor(phone) { return phone ? this.data.bookings.find((b) => b.status === 'aguardando_pagamento' && b.phone === phone && new Date(b.holdUntil) > this.now()) || null : null; }
+  /** O pagamento caiu: a videochamada fica confirmada. */
+  confirmPaid(id) {
+    const b = this.data.bookings.find((x) => x.id === id);
+    if (!b) throw new Error('Videochamada não encontrada');
+    if (b.status === 'confirmed') return b;
+    if (b.status !== 'aguardando_pagamento' && b.status !== 'expirada') throw new Error('Videochamada cancelada');
+    // Se o prazo passou e outra pessoa já ocupou o horário, não dá para confirmar sozinho: a equipe remarca com o cliente.
+    const taken = this.data.bookings.some((x) => x.id !== id && x.date === b.date && x.time === b.time && this.#holds(x));
+    b.paidAt = this.now().toISOString();
+    if (taken) { b.status = 'pago_sem_horario'; this.store.save(); return b; }
+    b.status = 'confirmed'; this.store.save(); return b;
+  }
+
   /** Horários livres de um dia (já respeitando espaçamento, domingo/sábado, folgas e antecedência). */
   slots(date) {
     const cfg = this.config;
@@ -135,7 +160,7 @@ export class VideoCalls {
     if (!ranges.length) return { date, weekday, closed: true, motivo: day.getDay() === 0 ? 'Domingo não há atendimento.' : 'Não há atendimento nesse dia.', slots: [] };
     if (!Object.keys(this.data.hosts).some((id) => this.#hostFree(id, date))) return { date, weekday, closed: true, motivo: 'Nesse dia não há ninguém disponível para a videochamada.', slots: [] };
     const earliest = new Date(this.now().getTime() + cfg.minAdvanceMin * 60_000);
-    const taken = this.data.bookings.filter((b) => b.status === 'confirmed' && b.date === date).map((b) => toMin(b.time));
+    const taken = this.data.bookings.filter((b) => b.date === date && this.#holds(b)).map((b) => toMin(b.time));
     const slots = [];
     for (const [start, end] of ranges) {
       for (let m = start; m + cfg.durationMin <= end; m += cfg.gapMin) {
@@ -161,7 +186,7 @@ export class VideoCalls {
     return { dias: out, primeiroDiaSemAtendimento: closed[0] || null };
   }
 
-  book({ date, time, name, phone, people, notes, convKey, source = 'ia' }, { dryRun = false } = {}) {
+  book({ date, time, name, phone, people, notes, convKey, source = 'ia', pending = false }, { dryRun = false } = {}) {
     const r = this.slots(date);
     if (r.error) throw new Error(r.error);
     if (r.closed) throw new Error(r.motivo || 'Não atendemos nesse dia.');
@@ -170,12 +195,12 @@ export class VideoCalls {
     const hostId = Object.keys(this.data.hosts).filter((id) => this.#hostFree(id, date))
       .sort((a, b) => this.data.bookings.filter((x) => x.hostId === a && x.status === 'confirmed').length - this.data.bookings.filter((x) => x.hostId === b && x.status === 'confirmed').length)[0];
     const cfg = this.config;
-    const b = { id: uid(), status: 'confirmed', date, time, durationMin: cfg.durationMin, hostId, hostName: this.auth.get(hostId)?.name || '', name: String(name || '').slice(0, 120), phone: phone || '', convKey: convKey || '', people: Number(people) || null, notes: String(notes || '').slice(0, 500), meetLink: cfg.meetLink, source, createdAt: new Date().toISOString() };
+    const b = { id: uid(), status: 'confirmed', date, time, durationMin: cfg.durationMin, hostId, hostName: this.auth.get(hostId)?.name || '', name: String(name || '').slice(0, 120), phone: phone || '', convKey: convKey || '', people: Number(people) || null, notes: String(notes || '').slice(0, 500), meetLink: cfg.meetLink, source, createdAt: new Date().toISOString(), ...(pending ? { status: 'aguardando_pagamento', holdUntil: new Date(this.now().getTime() + cfg.holdMin * 60_000).toISOString(), fee: cfg.fee } : {}) };
     if (dryRun) return { ...b, id: 'teste', dryRun: true };
     // Um cliente só tem uma videochamada marcada: remarcar troca a anterior.
-    for (const old of this.forPhone(phone)) { old.status = 'canceled'; old.canceledAt = b.createdAt; old.canceledReason = 'remarcada'; }
+    for (const old of [...this.forPhone(phone), this.pendingFor(phone)].filter(Boolean)) { old.status = 'canceled'; old.canceledAt = b.createdAt; old.canceledReason = 'remarcada'; }
     this.data.bookings.push(b);
-    this.data.bookings = this.data.bookings.filter((x) => x.status === 'confirmed' || (Date.now() - Date.parse(x.createdAt)) < 90 * 86_400_000).slice(-3000);
+    this.data.bookings = this.data.bookings.filter((x) => x.status === 'confirmed' || x.status === 'aguardando_pagamento' || x.status === 'pago_sem_horario' || (Date.now() - Date.parse(x.createdAt)) < 90 * 86_400_000).slice(-3000);
     this.store.save();
     return b;
   }

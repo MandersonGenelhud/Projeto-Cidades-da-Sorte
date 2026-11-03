@@ -30,7 +30,7 @@
         <div class="table-wrap"><table><tbody>${v.candidates.map((u) => { const h = v.hosts.find((x) => x.id === u.id); return `<tr><td>${esc(u.name)}</td><td>${h ? `<span class="chip">${h.active ? 'disponível' : 'indisponível'}${h.offDates.length ? ` · folga: ${h.offDates.map(br).join(', ')}` : ''}</span>` : ''}</td><td><button class="btn small ${h ? '' : 'primary'}" data-a="host" data-id="${esc(u.id)}" data-on="${h ? 0 : 1}">${h ? 'Tirar da lista' : 'Passou a fazer videochamadas'}</button></td></tr>`; }).join('')}</tbody></table></div></div>
         <div class="panel"><h2>Regras da agenda</h2>
         <label class="check"><input type="checkbox" id="cfgOn" ${c.enabled ? 'checked' : ''}/> IA pode marcar videochamadas</label>
-        <div class="grid2"><label>Duração (minutos)<input type="number" id="cfgDur" value="${c.durationMin}" /></label><label>Distância entre um começo e outro (minutos)<input type="number" id="cfgGap" value="${c.gapMin}" /></label><label>Antecedência mínima (minutos)<input type="number" id="cfgAdv" value="${c.minAdvanceMin}" /></label><label>Marcar com até (dias)<input type="number" id="cfgMax" value="${c.maxDaysAhead}" /></label></div>
+        <div class="grid2"><label>Duração (minutos)<input type="number" id="cfgDur" value="${c.durationMin}" /></label><label>Distância entre um começo e outro (minutos)<input type="number" id="cfgGap" value="${c.gapMin}" /></label><label>Antecedência mínima (minutos)<input type="number" id="cfgAdv" value="${c.minAdvanceMin}" /></label><label>Marcar com até (dias)<input type="number" id="cfgMax" value="${c.maxDaysAhead}" /></label><label>Valor da videochamada (R$, pago antes; 0 = grátis)<input type="number" id="cfgFee" value="${c.fee}" /></label><label>Segurar o horário esperando o pagamento (minutos)<input type="number" id="cfgHold" value="${c.holdMin}" /></label></div>
         <label>Link da sala (Google Meet) enviado ao cliente<input id="cfgLink" value="${esc(c.meetLink)}" placeholder="https://meet.google.com/..." /></label>
         <h3>Horários de cada dia (deixe vazio para não atender)</h3>
         ${DAYS.map((n, i) => `<label>${n}<input data-h="${i}" value="${esc(c.hours[i] || '')}" placeholder="09:00-12:00, 14:00-18:00" /></label>`).join('')}
@@ -54,7 +54,7 @@
       else if (a === 'cancel') { if (!confirm('Cancelar esta videochamada? Avise o cliente.')) return; await api(`/api/videocall/${t.dataset.id}/cancel`, { method: 'POST', body: {} }); }
       else if (a === 'saveCfg') {
         const hours = {}; sec.querySelectorAll('[data-h]').forEach((i) => { hours[i.dataset.h] = i.value.trim(); });
-        await api('/api/videocall/config', { method: 'PUT', body: { enabled: sec.querySelector('#cfgOn').checked, durationMin: sec.querySelector('#cfgDur').value, gapMin: sec.querySelector('#cfgGap').value, minAdvanceMin: sec.querySelector('#cfgAdv').value, maxDaysAhead: sec.querySelector('#cfgMax').value, meetLink: sec.querySelector('#cfgLink').value, hours } });
+        await api('/api/videocall/config', { method: 'PUT', body: { enabled: sec.querySelector('#cfgOn').checked, durationMin: sec.querySelector('#cfgDur').value, gapMin: sec.querySelector('#cfgGap').value, minAdvanceMin: sec.querySelector('#cfgAdv').value, maxDaysAhead: sec.querySelector('#cfgMax').value, fee: sec.querySelector('#cfgFee').value, holdMin: sec.querySelector('#cfgHold').value, meetLink: sec.querySelector('#cfgLink').value, hours } });
         toast('Regras salvas');
       }
       await render();

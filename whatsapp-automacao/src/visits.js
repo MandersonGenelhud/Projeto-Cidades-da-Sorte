@@ -39,7 +39,7 @@ export class Visits {
 
   /** Taxa de assessoria presencial, paga antes de reservar o horário e estornada se o cliente fechar. 0 = sem taxa. */
   get fee() {
-    return Number(this.config.consultFee ?? 150) || 0;
+    return Number(this.config.consultFee ?? 250) || 0;
   }
 
   #clientOf(v) {

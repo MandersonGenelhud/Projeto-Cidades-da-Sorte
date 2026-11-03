@@ -52,7 +52,7 @@ test('atendente: fechamento por escolha (Pix, cartão ou dinheiro), sem aceitar 
   assert.match(system, /NUNCA pergunte algo que possa ser respondido com "não"/);
   assert.match(system, /Só depois de duas tentativas/);
   assert.match(system, /2 = R\$ 2\.600,00/);
-  assert.match(system, /taxa de reserva de R\$ 150,00 paga antes pelo Pix/);
+  assert.match(system, /taxa de reserva de R\$ 250,00 paga antes pelo Pix/);
   assert.match(system, /Aprendizados de vendas fechadas[\s\S]*dia 10/);
   assert.doesNotMatch(system, /Quer que eu já te mande a ficha/);
   // Taxa zerada no painel: a atendente não fala de taxa.
@@ -87,7 +87,7 @@ test('Instagram: a ferramenta de levar para o WhatsApp só aparece no Direct', a
   assert.ok(!seen.at(-1).includes('levar_para_whatsapp'), 'no WhatsApp a ferramenta não aparece');
 });
 
-test('mentoria com o Marcos (US$ 250/h): a atendente oferece só para quem insiste e registra para ele confirmar', async () => {
+test('mentoria com o Marcos (US$ 400/h): a atendente oferece só para quem insiste e registra para ele confirmar', async () => {
   const store = tempStore();
   store.updateSettings(presetSettings('migra-paraguai'));
   store.updateSettings({ agent: { enabled: true, audience: 'all' } });
@@ -99,9 +99,9 @@ test('mentoria com o Marcos (US$ 250/h): a atendente oferece só para quem insis
   const conv = agent.conversation('5511999990000@s.whatsapp.net');
   agent.remember(conv, 'user', 'Quero falar direto com o Marcos');
   await agent.think(conv);
-  assert.match(system, /60 minutos por US\$ 250/);
+  assert.match(system, /60 minutos por US\$ 400/);
   assert.match(system, /não converta para reais por conta própria|Não converta para reais por conta própria/);
-  assert.match(system, /250 dólares americanos \(US\$ 250\) a hora/);
+  assert.match(system, /400 dólares americanos \(US\$ 400\) a hora/);
   assert.match(system, /investimentos no Paraguai/);
   assert.match(system, /online ou presencial/);
   assert.match(system, /JÁ É CLIENTE da Migra não paga/);
@@ -201,10 +201,10 @@ test('visita ao escritório e mentoria com o Marcos são separadas, e quem já �
   await agent.think(conv);
   assert.match(system, /são DUAS coisas diferentes/);
   assert.match(system, /atendido por um dos CONSULTORES da equipe, não pelo Marcos/);
-  assert.match(system, /DIRETAMENTE com o Marcos Miguel \(online ou presencial\), 250 dólares americanos/);
+  assert.match(system, /DIRETAMENTE com o Marcos Miguel \(online ou presencial\), 400 dólares americanos/);
   assert.match(system, /Nunca deixe o cliente achar que a taxa da visita é para falar com o Marcos/);
   assert.match(system, /Deixe claro que a visita é com um dos CONSULTORES/);
-  assert.match(system, /taxa de reserva de R\$ 150,00 paga antes pelo Pix/);
+  assert.match(system, /taxa de reserva de R\$ 250,00 paga antes pelo Pix/);
   assert.doesNotMatch(system, /ESTE CLIENTE JÁ É CLIENTE/);
   // Cliente com reserva paga: nenhum dos dois agendamentos tem custo.
   agent.isClient = () => true;

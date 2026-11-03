@@ -207,7 +207,13 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
   const vistos = new Set(fila);
   const paginas = []; const pdfs = new Map(); const modelos = []; let amostras = 0;
   let reciclou = -1;
-  while (fila.length && paginas.length < maxPaginas) {
+  // Segurança contra defeito: se você apertar Ctrl+C ou o navegador fechar, o programa para, salva o que já leu e segue para montar o arquivo.
+  let parar = false;
+  const aoParar = () => { if (!parar) { parar = true; log('\nParando e guardando o que já foi lido… aguarde alguns segundos.'); } };
+  process.once('SIGINT', aoParar); process.once('SIGTERM', aoParar);
+  // A cada 40 páginas guarda um arquivo parcial: se o computador desligar, nada se perde (rode de novo e o sistema novo não duplica).
+  const guardarParcial = () => { try { fs.writeFileSync(path.join(pasta, 'captura-parcial.json'), JSON.stringify({ feitoEm: new Date().toISOString(), parcial: true, origem, falhas, pages: paginas.map(({ links, ...p }) => p), api: api.slice(0, 1500) })); } catch { /* disco cheio: segue */ } };
+  while (fila.length && paginas.length < maxPaginas && !parar) {
     const url = fila.shift();
     if (paginas.length > 0 && paginas.length % 100 === 0 && reciclou !== paginas.length) { reciclou = paginas.length; await reciclar(); }
     try {
@@ -261,6 +267,7 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
       for (const l of [...d.pdfs, ...d.arquivos]) if (l.startsWith(origem) && !PERIGOSO.test(l) && !pdfs.has(l)) pdfs.set(l, null);
     } catch (e) { falhas.push({ url, motivo: e.message.split('\n')[0].slice(0, 160) }); log(`  (pulei ${url}: ${e.message.split('\n')[0]})`); }
     if (paginas.length % 25 === 0) log(`  ${paginas.length} páginas lidas, ${fila.length} na fila…`);
+    if (paginas.length > 0 && paginas.length % 40 === 0) guardarParcial();
     await new Promise((r) => setTimeout(r, espera));
   }
   // PDFs, fotos e documentos: baixa com o mesmo login do navegador (sem passar a senha para lugar nenhum).
@@ -294,6 +301,14 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
   }
   const captura = { feitoEm: new Date().toISOString(), origem, falhas, pages: paginas.map(({ links, ...p }) => { const lista = [...new Set([...p.pdfs, ...p.arquivos])].map((u) => baixados.get(u)).filter(Boolean); return { ...p, pdfs: lista.filter((x) => x.kind === 'pdf').map((x) => x.name), arquivos: lista }; }), api };
   fs.writeFileSync(path.join(pasta, 'captura.json'), JSON.stringify(captura));
+  // Lista de conferência: cada arquivo com tamanho e impressão digital, para provar que o arquivo único chegou inteiro.
+  try {
+    const itens = [];
+    const andar = (dir, rel = '') => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const full = path.join(dir, e.name); const r = rel ? `${rel}/${e.name}` : e.name; if (e.isDirectory()) andar(full, r); else if (!/^(manifesto\.json|captura-parcial\.json)$/.test(e.name)) { const b = fs.readFileSync(full); itens.push({ arquivo: r, bytes: b.length, sha256: crypto.createHash('sha256').update(b).digest('hex') }); } } };
+    andar(pasta);
+    fs.writeFileSync(path.join(pasta, 'manifesto.json'), JSON.stringify({ feitoEm: new Date().toISOString(), paginas: paginas.length, falhas: falhas.length, interrompido: parar, total: itens.length, itens }));
+  } catch { /* sem manifesto: o resto continua valendo */ }
+  try { fs.rmSync(path.join(pasta, 'captura-parcial.json'), { force: true }); } catch { /* ok */ }
   // Mapa SEM dados pessoais: só a estrutura (endereços, colunas e rótulos), para eu ajustar o leitor.
   const grupos = new Map();
   for (const p of paginas) {

@@ -307,6 +307,23 @@ agent.videoSlots = (conv, args) => {
 agent.videoBook = async (conv, args, { dryRun } = {}) => {
   if (args.valor_apresentado !== true || args.tem_condicoes !== true || !priceSeen(conv)) return notQualified();
   const simulated = dryRun || String(conv.key).startsWith('sim:');
+  // Videochamada paga: o horário fica reservado, o Pix sai na hora e só depois do pagamento a videochamada é confirmada. Cliente da Migra não paga.
+  const vcLead = simulated ? null : crm.findForConversation({ key: conv.key, phone: conv.phone }) || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+  const vcFee = videocalls.config.fee;
+  if (vcFee > 0 && simulated) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real o horário fica reservado, o Pix de R$ ${vcFee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} sai na hora e a videochamada só é confirmada depois do pagamento e do comprovante. Explique a regra com gentileza.` };
+  if (vcFee > 0 && !isClientOfMigra(vcLead)) {
+    const held = videocalls.book({ date: args.data, time: args.hora, name: args.nome, phone: conv.phone, people: args.pessoas, notes: args.observacoes, convKey: conv.key, pending: true });
+    try {
+      const p = await payments.create({ convKey: conv.key, leadId: vcLead?.id || null, amount: vcFee, description: `Videochamada de ${held.durationMin} min com a equipe da Migra (${videocalls.fmt(held)})`, payerName: args.nome, by: 'IA' });
+      p.purpose = 'videochamada'; p.videoId = held.id; store.save();
+      await payments.sendCharge(p);
+    } catch (e) {
+      videocalls.cancel(held.id, 'sem cobrança'); 
+      return { erro: `Não consegui gerar o Pix agora (${e.message}). Diga que a equipe envia o Pix em instantes e use transferir_para_humano.` };
+    }
+    const fee = `R$ ${vcFee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    return { ok: true, aguardandoPagamento: true, valor: fee, data: held.date, hora: held.time, instrucao: `O horário ${videocalls.fmt(held)} ficou RESERVADO por até ${Math.round(videocalls.config.holdMin / 60 * 10) / 10} hora(s) e o Pix de ${fee} já foi enviado logo acima. Explique com educação e sem ofender: a videochamada de ${held.durationMin} minutos (para tirar todas as dúvidas e fechar) só é confirmada depois do pagamento e do envio do comprovante por aqui, porque assim a agenda fica para quem está realmente comprometido e ninguém perde tempo. Não dá para pagar no dia. Peça o comprovante e diga que, assim que o sistema der a baixa, você confirma a videochamada. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que está confirmada antes do pagamento.` };
+  }
   const b = videocalls.book({ date: args.data, time: args.hora, name: args.nome, phone: conv.phone, people: args.pessoas, notes: args.observacoes, convKey: conv.key }, { dryRun: simulated });
   if (!simulated) {
     notify('videocall', { id: b.id });
@@ -314,6 +331,15 @@ agent.videoBook = async (conv, args, { dryRun } = {}) => {
     if (host?.whatsapp && wa.status === 'connected') wa.send(host.whatsapp, { text: `📹 *Nova videochamada marcada*\n${videocalls.fmt(b)} (${b.durationMin} min)\nCliente: ${b.name}${b.phone ? ` (+${b.phone})` : ''}${b.people ? `\nPessoas: ${b.people}` : ''}${b.notes ? `\nObs.: ${b.notes}` : ''}`, typing: false }).catch(() => {});
   }
   return { ok: true, simulacao: simulated || undefined, data: b.date, hora: b.time, duracao_minutos: b.durationMin, consultor: firstName(b.hostName), link: b.meetLink || '', instrucao: `Videochamada marcada para ${videocalls.fmt(b)}, com ${b.durationMin} minutos de bate-papo para tirar as dúvidas que ficaram e alinhar o início do procedimento. Confirme ao cliente com calor humano e peça que venha com o marido/a esposa. ${b.meetLink ? `Envie o link da sala: ${b.meetLink}` : 'Diga que o consultor envia o link da sala antes da hora.'}` };
+};
+agent.pricingInfo = () => {
+  const v = store.settings.visits || {}; const m = store.settings.crm?.mentoring || {}; const vc = videocalls.config;
+  const rs = (n) => `R$ ${Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  return ['Valores vigentes (diga só se o cliente insistir):',
+    Number(v.consultFee ?? 250) > 0 ? `- Visita ao escritório (com a equipe): ${rs(v.consultFee ?? 250)}, pagos antes pelo Pix; estornado se o cliente fechar com a Migra.` : '',
+    m.enabled !== false && Number(m.price) > 0 ? `- Atendimento exclusivo com o Marcos (1 hora): ${Number(m.price)} ${m.currency === 'BRL' ? 'reais' : 'dólares americanos (US$)'}; não é estornado.` : '',
+    vc.fee > 0 ? `- Videochamada de ${vc.durationMin} minutos com o Eliezer ou outro consultor, para tirar todas as dúvidas e fechar: ${rs(vc.fee)}, pagos antes pelo Pix; só fica confirmada depois do comprovante. Use horarios_videochamada e agendar_videochamada (a ferramenta já reserva o horário e gera o Pix).` : '',
+  ].filter(Boolean).join('\n');
 };
 agent.videoInfo = (conv) => [videocalls.promptInfo(), ...videocalls.forPhone(conv.phone).map((b) => `Este cliente JÁ TEM videochamada marcada: ${videocalls.fmt(b)}. Não marque outra, a menos que ele queira remarcar.`)].join('\n');
 const motors = new Motors({ store });
@@ -388,6 +414,21 @@ payments.onPaid = (p) => {
     const conv = p.convKey ? agent.conversation(p.convKey, { create: false }) : null;
     const text = 'Pagamento confirmado! ✅ A assessoria do Marcos já recebeu o seu pedido de mentoria e vai escolher o dia e o horário na agenda dele e confirmar por aqui com você se serve.';
     if (p.convKey) wa.send(p.convKey, { text, typing: false }).then(() => conv && agent.remember(conv, 'assistant', text)).catch(() => {});
+    return;
+  }
+  if (p.purpose === 'videochamada') {
+    try {
+      const b = videocalls.confirmPaid(p.videoId);
+      const conv = p.convKey ? agent.conversation(p.convKey, { create: false }) : null;
+      const text = b.status === 'confirmed'
+        ? `Pagamento confirmado! ✅ Sua videochamada está confirmada para ${videocalls.fmt(b)} (${b.durationMin} minutos).${b.meetLink ? ` Link da sala: ${b.meetLink}` : ' O consultor envia o link da sala antes da hora.'} Se vier com o marido/a esposa, melhor ainda!`
+        : 'Pagamento confirmado! ✅ O horário que você escolheu acabou de ser ocupado por outra pessoa, então a nossa equipe vai combinar um novo horário com você por aqui, sem custo extra.';
+      if (p.convKey) wa.send(p.convKey, { text, typing: false }).then(() => conv && agent.remember(conv, 'assistant', text)).catch(() => {});
+      const host = auth.get(b.hostId);
+      const note = `📹 *Videochamada PAGA*\n${b.status === 'confirmed' ? videocalls.fmt(b) : 'sem horário livre: remarcar com o cliente'} (${b.durationMin} min)\nCliente: ${b.name}${b.phone ? ` (+${b.phone})` : ''}\n💵 R$ ${p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+      if (host?.whatsapp && wa.status === 'connected') wa.send(host.whatsapp, { text: note, typing: false }).catch(() => {});
+      notify('videocall', { id: b.id });
+    } catch (e) { store.addLog({ type: 'error', message: `Videochamada paga: ${e.message}` }); }
     return;
   }
   if (p.purpose === 'visita') {
@@ -643,7 +684,7 @@ function forwardUnpaid(now = Date.now()) {
 setInterval(() => forwardUnpaid(), 15 * 60_000).unref();
 
 // Contratação, parcerias e assuntos de negócio vão direto para o WhatsApp do Marcos.
-// Mentoria com o Marcos (US$ 250/h, online ou presencial): paga antes de agendar; cliente da Migra não paga.
+// Mentoria com o Marcos (US$ 400/h, online ou presencial): paga antes de agendar; cliente da Migra não paga.
 const isClientOfMigra = (lead) => Boolean(lead) && (lead.stage === 'ganho'
   || sales.list.some((s) => s.leadId === lead.id && s.status !== 'cancelada')
   || (store.data.payments || []).some((p) => p.leadId === lead.id && p.status === 'paid' && !p.purpose));
@@ -672,7 +713,7 @@ agent.bookMentoring = async (conv, args = {}, { dryRun } = {}) => {
   const m = store.settings.crm?.mentoring || {};
   const brl = mentoringPriceBRL();
   const money = `R$ ${brl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-  const usd = `${m.currency === 'BRL' ? 'R$' : 'US$'} ${Number(m.price || 250).toLocaleString('pt-BR')}`;
+  const usd = `${m.currency === 'BRL' ? 'R$' : 'US$'} ${Number(m.price || 400).toLocaleString('pt-BR')}`;
   if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real, cliente da Migra não paga; os demais recebem o Pix de ${money} (${usd}) ou o link do cartão. Diga isso em uma frase.` };
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username })
     || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
@@ -692,7 +733,7 @@ agent.bookMentoring = async (conv, args = {}, { dryRun } = {}) => {
     p.mentoring = { formato: args.formato === 'presencial' ? 'presencial' : 'online', assunto: String(args.assunto || '').slice(0, 300), prazo_para_agendar: String(args.prazo_para_agendar || '').slice(0, 200), nome: args.nome || '' };
     store.save();
     await payments.sendCharge(p);
-    return { ok: true, valor: money, instrucao: `O QR Code e o Pix copia e cola já foram enviados logo acima (${money}). Diga que a mentoria é de 250 dólares americanos (US$ 250) e que o Pix, por ser do Brasil, é pago em reais pela cotação do dia (o valor aparece no QR Code; se o cliente perguntar quanto é, diga o valor em reais sem esconder). Explique que é só copiar o código no app do banco; assim que o pagamento for confirmado, o recibo chega aqui e a assessoria do Marcos escolhe o dia e o horário na agenda dele e confirma com ele se serve. Nunca confirme nem sugira data ou horário. Deixe claro, com simpatia, que o valor da mentoria NÃO é devolvido nem estornado, mesmo que ele feche com a Migra.` };
+    return { ok: true, valor: money, instrucao: `O QR Code e o Pix copia e cola já foram enviados logo acima (${money}). Diga que a mentoria é de ${Number(m.price || 400)} dólares americanos (US$ ${Number(m.price || 400)}) e que o Pix, por ser do Brasil, é pago em reais pela cotação do dia (o valor aparece no QR Code; se o cliente perguntar quanto é, diga o valor em reais sem esconder). Explique que é só copiar o código no app do banco; assim que o pagamento for confirmado, o recibo chega aqui e a assessoria do Marcos escolhe o dia e o horário na agenda dele e confirma com ele se serve. Nunca confirme nem sugira data ou horário. Deixe claro, com simpatia, que o valor da mentoria NÃO é devolvido nem estornado, mesmo que ele feche com a Migra.` };
   } catch (e) {
     return { erro: `${e.message}. Use avisar_marcos com assunto "mentoria" para a equipe cobrar.` };
   }
@@ -772,7 +813,7 @@ agent.requestVisit = async (conv, args, { dryRun } = {}) => {
     const price = `${m.currency === 'BRL' ? 'R$' : 'US$'} ${Number(m.price).toLocaleString('pt-BR')}`;
     return { erro: `Não registre visita: quem quer falar direto com o Marcos Miguel contrata a mentoria de ${m.minutes || 60} minutos por ${Number(m.price)} ${m.currency === 'BRL' ? 'reais' : 'dólares americanos'} (${price}), online ou presencial, gratuita para quem já é cliente da Migra. Explique isso com naturalidade, dê a escolha entre seguir com a equipe ou reservar a mentoria e, se ele quiser, use reservar_mentoria. Se na verdade ele só quer conhecer o escritório com a equipe, tente de novo sem citar o Marcos.` };
   }
-  // Taxa de reserva (R$ 150) paga ANTES de agendar; estornada se o cliente fechar. Quem já é cliente não paga.
+  // Taxa de reserva (R$ 250) paga ANTES de agendar; estornada se o cliente fechar. Quem já é cliente não paga.
   if (visits.fee > 0 && !isClientOfMigra(lead)) {
     const open = visits.forConversation(conv.key).find((v) => v.status === 'aguardando_taxa');
     const fee = visits.fee;
@@ -4279,6 +4320,8 @@ if (process.env.NODE_ENV !== 'test') {
   // Treinamento semanal dos vendedores: a cada 7 dias a IA cria um novo e os vendedores são avisados no WhatsApp.
   setInterval(() => runWeeklyTraining().catch((e) => store.addLog({ type: 'error', message: `Treinamento semanal: ${e.message}` })), 6 * 3_600_000).unref();
   setTimeout(() => runWeeklyTraining().catch(() => {}), 5 * 60_000).unref();
+  // Videochamadas reservadas que não foram pagas voltam a ficar livres.
+  setInterval(() => videocalls.expirePending(), 5 * 60_000).unref();
   // Lembretes de tarefas da equipe (WhatsApp de cada pessoa), a cada 10 minutos, só no horário comercial.
   setInterval(() => { const h = new Date().getHours(); if (wa.status === 'connected' && h >= 8 && h < 19) tasks.remind((phone, text) => wa.send(phone, { text, typing: false })).catch(() => {}); }, 10 * 60_000).unref();
   // Cobrança aprovada: manda uma mensagem por vez, respeitando limite, horário e intervalo.

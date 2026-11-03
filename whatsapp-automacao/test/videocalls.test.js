@@ -133,3 +133,54 @@ test('videochamada: o texto da IA exige apresentar o valor e checar condições 
   assert.match(system, /NÃO ofereça videochamada, NÃO use horarios_videochamada/);
   assert.match(system, /nunca humilhe/);
 });
+
+test('videochamada paga: o horário fica reservado esperando o pagamento, libera se não pagar e só confirma depois de pago', () => {
+  let now = new Date(2026, 9, 26, 20, 0);
+  const store = tempStore();
+  const users = [{ id: 'eli1', name: 'Eliezer Souza', role: 'seller', active: true }];
+  const vc = new VideoCalls({ store, auth: { users, get: (id) => users.find((u) => u.id === id) }, now: () => now });
+  assert.equal(vc.config.fee, 200, 'padrão R$ 200');
+  assert.equal(vc.setConfig({ fee: 300, holdMin: 60 }).fee, 300);
+  assert.throws(() => vc.setConfig({ fee: 99999 }), /fee/);
+  vc.setConfig({ fee: 200 });
+  const day = '2026-10-27';
+  const b = vc.book({ date: day, time: '09:00', name: 'Carla', phone: '55119', pending: true });
+  assert.equal(b.status, 'aguardando_pagamento');
+  assert.ok(!vc.slots(day).slots.includes('09:00'), 'reservado enquanto espera o pagamento');
+  assert.equal(vc.upcoming().length, 0, 'ainda não é uma videochamada confirmada');
+  // prazo passou sem pagar: o horário volta
+  now = new Date(2026, 9, 26, 23, 30);
+  assert.ok(vc.slots(day).slots.includes('09:00'));
+  assert.equal(vc.expirePending(), 1);
+  // pagou dentro do prazo
+  now = new Date(2026, 9, 26, 20, 0);
+  const c = vc.book({ date: day, time: '10:00', name: 'Rita', phone: '55120', pending: true });
+  const ok = vc.confirmPaid(c.id);
+  assert.equal(ok.status, 'confirmed');
+  assert.equal(vc.upcoming().length, 1);
+  // pagou depois de expirar e outra pessoa já ocupou: não confirma sozinho
+  const d = vc.book({ date: day, time: '14:00', name: 'Ana', phone: '55121', pending: true });
+  now = new Date(2026, 9, 27, 0, 30); vc.expirePending();
+  now = new Date(2026, 9, 26, 20, 0);
+  vc.book({ date: day, time: '14:00', name: 'Outro', phone: '55122' });
+  assert.equal(vc.confirmPaid(d.id).status, 'pago_sem_horario');
+});
+
+test('regra de pagamento antes: a IA explica com educação, sem aceitar pagar no dia, e traz os valores novos', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('clinica-sorriso'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const T = new Date(2026, 9, 26, 9, 5);
+  let system = '';
+  const llm = { configured: true, async chat({ messages }) { system = messages[0].content; return { content: 'ok', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm, calendar: new LocalCalendar({ store, getConfig: () => store.settings.agenda, now: () => T }), now: () => T });
+  agent.pricingInfo = () => 'Valores vigentes: visita R$ 250,00; Marcos 400; videochamada R$ 200,00.';
+  await agent.handleIncoming({ key: 'k9', phone: '5511999990009', name: 'Rita', text: 'oi' }, async () => {});
+  assert.match(system, /Atendimento presencial, com o Marcos e videochamada/);
+  assert.match(system, /SEMPRE pagos ANTES/);
+  assert.match(system, /só é confirmado depois do pagamento e do envio do comprovante/);
+  assert.match(system, /Não conseguimos receber no dia/);
+  assert.match(system, /sem fazer o cliente se sentir ofendido/);
+  assert.match(system, /Nunca aceite "pago no dia"/);
+  assert.match(system, /videochamada R\$ 200,00/);
+});

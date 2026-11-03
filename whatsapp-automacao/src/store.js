@@ -45,7 +45,7 @@ const DEFAULT_DATA = {
       panelUrl: '', // endereço do painel na internet, para o link da ficha no aviso ao vendedor
       ownerPhone: '', // WhatsApp do Marcos: parcerias e assuntos de negócio vão direto para ele
       jobsContact: [{ name: 'Gabriel', whatsapp: '' }], // quem quer trabalhar na Migra (só o nome = WhatsApp da Equipe)
-      mentoring: { enabled: true, price: 250, currency: 'USD', minutes: 60, priceBRL: 0 }, // priceBRL: valor do Pix em reais (0 = US$ × cotação do painel) // mentoria com o Marcos Miguel (único atendimento direto com ele)
+      mentoring: { enabled: true, price: 400, currency: 'USD', minutes: 60, priceBRL: 0 }, // priceBRL: valor do Pix em reais (0 = US$ × cotação do painel) // mentoria com o Marcos Miguel (único atendimento direto com ele)
       // Oferta do aplicativo de idiomas da Migra (ainda em desenvolvimento): só vale até a data que o Marcos escolher.
       appOffer: { enabled: true, regularPrice: 59.99, discountPct: 50, months: 6, period: 'por mês', validUntil: '2026-12-25', gift: '' }, // oferta de Natal: vale até 25/12/2026
       codePrefix: 'MIG',
@@ -124,7 +124,7 @@ const DEFAULT_DATA = {
       hours: '', // dias e horários em que o Marcos costuma receber
       notifyPhone: '', // WhatsApp que recebe os pedidos (vazio = administradores)
       bring: '', // o que o cliente deve trazer (vazio = texto padrão)
-      consultFee: 150, // taxa de reserva do atendimento presencial: paga antes (Pix), estornada se o cliente fechar; 0 = sem taxa
+      consultFee: 250, // taxa de reserva do atendimento presencial: paga antes (Pix), estornada se o cliente fechar; 0 = sem taxa
       people: [], // quem cuida das visitas (Nome = WhatsApp, ou só o nome de quem está na Equipe)
     },
     // Orçamentos ORC-AAAA-NNNNN (PDF + mensagem). nextNumber continua a numeração que a Migra já usa.
@@ -237,6 +237,24 @@ export class Store extends EventEmitter {
     if (vs && !vs.fee150) {
       if (Number(vs.consultFee) === 125 || vs.consultFee === undefined) vs.consultFee = 150;
       vs.fee150 = true;
+      this.flush();
+    }
+    // Nov/2026: valores novos (a barreira para ninguém querer ir ao escritório): visita R$ 250 e mentoria com o Marcos US$ 400. Aplica uma vez.
+    const crmM = this.data.settings.crm;
+    if (vs && !vs.fee250) {
+      if (Number(vs.consultFee) === 150 || vs.consultFee === undefined) vs.consultFee = 250;
+      vs.fee250 = true;
+      this.flush();
+    }
+    if (crmM?.mentoring && !crmM.mentoring.price400) {
+      if (Number(crmM.mentoring.price) === 250 || !crmM.mentoring.price) crmM.mentoring.price = 400;
+      crmM.mentoring.price400 = true;
+      this.flush();
+    }
+    const agP = this.data.settings.agent;
+    if (agP && !agP.prices2026Nov) {
+      for (const [k, v] of Object.entries(agP)) if (typeof v === 'string' && /(US\$ 250|250 dólares americanos|taxa de reserva de R\$ 150,00)/.test(v)) agP[k] = v.replace(/250 dólares americanos \(US\$ 250/g, '400 dólares americanos (US$ 400').replace(/taxa de reserva de R\$ 150,00/g, 'taxa de reserva de R$ 250,00');
+      agP.prices2026Nov = true;
       this.flush();
     }
     // O RG é o documento necessário agora (de 10 anos para cá); o passaporte não o substitui. Corrige textos antigos gravados na base, uma vez.

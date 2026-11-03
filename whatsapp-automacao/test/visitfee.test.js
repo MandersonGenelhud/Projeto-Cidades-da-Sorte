@@ -14,16 +14,16 @@ function setup({ clients = [] } = {}) {
   return { store, visits, sent, desk, notes };
 }
 
-test('taxa padrão de R$ 150 e a equipe só é avisada depois que o Pix da taxa é pago', async () => {
+test('taxa padrão de R$ 250 e a equipe só é avisada depois que o Pix da taxa é pago', async () => {
   const { visits, desk, notes } = setup();
-  assert.equal(visits.fee, 150);
+  assert.equal(visits.fee, 250);
   const v = await visits.request({ convKey: 'k1', lead: { id: 'L1' }, nome: 'Ana Souza', data_preferida: 'segunda', assunto: 'residência', feePending: true });
   assert.equal(v.status, 'aguardando_taxa');
   assert.equal(desk.length, 0, 'sem o pagamento, ninguém da equipe é incomodado');
   assert.equal(visits.forConversation('k1').length, 1, 'a atendente enxerga o pedido e não cria outro');
-  await visits.feePaid(v.id, { id: 'pay1', amount: 150 });
+  await visits.feePaid(v.id, { id: 'pay1', amount: 250 });
   assert.equal(v.status, 'pendente');
-  assert.match(desk[0], /TAXA DE R\$ 150,00 JÁ PAGA/);
+  assert.match(desk[0], /TAXA DE R\$ 250,00 JÁ PAGA/);
   assert.match(notes.at(-1).text, /Estornar se fechar/);
   await visits.feePaid(v.id); // repetido não avisa de novo
   assert.equal(desk.length, 1);
@@ -33,7 +33,7 @@ test('estorno: quem pagou a taxa e fechou com a Migra aparece para devolver, e s
   const clients = [];
   const { visits } = setup({ clients });
   const v = await visits.request({ convKey: 'k1', lead: { id: 'L1' }, nome: 'Ana', data_preferida: 'x', assunto: 'y', feePending: true });
-  await visits.feePaid(v.id, { id: 'p', amount: 150 });
+  await visits.feePaid(v.id, { id: 'p', amount: 250 });
   assert.equal(visits.refundsDue().length, 0, 'ainda não fechou');
   clients.push('L1');
   assert.deepEqual(visits.refundsDue().map((x) => x.id), [v.id]);
@@ -55,7 +55,7 @@ test('aviso da nova regra: só quem pediu visita, não pagou, não é cliente; u
   const targets = visits.noticeTargets();
   assert.deepEqual(targets.map((v) => v.phone).sort(), ['5511900000001', '5511900000002']);
   const text = visits.noticeText(a);
-  assert.match(text, /taxa de reserva de horário de R\$ 150,00/);
+  assert.match(text, /taxa de reserva de horário de R\$ 250,00/);
   assert.match(text, /estornado/);
   assert.match(text, /pessoas sérias e comprometidas/);
   assert.match(text, /me responder aqui que eu já emito o Pix/);
