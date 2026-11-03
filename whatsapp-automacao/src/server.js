@@ -2582,6 +2582,7 @@ app.get('/api/legacy/ferramenta.bat', (req, res) => {
   const { token } = ingest.issueToken(req.user);
   res.type('application/octet-stream').set('Content-Disposition', 'attachment; filename="CAPTURAR-CONTRATOS.bat"').send(buildBat(undefined, { url: linkBase(req), token }));
 });
+app.get('/api/legacy/audit', (_req, res) => res.json({ last: (store.data.legacyAudits || []).at(-1) || null, history: (store.data.legacyAudits || []).slice(-5).map((a) => ({ at: a.at, ok: a.ok, paginas: a.paginas })) }));
 app.post('/api/legacy/apply', (req, res) => {
   const out = legacy.apply({ sales, crm, user: req.user, doSales: req.body?.sales !== false, doClients: req.body?.clients !== false });
   audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'contratos antigos', label: `Levou para o sistema novo: ${out.sales} venda(s) com parcelas e ${out.clients} cliente(s) no CRM` });

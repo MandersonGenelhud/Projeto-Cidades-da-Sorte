@@ -151,7 +151,7 @@ async function salvarModelo(page, pasta, url, lista) {
 const semHash = (u) => u.split('#')[0];
 const padrao = (u) => { try { const x = new URL(u); return x.pathname.replace(/\/\d+(?=\/|$)/g, '/{n}').replace(/[0-9a-f]{8,}/gi, '{id}'); } catch { return u; } };
 
-export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espera = 600, tudo = false, log = console.log } = {}) {
+export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espera = 900, tudo = false, log = console.log } = {}) {
   fs.mkdirSync(path.join(pasta, 'pdfs'), { recursive: true });
   const origem = new URL(inicio).origin;
   const prefixo = tudo ? '/' : `/${new URL(inicio).pathname.split('/').filter(Boolean)[0] || ''}`;
@@ -162,23 +162,36 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
       return tudo || x.pathname.startsWith(prefixo);
     } catch { return false; }
   };
-  const page = context.pages().at(-1) || await context.newPage();
-  const api = [];
-  page.on('response', async (res) => {
+  let page = context.pages().at(-1) || await context.newPage();
+  const api = []; let apiBytes = 0; const falhas = [];
+  const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+  // Respostas JSON do sistema (com teto de memória: o navegador estourava com "INSUFFICIENT_RESOURCES").
+  const ouvir = (pg) => pg.on('response', async (res) => {
     try {
       const ct = res.headers()['content-type'] || '';
-      if (!/json/i.test(ct) || res.request().method() !== 'GET' || !res.url().startsWith(origem)) return;
+      if (!/json/i.test(ct) || res.request().method() !== 'GET' || !res.url().startsWith(origem) || api.length >= 4000 || apiBytes > 250_000_000) return;
       const body = await res.text();
-      if (body.length < 3_000_000) api.push({ url: res.url(), json: JSON.parse(body) });
+      if (body.length < 3_000_000) { api.push({ url: res.url(), json: JSON.parse(body) }); apiBytes += body.length; }
     } catch { /* resposta sem corpo */ }
   });
+  ouvir(page);
+  // Troca a aba por uma nova (o login continua) para liberar a memória do navegador.
+  const reciclar = async () => { try { const nova = await context.newPage(); ouvir(nova); await page.close().catch(() => {}); page = nova; } catch { /* segue com a aba atual */ } };
   const fila = [semHash(inicio)];
   const vistos = new Set(fila);
   const paginas = []; const pdfs = new Map(); const modelos = []; let amostras = 0;
+  let reciclou = -1;
   while (fila.length && paginas.length < maxPaginas) {
     const url = fila.shift();
+    if (paginas.length > 0 && paginas.length % 100 === 0 && reciclou !== paginas.length) { reciclou = paginas.length; await reciclar(); }
     try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      // Até 3 tentativas: se o navegador ficar sem recursos, espera, troca de aba e tenta de novo.
+      let ultimo = '';
+      let abriu = false;
+      for (let t = 0; t < 3 && !abriu; t++) {
+        try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }); abriu = true; } catch (e) { ultimo = e.message; await esperar(3000 * (t + 1)); await reciclar(); }
+      }
+      if (!abriu) throw new Error(ultimo);
       await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
       const d = await page.evaluate(lerPagina);
       // Listas com botão "Próxima": clica (só nele) até acabar, juntando as linhas de cada página.
@@ -211,7 +224,7 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
       paginas.push({ url, ...d, links: undefined, pdfs: d.pdfs });
       for (const l of d.links) { const u = semHash(l); if (!vistos.has(u) && permitido(u)) { vistos.add(u); fila.push(u); } }
       for (const l of [...d.pdfs, ...d.arquivos]) if (l.startsWith(origem) && !PERIGOSO.test(l) && !pdfs.has(l)) pdfs.set(l, null);
-    } catch (e) { log(`  (pulei ${url}: ${e.message.split('\n')[0]})`); }
+    } catch (e) { falhas.push({ url, motivo: e.message.split('\n')[0].slice(0, 160) }); log(`  (pulei ${url}: ${e.message.split('\n')[0]})`); }
     if (paginas.length % 25 === 0) log(`  ${paginas.length} páginas lidas, ${fila.length} na fila…`);
     await new Promise((r) => setTimeout(r, espera));
   }
@@ -236,7 +249,7 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
       }
     } catch { /* arquivo que não baixou */ }
   }
-  const captura = { feitoEm: new Date().toISOString(), origem, pages: paginas.map(({ links, ...p }) => { const lista = [...new Set([...p.pdfs, ...p.arquivos])].map((u) => baixados.get(u)).filter(Boolean); return { ...p, pdfs: lista.filter((x) => x.kind === 'pdf').map((x) => x.name), arquivos: lista }; }), api };
+  const captura = { feitoEm: new Date().toISOString(), origem, falhas, pages: paginas.map(({ links, ...p }) => { const lista = [...new Set([...p.pdfs, ...p.arquivos])].map((u) => baixados.get(u)).filter(Boolean); return { ...p, pdfs: lista.filter((x) => x.kind === 'pdf').map((x) => x.name), arquivos: lista }; }), api };
   fs.writeFileSync(path.join(pasta, 'captura.json'), JSON.stringify(captura));
   // Mapa SEM dados pessoais: só a estrutura (endereços, colunas e rótulos), para eu ajustar o leitor.
   const grupos = new Map();
@@ -252,6 +265,7 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
   for (const p of paginas) for (const m of p.media || []) if (!videos.has(m.src)) videos.set(m.src, m);
   const linhas = [`Sistema: ${origem}`, `Páginas lidas: ${paginas.length} · arquivos baixados (PDFs, fotos, documentos): ${n} · respostas JSON: ${api.length}`, ''];
   for (const [k, g] of grupos) linhas.push(`${k}  (${g.n} páginas)`, ...[...g.colunas].slice(0, 5).map((c) => `   colunas: ${c}`), g.rotulos.size ? `   campos: ${[...g.rotulos].slice(0, 40).join(' | ')}` : '', '');
+  if (falhas.length) { linhas.push(`Páginas que não abriram (${falhas.length}):`); for (const f of falhas.slice(0, 60)) linhas.push(`  ${padrao(f.url)}: ${f.motivo}`); linhas.push(''); }
   if (videos.size) { linhas.push('Vídeos encontrados (endereços):'); for (const m of [...videos.values()].slice(0, 60)) linhas.push(`  ${m.title ? `${m.title} | ` : ''}${m.src}`); linhas.push(''); }
   if (modelos.length) { linhas.push('Modelos e amostras de contrato guardados na pasta "modelos" (podem ter dados de clientes: envie só os modelos em branco):'); for (const m of modelos) linhas.push(`  ${m.n}: ${padrao(m.url)}`); linhas.push(''); }
   linhas.push('Respostas JSON (só os nomes dos campos):');

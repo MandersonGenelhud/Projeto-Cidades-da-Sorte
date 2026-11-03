@@ -22,6 +22,7 @@
     <div class="panel"><h2>Passo 2: importar o arquivo captura.json</h2>
       <div class="row"><input type="file" id="lgFile" accept=".json" /><button class="btn" id="lgPreview">1) Conferir o arquivo</button><button class="btn primary" id="lgImport" disabled>2) Importar</button><button class="btn" id="lgApply">3) Levar para Vendas e CRM</button></div>
       <div id="lgOut" class="hint"></div></div>
+    <div class="panel"><h2>Auditoria da cópia</h2><p class="hint">Compara o que o sistema antigo diz que tem (os números das telas) com o que foi copiado, e mostra páginas que não abriram.</p><div id="lgAudit"></div></div>
     <div class="panel"><div class="row"><input id="lgQ" placeholder="Buscar por número, cliente, documento…" /><span id="lgInfo" class="hint"></span></div>
       <div class="table-wrap"><table id="lgTable"></table></div><div id="lgDetail"></div></div>`;
   host.appendChild(sec);
@@ -56,7 +57,16 @@
       toast(`Pronto: ${r.sales} venda(s) com parcelas, ${r.clients} cliente(s) no CRM (${r.salesSkipped + r.clientsSkipped} já existiam, ${r.noParcels} contrato(s) sem parcelas).`);
     } catch (e) { toast(e.message, true); }
   };
+  async function loadAudit() {
+    const { last: a } = await api('/api/legacy/audit');
+    if (!a) { sec.querySelector('#lgAudit').innerHTML = '<p class="hint">Ainda não há cópia para auditar.</p>'; return; }
+    const ENT = { clientes: 'Clientes', contratos: 'Contratos', processos: 'Processos', documentos: 'Documentos', orcamentos: 'Orçamentos', leads: 'Leads' };
+    sec.querySelector('#lgAudit').innerHTML = `<p><b>${a.ok ? 'Tudo bateu com o que o sistema antigo mostra.' : 'Há pontos para conferir.'}</b> ${a.paginas} páginas lidas, ${a.arquivos} arquivos, ${a.contratosSemParcelas} contratos sem parcelas, ${a.contratosSemCliente} sem cliente. Feita em ${new Date(a.at).toLocaleString('pt-BR')}.</p>
+      <div class="table-wrap"><table><thead><tr><th>Assunto</th><th>O sistema antigo mostra</th><th>Copiado</th><th>Situação</th></tr></thead><tbody>${a.items.map((i) => `<tr><td>${esc(ENT[i.entity] || i.entity)}</td><td>${i.esperado ?? '—'}</td><td>${i.copiado}</td><td>${i.status === 'ok' ? 'Conferido' : i.status === 'faltam' ? `Faltam ${i.faltam}` : 'Sem número para comparar'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Sem números para comparar.</td></tr>'}</tbody></table></div>
+      ${a.falhas.length ? `<h3>Páginas que não abriram (${a.falhas.length})</h3><div class="table-wrap"><table>${a.falhas.slice(0, 30).map((f) => `<tr><td>${esc(f.url)}</td><td>${esc(f.motivo)}</td></tr>`).join('')}</table></div><p class="hint">Rode a cópia de novo: ela só acrescenta o que faltou, sem duplicar.</p>` : ''}`;
+  }
   async function load() {
+    loadAudit().catch(() => {});
     const q = sec.querySelector('#lgQ').value.trim();
     const r = await api(`/api/legacy?q=${encodeURIComponent(q)}`);
     sec.querySelector('#lgInfo').textContent = `${r.total} contrato(s) e ${r.clients ?? 0} cliente(s) guardados${r.ultimoNumero ? ` · maior número: ${r.ultimoNumero}` : ''}`;

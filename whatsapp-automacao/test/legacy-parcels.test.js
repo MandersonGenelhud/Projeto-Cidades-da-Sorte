@@ -68,3 +68,20 @@ test('levar para o sistema novo: vendas com parcelas (vencimentos e atrasos no p
   assert.equal(ex.kpis.atrasadoTotal, 1000);
   assert.equal(ex.kpis.contratosAtivos, 1);
 });
+
+import { auditCapture } from '../src/legacy-import.js';
+test('auditoria da cópia: compara o que o sistema antigo diz ter com o que foi copiado, e lista páginas que não abriram', () => {
+  const cap = {
+    falhas: [{ url: 'https://x.com/processes', motivo: 'ERR_INSUFFICIENT_RESOURCES' }],
+    pages: [
+      { url: 'https://x.com/clients', texto: 'Clientes\nMostrando 1 a 10 de 371 clientes', tables: [{ headers: ['Nome', 'Telefone'], rows: [['A', '1'], ['B', '2'], ['C', '3']] }], arquivos: [{ name: '0001.pdf', kind: 'pdf' }] },
+      { url: 'https://x.com/contracts', texto: '2 contratos no período', tables: [{ headers: ['Nº'], rows: [['1'], ['2']] }] },
+    ],
+    api: [{}],
+  };
+  const a = auditCapture(cap, { contracts: [{ number: '1', client: 'A', parcels: [{}] }, { number: '2', client: '' }], clients: [{ name: 'A' }, { name: 'B' }, { name: 'C' }] });
+  const by = Object.fromEntries(a.items.map((i) => [i.entity, i]));
+  assert.deepEqual([by.clientes.esperado, by.clientes.copiado, by.clientes.status, by.clientes.faltam], [371, 3, 'faltam', 368]);
+  assert.equal(by.contratos.status, 'ok');
+  assert.deepEqual([a.paginas, a.arquivos, a.falhas.length, a.contratosSemParcelas, a.contratosSemCliente, a.ok], [2, 1, 1, 1, 1, false]);
+});

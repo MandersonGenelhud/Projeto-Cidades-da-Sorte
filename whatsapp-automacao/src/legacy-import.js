@@ -193,6 +193,49 @@ function mergeClient(index, list, c) {
   for (const k of clientKeys(rec)) index.set(k, rec);
   return rec;
 }
+const ENTITY = { clientes: /(client|customer|cliente)/, contratos: /(contract|contrato)/, processos: /(process)/, documentos: /(document)/, orcamentos: /(quote|budget|orcamento)/, leads: /(lead)/ };
+const entityOf = (text) => Object.entries(ENTITY).find(([, re]) => re.test(norm(text)))?.[0] || '';
+const n2 = (v) => Number(String(v).replace(/\./g, '').replace(',', '.')) || 0;
+
+/**
+ * Auditoria da cópia: o que o sistema antigo diz que tem (números nas telas: "Mostrando 1 a 10 de 371", "371 clientes")
+ * contra o que foi realmente copiado, mais as páginas que não abriram e os arquivos baixados.
+ */
+export function auditCapture(captura, { contracts = [], clients = [] } = {}) {
+  const pages = captura?.pages || [];
+  const expected = {};
+  const bump = (ent, n) => { if (ent && n > 0 && n > (expected[ent] || 0) && n < 5_000_000) expected[ent] = n; };
+  for (const p of pages) {
+    const urlEnt = entityOf(new URL(p.url, 'http://x').pathname);
+    for (const line of String(p.texto || '').split('\n')) {
+      let m = /(?:mostrando|exibindo|showing)[^\d]{0,15}\d[\d.]*\s*(?:a|-|–|até|to)\s*\d[\d.]*\s*(?:de|of)\s*(\d[\d.]*)/i.exec(line);
+      if (m) bump(entityOf(line) || urlEnt, n2(m[1]));
+      m = /(\d[\d.]*)\s+(clientes?|customers?|contratos?|contracts?|processos?|processes|documentos?|documents?|or[çc]amentos?|quotes?|leads?)\b/i.exec(line);
+      if (m && n2(m[1]) >= 2) bump(entityOf(m[2]), n2(m[1]));
+    }
+  }
+  // O que foi copiado: linhas de tabela das páginas de cada assunto.
+  const rows = {};
+  for (const p of pages) {
+    const ent = entityOf(new URL(p.url, 'http://x').pathname);
+    if (!ent) continue;
+    const seen = (rows[ent] ||= new Set());
+    for (const t of p.tables || []) for (const r of t.rows || []) seen.add(r.join('\u0001'));
+  }
+  const got = { contratos: contracts.length, clientes: clients.length };
+  for (const [ent, set] of Object.entries(rows)) got[ent] = Math.max(got[ent] || 0, set.size);
+  const items = Object.keys({ ...expected, ...got }).map((ent) => {
+    const esperado = expected[ent] ?? null; const copiado = got[ent] ?? 0;
+    return { entity: ent, esperado, copiado, status: esperado === null ? 'sem referência' : copiado >= esperado * 0.98 ? 'ok' : 'faltam', faltam: esperado === null ? null : Math.max(0, esperado - copiado) };
+  });
+  const files = pages.reduce((a, p) => a + (p.arquivos?.length || 0), 0);
+  return {
+    at: new Date().toISOString(), paginas: pages.length, falhas: (captura?.falhas || []).slice(0, 100), arquivos: files, respostasJson: (captura?.api || []).length,
+    contratosSemParcelas: contracts.filter((r) => !r.parcels?.length).length, contratosSemCliente: contracts.filter((r) => !r.client).length, items,
+    ok: items.every((i) => i.status !== 'faltam') && !(captura?.falhas || []).length,
+  };
+}
+
 const ADDR = /^(endereco|cidade|pais|nacionalidade|estado civil|profissao|data de nascimento|nascimento)$/;
 /** Clientes: de listas de clientes (nome + telefone/e-mail/documento, sem número de contrato) e dos próprios contratos. */
 export function extractClients(captura, contracts = []) {
@@ -276,8 +319,11 @@ export class LegacyContracts {
       const made = mergeClient(index, this.clients, c);
       if (made) { made.id = crypto.randomBytes(6).toString('hex'); made.importedAt = new Date().toISOString(); newClients += 1; }
     }
+    const audit = auditCapture(captura, { contracts: this.list, clients: this.clients });
+    (this.store.data.legacyAudits ||= []).push(audit);
+    this.store.data.legacyAudits = this.store.data.legacyAudits.slice(-10);
     this.store.save();
-    return { added, updated, total: this.list.length, ultimoNumero: lastNumber(this.list), clients: this.clients.length, newClients, ...parcelStats(this.list) };
+    return { added, updated, total: this.list.length, ultimoNumero: lastNumber(this.list), clients: this.clients.length, newClients, audit, ...parcelStats(this.list) };
   }
 
   /**
