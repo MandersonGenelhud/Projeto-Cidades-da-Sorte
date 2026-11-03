@@ -65,7 +65,7 @@ function lerPagina() {
     if (/assinatura/i.test(texto) && im.naturalWidth >= 40 && /^(https?:|data:image\/(png|jpe?g|webp|svg\+xml);base64,)/i.test(im.src) && im.src.length < 1_500_000) out.assinaturas.push({ src: im.src, rotulo: texto.replace(/\s+/g, ' ').slice(0, 160) });
   }
   for (const a of document.querySelectorAll('a[href]')) {
-    if (/^https?:/i.test(a.href) && /\.(jpe?g|png|webp|docx?|odt)(\?|$)/i.test(a.href)) out.arquivos.push(a.href);
+    if (/^https?:/i.test(a.href) && /\.(jpe?g|png|webp|docx?|odt|zip|mp4|webm|mov)(\?|$)/i.test(a.href)) out.arquivos.push(a.href);
   }
   for (const a of document.querySelectorAll('a[href]')) {
     const h = a.href;
@@ -264,16 +264,24 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
     await new Promise((r) => setTimeout(r, espera));
   }
   // PDFs, fotos e documentos: baixa com o mesmo login do navegador (sem passar a senha para lugar nenhum).
-  let n = 0;
+  let n = 0; let extras = 0;
+  const EXTRA = { 'application/zip': 'zip', 'application/x-zip-compressed': 'zip', 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov' };
   const EXT = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx' };
   fs.mkdirSync(path.join(pasta, 'arquivos'), { recursive: true });
   const baixados = new Map();
   for (const url of pdfs.keys()) {
     if (n >= 4000) break;
     try {
-      const r = await context.request.get(url, { timeout: 30000 });
+      const r = await context.request.get(url, { timeout: 60000 });
       const tipo = (r.headers()['content-type'] || '').split(';')[0].trim().toLowerCase();
-      if (r.ok() && EXT[tipo]) {
+      if (r.ok() && EXTRA[tipo]) {
+        // Arquivos zipados e vídeos: ficam guardados no arquivo único da cópia (não sobem sozinhos para o sistema).
+        const buf = await r.body();
+        if (buf.length > 1000 && buf.length < 400_000_000) {
+          fs.mkdirSync(path.join(pasta, 'extras'), { recursive: true });
+          fs.writeFileSync(path.join(pasta, 'extras', `${String(++extras).padStart(4, '0')}.${EXTRA[tipo]}`), buf);
+        }
+      } else if (r.ok() && EXT[tipo]) {
         const buf = await r.body();
         if ((buf.length >= 2000 || tipo === 'application/pdf') && buf.length < 15_000_000) {
           const nome = `${String(++n).padStart(4, '0')}.${EXT[tipo]}`;
@@ -395,6 +403,17 @@ async function main() {
   }
   const r = await capturar(context, { inicio, pasta, tudo });
   console.log(`\nCópia pronta: ${r.paginas} páginas, ${r.arquivos ?? r.pdfs} arquivos.\nPasta: ${pasta}`);
+  // Um arquivo único com tudo (dados, PDFs, fotos, documentos, zips, vídeos e modelos), para guardar ou enviar.
+  try {
+    const zip = `${pasta.replace(/[\\/]+$/, '')}.zip`;
+    await new Promise((ok, no) => {
+      const pr = process.platform === 'win32'
+        ? spawn('powershell', ['-NoProfile', '-Command', `Compress-Archive -Path '${pasta.replace(/'/g, "''")}\\*' -DestinationPath '${zip.replace(/'/g, "''")}' -Force`], { stdio: 'ignore' })
+        : spawn('zip', ['-qr', zip, '.'], { cwd: pasta, stdio: 'ignore' });
+      pr.on('error', no); pr.on('exit', (c) => (c === 0 ? ok() : no(new Error(`código ${c}`))));
+    });
+    console.log(`Arquivo único com tudo: ${zip}`);
+  } catch (e) { console.log(`(não consegui montar o arquivo único: ${e.message}; a pasta acima tem tudo)`); }
   if (process.env.MIGRA_URL && process.env.MIGRA_TOKEN) {
     try {
       const fim = await enviarParaOSistema({ url: process.env.MIGRA_URL, token: process.env.MIGRA_TOKEN, pasta });
