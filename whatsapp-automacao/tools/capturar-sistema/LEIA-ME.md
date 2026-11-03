@@ -28,3 +28,6 @@ O programa pergunta se deve copiar o **sistema inteiro**. Responda S (padrão) p
 - Os avisos do sino de notificações e as abas (por exemplo, contratos vencidos): ele só abre, nunca altera nada.
 - As parcelas de cada contrato (vencimento, valor e se está paga) e os cadastros de clientes.
 - Depois de importar o `captura.json` no painel, use **Levar para Vendas e CRM**: os contratos com parcelas viram vendas (vencimentos, atrasos e a receber aparecem no Painel executivo) e os clientes entram no CRM.
+
+## Envio automático
+Se você baixou o programa **pelo painel** (Contratos antigos → Baixar o programa de cópia), ele já leva uma chave temporária (8 horas) e, quando termina a cópia, **manda tudo sozinho para o sistema novo**: contratos, clientes, parcelas, PDFs, fotos e documentos (cada arquivo no contrato ou cliente certo), vendas e CRM. No fim aparece um resumo. Não precisa importar nada à mão. Depois apague a pasta `captura-...` (tem dados de clientes) e não repasse o arquivo `.bat`.

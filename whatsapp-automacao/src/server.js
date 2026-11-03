@@ -37,6 +37,7 @@ import { Audit } from './audit.js';
 import { byAttendant, attendantOf } from './attendants.js';
 import { LegacyContracts } from './legacy-import.js';
 import { buildBat } from './legacy-tool.js';
+import { Ingest, MIME as FILE_MIME } from './legacy-ingest.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
 import { siteGuard, siteHostsFrom, siteOfficeMap, hostOf } from './site-host.js';
@@ -263,6 +264,7 @@ setInterval(() => followups.run().catch((e) => store.addLog({ type: 'error', mes
 const realty = new Realty({ store, dataDir: DATA_DIR });
 const audit = new Audit({ store });
 const legacy = new LegacyContracts({ store });
+const ingest = new Ingest({ store, dataDir: DATA_DIR, legacy, sales: null, crm: null });
 const motors = new Motors({ store });
 const school = new School({ store });
 const proposals = new Proposals({ store, realty, audit });
@@ -1582,6 +1584,8 @@ const SELLER_ROUTES = [
 ];
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth/') || req.path.startsWith('/public/') || req.path.startsWith('/affiliate/')) return next();
+  // O envio automático da cópia usa uma chave temporária própria (conferida na própria rota), não a sessão do painel.
+  if (req.path.startsWith('/legacy/ingest/')) return next();
   const user = auth.fromRequest(req);
   if (!user) return res.status(401).json({ error: auth.needsSetup ? 'Crie o administrador para começar' : 'Entre com seu login', login: true });
   req.user = user;
@@ -2548,9 +2552,35 @@ app.post('/api/legacy/import', legacyUpload, (req, res) => {
   audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'contratos antigos', label: `Importação: ${r.added} novo(s), ${r.updated} atualizado(s)` });
   res.json(r);
 });
+ingest.sales = sales; ingest.crm = crm;
+const ingestAuth = (req, _res, next) => { try { req.ingestRec = ingest.auth(req); next(); } catch (e) { next(e); } };
+const ingestCaptura = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150_000_000, files: 1 } }).single('file');
+const ingestArquivos = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30_000_000, files: 30 } }).array('files', 30);
+app.post('/api/legacy/ingest/captura', ingestAuth, ingestCaptura, (req, res) => {
+  let json;
+  try { json = JSON.parse(req.file?.buffer.toString('utf8') || ''); } catch { throw httpError(400, 'Arquivo de cópia inválido'); }
+  const run = ingest.start(req.ingestRec, json);
+  store.addLog({ type: 'system', message: `Cópia do sistema antigo recebida: ${run.summary.added} contrato(s) novo(s), ${run.summary.newClients} cliente(s) novo(s)` });
+  res.json({ run: run.id, summary: run.summary, expectedFiles: run.owners.length });
+});
+app.post('/api/legacy/ingest/arquivos', ingestAuth, ingestArquivos, (req, res) => res.json(ingest.addFiles(req.ingestRec, req.files || [])));
+app.post('/api/legacy/ingest/fim', ingestAuth, (req, res) => {
+  const out = ingest.finish(req.ingestRec);
+  audit.record({ user: { name: req.ingestRec.by || 'Cópia automática', role: 'admin' }, ip: clientIp(req), action: 'criou', entity: 'contratos antigos', label: `Cópia automática concluída: ${out.summary.total} contrato(s), ${out.files.received} arquivo(s), ${out.applied.sales} venda(s) e ${out.applied.clients} cliente(s) no sistema novo` });
+  notify('sales', {}); notify('crm', {});
+  res.json(out);
+});
+app.get('/api/legacy/files/:id', (req, res) => {
+  const f = ingest.file(req.params.id);
+  if (!f || !fs.existsSync(f.path)) throw httpError(404, 'Arquivo não encontrado');
+  res.set({ 'Content-Type': FILE_MIME[f.ext] || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': 'sandbox', 'Content-Disposition': `inline; filename="${encodeURIComponent(f.name)}"` });
+  res.sendFile(f.path);
+});
 app.get('/api/legacy/ferramenta.bat', (req, res) => {
   audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'contratos antigos', label: 'Baixou a ferramenta de cópia (CAPTURAR-CONTRATOS.bat)' });
-  res.type('application/octet-stream').set('Content-Disposition', 'attachment; filename="CAPTURAR-CONTRATOS.bat"').send(buildBat());
+  // O arquivo baixado leva uma chave temporária (8 horas) só para enviar a cópia para cá.
+  const { token } = ingest.issueToken(req.user);
+  res.type('application/octet-stream').set('Content-Disposition', 'attachment; filename="CAPTURAR-CONTRATOS.bat"').send(buildBat(undefined, { url: linkBase(req), token }));
 });
 app.post('/api/legacy/apply', (req, res) => {
   const out = legacy.apply({ sales, crm, user: req.user, doSales: req.body?.sales !== false, doClients: req.body?.clients !== false });

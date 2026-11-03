@@ -15,7 +15,7 @@ const SEM_VALOR = /(senha|password|passwd|token|csrf|_token|captcha|cartao|card)
 /** Roda dentro da página: lê tabelas, campos de formulário e pares "rótulo: valor". Nunca lê campo de senha. */
 function lerPagina() {
   const txt = (el) => (el?.textContent || '').replace(/\s+/g, ' ').trim();
-  const out = { title: document.title, tables: [], fields: [], links: [], pdfs: [], media: [], texto: (document.body?.innerText || '').slice(0, 60000) };
+  const out = { title: document.title, tables: [], fields: [], links: [], pdfs: [], arquivos: [], media: [], texto: (document.body?.innerText || '').slice(0, 60000) };
   for (const t of document.querySelectorAll('table')) {
     const rows = [...t.querySelectorAll('tr')];
     if (rows.length < 2) continue;
@@ -52,6 +52,13 @@ function lerPagina() {
   for (const el of document.querySelectorAll('iframe[src], video[src], video source[src], a[href*="youtube.com"], a[href*="youtu.be"], a[href*="vimeo.com"], a[href*="instagram.com/reel"]')) {
     const src = el.src || el.href;
     if (/^https?:/i.test(src || '')) out.media.push({ type: el.tagName.toLowerCase(), src, title: (el.title || el.getAttribute('aria-label') || '').slice(0, 80) });
+  }
+  // Documentos e fotos enviados (RG, comprovantes, contratos escaneados): imagens grandes e links de arquivo.
+  for (const im of document.querySelectorAll('img[src]')) {
+    if (/^https?:/i.test(im.src) && im.naturalWidth >= 150 && im.naturalHeight >= 150 && !/(\/assets\/|\/static\/|\/_next\/|favicon|logo|sprite|icon|avatar|placeholder)/i.test(im.src)) out.arquivos.push(im.src);
+  }
+  for (const a of document.querySelectorAll('a[href]')) {
+    if (/^https?:/i.test(a.href) && /\.(jpe?g|png|webp|docx?|odt)(\?|$)/i.test(a.href)) out.arquivos.push(a.href);
   }
   for (const a of document.querySelectorAll('a[href]')) {
     const h = a.href;
@@ -203,23 +210,33 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
       }
       paginas.push({ url, ...d, links: undefined, pdfs: d.pdfs });
       for (const l of d.links) { const u = semHash(l); if (!vistos.has(u) && permitido(u)) { vistos.add(u); fila.push(u); } }
-      for (const l of d.pdfs) if (l.startsWith(origem) && !PERIGOSO.test(l) && !pdfs.has(l)) pdfs.set(l, null);
+      for (const l of [...d.pdfs, ...d.arquivos]) if (l.startsWith(origem) && !PERIGOSO.test(l) && !pdfs.has(l)) pdfs.set(l, null);
     } catch (e) { log(`  (pulei ${url}: ${e.message.split('\n')[0]})`); }
     if (paginas.length % 25 === 0) log(`  ${paginas.length} páginas lidas, ${fila.length} na fila…`);
     await new Promise((r) => setTimeout(r, espera));
   }
-  // PDFs: baixa com o mesmo login do navegador.
+  // PDFs, fotos e documentos: baixa com o mesmo login do navegador (sem passar a senha para lugar nenhum).
   let n = 0;
+  const EXT = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx' };
+  fs.mkdirSync(path.join(pasta, 'arquivos'), { recursive: true });
+  const baixados = new Map();
   for (const url of pdfs.keys()) {
+    if (n >= 4000) break;
     try {
       const r = await context.request.get(url, { timeout: 30000 });
-      if (r.ok() && /pdf/i.test(r.headers()['content-type'] || '') ) {
+      const tipo = (r.headers()['content-type'] || '').split(';')[0].trim().toLowerCase();
+      if (r.ok() && EXT[tipo]) {
         const buf = await r.body();
-        if (buf.length < 15_000_000) { const nome = `${String(++n).padStart(4, '0')}.pdf`; fs.writeFileSync(path.join(pasta, 'pdfs', nome), buf); pdfs.set(url, nome); }
+        if ((buf.length >= 2000 || tipo === 'application/pdf') && buf.length < 15_000_000) {
+          const nome = `${String(++n).padStart(4, '0')}.${EXT[tipo]}`;
+          fs.writeFileSync(path.join(pasta, 'arquivos', nome), buf);
+          if (tipo === 'application/pdf') fs.writeFileSync(path.join(pasta, 'pdfs', nome), buf);
+          baixados.set(url, { name: nome, kind: tipo === 'application/pdf' ? 'pdf' : tipo.startsWith('image/') ? 'imagem' : 'documento' });
+        }
       }
-    } catch { /* PDF que não baixou */ }
+    } catch { /* arquivo que não baixou */ }
   }
-  const captura = { feitoEm: new Date().toISOString(), origem, pages: paginas.map(({ links, ...p }) => ({ ...p, pdfs: p.pdfs.map((u) => pdfs.get(u) || null).filter(Boolean) })), api };
+  const captura = { feitoEm: new Date().toISOString(), origem, pages: paginas.map(({ links, ...p }) => { const lista = [...new Set([...p.pdfs, ...p.arquivos])].map((u) => baixados.get(u)).filter(Boolean); return { ...p, pdfs: lista.filter((x) => x.kind === 'pdf').map((x) => x.name), arquivos: lista }; }), api };
   fs.writeFileSync(path.join(pasta, 'captura.json'), JSON.stringify(captura));
   // Mapa SEM dados pessoais: só a estrutura (endereços, colunas e rótulos), para eu ajustar o leitor.
   const grupos = new Map();
@@ -233,14 +250,59 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
   }
   const videos = new Map();
   for (const p of paginas) for (const m of p.media || []) if (!videos.has(m.src)) videos.set(m.src, m);
-  const linhas = [`Sistema: ${origem}`, `Páginas lidas: ${paginas.length} · PDFs baixados: ${n} · respostas JSON: ${api.length}`, ''];
+  const linhas = [`Sistema: ${origem}`, `Páginas lidas: ${paginas.length} · arquivos baixados (PDFs, fotos, documentos): ${n} · respostas JSON: ${api.length}`, ''];
   for (const [k, g] of grupos) linhas.push(`${k}  (${g.n} páginas)`, ...[...g.colunas].slice(0, 5).map((c) => `   colunas: ${c}`), g.rotulos.size ? `   campos: ${[...g.rotulos].slice(0, 40).join(' | ')}` : '', '');
   if (videos.size) { linhas.push('Vídeos encontrados (endereços):'); for (const m of [...videos.values()].slice(0, 60)) linhas.push(`  ${m.title ? `${m.title} | ` : ''}${m.src}`); linhas.push(''); }
   if (modelos.length) { linhas.push('Modelos e amostras de contrato guardados na pasta "modelos" (podem ter dados de clientes: envie só os modelos em branco):'); for (const m of modelos) linhas.push(`  ${m.n}: ${padrao(m.url)}`); linhas.push(''); }
   linhas.push('Respostas JSON (só os nomes dos campos):');
   for (const a of api.slice(0, 40)) { const first = Array.isArray(a.json) ? a.json[0] : a.json; linhas.push(`  ${padrao(a.url)}: ${first && typeof first === 'object' ? Object.keys(first).slice(0, 30).join(', ') : typeof first}`); }
   fs.writeFileSync(path.join(pasta, 'mapa.txt'), linhas.join('\n'));
-  return { paginas: paginas.length, pdfs: n, api: api.length };
+  return { paginas: paginas.length, pdfs: n, arquivos: baixados.size, api: api.length };
+}
+
+/** Manda a cópia (captura.json + arquivos) para o sistema novo, com a chave temporária que veio no programa. */
+export async function enviarParaOSistema({ url, token, pasta, log = console.log, espera = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+  const base = String(url).replace(/\/+$/, '');
+  const H = { Authorization: `Bearer ${token}` };
+  const post = async (rota, body) => {
+    for (let i = 0; i < 3; i++) {
+      try {
+        const r = await fetch(base + rota, { method: 'POST', headers: H, body });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok) return j;
+        const e = new Error(j.error || `Erro ${r.status}`);
+        e.fatal = r.status >= 400 && r.status < 500; // chave vencida ou arquivo recusado: repetir não adianta
+        throw e;
+      } catch (e) {
+        if (e.fatal || i === 2) throw e;
+        await espera(1500 * (i + 1));
+      }
+    }
+  };
+  log('Enviando a cópia para o sistema novo…');
+  const fd = new FormData();
+  fd.append('file', new Blob([fs.readFileSync(path.join(pasta, 'captura.json'))], { type: 'application/json' }), 'captura.json');
+  const primeira = await post('/api/legacy/ingest/captura', fd);
+  log(`  contratos e clientes enviados (${primeira.summary?.total ?? 0} contratos).`);
+  const dir = path.join(pasta, 'arquivos');
+  const nomes = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+  let lote = []; let bytes = 0; let enviados = 0;
+  const mandar = async () => {
+    if (!lote.length) return;
+    const f = new FormData();
+    for (const n of lote) f.append('files', new Blob([fs.readFileSync(path.join(dir, n))]), n);
+    await post('/api/legacy/ingest/arquivos', f);
+    enviados += lote.length;
+    log(`  ${enviados}/${nomes.length} arquivos enviados`);
+    lote = []; bytes = 0;
+  };
+  for (const n of nomes) {
+    const sz = fs.statSync(path.join(dir, n)).size;
+    if (lote.length >= 20 || bytes + sz > 40_000_000) await mandar();
+    lote.push(n); bytes += sz;
+  }
+  await mandar();
+  return post('/api/legacy/ingest/fim');
 }
 
 async function main() {
@@ -274,7 +336,17 @@ async function main() {
     tudo = resp !== 'n' && resp !== 'nao' && resp !== 'não';
   }
   const r = await capturar(context, { inicio, pasta, tudo });
-  console.log(`\nPronto! ${r.paginas} páginas, ${r.pdfs} PDFs.\nPasta: ${pasta}\nEnvie o arquivo "captura.json" no painel (Contratos antigos → Importar).\nSe algo faltar, me mande só o "mapa.txt" (não tem dados de clientes).`);
+  console.log(`\nCópia pronta: ${r.paginas} páginas, ${r.arquivos ?? r.pdfs} arquivos.\nPasta: ${pasta}`);
+  if (process.env.MIGRA_URL && process.env.MIGRA_TOKEN) {
+    try {
+      const fim = await enviarParaOSistema({ url: process.env.MIGRA_URL, token: process.env.MIGRA_TOKEN, pasta });
+      console.log(`\nPRONTO! Tudo foi enviado para o sistema novo:\n  ${fim.summary.total} contratos, ${fim.summary.clients} clientes, ${fim.files.received} arquivos guardados no contrato ou cliente certo,\n  ${fim.applied.sales} vendas com parcelas e ${fim.applied.clients} clientes no CRM.\nAbra o painel: Contratos antigos e Painel executivo. Depois apague a pasta acima (tem dados de clientes).`);
+    } catch (e) {
+      console.log(`\nNão consegui enviar sozinho (${e.message}).\nA cópia continua salva na pasta acima. Baixe o programa de novo no painel e rode outra vez, ou envie o captura.json pelo painel (Contratos antigos → Importar).`);
+    }
+  } else {
+    console.log('\nEnvie o arquivo "captura.json" no painel (Contratos antigos → Importar).\nSe algo faltar, me mande só o "mapa.txt" (não tem dados de clientes).');
+  }
   await browser.close();
   rl.close();
   if (process.platform === 'win32') spawn('explorer.exe', [pasta], { detached: true, stdio: 'ignore' }).unref();
