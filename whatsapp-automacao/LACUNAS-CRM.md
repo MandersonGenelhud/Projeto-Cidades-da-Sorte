@@ -2,6 +2,8 @@
 
 > Comparação de recursos com o que os CRMs de código aberto e os apps de atendimento mais usados costumam oferecer (por exemplo Twenty, EspoCRM, SuiteCRM, Odoo CRM e Chatwoot). Serve de inspiração de **funções**: não copiamos código. Antes de reaproveitar qualquer código de GitHub, confira a licença (algumas, como a AGPL, obrigam a abrir o seu código).
 
+> Estudo completo, tela por tela e com o roteiro novo: veja `ESTUDO-MELHORIAS.md`.
+
 ## O que já temos
 Funil de prospectos com histórico e retornos, conversas de WhatsApp com IA e passagem para a equipe, orçamentos, contratos com assinatura no celular, vendas com parcelas e comissões, Pix e recibo, caixa, ranking e metas, auditoria, escritórios separados (Paraguai e Paraná), indicadores (afiliados), sites por marca, retomada de contatos, painel executivo, importação do sistema antigo e banco de currículos.
 
