@@ -126,32 +126,60 @@ export class Payments {
   /** Link de pagamento no cartão de crédito (Mercado Pago, checkout hospedado): o cliente digita o cartão na página do Mercado Pago, nunca aqui. */
   get cardAvailable() { const c = this.config; return c.enabled !== false && c.provider === 'mercadopago' && Boolean(c.mercadopago?.accessToken); }
 
-  async createCard({ convKey = null, leadId = null, amount, description, payerName = '', by = 'IA' }) {
+
+  /** Taxas da maquininha por número de parcelas (% digitado pelo administrador; nada é inventado aqui). */
+  get cardFees() {
+    const raw = this.config.card?.fees || {};
+    const out = {};
+    for (const [n, v] of Object.entries(raw)) {
+      const k = Math.round(Number(n)); const pct = Number(String(v).replace(',', '.'));
+      if (k >= 1 && k <= 12 && Number.isFinite(pct) && pct >= 0 && pct < 40) out[k] = pct;
+    }
+    return out;
+  }
+
+  /** Opções no cartão: o cliente paga a taxa (a Migra recebe o valor cheio). Total = valor / (1 - taxa). */
+  cardOptions(base) {
+    const value = Math.round(Number(base) * 100) / 100;
+    if (!(value > 0)) return [];
+    return Object.entries(this.cardFees).map(([n, pct]) => {
+      const parcelas = Number(n);
+      const total = Math.round((value / (1 - pct / 100)) * 100) / 100;
+      return { parcelas, taxaPercentual: pct, total, parcela: Math.round((total / parcelas) * 100) / 100, taxaEmReais: Math.round((total - value) * 100) / 100 };
+    }).sort((a, b) => a.parcelas - b.parcelas);
+  }
+
+  async createCard({ convKey = null, leadId = null, amount, installments = 1, description, payerName = '', by = 'IA' }) {
     if (!this.cardAvailable) throw err(400, 'Link de cartão exige o Mercado Pago ligado (Configurações → Pagamentos)');
-    const value = Math.round(Number(amount) * 100) / 100;
-    if (!(value > 0)) throw err(400, 'Valor inválido');
+    const base = Math.round(Number(amount) * 100) / 100;
+    if (!(base > 0)) throw err(400, 'Valor inválido');
+    // O cliente paga a taxa da maquininha: cobra-se o total da opção escolhida e a Migra recebe o valor cheio.
+    const n = Math.max(1, Math.min(12, Math.round(Number(installments)) || 1));
+    const opt = this.cardOptions(base).find((o) => o.parcelas === n);
+    if (!opt) throw err(400, `Não há taxa cadastrada para ${n}x (Configurações → Pagamentos → taxas do cartão)`);
+    const value = opt.total;
     const id = crypto.randomBytes(6).toString('hex');
     const txid = `MIG${id}`.toUpperCase().slice(0, 25);
     const title = String(description || this.config.reservation?.description || 'Reserva').trim().slice(0, 120);
     const pref = await this.#mp('POST', '/checkout/preferences', {
       items: [{ title, quantity: 1, unit_price: value, currency_id: 'BRL' }],
       external_reference: txid,
-      payment_methods: { excluded_payment_types: [{ id: 'ticket' }, { id: 'bank_transfer' }, { id: 'atm' }], installments: 12 },
+      payment_methods: { excluded_payment_types: [{ id: 'ticket' }, { id: 'bank_transfer' }, { id: 'atm' }], installments: n, default_installments: n },
       statement_descriptor: 'MIGRA',
     }, crypto.randomUUID());
     const url = pref.init_point;
     if (!/^https:\/\/[a-z0-9.-]*mercadopago[a-z0-9.-]*\//i.test(String(url || ''))) throw err(502, 'O Mercado Pago não devolveu o link do cartão');
-    const p = { id, txid, leadId, convKey, amount: value, description: title, payerName: String(payerName || '').trim(), payerDoc: '', status: 'pending', provider: 'mercadopago', method: 'cartao', mpPrefId: pref.id, cardUrl: url, createdAt: new Date().toISOString(), createdBy: by };
+    const p = { id, txid, leadId, convKey, amount: value, description: title, payerName: String(payerName || '').trim(), payerDoc: '', status: 'pending', provider: 'mercadopago', method: 'cartao', baseAmount: base, installments: n, cardFeePct: opt.taxaPercentual, mpPrefId: pref.id, cardUrl: url, createdAt: new Date().toISOString(), createdBy: by };
     this.list.push(p);
     this.store.save();
-    if (leadId) this.crm.addNote({ name: by, role: 'admin' }, leadId, `Link de cartão gerado: ${money(value)} (${title})`);
+    if (leadId) this.crm.addNote({ name: by, role: 'admin' }, leadId, `Link de cartão gerado: ${money(value)} em ${n}x (valor ${money(base)} + taxa ${money(opt.taxaEmReais)} paga pelo cliente)`);
     this.notify('payment', { id: p.id, status: p.status });
     return p;
   }
 
   async sendCardLink(p) {
     if (!p.convKey) return;
-    await this.sendTo(p.convKey, { text: `Link para pagar no cartão de crédito · ${money(p.amount)} · ${p.description}\n${p.cardUrl}\n\nÉ a página segura do Mercado Pago: você coloca os dados do cartão lá. Quando aprovar, o recibo chega aqui.` });
+    await this.sendTo(p.convKey, { text: `Link para pagar no cartão de crédito · ${money(p.amount)} em até ${p.installments || 1}x (já com a taxa da maquininha) · ${p.description}\n${p.cardUrl}\n\nÉ a página segura do Mercado Pago: você coloca os dados do cartão lá. Quando aprovar, o recibo chega aqui.` });
   }
 
   /** Pagamento confirmado: fecha a venda, gera e envia o recibo e avisa o dono. */

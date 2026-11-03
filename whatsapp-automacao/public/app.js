@@ -1584,6 +1584,7 @@ function fillPayForm(p) {
   f.coDocument.value = p.company?.document || '';
   f.coAddress.value = p.company?.address || '';
   f.coContact.value = [p.company?.phone, p.company?.email].filter(Boolean).join(' · ');
+  f.cardFees.value = Object.entries(p.card?.fees || {}).map(([n, v]) => `${n}x ${String(v).replace('.', ',')}`).join('\n');
   f.mpToken.value = p.mercadopago?.accessToken || '';
   f.mpEmail.value = p.mercadopago?.payerEmail || '';
   $('#mpBox').hidden = f.provider.value !== 'mercadopago';
@@ -1625,6 +1626,7 @@ $('#formPay').addEventListener('submit', withBusy($('#formPay'), async (e) => {
       reservation: { base: Number(f.resBase.value || 0), perAdult: Number(f.resPerAdult.value || 0), description: f.resDescription.value.trim() },
       company: { name: f.coName.value.trim(), document: f.coDocument.value.trim(), address: f.coAddress.value.trim(), phone: phone.trim(), email: email.trim() },
       mercadopago: { accessToken: f.mpToken.value.trim(), payerEmail: f.mpEmail.value.trim() },
+      card: { fees: Object.fromEntries([...f.cardFees.value.matchAll(/(\d{1,2})\s*x?\s*[:=-]?\s*(\d+(?:[.,]\d+)?)/gi)].map((m) => [m[1], Number(m[2].replace(',', '.'))]).filter(([n, v]) => n >= 1 && n <= 12 && v >= 0 && v < 40)) },
     } },
   });
   fillPayForm(s.payments);

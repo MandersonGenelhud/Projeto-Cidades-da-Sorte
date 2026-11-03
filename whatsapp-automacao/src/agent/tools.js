@@ -356,15 +356,32 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'opcoes_cartao',
+      description: 'Calcula as opções de parcelas no CARTÃO DE CRÉDITO para o valor que o cliente quer pagar, já com a taxa de juros da maquininha, que quem paga é o CLIENTE (não a Migra). Use quando o cliente escolher cartão e mostre as opções (parcelas, valor de cada parcela e total). Sem valor, usa a entrada (reserva). Nunca invente taxa: só as que esta ferramenta devolve.',
+      parameters: {
+        type: 'object',
+        properties: {
+          adultos: { type: 'number', description: 'Quantos adultos vão entrar no processo (define a entrada)' },
+          valor: { type: 'number', description: 'Valor em reais que o cliente deseja pagar no cartão, sem a taxa (opcional; não pode ser menor que a entrada)' },
+        },
+        required: ['adultos'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'gerar_link_cartao',
-      description: 'Cria e envia ao cliente o link de pagamento da entrada (reserva) no CARTÃO DE CRÉDITO. Use quando o cliente escolher cartão (por exemplo por morar longe, sem acesso a Pix). O valor é o mesmo da entrada calculada pela regra da reserva. O cliente digita o cartão na página segura do Mercado Pago, nunca na conversa: nunca peça número de cartão.',
+      description: 'Cria e envia ao cliente o link de pagamento no CARTÃO DE CRÉDITO, na opção de parcelas que ele escolheu entre as de opcoes_cartao (o cliente paga a taxa da maquininha). O cliente digita o cartão na página segura do Mercado Pago, nunca na conversa: nunca peça número de cartão.',
       parameters: {
         type: 'object',
         properties: {
           adultos: { type: 'number', description: 'Quantos adultos vão entrar no processo' },
           nome_pagador: { type: 'string', description: 'Nome completo de quem vai pagar (para o recibo)' },
+          parcelas: { type: 'number', description: 'Número de parcelas que o cliente escolheu (1 a 12), uma das opções de opcoes_cartao' },
+          valor: { type: 'number', description: 'O mesmo valor usado em opcoes_cartao, sem a taxa (opcional; padrão: a entrada)' },
         },
-        required: ['adultos', 'nome_pagador'],
+        required: ['adultos', 'nome_pagador', 'parcelas'],
       },
     },
   },
@@ -517,6 +534,10 @@ export async function runTool(name, args, ctx) {
       case 'gerar_pix': {
         if (!ctx.onPix) return { erro: 'Pagamento por Pix indisponível. Use encaminhar_para_vendedor.' };
         return await ctx.onPix(args);
+      }
+      case 'opcoes_cartao': {
+        if (!ctx.onCardOptions) return { erro: 'Opções de cartão indisponíveis. Use passar_fechamento_para_humano.' };
+        return await ctx.onCardOptions(args);
       }
       case 'gerar_link_cartao': {
         if (!ctx.onCard) return { erro: 'Pagamento no cartão indisponível. Use passar_fechamento_para_humano.' };

@@ -821,23 +821,40 @@ agent.createPix = async (conv, args, { dryRun } = {}) => {
   await payments.sendCharge(p);
   return { ok: true, valor: money(amount), instrucao: 'O QR Code e o código Pix copia e cola já foram enviados ao cliente em mensagens separadas, logo acima. Diga o valor, explique que é só copiar o código e colar no app do banco (Pix copia e cola) e que o recibo chega aqui assim que o pagamento for confirmado.' };
 };
+const cardBase = (adults, wanted) => {
+  const min = payments.reservationAmount(adults);
+  const v = Number(wanted);
+  if (wanted === undefined || wanted === null || wanted === '' || !Number.isFinite(v) || v <= 0) return { base: min, min };
+  return { base: Math.round(v * 100) / 100, min };
+};
+const brl = (v) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+agent.cardOptions = async (conv, args) => {
+  const adults = Math.max(1, Number(args.adultos) || 1);
+  const { base, min } = cardBase(adults, args.valor);
+  if (base < min) return { erro: `O valor mínimo no cartão é a entrada: ${brl(min)}. Explique com educação e pergunte se pode ser a partir desse valor.` };
+  const opts = payments.cardOptions(base);
+  if (!opts.length) return { ok: true, semTaxas: true, valor: brl(base), instrucao: `As taxas da maquininha ainda não estão cadastradas, então você não consegue calcular as parcelas. Diga que a equipe passa as opções de parcelas com a taxa do cartão (paga pelo cliente) em instantes e use passar_fechamento_para_humano.` };
+  return { ok: true, valor: brl(base), taxaPagaPeloCliente: true, opcoes: opts.map((o) => ({ parcelas: o.parcelas, valor_da_parcela: brl(o.parcela), total: brl(o.total), taxa: `${String(o.taxaPercentual).replace('.', ',')}%` })), instrucao: `Mostre as opções ao cliente em lista curta (parcelas, valor de cada e total), lembrando que a taxa da maquininha é paga pelo cliente e que o valor base é ${brl(base)}. Quando ele escolher, use gerar_link_cartao com a parcela${args.valor ? ' e o mesmo valor' : ''}.` };
+};
 agent.createCardLink = async (conv, args, { dryRun } = {}) => {
   const adults = Math.max(1, Number(args.adultos) || 1);
-  const amount = payments.reservationAmount(adults);
-  const money = (v) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, valor: money(amount), instrucao: 'Simulação: nenhum link foi criado. No atendimento real o link do cartão é enviado ao cliente antes desta resposta.' };
+  const { base, min } = cardBase(adults, args.valor);
+  if (base < min) return { erro: `O valor mínimo no cartão é a entrada: ${brl(min)}.` };
+  const n = Math.round(Number(args.parcelas)) || 1;
+  const opt = payments.cardOptions(base).find((o) => o.parcelas === n);
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, valor: brl(base), instrucao: 'Simulação: nenhum link foi criado. No atendimento real o link do cartão é enviado ao cliente antes desta resposta.' };
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
     || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
   const desc = `${store.settings.payments?.reservation?.description || 'reserva'} - ${adults} adulto(s)`;
-  if (!payments.cardAvailable) {
-    // Sem o Mercado Pago ligado não dá para criar o link sozinho: a equipe cria e manda.
-    if (lead) crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Cliente quer pagar a entrada (${money(amount)}) no cartão: criar e enviar o link.`);
-    notifyAdmins(`💳 *Cliente quer pagar no cartão*\n👤 ${args.nome_pagador || lead?.name || conv.name || 'Cliente'}${conv.phone ? ` · +${conv.phone}` : ''}\n💵 Entrada: ${money(amount)}\n\nO link de cartão não é automático (Mercado Pago desligado). Crie o link e envie ao cliente.`).catch(() => {});
-    return { ok: true, manual: true, valor: money(amount), instrucao: `Diga que a entrada de ${money(amount)} no cartão de crédito será feita por um link seguro que a equipe envia por aqui em instantes. Não peça dados do cartão.` };
+  if (!payments.cardAvailable || !opt) {
+    // Sem o Mercado Pago ligado ou sem a taxa dessa parcela: a equipe cria o link à mão.
+    if (lead) crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Cliente quer pagar ${brl(base)} no cartão em ${n}x (taxa da maquininha por conta do cliente): criar e enviar o link.`);
+    notifyAdmins(`💳 *Cliente quer pagar no cartão*\n👤 ${args.nome_pagador || lead?.name || conv.name || 'Cliente'}${conv.phone ? ` · +${conv.phone}` : ''}\n💵 Valor: ${brl(base)} em ${n}x (taxa da maquininha por conta do cliente)\n\nO link não é automático (${payments.cardAvailable ? 'sem taxa cadastrada para essa parcela' : 'Mercado Pago desligado'}). Crie o link e envie ao cliente.`).catch(() => {});
+    return { ok: true, manual: true, valor: brl(base), instrucao: `Diga que o link de pagamento no cartão de crédito, com as parcelas e a taxa da maquininha (paga pelo cliente), será enviado pela equipe por aqui em instantes. Não peça dados do cartão.` };
   }
-  const p = await payments.createCard({ convKey: conv.key, leadId: lead?.id, amount, description: desc, payerName: args.nome_pagador, by: 'IA' });
+  const p = await payments.createCard({ convKey: conv.key, leadId: lead?.id, amount: base, installments: n, description: desc, payerName: args.nome_pagador, by: 'IA' });
   await payments.sendCardLink(p);
-  return { ok: true, valor: money(amount), instrucao: `O link de pagamento no cartão de crédito (${money(amount)}) já foi enviado ao cliente logo acima. Diga o valor, explique que é uma página segura do Mercado Pago, onde ele digita os dados do cartão (nunca peça dados do cartão aqui) e que, assim que for aprovado, o recibo chega nesta conversa. Se ele disser que pagou, use cliente_informou_pagamento.` };
+  return { ok: true, valor: brl(p.amount), instrucao: `O link de pagamento no cartão (${n}x, total ${brl(p.amount)}, já com a taxa da maquininha paga pelo cliente) já foi enviado logo acima. Explique que é uma página segura do Mercado Pago, onde ele digita os dados do cartão (nunca peça dados do cartão aqui) e que, assim que for aprovado, o recibo chega nesta conversa. Se ele disser que pagou, use cliente_informou_pagamento.` };
 };
 agent.claimPaid = async (conv, args, { dryRun } = {}) => {
   if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true };
@@ -2252,6 +2269,8 @@ app.get('/api/settings', (_req, res) => res.json(publicSettings()));
 app.put('/api/settings', async (req, res) => {
   const before = JSON.stringify(cloudConfig());
   const igBefore = JSON.stringify(instagramConfig());
+  // A tabela de taxas do cartão é substituída inteira (apagar uma linha no painel apaga a taxa).
+  if (req.body?.payments?.card?.fees && store.data.settings.payments) store.data.settings.payments.card = { fees: {} };
   store.updateSettings(stripMaskedSecrets(req.body));
   // Prazo de quem a IA responde sozinha mudou: já coloca na fila quem entrou no prazo.
   if (req.body?.agent?.pendingMaxDays) setTimeout(() => pending.autoAnswer(), 1000).unref?.();
