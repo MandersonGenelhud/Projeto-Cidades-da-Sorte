@@ -48,6 +48,7 @@ import { Marketing, PRESETS as MKT_PRESETS } from './marketing.js';
 import { Collections } from './collections.js';
 import { Customer360 } from './customer360.js';
 import { Tasks } from './tasks.js';
+import { Commitments } from './commitments.js';
 import { Documents, TYPES as DOC_TYPES } from './documents.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
@@ -277,7 +278,11 @@ const followups = new AutoFollowUps({
   log: (l) => store.addLog(l),
 });
 agent.scheduleReturn = (conv, args, opts) => followups.schedule(conv, args, opts);
-setInterval(() => followups.run().catch((e) => store.addLog({ type: 'error', message: `Retornos combinados: ${e.message}` })), 10 * 60_000).unref();
+setInterval(() => followups.run().catch((e) => store.addLog({ type: 'error', message: `Retornos combinados: ${e.message}` })), 5 * 60_000).unref();
+// Recupera, uma vez, os retornos que se perderam (cliente respondeu "ok, até terça" e o retorno foi cancelado sem enviar).
+if (!store.data.followupRecovery2026) {
+  setTimeout(() => { try { const n = followups.recoverMissed(); store.data.followupRecovery2026 = new Date().toISOString(); store.save(); if (n) store.addLog({ type: 'system', message: `🔁 ${n} retorno(s) combinado(s) que se perderam foram recolocados na fila` }); } catch (e) { store.addLog({ type: 'error', message: `Recuperar retornos: ${e.message}` }); } }, 30_000).unref();
+}
 // Migra Imóveis (catálogo e loteamentos) e programa de indicação.
 const realty = new Realty({ store, dataDir: DATA_DIR });
 const audit = new Audit({ store });
@@ -4353,6 +4358,9 @@ if (process.env.NODE_ENV !== 'test') {
   // Treinamento semanal dos vendedores: a cada 7 dias a IA cria um novo e os vendedores são avisados no WhatsApp.
   setInterval(() => runWeeklyTraining().catch((e) => store.addLog({ type: 'error', message: `Treinamento semanal: ${e.message}` })), 6 * 3_600_000).unref();
   setTimeout(() => runWeeklyTraining().catch(() => {}), 5 * 60_000).unref();
+  // Horários marcados com clientes (calendário e videochamadas): chama na hora combinada e lembra antes. Nada fica esquecido.
+  const commitments = new Commitments({ store, agent, videocalls, send: (key, text) => wa.send(key, { text }), canSend: (key) => (key && wa.isConnected ? wa.isConnected(key) : wa.status === 'connected') && agent.active, log: (l) => store.addLog(l) });
+  setInterval(() => { commitments.tickAppointments().catch((e) => store.addLog({ type: 'error', message: `Compromissos: ${e.message}` })); commitments.tickVideocalls().catch(() => {}); }, 3 * 60_000).unref();
   // Videochamadas reservadas que não foram pagas voltam a ficar livres.
   setInterval(() => videocalls.expirePending(), 5 * 60_000).unref();
   // Lembretes de tarefas da equipe (WhatsApp de cada pessoa), a cada 10 minutos, só no horário comercial.

@@ -3,8 +3,13 @@
 const pad = (n) => String(n).padStart(2, '0');
 const isoDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const BR = (iso) => iso.split('-').reverse().join('/');
-const OPEN_STAGES = new Set(['novo', 'em_contato', 'proposta', 'aguardando']);
+// Só 'perdido' fica de fora: quem já é cliente (ganho) também recebe o retorno combinado.
+const OPEN_STAGES = new Set(['novo', 'em_contato', 'proposta', 'aguardando', 'ganho']);
 const WD = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+
+/** Mensagens que só confirmam o combinado ("ok, até terça às 14h", "boa noite", "amém"): não mudam o assunto, então o retorno segue valendo. */
+const ACK = /^(ok(ay)?|beleza|blz|combinado|certo|certinho|perfeito|obrigad[oa]|valeu|am[eé]m|show|fechado|sim|tudo bem|boa (noite|tarde|dia)|at[eé]|abra[cç]o|deus|tmj|👍|🙏|😊|❤)/i;
+export const isAck = (text) => { const t = String(text || '').trim(); return t.length <= 90 && (ACK.test(t) || /^[\p{Emoji}\s!.,;:]+$/u.test(t) || /(ter[cç]a|quarta|quinta|sexta|segunda|s[aá]bado|amanh[aã]|\d{1,2}\s*(h|:|;)\d{0,2})/i.test(t) && t.length <= 60); };
 
 export class AutoFollowUps {
   /** send(key, text) manda ao cliente; canSend(key) diz se o WhatsApp/Instagram daquela conversa está ligado. */
@@ -33,6 +38,39 @@ export class AutoFollowUps {
     Object.assign(lead, { followUpTime: time, followUpAuto: true, followUpNext: String(args.o_que_falta || '').slice(0, 300), followUpKey: conv.key, followUpSentFor: null, followUpMsgCount: conv.messages.length });
     this.store.save();
     return { ok: true, data: date, hora: time, instrucao: say };
+  }
+
+  /**
+   * Recupera retornos que a atendente combinou e que se perderam (ex.: o cliente respondeu "ok, até terça" e o retorno foi cancelado sem enviar).
+   * Procura no histórico do prospecto o último "Retorno agendado" feito pela IA, sem o registro de que foi cumprido, e o recoloca na fila
+   * (a retomada pede desculpas pelo atraso). Atrasados de até 21 dias e todos os futuros.
+   */
+  recoverMissed({ days = 21, max = 80 } = {}) {
+    const today = isoDay(this.now());
+    const min = new Date(this.now()); min.setDate(min.getDate() - days);
+    const minIso = isoDay(min);
+    let n = 0;
+    for (const lead of this.crm.leads) {
+      if (n >= max) break;
+      if (lead.stage === 'perdido' || lead.followUpAt) continue;
+      const tl = lead.timeline || [];
+      let idx = -1;
+      for (let i = tl.length - 1; i >= 0; i--) if (tl[i].type === 'retorno') { idx = i; break; }
+      if (idx < 0) continue;
+      const e = tl[idx];
+      if (!['IA', 'Sistema'].includes(e.by)) continue; // retorno marcado por uma pessoa continua com a pessoa
+      const m = /Retorno agendado para (\d{2})\/(\d{2})\/(\d{4})/.exec(e.text || '');
+      if (!m) continue;
+      const date = `${m[3]}-${m[2]}-${m[1]}`;
+      if (date < minIso) continue;
+      if (tl.slice(idx + 1).some((x) => /Retorno combinado feito|Retomada antecipada|Retorno recuperado/.test(x.text || ''))) continue;
+      Object.assign(lead, { followUpAt: date, followUpAuto: true, followUpSentFor: null, followUpAutoFailed: null, followUpMissed: true, followUpTime: lead.followUpTime || '10:00' });
+      if (lead.stage !== 'ganho') lead.stage = 'aguardando';
+      this.crm.addNote({ name: 'Sistema', role: 'admin' }, lead.id, `🔁 Retorno recuperado: estava combinado para ${BR(date)} e não foi feito. A atendente chama o cliente, pede desculpas e continua o atendimento.`);
+      n += 1;
+    }
+    if (n) this.store.save();
+    return n;
   }
 
   /** Clientes com retorno marcado para o futuro (depois de hoje), que ainda não foram reconfirmados para essa data. */
@@ -123,6 +161,8 @@ Mande UMA mensagem curta, com a saudação do horário e o nome dele: diga que e
     let lead0 = null;
     for (const lead of due.slice(0, max)) {
       lead0 = lead;
+      const dueAt = new Date(`${lead.followUpAt}T${lead.followUpTime || '10:00'}:00`);
+      const lateMin = Math.max(0, Math.round((now - dueAt) / 60_000));
       const found = this.#convFor(lead);
       // Sem WhatsApp para responder ou um atendente já assumiu: a equipe é avisada (aviso normal do dia do retorno).
       const fail = () => { lead.followUpAutoFailed = lead.followUpAt; lead.followUpSentFor = lead.followUpAt; this.store.save(); };
@@ -132,13 +172,18 @@ Mande UMA mensagem curta, com a saudação do horário e o nome dele: diga que e
       if (!this.canSend(key)) { if (lead.followUpAt < today) fail(); continue; }
       lead.followUpSentFor = lead.followUpAt; // uma tentativa por data (não insiste se der erro)
       this.store.save();
-      // O cliente já voltou a falar depois de marcar o retorno: a conversa seguiu, não precisa retomar.
-      if (conv.messages.slice(lead.followUpMsgCount ?? conv.messages.length).some((m) => m.role === 'user')) { finish(); continue; }
+      // O cliente falou de OUTRO assunto depois de marcar o retorno: a conversa seguiu e a atendente já cuida. Só confirmar o combinado ("ok, até terça às 14h") não cancela nada.
+      const after = conv.messages.slice(lead.followUpMsgCount ?? conv.messages.length).filter((m) => m.role === 'user');
+      if (after.some((m) => !isAck(m.content))) { finish(); continue; }
+      // Conversa ativa agora (mensagem nos últimos 8 minutos): espera o próximo ciclo para não atravessar o cliente. Depois de 90 minutos de atraso manda mesmo assim.
+      const lastAt = conv.messages.at(-1)?.at ? new Date(conv.messages.at(-1).at) : null;
+      const idle = lastAt ? now - lastAt : Infinity;
+      if (idle >= 0 && idle < 8 * 60_000 && lateMin < 90) { lead.followUpSentFor = null; this.store.save(); continue; }
       try {
         const r = await this.agent.think(conv, {
           extraSystem: `# Retorno combinado (é hoje)
 Você combinou com este cliente de retomar hoje. Motivo da espera: ${lead.followUpReason || '-'}. O que falta: ${lead.followUpNext || '-'}.
-Mande UMA mensagem curta, com a saudação do horário: lembre o que foi combinado e proponha o próximo passo concreto (de preferência a ficha de dados para garantir a reserva). Não peça desculpas e não se despeça.`,
+Mande UMA mensagem curta, com a saudação do horário: lembre o que foi combinado e proponha o próximo passo concreto (de preferência a ficha de dados para garantir a reserva).${lateMin > 30 ? ` Você combinou ${lead.followUpTime ? `para as ${String(lead.followUpTime).replace(':00', 'h')}` : 'para este horário'} e NÃO retornou na hora: peça desculpas com humildade, em UMA frase curta e sem drama (ex.: "Peço perdão por não ter te chamado no horário combinado"), e logo dê continuidade ao atendimento dele de onde pararam.` : ' Não peça desculpas.'} Não se despeça.`,
         });
         await this.send(key, r.text);
         this.agent.remember(conv, 'assistant', r.text);
