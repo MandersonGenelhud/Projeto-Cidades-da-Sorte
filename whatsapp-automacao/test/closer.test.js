@@ -87,6 +87,9 @@ test('IA de fechamento: no WhatsApp do vendedor segue o roteiro direto e tem a f
   assert.match(system, /nunca peça número de cartão/);
   assert.match(system, /Vou gerar o link de pagamento no valor que você desejar/);
   assert.match(system, /taxa de juros da maquininha do cartão, que é paga pelo cliente, não pela Migra/);
+  assert.match(system, /pode ser parcelada em até 12 vezes/);
+  assert.match(system, /a Migra NÃO cobra juros nenhum, quem cobra essa taxa é o banco/);
+  assert.match(system, /ele está ciente disso antes de gerar o link/);
   assert.ok(TOOL_DEFINITIONS.some((t) => t.function.name === 'opcoes_cartao'));
   assert.match(system, /Conversa anterior/);
 });
