@@ -122,6 +122,38 @@ export class Payments {
     await this.sendTo(p.convKey, { text: ig ? `${p.brcode}${ask}` : p.brcode });
   }
 
+
+  /** Link de pagamento no cartão de crédito (Mercado Pago, checkout hospedado): o cliente digita o cartão na página do Mercado Pago, nunca aqui. */
+  get cardAvailable() { const c = this.config; return c.enabled !== false && c.provider === 'mercadopago' && Boolean(c.mercadopago?.accessToken); }
+
+  async createCard({ convKey = null, leadId = null, amount, description, payerName = '', by = 'IA' }) {
+    if (!this.cardAvailable) throw err(400, 'Link de cartão exige o Mercado Pago ligado (Configurações → Pagamentos)');
+    const value = Math.round(Number(amount) * 100) / 100;
+    if (!(value > 0)) throw err(400, 'Valor inválido');
+    const id = crypto.randomBytes(6).toString('hex');
+    const txid = `MIG${id}`.toUpperCase().slice(0, 25);
+    const title = String(description || this.config.reservation?.description || 'Reserva').trim().slice(0, 120);
+    const pref = await this.#mp('POST', '/checkout/preferences', {
+      items: [{ title, quantity: 1, unit_price: value, currency_id: 'BRL' }],
+      external_reference: txid,
+      payment_methods: { excluded_payment_types: [{ id: 'ticket' }, { id: 'bank_transfer' }, { id: 'atm' }], installments: 12 },
+      statement_descriptor: 'MIGRA',
+    }, crypto.randomUUID());
+    const url = pref.init_point;
+    if (!/^https:\/\/[a-z0-9.-]*mercadopago[a-z0-9.-]*\//i.test(String(url || ''))) throw err(502, 'O Mercado Pago não devolveu o link do cartão');
+    const p = { id, txid, leadId, convKey, amount: value, description: title, payerName: String(payerName || '').trim(), payerDoc: '', status: 'pending', provider: 'mercadopago', method: 'cartao', mpPrefId: pref.id, cardUrl: url, createdAt: new Date().toISOString(), createdBy: by };
+    this.list.push(p);
+    this.store.save();
+    if (leadId) this.crm.addNote({ name: by, role: 'admin' }, leadId, `Link de cartão gerado: ${money(value)} (${title})`);
+    this.notify('payment', { id: p.id, status: p.status });
+    return p;
+  }
+
+  async sendCardLink(p) {
+    if (!p.convKey) return;
+    await this.sendTo(p.convKey, { text: `Link para pagar no cartão de crédito · ${money(p.amount)} · ${p.description}\n${p.cardUrl}\n\nÉ a página segura do Mercado Pago: você coloca os dados do cartão lá. Quando aprovar, o recibo chega aqui.` });
+  }
+
   /** Pagamento confirmado: fecha a venda, gera e envia o recibo e avisa o dono. */
   async confirm(id, { by = 'Administrador', userId = null } = {}) {
     const p = this.get(id);
@@ -138,7 +170,7 @@ export class Payments {
       const sys = { name: by, role: 'admin', id: userId };
       // Mentoria não é venda de pacote: não fecha o prospecto (nem gera ranking ou comissão de parceiro).
       if (lead.stage !== 'ganho' && !p.purpose) this.crm.update(sys, lead.id, { stage: 'ganho', closedValue: lead.value || p.amount });
-      this.crm.addNote(sys, lead.id, `✅ Pix confirmado: ${money(p.amount)} · recibo nº ${String(p.receiptNo).padStart(4, '0')}`);
+      this.crm.addNote(sys, lead.id, `✅ ${p.method === 'cartao' ? 'Cartão aprovado' : 'Pix confirmado'}: ${money(p.amount)} · recibo nº ${String(p.receiptNo).padStart(4, '0')}`);
     }
 
     // Recibo para o cliente.
@@ -159,7 +191,7 @@ export class Payments {
     const owner = lead?.ownerId ? this.crm.ownerName(lead.ownerId) : '';
     const q = lead?.qualification || {};
     const notice = [
-      p.purpose === 'mentoria' ? '🎓 *Mentoria paga! Pix confirmado*' : p.purpose === 'visita' ? '💳 *Taxa de assessoria presencial paga* (estornar se fechar)' : '💰 *Venda fechada! Pix confirmado*',
+      p.purpose === 'mentoria' ? '🎓 *Mentoria paga! Pix confirmado*' : p.purpose === 'visita' ? '💳 *Taxa de assessoria presencial paga* (estornar se fechar)' : `💰 *Venda fechada! ${p.method === 'cartao' ? 'Cartão aprovado' : 'Pix confirmado'}*`,
       `👤 ${p.payerName || lead?.name || 'Cliente'}${lead?.phone ? ` · +${lead.phone}` : lead?.instagram ? ` · @${lead.instagram}` : ''}`,
       `💵 ${money(p.amount)} · ${p.description}`,
       lead?.interest ? `📦 ${lead.interest}${lead.people > 1 ? ` · ${lead.people} pessoas` : ''}${lead.value ? ` · total ${money(lead.value)}` : ''}` : '',
@@ -171,7 +203,7 @@ export class Payments {
       p.receipt?.auto ? `🔎 Confirmado pela LEITURA DO COMPROVANTE enviado pelo cliente (transação ${p.receipt.ref}), não pelo extrato. Dê uma conferida no banco; o comprovante está guardado no painel.` : '',
     ].filter(Boolean).join('\n');
     await this.notifyAdmins(notice).catch((e) => this.store.addLog({ type: 'error', message: `Aviso de pagamento: ${e.message}` }));
-    this.store.addLog({ type: 'system', message: `💰 Pix confirmado: ${money(p.amount)} de ${p.payerName || lead?.name || 'cliente'} (por ${by})` });
+    this.store.addLog({ type: 'system', message: `💰 ${p.method === 'cartao' ? 'Cartão aprovado' : 'Pix confirmado'}: ${money(p.amount)} de ${p.payerName || lead?.name || 'cliente'} (por ${by})` });
     this.notify('paymentPaid', { id: p.id, amount: p.amount, name: p.payerName || lead?.name || '', description: p.description });
     // Próximo passo do fechamento (ex.: termo da reserva depois do pagamento).
     await Promise.resolve(this.onPaid?.(p)).catch((e) => this.store.addLog({ type: 'error', message: `Depois do pagamento: ${e.message}` }));
@@ -248,6 +280,14 @@ export class Payments {
         this.store.addLog({ type: 'error', message: `Conferir Pix no Mercado Pago: ${e.message}` });
       }
     }
+    for (const p of this.list.filter((x) => x.status === 'pending' && x.mpPrefId)) {
+      try {
+        const r = await this.#mp('GET', `/v1/payments/search?external_reference=${encodeURIComponent(p.txid)}&sort=date_created&criteria=desc`);
+        if ((r.results || []).some((x) => x.status === 'approved')) { await this.confirm(p.id, { by: 'Mercado Pago (cartão, automático)' }); paid++; }
+      } catch (e) {
+        this.store.addLog({ type: 'error', message: `Conferir cartão no Mercado Pago: ${e.message}` });
+      }
+    }
     return paid;
   }
 
@@ -292,7 +332,7 @@ export class Payments {
     // Selo de pago
     c.rect(W - M - 124, y + 22, 100, 46, { stroke: RC.green, radius: 8, lineWidth: 2 });
     c.text('PAGO', W - M - 74, y + 32, { size: 20, bold: true, color: RC.green, align: 'center', spacing: 2 });
-    c.text('Pix confirmado', W - M - 74, y + 54, { size: 7.5, color: RC.gray, align: 'center' });
+    c.text(p.method === 'cartao' ? 'Cartão aprovado' : 'Pix confirmado', W - M - 74, y + 54, { size: 7.5, color: RC.gray, align: 'center' });
     y += 120;
 
     // Texto do recibo

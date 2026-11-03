@@ -821,6 +821,24 @@ agent.createPix = async (conv, args, { dryRun } = {}) => {
   await payments.sendCharge(p);
   return { ok: true, valor: money(amount), instrucao: 'O QR Code e o código Pix copia e cola já foram enviados ao cliente em mensagens separadas, logo acima. Diga o valor, explique que é só copiar o código e colar no app do banco (Pix copia e cola) e que o recibo chega aqui assim que o pagamento for confirmado.' };
 };
+agent.createCardLink = async (conv, args, { dryRun } = {}) => {
+  const adults = Math.max(1, Number(args.adultos) || 1);
+  const amount = payments.reservationAmount(adults);
+  const money = (v) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, valor: money(amount), instrucao: 'Simulação: nenhum link foi criado. No atendimento real o link do cartão é enviado ao cliente antes desta resposta.' };
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
+    || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+  const desc = `${store.settings.payments?.reservation?.description || 'reserva'} - ${adults} adulto(s)`;
+  if (!payments.cardAvailable) {
+    // Sem o Mercado Pago ligado não dá para criar o link sozinho: a equipe cria e manda.
+    if (lead) crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Cliente quer pagar a entrada (${money(amount)}) no cartão: criar e enviar o link.`);
+    notifyAdmins(`💳 *Cliente quer pagar no cartão*\n👤 ${args.nome_pagador || lead?.name || conv.name || 'Cliente'}${conv.phone ? ` · +${conv.phone}` : ''}\n💵 Entrada: ${money(amount)}\n\nO link de cartão não é automático (Mercado Pago desligado). Crie o link e envie ao cliente.`).catch(() => {});
+    return { ok: true, manual: true, valor: money(amount), instrucao: `Diga que a entrada de ${money(amount)} no cartão de crédito será feita por um link seguro que a equipe envia por aqui em instantes. Não peça dados do cartão.` };
+  }
+  const p = await payments.createCard({ convKey: conv.key, leadId: lead?.id, amount, description: desc, payerName: args.nome_pagador, by: 'IA' });
+  await payments.sendCardLink(p);
+  return { ok: true, valor: money(amount), instrucao: `O link de pagamento no cartão de crédito (${money(amount)}) já foi enviado ao cliente logo acima. Diga o valor, explique que é uma página segura do Mercado Pago, onde ele digita os dados do cartão (nunca peça dados do cartão aqui) e que, assim que for aprovado, o recibo chega nesta conversa. Se ele disser que pagou, use cliente_informou_pagamento.` };
+};
 agent.claimPaid = async (conv, args, { dryRun } = {}) => {
   if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true };
   const r = await payments.clientClaimsPaid(conv.key, args.observacao || '');
@@ -844,7 +862,7 @@ agent.contextFor = (conv) => {
   if (!lead || lead.conversationKey === conv.key) return '';
   const q = lead.qualification || {};
   const origin = lead.conversationKey ? agent.conversation(lead.conversationKey, { create: false }) : null;
-  const before = (origin?.messages || []).slice(-14).map((m) => `${m.role === 'user' ? 'Cliente' : 'Atendimento'}: ${m.content}`).join('\n');
+  const before = (origin?.messages || []).filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim()).slice(-40).map((m) => `${m.role === 'user' ? 'Cliente' : 'Atendimento'}: ${m.content.replace(/\s+/g, ' ').slice(0, 400)}`).join('\n').slice(-7000);
   return [
     `Nome: ${lead.name || '-'} · código ${lead.code}${lead.instagram ? ` · Instagram @${lead.instagram}` : ''}`,
     lead.interest ? `Interesse: ${lead.interest}${lead.people > 1 ? ` para ${lead.people} pessoas` : ''}` : '',
@@ -852,7 +870,7 @@ agent.contextFor = (conv) => {
     q.objections ? `Dúvidas que ficaram: ${q.objections}` : '',
     lead.aiSummary ? `Resumo: ${lead.aiSummary}` : '',
     lead.contractData ? 'Os dados para o contrato já foram passados.' : '',
-    before ? `Últimas mensagens da conversa anterior (${String(lead.conversationKey).startsWith('ig:') ? 'Instagram' : 'outro canal'}):\n${before}` : '',
+    before ? `Conversa anterior (até as últimas 40 mensagens; ${String(lead.conversationKey).startsWith('ig:') ? 'Instagram' : 'outro canal'}):\n${before}` : '',
   ].filter(Boolean).join('\n');
 };
 

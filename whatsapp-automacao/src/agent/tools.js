@@ -356,6 +356,21 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'gerar_link_cartao',
+      description: 'Cria e envia ao cliente o link de pagamento da entrada (reserva) no CARTÃO DE CRÉDITO. Use quando o cliente escolher cartão (por exemplo por morar longe, sem acesso a Pix). O valor é o mesmo da entrada calculada pela regra da reserva. O cliente digita o cartão na página segura do Mercado Pago, nunca na conversa: nunca peça número de cartão.',
+      parameters: {
+        type: 'object',
+        properties: {
+          adultos: { type: 'number', description: 'Quantos adultos vão entrar no processo' },
+          nome_pagador: { type: 'string', description: 'Nome completo de quem vai pagar (para o recibo)' },
+        },
+        required: ['adultos', 'nome_pagador'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'cliente_informou_pagamento',
       description: 'Use quando o cliente disser que já pagou o Pix ou mandar o comprovante. Avisa a equipe para conferir. Nunca diga que o pagamento foi confirmado: a confirmação chega pelo sistema, junto com o recibo.',
       parameters: {
@@ -502,6 +517,10 @@ export async function runTool(name, args, ctx) {
       case 'gerar_pix': {
         if (!ctx.onPix) return { erro: 'Pagamento por Pix indisponível. Use encaminhar_para_vendedor.' };
         return await ctx.onPix(args);
+      }
+      case 'gerar_link_cartao': {
+        if (!ctx.onCard) return { erro: 'Pagamento no cartão indisponível. Use passar_fechamento_para_humano.' };
+        return await ctx.onCard(args);
       }
       case 'cliente_informou_pagamento': {
         if (!ctx.onPaidClaim) return { erro: 'Indisponível. Diga que a equipe vai conferir.' };

@@ -148,6 +148,14 @@ export class Agent {
     const promptSettings = nameHere ? { ...base, agent: { ...base.agent, agentName: nameHere } } : base;
     let system = buildSystemPrompt(promptSettings, { now: this.now(), contactName: conv.name, channel, routing, closing });
     if (note) system += `\n\n# Este WhatsApp\n${note}`;
+    if (note) system += `\n\n# Você é a IA de FECHAMENTO (segunda mente; regra da direção)
+Quem chega neste WhatsApp já foi atendido pela primeira IA, que tirou as dúvidas e fez a peneira. Seu único objetivo aqui é FECHAR: documentação, entrada (reserva) e contrato. Seja direta, sem enrolação, sem encher linguiça.
+1) Primeira resposta: apresente-se e mostre que sabe a história, usando o que está em "O que já sabemos deste cliente": "Oi! Aqui é a assistente de [vendedor], da Migra. Vi que você já começou um atendimento com o nosso atendente pelo número anterior. Aqui falamos com as pessoas encaminhadas para iniciarmos o processo migratório." Não repita perguntas que ele já respondeu e não explique tudo de novo: ele chega com as dúvidas esclarecidas.
+2) Em seguida peça o que falta para começar: a documentação (envie a ficha de dados com enviar_ficha_de_dados) e pergunte como prefere pagar a ENTRADA, que é a reserva: no Pix ou, se ele mora longe ou não consegue pelo Pix, no cartão de crédito.
+3) Pix: o sistema envia o QR Code e o copia e cola (se houver ficha, logo depois que ele a enviar). Cartão: use gerar_link_cartao e o sistema envia o link seguro do Mercado Pago (nunca peça número de cartão pela conversa). Nos dois casos diga o valor da entrada e peça: "Assim que efetuar o pagamento, me envie o comprovante, por favor, para eu dar baixa no sistema e te enviar o recibo." Nunca diga que o pagamento foi confirmado por conta própria.
+4) Pretexto ou objeção ("vou pensar", "depois", "preciso ver"): descubra o motivo real em UMA pergunta e contorne com os fatos da base, sem pressão, em até duas tentativas, voltando sempre ao fechamento (ficha e entrada).
+5) Se ele realmente NÃO tiver o dinheiro da entrada agora: não insista. Use passar_fechamento_para_humano (motivo "sem o valor da entrada agora" e o resumo) para o atendimento humano combinar a melhor forma e a data de retomar o contato, e diga que a equipe volta a falar com ele.
+6) Respostas curtas, uma pergunta por vez, sem repetir o que já foi dito.`;
     const known = this.contextFor ? this.contextFor(conv) : '';
     if (known) system += `\n\n# O que já sabemos deste cliente (CRM)\n${known}\nUse isso: cumprimente pelo nome, mostre que já sabe o interesse dele ("vi aqui que você...") e siga para o fechamento sem repetir perguntas já respondidas.`;
     // Com os setores no painel, o especialista antigo (terrenos → Robson) dá lugar a eles.
@@ -335,6 +343,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       if (t.function.name === 'passar_fechamento_para_humano') return Boolean(this.closeHandoff);
       // Com a ficha, o Pix sai sozinho depois que o cliente envia os dados.
       if (t.function.name === 'gerar_pix') return pix && !closing;
+      if (t.function.name === 'gerar_link_cartao') return Boolean(this.createCardLink) && (pix || closing);
       if (t.function.name === 'cliente_informou_pagamento') return pix || closing;
       return canSchedule(settings) || t.function.name === 'transferir_para_humano';
     });
@@ -358,6 +367,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       onContract: this.sendContract ? (args) => this.sendContract(conv, args, { dryRun }) : null,
       onMoveToWhatsapp: this.moveToWhatsapp ? (args) => this.moveToWhatsapp(conv, args, { dryRun }) : null,
       onOwner: this.notifyOwner ? (args) => this.notifyOwner(conv, args, { dryRun }) : null,
+      onCard: this.createCardLink ? (args) => this.createCardLink(conv, args, { dryRun }) : null,
       onVideoSlots: this.videoSlots ? (args) => this.videoSlots(conv, args, { dryRun }) : null,
       onVideoBook: this.videoBook ? (args) => this.videoBook(conv, args, { dryRun }) : null,
       onCandidate: this.registerCandidate ? (args) => this.registerCandidate(conv, args, { dryRun }) : null,
