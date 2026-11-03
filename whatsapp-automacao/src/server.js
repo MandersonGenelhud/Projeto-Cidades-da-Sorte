@@ -41,6 +41,7 @@ import { Ingest, MIME as FILE_MIME } from './legacy-ingest.js';
 import { Resumes, MIME_BY_EXT } from './resumes.js';
 import { VideoCalls } from './videocalls.js';
 import { Live } from './live.js';
+import { Recordings } from './recordings.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
 import { siteGuard, siteHostsFrom, siteOfficeMap, hostOf } from './site-host.js';
@@ -279,6 +280,7 @@ const ingest = new Ingest({ store, dataDir: DATA_DIR, legacy, sales: null, crm: 
 // Videochamadas com a equipe (a IA marca quando o cliente vai falar com marido, esposa ou família).
 const videocalls = new VideoCalls({ store, auth });
 const live = new Live({ store });
+const recordings = new Recordings({ store });
 agent.liveInfo = () => live.promptInfo(`${publicBase()}/live`);
 const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 agent.videoSlots = (conv, args) => {
@@ -1200,7 +1202,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1621,6 +1623,7 @@ const SELLER_ROUTES = [
   ['POST', /^\/quotes\/[a-f0-9]+\/sale$/],
   ['GET', /^\/referral\/(me|qr)$/],
   ['PATCH', /^\/me\/prefs$/],
+  ['GET', /^\/recordings$/],
   ['*', /^\/videocall\/me$/],
   ['POST', /^\/videocall\/[a-z0-9]+\/cancel$/],
 ];
@@ -2583,6 +2586,28 @@ app.put('/api/site', (req, res) => {
 });
 
 // Currículos (só administrador).
+// ---- Reuniões gravadas (biblioteca de links) ----
+app.get('/api/recordings', (req, res) => res.json(recordings.list({ q: String(req.query.q || '') })));
+const recAdmin = (req) => { if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador cadastra gravações'); };
+const recTry = (fn) => { try { return fn(); } catch (e) { throw httpError(/não encontrada/.test(e.message) ? 404 : 400, e.message); } };
+app.post('/api/recordings', (req, res) => {
+  recAdmin(req);
+  const r = recTry(() => recordings.add(req.body || {}, req.user.name));
+  audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'gravação', label: r.title });
+  res.json(r);
+});
+app.patch('/api/recordings/:id', (req, res) => {
+  recAdmin(req);
+  const r = recTry(() => recordings.update(req.params.id, req.body || {}));
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'gravação', label: r.title });
+  res.json(r);
+});
+app.delete('/api/recordings/:id', (req, res) => {
+  recAdmin(req);
+  const r = recTry(() => recordings.remove(req.params.id));
+  audit.record({ user: req.user, ip: clientIp(req), action: 'excluiu', entity: 'gravação', label: r.title });
+  res.json({ ok: true });
+});
 // ---- Página de live (Google Meet) ----
 app.get('/api/live', (req, res) => {
   if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador');
