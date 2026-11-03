@@ -37,7 +37,7 @@ import { Audit } from './audit.js';
 import { byAttendant, attendantOf } from './attendants.js';
 import { LegacyContracts } from './legacy-import.js';
 import { buildBat } from './legacy-tool.js';
-import { Usage, DEFAULT_PRICING, cleanPricing, priceModel } from './usage.js';
+import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
 import { siteGuard, siteHostsFrom, siteOfficeMap, hostOf } from './site-host.js';
 import { mergeContent, sanitizeContent, renderHome } from './site-content.js';
@@ -2427,6 +2427,19 @@ app.get('/api/pricing', (req, res) => {
   const office = OFFICE_IDS.includes(req.query.office) ? req.query.office : '';
   const measured = usage.month(month, office);
   res.json({ month, office, config: pricingCfg(), measured, model: priceModel(measured, pricingCfg()), aiModel: store.settings.agent?.geminiModel || '', provider: store.settings.agent?.provider || '' });
+});
+// Calibra o preço com o gasto real já feito (R$) e as mensagens que a atendente já enviou.
+app.get('/api/pricing/history', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador geral');
+  const cfg = pricingCfg();
+  const office = OFFICE_IDS.includes(req.query.office) ? req.query.office : '';
+  const isDay = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : '');
+  res.json(historyReport(Object.values(store.data.conversations || {}), {
+    totalCostBrl: Number(String(req.query.cost || '0').replace(',', '.')), from: isDay(req.query.from), to: isDay(req.query.to),
+    include: (c) => !office || conversationOffice(c) === office,
+    markupPct: req.query.markup !== undefined ? Number(req.query.markup) : cfg.markupPct,
+    extraMonthlyBrl: cfg.fixedBrl / Math.max(1, cfg.clients) + cfg.supportHours * cfg.hourBrl,
+  }));
 });
 app.put('/api/pricing', (req, res) => {
   if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador geral');

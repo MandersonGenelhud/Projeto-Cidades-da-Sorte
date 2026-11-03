@@ -98,3 +98,43 @@ export function priceModel(measured, cfg, { tiers = [500, 1500, 3000, 6000, 1200
   const overagePer100 = Math.ceil(brlPerReply * 100 * (1 + cfg.markupPct / 100) * 100) / 100;
   return { configured, measuredData: hasData, inPerReply: Math.round(inPerReply), outPerReply: Math.round(outPerReply), usdPerReply: Number(usdPerReply.toFixed(5)), brlPerReply: Number(brlPerReply.toFixed(4)), plans, overagePer100: round2(overagePer100), setupBrl: cfg.setupBrl };
 }
+
+/**
+ * Calibra o preço com o gasto REAL: conta as mensagens que a atendente enviou (guardadas nas conversas),
+ * divide o gasto total pelos dias em que o sistema rodou e projeta 30 dias.
+ * Limite: cada conversa guarda só as últimas 200 mensagens, então a contagem é um mínimo.
+ */
+export function historyReport(conversations, { totalCostBrl, from = '', to = '', include = () => true, markupPct = 200, extraMonthlyBrl = 0 } = {}) {
+  const perDay = new Map();
+  let inbound = 0;
+  for (const c of conversations) {
+    if (c.simulation || !include(c)) continue;
+    for (const m of c.messages || []) {
+      const day = dayOf(m.at);
+      if ((from && day < from) || (to && day > to)) continue;
+      if (m.role === 'assistant') perDay.set(day, (perDay.get(day) || 0) + 1);
+      else if (m.role === 'user') inbound += 1;
+    }
+  }
+  const days = [...perDay.keys()].sort();
+  if (!days.length) return { messages: 0, inbound, empty: true };
+  const start = from || days[0];
+  const end = to || days.at(-1);
+  const periodDays = Math.max(1, Math.round((new Date(`${end}T12:00:00Z`) - new Date(`${start}T12:00:00Z`)) / 86400000) + 1);
+  const messages = [...perDay.values()].reduce((a, b) => a + b, 0);
+  const cost = num(totalCostBrl, 1e8);
+  const costPerMessage = cost && messages ? cost / messages : 0;
+  const messagesPerDay = messages / periodDays;
+  const monthlyMessages = messagesPerDay * 30;
+  const monthlyCost = cost ? (cost / periodDays) * 30 : 0;
+  const totalMonthlyCost = monthlyCost + num(extraMonthlyBrl, 1e8);
+  const price = Math.ceil((totalMonthlyCost * (1 + num(markupPct, 2000) / 100)) / 10) * 10;
+  return {
+    messages, inbound, start, end, periodDays, activeDays: days.length,
+    messagesPerDay: round2(messagesPerDay), monthlyMessages: Math.round(monthlyMessages),
+    costPerMessage: Number(costPerMessage.toFixed(4)), costPer1000: round2(costPerMessage * 1000),
+    totalCost: round2(cost), monthlyCost: round2(monthlyCost), extraMonthly: round2(num(extraMonthlyBrl, 1e8)), totalMonthlyCost: round2(totalMonthlyCost),
+    markupPct: num(markupPct, 2000), price, profit: round2(price - totalMonthlyCost), marginPct: price ? Math.round(((price - totalMonthlyCost) / price) * 100) : 0,
+    series: days.slice(-45).map((d) => ({ day: d, messages: perDay.get(d) })),
+  };
+}

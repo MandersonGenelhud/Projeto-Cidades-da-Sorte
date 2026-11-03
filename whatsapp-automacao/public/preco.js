@@ -9,6 +9,11 @@
     <div class="page-head"><h1>Preço do serviço</h1></div>
     <p class="hint">Calcula quanto cobrar de uma empresa (como a Migra Paraná) pela automação: custo da IA por resposta, custos fixos, suporte e a sua margem. O sistema mede o consumo real. <b>Os preços do Google você digita</b> (ai.google.dev/pricing), para a conta nunca usar número velho.</p>
     <div id="prWarn"></div>
+    <div class="panel"><h2>Calibrar com o gasto real</h2>
+      <p class="hint">Digite quanto já foi gasto com a IA (em reais) e, se quiser, o período. O sistema conta as mensagens que a atendente já enviou, divide pelos dias em que rodou e projeta 30 dias. A contagem é um mínimo, porque cada conversa guarda só as últimas 200 mensagens.</p>
+      <div class="row"><label>Gasto total até agora (R$) <input id="hsCost" inputmode="decimal" placeholder="415,83" /></label><label>De <input id="hsFrom" type="date" /></label><label>Até <input id="hsTo" type="date" /></label>
+        <label>Escritório <select id="hsOffice"><option value="">Os dois</option><option value="py">Paraguai</option><option value="pr">Paraná</option></select></label><button class="btn primary" id="hsGo" type="button">Calcular</button></div>
+      <div id="hsOut"></div></div>
     <form id="prForm" class="panel">
       <h2>Valores da conta</h2>
       <div class="row">
@@ -65,5 +70,20 @@
     pre.textContent = `Proposta: automação de atendimento por WhatsApp com IA\n\nPlano: até ${p.replies.toLocaleString('pt-BR')} respostas da IA por mês\nMensalidade: ${brl0(p.price)}\nExcedente: ${brl(last.model.overagePer100)} a cada 100 respostas além do plano\nImplantação (única): ${brl0(last.model.setupBrl)}\n\nInclui: atendente virtual no WhatsApp, CRM, contratos, painel de resultados, suporte e atualizações.\nO consumo de respostas é medido pelo próprio sistema e mostrado todo mês.`;
   });
   for (const id of ['#prMonth', '#prOffice']) q(id).onchange = load;
+  q('#hsGo').onclick = async () => {
+    const cost = String(q('#hsCost').value || '').replace(/\./g, '').replace(',', '.');
+    if (!(Number(cost) > 0)) return toast('Digite o gasto total em reais', true);
+    try {
+      const h = await api(`/api/pricing/history?cost=${encodeURIComponent(cost)}&from=${q('#hsFrom').value}&to=${q('#hsTo').value}&office=${q('#hsOffice').value}`);
+      if (h.empty) { q('#hsOut').innerHTML = '<p class="err">Não encontrei mensagens da atendente neste período.</p>'; return; }
+      const fx = (a, b) => `${a.split('-').reverse().slice(0, 2).join('/')} a ${b.split('-').reverse().join('/')}`;
+      q('#hsOut').innerHTML = `<div class="cards"><div class="card"><b>${h.messages.toLocaleString('pt-BR')}</b><span>mensagens enviadas pela atendente (${fx(h.start, h.end)}, ${h.periodDays} dias)</span></div>
+        <div class="card"><b>${h.messagesPerDay.toLocaleString('pt-BR')}</b><span>mensagens por dia (média)</span></div><div class="card"><b>${h.monthlyMessages.toLocaleString('pt-BR')}</b><span>mensagens por mês (30 dias)</span></div>
+        <div class="card"><b>${brl(h.costPerMessage)}</b><span>custo por mensagem (${brl(h.costPer1000)} a cada 1.000)</span></div>
+        <div class="card"><b>${brl(h.monthlyCost)}</b><span>custo mensal da IA, no mesmo ritmo</span></div><div class="card"><b>${brl(h.totalMonthlyCost)}</b><span>custo mensal total (com custo fixo e suporte da tabela abaixo)</span></div></div>
+        <p><b>Preço mensal sugerido: ${brl0(h.price)}</b> (margem de ${h.markupPct}% sobre o custo: lucro de ${brl0(h.profit)} por mês, ${h.marginPct}% do preço).</p>
+        <p class="hint">Atenção: o gasto pode incluir testes, conversas atrasadas processadas de uma vez e outros usos (voz, resumos). Se o ritmo real de atendimento for menor ou maior que o do período, o valor muda. Use o "Consumo real" mais abaixo para confirmar depois de algumas semanas.</p>`;
+    } catch (e) { toast(e.message, true); }
+  };
   loaders.pricing = () => load().catch((e) => toast(e.message, true));
 })();

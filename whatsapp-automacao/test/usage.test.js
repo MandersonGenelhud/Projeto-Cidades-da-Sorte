@@ -54,3 +54,26 @@ test('preço: custo por resposta, rateio, suporte, margem e excedente', () => {
   assert.equal(empty.measuredData, false);
   assert.deepEqual(cleanPricing({ inPerM: -5, markupPct: 'abc', clients: 0 }), { ...DEFAULT_PRICING, inPerM: 0, markupPct: 0, clients: 1 });
 });
+
+import { historyReport } from '../src/usage.js';
+test('calibra com o gasto real: mensagens do período, custo por mensagem e projeção de 30 dias', () => {
+  const at = (d) => `${d}T15:00:00Z`;
+  const conv = (msgs) => ({ key: 'k', messages: msgs.map(([role, d]) => ({ role, content: 'x', at: at(d) })) });
+  const convs = [
+    conv([['user', '2026-10-01'], ['assistant', '2026-10-01'], ['assistant', '2026-10-01'], ['assistant', '2026-10-10']]),
+    conv([['assistant', '2026-10-10'], ['assistant', '2026-10-10'], ['assistant', '2026-10-20']]),
+    { ...conv([['assistant', '2026-10-05']]), simulation: true },
+  ];
+  const r = historyReport(convs, { totalCostBrl: 415.83, markupPct: 200, extraMonthlyBrl: 100 });
+  assert.equal(r.messages, 6, 'simulações não contam');
+  assert.deepEqual([r.start, r.end, r.periodDays], ['2026-10-01', '2026-10-20', 20]);
+  assert.equal(r.costPerMessage, 69.305);
+  assert.equal(r.monthlyMessages, 9);
+  assert.equal(r.monthlyCost, 623.75, '415,83 ÷ 20 dias × 30');
+  assert.equal(r.totalMonthlyCost, 723.75);
+  assert.equal(r.price, 2180, 'custo total × 3, arredondado para cima de 10 em 10');
+  assert.equal(r.marginPct, 67);
+  const only = historyReport(convs, { totalCostBrl: 100, from: '2026-10-10', to: '2026-10-10' });
+  assert.deepEqual([only.messages, only.periodDays], [3, 1]);
+  assert.equal(historyReport([], { totalCostBrl: 1 }).empty, true);
+});
