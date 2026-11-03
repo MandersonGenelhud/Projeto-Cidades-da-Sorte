@@ -15,7 +15,7 @@ function setup({ hour = 10 } = {}) {
     remember(conv, role, content) { conv.messages.push({ role, content, at: new Date().toISOString() }); conv.updatedAt = new Date().toISOString(); },
   };
   const sent = [];
-  const d = new Date(); d.setHours(hour, 0, 0, 0);
+  const d = new Date(); d.setDate(d.getDate() - 1); d.setHours(hour, 0, 0, 0); // ontem, para não depender da hora do relógio de quem roda o teste
   const r = new Reengage({ store, crm, agent, send: async (to, p) => { if (to === '595981000009') throw new Error('falha simulada'); sent.push({ to, text: p.text }); }, now: () => d.getTime() });
   assert.equal(r.config.perDay, 15, 'começa devagar: 15 por dia');
   assert.deepEqual([r.config.minDelayMs, r.config.maxDelayMs], [30_000, 65_000]);

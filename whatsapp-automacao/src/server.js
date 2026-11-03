@@ -37,6 +37,7 @@ import { Audit } from './audit.js';
 import { byAttendant, attendantOf } from './attendants.js';
 import { LegacyContracts } from './legacy-import.js';
 import { buildBat } from './legacy-tool.js';
+import { Usage, DEFAULT_PRICING, cleanPricing, priceModel } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
 import { siteGuard, siteHostsFrom, siteOfficeMap, hostOf } from './site-host.js';
 import { mergeContent, sanitizeContent, renderHome } from './site-content.js';
@@ -204,6 +205,11 @@ sectors.officeOfKey = officeOfKey;
 /** Com um escritório escolhido (administrador geral) ou fixo (equipe), mostra só ele; 'all' mostra os dois. */
 const inOffice = (req, office) => !req.office || req.office === 'all' || req.office === (normOffice(office) || 'py');
 // Cada escritório pode ter a própria IA: nome da atendente, texto do negócio e instruções próprias.
+// Consumo da IA por escritório (base do preço do serviço).
+const usage = new Usage({ store });
+llm.onUsage = (u) => usage.record(u);
+agent.officeOfConv = (conv) => officeOfKey(conv.key);
+agent.onReply = ({ conv }) => usage.reply(officeOfKey(conv.key));
 agent.officeSettingsFor = (conv) => store.settings.offices?.[officeOfKey(conv.key)]?.overrides || null;
 // Link do WhatsApp da Migra com o código do cliente (para quem conversa no Instagram escolher tocar em vez de digitar o número).
 agent.whatsappLink = (conv) => {
@@ -1154,7 +1160,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -2413,6 +2419,25 @@ app.get('/api/offices-compare', (req, res) => {
     };
   }));
 });
+// Preço do serviço (só administrador geral): consumo real da IA, custo por resposta e planos sugeridos.
+const pricingCfg = () => cleanPricing(store.settings.pricing || {}, DEFAULT_PRICING);
+app.get('/api/pricing', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador geral');
+  const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? req.query.month : dayStr(Date.now()).slice(0, 7);
+  const office = OFFICE_IDS.includes(req.query.office) ? req.query.office : '';
+  const measured = usage.month(month, office);
+  res.json({ month, office, config: pricingCfg(), measured, model: priceModel(measured, pricingCfg()), aiModel: store.settings.agent?.geminiModel || '', provider: store.settings.agent?.provider || '' });
+});
+app.put('/api/pricing', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador geral');
+  const before = pricingCfg();
+  const next = cleanPricing(req.body || {}, before);
+  store.data.settings.pricing = next;
+  store.save();
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'preço do serviço', label: 'Valores usados no cálculo do preço', changes: Object.keys(next).filter((k) => next[k] !== before[k]).map((k) => ({ field: k, label: k, from: String(before[k]), to: String(next[k]), sensitive: true })) });
+  res.json(next);
+});
+
 // Módulos: o administrador coloca telas em "standby" (somem do menu, nada é apagado) e liga de volta quando quiser.
 const PROTECTED_TABS = new Set(['executive', 'modules', 'team', 'connection', 'settings', 'audit']);
 app.get('/api/modules', (_req, res) => res.json({ standby: store.settings.modules?.standby || [], protected: [...PROTECTED_TABS] }));

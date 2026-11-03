@@ -368,10 +368,11 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
     };
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const reply = await this.llm.chat({ messages, tools });
+      const reply = await this.llm.chat({ messages, tools, meta: { kind: 'atendimento', office: this.officeOfConv?.(conv) || 'py' } });
       if (!reply.tool_calls.length) {
         if (!reply.content.trim()) throw new Error('A IA devolveu uma resposta vazia');
         // A saudação segue o horário de agora, nunca o da conversa de ontem.
+        try { this.onReply?.({ conv }); } catch { /* medição nunca derruba o atendimento */ }
         return { text: professionalTone(fixGreeting(reply.content.trim(), this.now())), actions };
       }
       messages.push({ role: 'assistant', content: reply.content || null, tool_calls: reply.tool_calls, ...(reply._anthropic ? { _anthropic: reply._anthropic } : {}) });

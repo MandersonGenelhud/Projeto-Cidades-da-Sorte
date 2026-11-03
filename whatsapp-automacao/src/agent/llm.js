@@ -71,6 +71,7 @@ export class LLMClient {
   async chat(args) {
     try {
       const out = await this.#chat(args);
+      try { this.onUsage?.({ usage: out.usage, meta: args.meta || {} }); } catch { /* a medição nunca derruba o atendimento */ }
       this.lastOkAt = new Date().toISOString();
       this.lastError = null;
       return out;
