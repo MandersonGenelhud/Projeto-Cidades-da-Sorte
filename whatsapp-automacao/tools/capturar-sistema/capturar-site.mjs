@@ -75,7 +75,9 @@ export async function copiarSite({ url, pasta, log = console.log, abrir }) {
       const corpo = await res.body().catch(() => null); if (!corpo) return;
       const limite = ct.startsWith('video/') ? 200_000_000 : 40_000_000;
       const ext = EXT[ct] || (/\.(\w{2,5})(\?|$)/.exec(new URL(u).pathname)?.[1] || 'bin').toLowerCase();
-      const nome = `${hash(u)}.${ext}`;
+      // Mídia do próprio site: guarda com o nome original (m-<arquivo>), que é o que a página nova espera em public/site.
+      const base = mesmoSite ? path.basename(new URL(u).pathname).replace(/[^\w.-]/g, '') : '';
+      const nome = midia && base && !/[\\/]/.test(base) ? `m-${base}` : `${hash(u)}.${ext}`;
       const info = { url: u, tipo: ct, bytes: corpo.length, arquivo: '' };
       if (corpo.length <= limite) {
         const destino = (midia ? path.join(mid, 'arquivos') : path.join(cod, 'assets'));

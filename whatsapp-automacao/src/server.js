@@ -52,7 +52,7 @@ import { Documents, TYPES as DOC_TYPES } from './documents.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
 import { siteGuard, siteHostsFrom, siteOfficeMap, hostOf } from './site-host.js';
-import { mergeContent, sanitizeContent, renderHome } from './site-content.js';
+import { mergeContent, sanitizeContent, renderHome, renderPremium } from './site-content.js';
 import { buildExecutive, periods as execPeriods, dayStr } from './executive.js';
 import { Reengage, rowsFrom, TEMPLATES as REENGAGE_TEMPLATES } from './reengage.js';
 import { Motors } from './motors.js';
@@ -1296,7 +1296,9 @@ if (PANEL_PASSWORD) {
 const SITE_HOSTS = siteHostsFrom();
 const SITE_OFFICES = siteOfficeMap();
 const siteContent = () => mergeContent(store.settings.site);
-app.use(siteGuard({ hosts: SITE_HOSTS, homeFile: path.join(ROOT, 'public', 'site', 'home.html'), render: (html, origin) => renderHome(html, siteContent(), origin) }));
+// Página inicial dos domínios do site: a versão premium (cópia melhorada do site do Marcos) ou, se escolhida em Site, a versão editável clássica.
+const SITE_DIR = path.join(ROOT, 'public', 'site');
+app.use(siteGuard({ hosts: SITE_HOSTS, homeFile: () => path.join(SITE_DIR, store.settings.site?.template === 'classic' ? 'home.html' : 'home-premium.html'), render: (html, origin) => (html.includes('{{HERO_TITLE}}') ? renderHome(html, siteContent(), origin) : renderPremium(html, origin, SITE_DIR)) }));
 app.get('/robots.txt', (req, res) => {
   const site = SITE_HOSTS.has(hostOf(req));
   res.type('text/plain').send(site ? `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: https://${hostOf(req)}/sitemap.xml\n` : 'User-agent: *\nDisallow: /\n');

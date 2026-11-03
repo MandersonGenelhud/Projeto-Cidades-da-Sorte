@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 // Conteúdo editável da página inicial do site (título, números confirmados, vídeos de depoimento e perguntas),
 // guardado em configurações e desenhado no servidor (rápido, bom para buscadores e sem depender de JavaScript).
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -52,6 +54,15 @@ export function videoKind(url) {
   if (yt && /^[\w-]{6,20}$/.test(yt)) return { kind: 'youtube', id: yt };
   if (/\.(mp4|webm)(\?|$)/i.test(u.pathname + u.search)) return { kind: 'file' };
   return { kind: 'link' };
+}
+
+/** Vídeos e imagens do site original: se o arquivo já foi copiado para public/site (nome m-<arquivo>), usa o nosso; senão segue no endereço antigo. */
+export function localizeMedia(html, dir, exists = (f) => fs.existsSync(f)) {
+  return html.replace(/https:\/\/migrapyassessoria\.com\/assets\/(?:img\/)?([\w.-]+)/g, (full, name) => (exists(path.join(dir, `m-${name}`)) ? `/site/m-${name}` : full));
+}
+/** Página inicial premium (cópia melhorada do site do Marcos). */
+export function renderPremium(html, origin, dir) {
+  return localizeMedia(html.replaceAll('{{ORIGIN}}', esc(origin)), dir);
 }
 
 export function renderHome(html, content, origin) {

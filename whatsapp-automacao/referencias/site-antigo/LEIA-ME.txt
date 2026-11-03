@@ -1,2 +1,14 @@
-Coloque aqui o arquivo site-codigo.zip gerado pelo programa COPIAR-VISUAL-DO-SITE.bat.
-Não coloque dados de clientes, senhas nem chaves.
+Cópia do site público do Marcos (migrapyassessoria.com), feita em 03/11/2026 pela página pública (sem login).
+
+Arquivos desta pasta:
+- pagina-original.html  : HTML da página inicial como o site entrega
+- estilo-original.css   : todo o CSS (estava dentro da página)
+- efeitos-original.js   : todo o JavaScript (cena que anda com a rolagem, carrossel de vídeos, abas, FAQ, revelar ao rolar)
+
+A página nova está em public/site/home-premium.html, premium.css e premium.js.
+Vídeos e fotos: o site antigo ainda hospeda. Para o nosso site não depender dele, copie os arquivos para public/site com o nome m-<arquivo>:
+  hero.mp4  vsl-pv.mp4  depoimento-1.mp4 .. depoimento-4.mp4
+  hero-poster.jpg  vsl-poster.jpg  depoimento-1.jpg .. depoimento-4.jpg
+  logo-migra-paraguai.jpg  logo-migra-contabilidade.jpg  logo-migra-motors.jpg  logo-migra-imobiliaria.jpg  logo-migra-soluciones.jpg
+(o programa COPIAR-VISUAL-DO-SITE.bat já salva a mídia com esses nomes na pasta "midia/arquivos").
+Não coloque senhas, chaves nem dados de clientes aqui.

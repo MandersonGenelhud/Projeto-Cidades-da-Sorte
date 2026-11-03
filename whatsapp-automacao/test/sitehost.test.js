@@ -28,10 +28,15 @@ test('no domínio do site só há páginas públicas; no endereço do sistema o 
   for (let i = 0; i < 60; i++) { try { await get('x', '/api/public/site'); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
   const home = await get('meusite.test', '/');
   assert.equal(home.status, 200);
-  assert.match(home.body, /Seu projeto no Paraguai começa aqui/);
+  assert.match(home.body, /Sua nova vida no Paraguai/);
+  assert.match(home.body, /href="\/atendimento\?o=site"/, 'botão que leva ao atendimento em rodízio');
+  assert.ok(!/fbevents|fbq\(/.test(home.body), 'sem pixel de terceiros');
+  assert.ok(!/100% de aprova/i.test(home.body), 'não afirma o que não tem prova');
+  assert.match(home.body, /1\.500\+/);
   assert.match(home.body, /<link rel="canonical" href="https:\/\/meusite\.test\/"/);
   assert.ok(!home.body.includes('{{ORIGIN}}'));
-  assert.match(home.body, /RG, emitido de 10 anos para cá/);
+  assert.equal((await get('meusite.test', '/site/premium.css')).status, 200);
+  assert.equal((await get('meusite.test', '/site/premium.js')).status, 200);
   for (const p of ['/login.html', '/app.js', '/index.html', '/api/auth/state', '/api/leads', '/api/executive', '/data/db.json']) assert.equal((await get('www.meusite.test', p)).status, 404, p);
   assert.equal((await get('meusite.test', '/api/public/catalog')).status, 200);
   assert.equal((await get('meusite.test', '/site/home.css')).status, 200);
@@ -70,4 +75,13 @@ test('conteúdo do site: padrão sem números inventados, validação e desenho 
   assert.ok(html.includes('A &lt;b&gt;b&lt;/b&gt;'), 'texto sai escapado');
   assert.ok(html.includes('1.500+') && html.includes('data-yt="abcDEF12345"'));
   assert.ok(!html.includes('Q</script>'), 'nada fecha o script do JSON-LD');
+});
+
+test('mídia do site original: usa o arquivo nosso quando já foi copiado e o endereço antigo enquanto não foi', async () => {
+  const { localizeMedia } = await import('../src/site-content.js');
+  const html = '<video src="https://migrapyassessoria.com/assets/hero.mp4" poster="https://migrapyassessoria.com/assets/img/hero-poster.jpg"></video><img src="https://migrapyassessoria.com/assets/img/logo-migra-motors.jpg">';
+  const out = localizeMedia(html, '/x', (f) => f.endsWith('m-hero.mp4') || f.endsWith('m-logo-migra-motors.jpg'));
+  assert.match(out, /src="\/site\/m-hero\.mp4"/);
+  assert.match(out, /poster="https:\/\/migrapyassessoria\.com\/assets\/img\/hero-poster\.jpg"/, 'o que não foi copiado segue no endereço antigo');
+  assert.match(out, /src="\/site\/m-logo-migra-motors\.jpg"/);
 });

@@ -28,7 +28,7 @@ export const siteAllows = (method, path) => {
 
 /** Middleware: no domínio do site entrega a página inicial e bloqueia o resto. */
 export function siteGuard({ hosts, homeFile, render = (html, origin) => html.replaceAll('{{ORIGIN}}', origin) }) {
-  const home = () => fs.readFileSync(homeFile, 'utf8');
+  const home = () => fs.readFileSync(typeof homeFile === 'function' ? homeFile() : homeFile, 'utf8');
   return (req, res, next) => {
     if (!hosts.size || !hosts.has(hostOf(req))) return next();
     req.isSiteHost = true;
