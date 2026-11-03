@@ -22,3 +22,9 @@ Mande o arquivo `mapa.txt` da mesma pasta. Ele mostra só a estrutura (nomes de 
 
 ## Sistema inteiro
 O programa pergunta se deve copiar o **sistema inteiro**. Responda S (padrão) para ele passar por todas as telas do menu (contratos, clientes, processos, financeiro, leads…). Nas listas com botão "Próxima", ele clica só nesse botão até acabar. Nunca clica em outros botões.
+
+## O que ele lê além das listas
+- Os números e textos de cada tela (painel, saldo parcial, contratos no período, assinados e aguardando assinatura).
+- Os avisos do sino de notificações e as abas (por exemplo, contratos vencidos): ele só abre, nunca altera nada.
+- As parcelas de cada contrato (vencimento, valor e se está paga) e os cadastros de clientes.
+- Depois de importar o `captura.json` no painel, use **Levar para Vendas e CRM**: os contratos com parcelas viram vendas (vencimentos, atrasos e a receber aparecem no Painel executivo) e os clientes entram no CRM.

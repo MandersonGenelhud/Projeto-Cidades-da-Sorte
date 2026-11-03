@@ -20,7 +20,7 @@
       <p class="hint">Se o Node.js não estiver instalado, o programa instala sozinho (se pedir permissão, clique em Sim) e pede para você abrir o arquivo de novo. Ele só lê o sistema do Marcos: não clica em botões, não apaga nada e a senha nunca passa por aqui.</p>
     </div>
     <div class="panel"><h2>Passo 2: importar o arquivo captura.json</h2>
-      <div class="row"><input type="file" id="lgFile" accept=".json" /><button class="btn" id="lgPreview">1) Conferir o arquivo</button><button class="btn primary" id="lgImport" disabled>2) Importar</button></div>
+      <div class="row"><input type="file" id="lgFile" accept=".json" /><button class="btn" id="lgPreview">1) Conferir o arquivo</button><button class="btn primary" id="lgImport" disabled>2) Importar</button><button class="btn" id="lgApply">3) Levar para Vendas e CRM</button></div>
       <div id="lgOut" class="hint"></div></div>
     <div class="panel"><div class="row"><input id="lgQ" placeholder="Buscar por número, cliente, documento…" /><span id="lgInfo" class="hint"></span></div>
       <div class="table-wrap"><table id="lgTable"></table></div><div id="lgDetail"></div></div>`;
@@ -36,29 +36,37 @@
   sec.querySelector('#lgPreview').onclick = async () => {
     try {
       const s = await send('/api/legacy/preview');
-      sec.querySelector('#lgOut').innerHTML = `Encontrei <b>${s.total}</b> contratos (${s.comNumero} com número, ${s.comCliente} com cliente, ${s.comValor} com valor, ${s.comData} com data). Último número: <b>${s.ultimoNumero || '—'}</b>. Exemplo: ${s.exemplo.map((e) => `${esc(e.number || '?')} · ${esc(e.client || '?')}`).join(' | ')}`;
+      sec.querySelector('#lgOut').innerHTML = `Encontrei <b>${s.total}</b> contratos (${s.comNumero} com número, ${s.comCliente} com cliente, ${s.comValor} com valor, ${s.comData} com data) e <b>${s.parcelas}</b> parcelas em ${s.comParcelas} contratos (<b>${s.parcelasAtrasadas}</b> atrasadas, ${brl2(s.valorAtrasado)}; a receber ${brl2(s.valorAReceber)}). Último número: <b>${s.ultimoNumero || '—'}</b>. Exemplo: ${s.exemplo.map((e) => `${esc(e.number || '?')} · ${esc(e.client || '?')}`).join(' | ')}`;
       sec.querySelector('#lgImport').disabled = false;
     } catch (e) { sec.querySelector('#lgOut').textContent = e.message; sec.querySelector('#lgImport').disabled = true; }
   };
   sec.querySelector('#lgImport').onclick = async () => {
     try {
       const r = await send('/api/legacy/import');
-      toast(`Importado: ${r.added} novo(s), ${r.updated} já existiam. Último número ${r.ultimoNumero}.`);
+      toast(`Importado: ${r.added} contrato(s) novo(s), ${r.updated} já existiam, ${r.clients} cliente(s). Agora clique em "Levar para Vendas e CRM".`);
       sec.querySelector('#lgImport').disabled = true;
       load();
+    } catch (e) { toast(e.message, true); }
+  };
+  const brl2 = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  sec.querySelector('#lgApply').onclick = async () => {
+    if (!confirm('Levar os contratos com parcelas para Vendas (vencimentos, atrasos e painel) e os clientes para o CRM? Nada é enviado a ninguém e a comissão fica zerada. Pode repetir sem duplicar.')) return;
+    try {
+      const r = await api('/api/legacy/apply', { method: 'POST', body: {} });
+      toast(`Pronto: ${r.sales} venda(s) com parcelas, ${r.clients} cliente(s) no CRM (${r.salesSkipped + r.clientsSkipped} já existiam, ${r.noParcels} contrato(s) sem parcelas).`);
     } catch (e) { toast(e.message, true); }
   };
   async function load() {
     const q = sec.querySelector('#lgQ').value.trim();
     const r = await api(`/api/legacy?q=${encodeURIComponent(q)}`);
-    sec.querySelector('#lgInfo').textContent = `${r.total} contrato(s) guardados${r.ultimoNumero ? ` · maior número: ${r.ultimoNumero}` : ''}`;
-    sec.querySelector('#lgTable').innerHTML = `<thead><tr><th>Nº</th><th>Cliente</th><th>Documento</th><th>Valor</th><th>Data</th><th>Situação</th><th>Serviço</th></tr></thead><tbody>${r.items.map((c) => `<tr data-id="${esc(c.id)}" style="cursor:pointer"><td><b>${esc(c.number)}</b></td><td>${esc(c.client)}</td><td>${esc(c.doc)}</td><td>${money(c)}</td><td>${esc(c.date ? c.date.split('-').reverse().join('/') : '')}</td><td>${esc(c.status)}</td><td>${esc(c.service)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum contrato importado ainda.</td></tr>'}</tbody>`;
+    sec.querySelector('#lgInfo').textContent = `${r.total} contrato(s) e ${r.clients ?? 0} cliente(s) guardados${r.ultimoNumero ? ` · maior número: ${r.ultimoNumero}` : ''}`;
+    sec.querySelector('#lgTable').innerHTML = `<thead><tr><th>Nº</th><th>Cliente</th><th>Documento</th><th>Valor</th><th>Data</th><th>Situação</th><th>Serviço</th></tr></thead><tbody>${r.items.map((c) => `<tr data-id="${esc(c.id)}" style="cursor:pointer"><td><b>${esc(c.number)}</b></td><td>${esc(c.client)}</td><td>${esc(c.doc)}</td><td>${money(c)}</td><td>${esc(c.date ? c.date.split('-').reverse().join('/') : '')}</td><td>${esc(c.status)}</td><td>${esc(c.service)}${c.parcelas ? `<div class="hint">${c.parcelas} parcela(s)</div>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum contrato importado ainda.</td></tr>'}</tbody>`;
   }
   sec.querySelector('#lgTable').addEventListener('click', async (e) => {
     const id = e.target.closest('tr[data-id]')?.dataset.id;
     if (!id) return;
     const c = await api(`/api/legacy/${id}`);
-    sec.querySelector('#lgDetail').innerHTML = `<h3>Contrato ${esc(c.number)} · ${esc(c.client)}</h3><div class="table-wrap"><table>${Object.entries(c.raw || {}).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</table></div>`;
+    sec.querySelector('#lgDetail').innerHTML = `<h3>Contrato ${esc(c.number)} · ${esc(c.client)}</h3><div class="table-wrap"><table>${Object.entries(c.raw || {}).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</table></div>${c.parcels?.length ? `<h3>Parcelas</h3><div class="table-wrap"><table><thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Situação</th></tr></thead><tbody>${c.parcels.map((p) => `<tr><td>${esc(p.label)}</td><td>${esc(p.due.split('-').reverse().join('/'))}</td><td>${brl2(p.value)}</td><td>${p.paid ? 'Paga' : p.due < new Date().toISOString().slice(0, 10) ? 'Atrasada' : 'A vencer'}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
   });
   sec.querySelector('#lgQ').addEventListener('input', () => { clearTimeout(load.t); load.t = setTimeout(load, 300); });
   loaders.legacy = () => load().catch((e) => toast(e.message, true));

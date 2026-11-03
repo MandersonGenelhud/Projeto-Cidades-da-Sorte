@@ -2552,7 +2552,13 @@ app.get('/api/legacy/ferramenta.bat', (req, res) => {
   audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'contratos antigos', label: 'Baixou a ferramenta de cópia (CAPTURAR-CONTRATOS.bat)' });
   res.type('application/octet-stream').set('Content-Disposition', 'attachment; filename="CAPTURAR-CONTRATOS.bat"').send(buildBat());
 });
-app.get('/api/legacy', (req, res) => res.json({ items: legacy.search(req.query).map(({ raw, source, ...r }) => r), total: legacy.list.length, ultimoNumero: legacy.search({ limit: 1 })[0]?.number || '' }));
+app.post('/api/legacy/apply', (req, res) => {
+  const out = legacy.apply({ sales, crm, user: req.user, doSales: req.body?.sales !== false, doClients: req.body?.clients !== false });
+  audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'contratos antigos', label: `Levou para o sistema novo: ${out.sales} venda(s) com parcelas e ${out.clients} cliente(s) no CRM` });
+  notify('sales', {}); notify('crm', {});
+  res.json(out);
+});
+app.get('/api/legacy', (req, res) => res.json({ items: legacy.search(req.query).map(({ raw, source, parcels, ...r }) => ({ ...r, parcelas: parcels?.length || 0 })), clients: legacy.clients.length, total: legacy.list.length, ultimoNumero: legacy.search({ limit: 1 })[0]?.number || '' }));
 app.get('/api/legacy/export.csv', (req, res) => {
   audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'contratos antigos', label: 'Baixou a planilha de contratos antigos' });
   res.type('text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="contratos-antigos.csv"').send(legacy.csv());

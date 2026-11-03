@@ -3,6 +3,8 @@
 // junta duplicados e guarda tudo no arquivo de contratos antigos (só administrador vê).
 import crypto from 'node:crypto';
 
+import { normalizePhone } from './utils.js';
+const normalizePhoneLoose = (v) => normalizePhone(v) || normalizePhone(`+${String(v || '').replace(/\D/g, '')}`) || null;
 const err = (status, message) => Object.assign(new Error(message), { status });
 export const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -85,6 +87,32 @@ export function* objectsIn(json, depth = 0) {
 }
 export const flat = (o, prefix = '') => Object.entries(o).reduce((acc, [k, v]) => (v && typeof v === 'object' && !Array.isArray(v) ? { ...acc, ...flat(v, `${prefix}${k} `) } : { ...acc, [`${prefix}${k}`]: v }), {});
 
+const PAID = /(pago|paga|quitad|recebid|liquidad|confirmad)/;
+const OPENISH = /(pend|abert|vencid|atras|aguard|nao pag)/;
+/** Tabelas de parcelas (colunas de vencimento e valor) → [{label, due, value, status, paidAt}]. */
+export function parcelsFromTables(tables = []) {
+  const out = [];
+  for (const t of tables) {
+    const h = (t.headers || []).map((x) => norm(x));
+    const iDue = h.findIndex((x) => /venc/.test(x));
+    const iVal = h.findIndex((x) => /valor|total/.test(x));
+    if (iDue < 0 || iVal < 0) continue;
+    const iSt = h.findIndex((x) => /status|situacao/.test(x));
+    const iPaidAt = h.findIndex((x, i) => i !== iDue && /(pago em|data (do )?pagamento|pagamento em|baixa|data pag)/.test(x));
+    const iLabel = h.findIndex((x, i) => i !== iDue && i !== iVal && /(parcela|descri|^n|^#)/.test(x));
+    t.rows.forEach((r, k) => {
+      const value = parseMoney(r[iVal]);
+      const due = parseDate(r[iDue]);
+      if (value === null || !due) return;
+      const st = norm(iSt >= 0 ? r[iSt] : '');
+      const paidAt = iPaidAt >= 0 ? parseDate(r[iPaidAt]) : '';
+      const paid = PAID.test(st) && !/nao pag/.test(st) ? true : OPENISH.test(st) ? false : Boolean(paidAt);
+      out.push({ label: String((iLabel >= 0 ? r[iLabel] : '') || `Parcela ${k + 1}`).slice(0, 40), due, value, paid, paidAt: paid ? paidAt || due : '' });
+    });
+  }
+  return out;
+}
+
 /** captura = { pages: [{url, title, tables:[{headers, rows}], fields:[{label,value}]}], api: [{url, json}] } */
 export function extractRecords(captura) {
   const out = [];
@@ -97,7 +125,11 @@ export function extractRecords(captura) {
       for (const row of t.rows || []) push(Object.fromEntries(headers.map((h, i) => [h || `col${i}`, row[i]])), p.url);
     }
     const f = Object.fromEntries((p.fields || []).map((x) => [x.label, x.value]));
-    if (Object.keys(f).length >= 3) push(f, p.url);
+    const parcels = parcelsFromTables(p.tables);
+    if (Object.keys(f).length >= 3 || parcels.length) {
+      const rec = normalizeRecord(f, { source: p.url });
+      if (rec) { if (parcels.length) rec.parcels = parcels; out.push(rec); }
+    }
   }
   return mergeRecords(out);
 }
@@ -110,7 +142,8 @@ export function mergeRecords(list) {
     const k = keyOf(r);
     const cur = map.get(k);
     if (!cur) { map.set(k, { ...r, raw: { ...r.raw } }); continue; }
-    for (const f of Object.keys(r)) if (f !== 'raw' && f !== 'source' && (cur[f] === '' || cur[f] === null) && r[f] !== '' && r[f] !== null) cur[f] = r[f];
+    for (const f of Object.keys(r)) if (f !== 'raw' && f !== 'source' && f !== 'parcels' && (cur[f] === '' || cur[f] === null) && r[f] !== '' && r[f] !== null) cur[f] = r[f];
+    if (!cur.parcels?.length && r.parcels?.length) cur.parcels = r.parcels;
     Object.assign(cur.raw, r.raw);
   }
   return [...map.values()];
@@ -126,20 +159,84 @@ export function lastNumber(records) {
   return max;
 }
 
+export function parcelStats(records, today = new Date().toISOString().slice(0, 10)) {
+  const all = records.flatMap((r) => r.parcels || []);
+  const late = all.filter((p) => !p.paid && p.due < today);
+  const sum = (l) => Math.round(l.reduce((a, p) => a + p.value, 0) * 100) / 100;
+  return { comParcelas: records.filter((r) => r.parcels?.length).length, parcelas: all.length, parcelasAtrasadas: late.length, valorAtrasado: sum(late), valorAReceber: sum(all.filter((p) => !p.paid)) };
+}
+
 export function summarize(records) {
   const withNum = records.filter((r) => r.number).length;
   return {
     total: records.length, comNumero: withNum, comCliente: records.filter((r) => r.client).length, comValor: records.filter((r) => r.value !== null).length,
     comData: records.filter((r) => r.date).length, ultimoNumero: lastNumber(records),
     valorTotal: Math.round(records.reduce((a, r) => a + (r.value || 0), 0) * 100) / 100,
+    ...parcelStats(records),
     exemplo: records.slice(0, 5).map(({ raw, source, ...r }) => r),
   };
+}
+
+const digits = (v) => String(v || '').replace(/\D/g, '');
+/** Chaves para reconhecer a mesma pessoa: documento, telefone ou nome (a primeira que bater junta os cadastros). */
+const clientKeys = (c) => [c.doc && `d:${norm(c.doc)}`, digits(c.phone).length >= 8 && `p:${digits(c.phone)}`, c.name && `n:${norm(c.name)}`].filter(Boolean);
+function mergeClient(index, list, c) {
+  const hit = clientKeys(c).map((k) => index.get(k)).find(Boolean);
+  if (hit) {
+    for (const f of ['name', 'doc', 'phone', 'email']) if (!hit[f] && c[f]) hit[f] = c[f];
+    hit.extra = { ...(c.extra || {}), ...(hit.extra || {}) };
+    for (const k of clientKeys(hit)) if (!index.has(k)) index.set(k, hit);
+    return null;
+  }
+  const rec = { ...c, extra: { ...(c.extra || {}) } };
+  list.push(rec);
+  for (const k of clientKeys(rec)) index.set(k, rec);
+  return rec;
+}
+const ADDR = /^(endereco|cidade|pais|nacionalidade|estado civil|profissao|data de nascimento|nascimento)$/;
+/** Clientes: de listas de clientes (nome + telefone/e-mail/documento, sem número de contrato) e dos próprios contratos. */
+export function extractClients(captura, contracts = []) {
+  const index = new Map(); const list = [];
+  const add = (c) => { if (c.name && (c.phone || c.email || c.doc)) mergeClient(index, list, c); };
+  const row = (raw) => {
+    const c = { name: '', doc: '', phone: '', email: '', extra: {} };
+    for (const [label, v] of Object.entries(raw || {})) {
+      if (v === null || v === undefined || typeof v === 'object') continue;
+      const text = String(v).trim();
+      if (!text || text.length > 200) continue;
+      const f = field(label);
+      if (f === 'client' && !c.name) c.name = text.slice(0, 120);
+      else if (f === 'doc' && !c.doc) c.doc = text.slice(0, 40);
+      else if (f === 'phone' && !c.phone) c.phone = text.slice(0, 40);
+      else if (f === 'email' && !c.email) c.email = text.slice(0, 120);
+      else if (ADDR.test(norm(label))) c.extra[String(label).slice(0, 30)] = text;
+    }
+    return c;
+  };
+  for (const a of captura?.api || []) for (const o of objectsIn(a.json)) add(row(flat(o)));
+  for (const p of captura?.pages || []) {
+    for (const t of p.tables || []) {
+      const headers = (t.headers || []).map((h) => String(h || '').trim());
+      if (!headers.some((h) => field(h) === 'client')) continue;
+      for (const r of t.rows || []) add(row(Object.fromEntries(headers.map((h, i) => [h || `col${i}`, r[i]]))));
+    }
+    const f = Object.fromEntries((p.fields || []).map((x) => [x.label, x.value]));
+    if (Object.keys(f).length >= 3) add(row(f));
+  }
+  // Quem tem contrato é cliente mesmo sem telefone ou documento cadastrados.
+  for (const r of contracts) if (r.client) mergeClient(index, list, { name: r.client, doc: r.doc, phone: r.phone, email: r.email, extra: {} });
+  return list;
 }
 
 export class LegacyContracts {
   constructor({ store }) {
     this.store = store;
     store.data.legacyContracts ||= [];
+    store.data.legacyClients ||= [];
+  }
+
+  get clients() {
+    return this.store.data.legacyClients;
   }
 
   get list() {
@@ -171,8 +268,59 @@ export class LegacyContracts {
         added += 1;
       }
     }
+    // Clientes (lista de clientes + os dos contratos), sem repetir.
+    const index = new Map();
+    for (const c of this.clients) for (const k of clientKeys(c)) if (!index.has(k)) index.set(k, c);
+    let newClients = 0;
+    for (const c of extractClients(captura, records)) {
+      const made = mergeClient(index, this.clients, c);
+      if (made) { made.id = crypto.randomBytes(6).toString('hex'); made.importedAt = new Date().toISOString(); newClients += 1; }
+    }
     this.store.save();
-    return { added, updated, total: this.list.length, ultimoNumero: lastNumber(this.list) };
+    return { added, updated, total: this.list.length, ultimoNumero: lastNumber(this.list), clients: this.clients.length, newClients, ...parcelStats(this.list) };
+  }
+
+  /**
+   * Leva o que foi importado para o sistema novo: contratos com parcelas viram vendas (para os vencimentos, os
+   * atrasos e o painel executivo) e clientes viram prospectos no CRM. Nada é enviado a ninguém, e comissão fica zerada.
+   */
+  apply({ sales, crm, user, doSales = true, doClients = true }) {
+    const out = { sales: 0, salesSkipped: 0, noParcels: 0, clients: 0, clientsSkipped: 0 };
+    const hasContract = new Set();
+    if (doSales) {
+      for (const r of this.list) {
+        if (!r.parcels?.length) { out.noParcels += 1; continue; }
+        if (sales.list.some((s) => s.legacyNumber === r.number && s.legacy)) { out.salesSkipped += 1; continue; }
+        const total = r.value ?? Math.round(r.parcels.reduce((a, p) => a + p.value, 0) * 100) / 100;
+        const created = r.date ? `${r.date}T12:00:00.000Z` : new Date().toISOString();
+        sales.list.push({
+          id: crypto.randomBytes(6).toString('hex'), number: `ANT-${r.number || r.id.slice(0, 6)}`, legacy: true, legacyNumber: r.number, quoteId: null, quoteNumber: '', leadId: null,
+          client: { nome: r.client, phone: String(r.phone || '').replace(/\D/g, ''), doc: r.doc || '' }, sellerId: null, sellerName: r.seller || '',
+          items: [{ name: r.service || 'Contrato do sistema antigo', qty: 1, price: total, total }], total,
+          parcels: r.parcels.map((p) => ({ label: p.label, value: p.value, due: p.due, status: p.paid ? 'pago' : 'pendente', ...(p.paid ? { paidAt: p.paidAt, method: 'Sistema antigo', confirmedBy: 'Importação' } : {}) })),
+          commission: { pct: 0, value: 0, manual: true, status: 'paga', paidAt: null, note: 'Contrato do sistema antigo: sem comissão pelo sistema novo' }, affiliate: null,
+          status: /cancel|rescind|distrat/i.test(r.status || '') ? 'cancelada' : 'ativa', office: 'py', createdAt: created, createdBy: user?.name || 'Importação', history: [{ at: new Date().toISOString(), by: user?.name || 'Importação', text: `Importado do sistema antigo (contrato ${r.number})` }],
+        });
+        hasContract.add(String(r.phone || '').replace(/\D/g, '') || norm(r.client));
+        out.sales += 1;
+      }
+    } else for (const r of this.list) hasContract.add(String(r.phone || '').replace(/\D/g, '') || norm(r.client));
+    if (doClients) {
+      for (const c of this.clients) {
+        const phone = normalizePhoneLoose(c.phone);
+        if ((phone && crm.leads.some((l) => l.phone === phone)) || (!phone && crm.leads.some((l) => l.legacy && norm(l.name) === norm(c.name)))) { out.clientsSkipped += 1; continue; }
+        let lead;
+        try {
+          lead = crm.byId(crm.create({ name: user?.name || 'Importação', role: 'admin' }, { name: c.name, phone, email: c.email, source: 'manual', category: 'migracao', office: 'py', ownerId: null, stage: hasContract.has(String(c.phone || '').replace(/\D/g, '')) || hasContract.has(norm(c.name)) ? 'ganho' : 'novo' }).id);
+        } catch { out.clientsSkipped += 1; continue; }
+        const cr = this.list.find((r) => norm(r.client) === norm(c.name));
+        if (cr?.date) lead.createdAt = lead.updatedAt = `${cr.date}T12:00:00.000Z`;
+        lead.legacy = true;
+        out.clients += 1;
+      }
+    }
+    this.store.save();
+    return out;
   }
 
   search({ q = '', limit = 200 } = {}) {

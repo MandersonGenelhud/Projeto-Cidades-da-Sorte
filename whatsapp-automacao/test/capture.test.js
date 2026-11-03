@@ -23,7 +23,7 @@ function sistemaFalso() {
     if (u.pathname === '/contratos') {
       const pg = Number(u.searchParams.get('pagina') || 1);
       const part = CONTRATOS.slice((pg - 1) * 4, pg * 4);
-      return send(`<h1>Contratos</h1><a href="/sair">Sair</a><table><thead><tr><th>Nº</th><th>Cliente</th><th>Valor</th><th>Data</th><th></th></tr></thead><tbody>${part.map((c) => `<tr><td>${c.n}</td><td>${c.nome}</td><td>R$ ${c.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td>${c.data}</td><td><a href="/contratos/ver/${c.n}">Ver</a> <a href="/contratos/excluir/${c.n}">Excluir</a></td></tr>`).join('')}</tbody></table>${pg === 1 ? '<a href="/contratos?pagina=2">Próxima</a>' : ''}<a href="/contratos/dinamico">Clientes</a><a href="https://www.youtube.com/watch?v=abcDEF12345" title="Depoimento da Maria">vídeo</a><video src="/contratos/v.mp4"></video>`);
+      return send(`<h1>Contratos</h1><a href="/sair">Sair</a><table><thead><tr><th>Nº</th><th>Cliente</th><th>Valor</th><th>Data</th><th></th></tr></thead><tbody>${part.map((c) => `<tr><td>${c.n}</td><td>${c.nome}</td><td>R$ ${c.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td>${c.data}</td><td><a href="/contratos/ver/${c.n}">Ver</a> <a href="/contratos/excluir/${c.n}">Excluir</a></td></tr>`).join('')}</tbody></table>${pg === 1 ? '<a href="/contratos?pagina=2">Próxima</a>' : ''}<a href="/contratos/dinamico">Clientes</a><a href="https://www.youtube.com/watch?v=abcDEF12345" title="Depoimento da Maria">vídeo</a><video src="/contratos/v.mp4"></video><button aria-label="Notificações" onclick="document.getElementById('nt').textContent='Aviso: contrato 503 vencido há 5 dias'">sino</button><div id="nt"></div><button role="tab" aria-selected="false" onclick="document.getElementById('ab').textContent='Aba Vencidos: 2 contratos'">Vencidos</button><div id="ab"></div><button role="tab" onclick="fetch('/contratos/excluir/aba')">Excluir aba</button>`);
     }
     const m = u.pathname.match(/^\/contratos\/ver\/(\d+)$/);
     if (m) {
@@ -66,8 +66,10 @@ test('importação: não duplica, completa o que falta e mostra o último númer
   const lc = new LegacyContracts({ store: tempStore() });
   const cap = { pages: [{ url: 'a', tables: [{ headers: ['Número', 'Cliente', 'Valor'], rows: [['500', 'Ana', '1000'], ['501', 'Beto', '2000']] }], fields: [] }], api: [] };
   assert.equal(lc.preview(cap).total, 2);
-  assert.deepEqual(lc.import(cap, { name: 'Marcos' }), { added: 2, updated: 0, total: 2, ultimoNumero: 501 });
-  assert.deepEqual(lc.import(cap, { name: 'Marcos' }), { added: 0, updated: 2, total: 2, ultimoNumero: 501 });
+  const first = lc.import(cap, { name: 'Marcos' });
+  assert.deepEqual([first.added, first.updated, first.total, first.ultimoNumero, first.newClients], [2, 0, 2, 501, 2]);
+  const second = lc.import(cap, { name: 'Marcos' });
+  assert.deepEqual([second.added, second.updated, second.total, second.newClients], [0, 2, 2, 0]);
   assert.throws(() => lc.import({ pages: [], api: [] }), /Não encontrei/);
   assert.equal(lc.search({ q: 'beto' }).length, 1);
   assert.match(lc.csv(), /"500";"Ana"/);
@@ -98,6 +100,9 @@ test('ferramenta de captura: percorre a lista e as páginas, lê fichas e PDFs, 
   const dinamica = JSON.parse(bruto).pages.find((p) => p.url.endsWith('/dinamico'));
   assert.equal(dinamica.tables[0].rows.length, 12, 'clicou em Próxima até acabar e juntou as 3 páginas da lista');
   assert.ok(!hits.some((h) => /excluir/.test(h)), 'nunca clicou em Excluir');
+  const lista = JSON.parse(bruto).pages.find((p) => /\/contratos(\?|$)/.test(p.url));
+  assert.match(lista.texto, /Aviso: contrato 503 vencido há 5 dias/, 'abriu o sino de notificações e leu o aviso');
+  assert.match(lista.texto, /Aba Vencidos: 2 contratos/, 'abriu a aba de vencidos');
 });
 
 test('o programa de cópia realmente inicia quando chamado pela linha de comando (no Windows o caminho do arquivo é diferente)', async () => {

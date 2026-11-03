@@ -15,7 +15,7 @@ const SEM_VALOR = /(senha|password|passwd|token|csrf|_token|captcha|cartao|card)
 /** Roda dentro da página: lê tabelas, campos de formulário e pares "rótulo: valor". Nunca lê campo de senha. */
 function lerPagina() {
   const txt = (el) => (el?.textContent || '').replace(/\s+/g, ' ').trim();
-  const out = { title: document.title, tables: [], fields: [], links: [], pdfs: [], media: [] };
+  const out = { title: document.title, tables: [], fields: [], links: [], pdfs: [], media: [], texto: (document.body?.innerText || '').slice(0, 60000) };
   for (const t of document.querySelectorAll('table')) {
     const rows = [...t.querySelectorAll('tr')];
     if (rows.length < 2) continue;
@@ -81,6 +81,34 @@ function marcarProxima(perigoso) {
   }
   return false;
 }
+/** Acha o próximo botão SEGURO que só mostra informação (sino de notificações, abas e "carregar mais") e o marca. */
+function marcarSeguro([perigoso, jaFeitos]) {
+  const ruim = new RegExp(perigoso, 'i');
+  const norm = (t) => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  for (const el of document.querySelectorAll('[data-migra-seguro]')) el.removeAttribute('data-migra-seguro');
+  const vistos = new Set();
+  for (const el of document.querySelectorAll('[aria-label*="otifica" i], [title*="otifica" i], [data-testid*="notif" i], [class*="bell" i], [role="tab"], button, [role="button"]')) {
+    const alvo = el.closest('button, [role="button"], [role="tab"]') || el;
+    if (vistos.has(alvo)) continue;
+    vistos.add(alvo);
+    const href = alvo.getAttribute?.('href');
+    if (alvo.tagName === 'A' && href && !href.startsWith('#') && !/^javascript:/i.test(href)) continue;
+    const rotulo = norm(alvo.getAttribute('aria-label') || alvo.getAttribute('title') || alvo.textContent);
+    const ehSino = /notifica/.test(rotulo) || /bell/.test(`${el.className} ${alvo.className}`.toString().toLowerCase()) || /notif/.test((alvo.getAttribute('data-testid') || '').toLowerCase());
+    const ehAba = alvo.getAttribute('role') === 'tab' && alvo.getAttribute('aria-selected') !== 'true';
+    const ehMais = /^(carregar mais|ver mais|mostrar mais|load more)$/.test(rotulo);
+    if (!(ehSino || ehAba || ehMais)) continue;
+    if (alvo.disabled || alvo.getAttribute('aria-disabled') === 'true' || !alvo.offsetParent) continue;
+    if (ruim.test(rotulo) || ruim.test(href || '')) continue;
+    const form = alvo.closest('form');
+    if (form && (form.method || '').toLowerCase() === 'post' && alvo.type === 'submit') continue;
+    const chave = rotulo || 'sem-nome';
+    if (jaFeitos.includes(chave)) continue;
+    alvo.setAttribute('data-migra-seguro', '1');
+    return chave;
+  }
+  return null;
+}
 const assinatura = (r) => r.join('\u0001');
 /** Junta o que apareceu depois de clicar em "Próxima" ao que já tinha sido lido. Devolve quantas linhas/campos novos. */
 function juntar(base, novo) {
@@ -93,6 +121,11 @@ function juntar(base, novo) {
   }
   const temF = new Set(base.fields.map((f) => `${f.label}=${f.value}`));
   for (const f of novo.fields) if (!temF.has(`${f.label}=${f.value}`) && base.fields.length < 2000) { base.fields.push(f); temF.add(`${f.label}=${f.value}`); n += 1; }
+  if (novo.texto) {
+    const tem = new Set(String(base.texto || '').split('\n'));
+    const novas = novo.texto.split('\n').filter((l) => l.trim() && !tem.has(l));
+    if (novas.length && String(base.texto || '').length < 120000) { base.texto = `${base.texto || ''}\n${novas.join('\n')}`; n += novas.length; }
+  }
   return n;
 }
 
@@ -139,6 +172,19 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
         for (const l of mais.links) d.links.push(l);
         for (const l of mais.pdfs) d.pdfs.push(l);
         if (juntar(d, mais) === 0) break;
+      }
+      // Botões que só MOSTRAM informação: sino de notificações, abas (ex.: contratos vencidos) e "carregar mais".
+      const feitos = [];
+      for (let k = 0; k < 15; k++) {
+        const chave = await page.evaluate(marcarSeguro, [PERIGOSO.source, feitos]).catch(() => null);
+        if (!chave) break;
+        feitos.push(chave);
+        await page.locator('[data-migra-seguro="1"]').first().click({ timeout: 3000 }).catch(() => {});
+        await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+        await new Promise((r) => setTimeout(r, Math.max(200, espera / 2)));
+        const mais = await page.evaluate(lerPagina);
+        for (const l of mais.links) d.links.push(l);
+        juntar(d, mais);
       }
       paginas.push({ url, ...d, links: undefined, pdfs: d.pdfs });
       for (const l of d.links) { const u = semHash(l); if (!vistos.has(u) && permitido(u)) { vistos.add(u); fila.push(u); } }
