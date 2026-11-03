@@ -77,3 +77,34 @@ test('live: o domínio do site libera /live e a rota pública; o painel é só d
   assert.equal(pub.meetLink, MEET);
   assert.match(JSON.stringify(await (await admin('/api/audit')).json()), /live/i);
 });
+
+test('link de atendimento: cada clique vai para um vendedor diferente em rodízio, sem criar prospecto, e é liberado no domínio do site', async (t) => {
+  assert.equal(siteAllows('GET', '/atendimento'), true);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-lk-'));
+  const port = 39800 + Math.floor(Math.random() * 150);
+  const base = `http://127.0.0.1:${port}`;
+  const proc = spawn(process.execPath, ['src/server.js'], { cwd: ROOT, env: { ...process.env, DATA_DIR: dir, PORT: String(port), TUNNEL: 'off', OPEN_BROWSER: '' }, stdio: 'ignore' });
+  t.after(() => proc.kill());
+  for (let i = 0; i < 60; i++) { try { await fetch(`${base}/api/auth/state`); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
+  const body = JSON.stringify({ name: 'Marcos', login: 'marcos', password: 'segredo123', whatsapp: '595987101567' });
+  let cookie = ck(await fetch(`${base}/api/auth/setup`, { method: 'POST', headers: J, body }));
+  const call = (u, m = 'GET', b) => fetch(base + u, { method: m, headers: { cookie, ...J }, body: b ? JSON.stringify(b) : undefined, redirect: 'manual' });
+  const sec = await (await call('/api/security/2fa/setup')).json();
+  cookie = ck(await call('/api/security/2fa/enable', 'POST', { code: totpCode(sec.secret) })) || cookie;
+  // sem vendedor: avisa em vez de quebrar
+  assert.equal((await fetch(`${base}/atendimento`, { redirect: 'manual' })).status, 503);
+  for (const [n, l, w] of [['Diego', 'diego', '595981000001'], ['Ana', 'ana', '595981000002']]) await call('/api/users', 'POST', { name: n, login: l, password: 'segredo123', role: 'seller', whatsapp: w });
+  const dest = [];
+  for (let i = 0; i < 4; i++) { const r = await fetch(`${base}/atendimento?o=live`, { redirect: 'manual' }); assert.equal(r.status, 302); dest.push(r.headers.get('location')); }
+  assert.ok(dest.every((d) => d.startsWith('https://wa.me/5959810000')));
+  assert.notEqual(dest[0].slice(0, 30), dest[1].slice(0, 30), 'cliques seguidos vão para vendedores diferentes');
+  assert.equal(dest[0].slice(0, 30), dest[2].slice(0, 30));
+  assert.match(decodeURIComponent(dest[0]), /pela live da Migra/);
+  assert.equal((await (await call('/api/leads')).json()).length, 0, 'não cria prospecto sem telefone');
+  const st = await (await call('/api/links/stats')).json();
+  assert.equal(st.total, 4);
+  assert.deepEqual(st.sellers.map((x) => x.total), [2, 2]);
+  // só o administrador vê as estatísticas
+  const noCookie = await fetch(`${base}/api/links/stats`);
+  assert.equal(noCookie.status, 401);
+});

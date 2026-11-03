@@ -319,6 +319,17 @@ export class Crm {
     return [...list].sort((a, b) => (a.rotationSeq || 0) - (b.rotationSeq || 0) || a.name.localeCompare(b.name))[0];
   }
 
+  /** Pega o próximo vendedor do rodízio para um clique em link público (sem criar prospecto) e passa a vez dele para o fim da fila. */
+  takeNextSeller(office = null) {
+    const seller = this.nextSeller(null, office);
+    if (!seller) return null;
+    this.store.data.rotationSeq = (this.store.data.rotationSeq || 0) + 1;
+    seller.rotationSeq = this.store.data.rotationSeq;
+    seller.linkClicks = (seller.linkClicks || 0) + 1;
+    this.store.save();
+    return seller;
+  }
+
   /** Entrega o prospecto para o próximo vendedor do rodízio (ou mantém o atual, se ainda puder atender). */
   routeLead(lead, { reason = 'rodízio', pool = null } = {}) {
     const current = lead.ownerId ? this.auth.get(lead.ownerId) : null;

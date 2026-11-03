@@ -42,6 +42,7 @@
       } else {
         h = `<h1>Live da Migra</h1><p class="msg">Não há live marcada no momento. Entre nos grupos para receber o aviso da próxima.</p>${groups}`;
       }
+      h += '<div class="groups"><p>Já esclareceu as dúvidas e quer fechar? Fale agora com um dos nossos atendentes no WhatsApp:</p><a class="btn primary" href="/atendimento?o=live">Quero fechar pelo WhatsApp</a></div>';
       const box = document.getElementById('box');
       if (box.dataset.h !== h) { box.dataset.h = h; box.innerHTML = h; }
     }

@@ -11,7 +11,7 @@ export const hostOf = (req) => String(req.get?.('host') || req.headers?.host || 
 // O que o domínio do site pode mostrar (tudo o mais dá 404).
 export const SITE_ALLOW = [
   /^\/$/,
-  /^\/(marcas|migra|motors|school|imoveis|parceiros|indicacao|live)(\/.*)?$/,
+  /^\/(marcas|migra|motors|school|imoveis|parceiros|indicacao|live|atendimento)(\/.*)?$/,
   /^\/site\/[\w.-]+$/,
   /^\/img\/[\w.-]+$/,
   /^\/brand\/[\w.-]+$/,

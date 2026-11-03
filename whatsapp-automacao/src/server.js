@@ -2920,10 +2920,37 @@ app.delete('/api/recordings/:id', (req, res) => {
   audit.record({ user: req.user, ip: clientIp(req), action: 'excluiu', entity: 'gravação', label: r.title });
   res.json({ ok: true });
 });
+// ---- Link de atendimento: cada clique vai para um vendedor diferente (rodízio) direto no WhatsApp dele ----
+const linkHits = new Map();
+app.get('/atendimento', (req, res) => {
+  const ip = clientIp(req);
+  const recent = (linkHits.get(ip) || []).filter((t) => Date.now() - t < 600_000);
+  if (recent.length >= 12) return res.status(429).type('text/plain; charset=utf-8').send('Muitos cliques seguidos. Tente de novo em alguns minutos.');
+  linkHits.set(ip, [...recent, Date.now()]);
+  if (linkHits.size > 5000) linkHits.clear();
+  const origin = String(req.query.o || 'link').replace(/[^a-z0-9-]/gi, '').slice(0, 20) || 'link';
+  const office = SITE_OFFICES.get(hostOf(req)) || null;
+  const seller = crm.takeNextSeller(office);
+  if (!seller) return res.status(503).type('text/plain; charset=utf-8').send('No momento não há atendente disponível. Tente de novo em instantes.');
+  const clicks = (store.data.linkClicks ||= []);
+  clicks.push({ at: new Date().toISOString(), sellerId: seller.id, origin });
+  if (clicks.length > 20000) clicks.splice(0, clicks.length - 20000);
+  store.save();
+  const from = origin === 'live' ? 'pela live da Migra' : 'pelo site da Migra';
+  const text = `Olá, ${seller.name.split(' ')[0]}! Vim ${from} e quero iniciar o meu atendimento para fechar. Código: ${origin.toUpperCase()}-${String(clicks.length).slice(-5)}.`;
+  res.set('Cache-Control', 'no-store').redirect(302, `https://wa.me/${String(seller.whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(text)}`);
+});
+app.get('/api/links/stats', (req, res) => {
+  needAdmin(req);
+  const since = Date.now() - 7 * 86_400_000;
+  const by = new Map();
+  for (const c of store.data.linkClicks || []) { const k = c.sellerId; const e = by.get(k) || { total: 0, week: 0 }; e.total += 1; if (Date.parse(c.at) >= since) e.week += 1; by.set(k, e); }
+  res.json({ total: (store.data.linkClicks || []).length, sellers: [...by.entries()].map(([id, v]) => ({ id, name: auth.get(id)?.name || '(removido)', ...v })).sort((a, b) => b.total - a.total), url: `${publicBase()}/atendimento` });
+});
 // ---- Página de live (Google Meet) ----
 app.get('/api/live', (req, res) => {
   if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador');
-  res.json({ ...live.cfg, pageUrl: `${publicBase()}/live` });
+  res.json({ ...live.cfg, pageUrl: `${publicBase()}/live`, closeUrl: `${publicBase()}/atendimento?o=live` });
 });
 app.put('/api/live', (req, res) => {
   if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador');
