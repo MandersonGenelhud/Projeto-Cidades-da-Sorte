@@ -16,7 +16,7 @@
         <li>Volte na janela preta e aperte <b>Enter</b>. Espere terminar, sem mexer no navegador (pode levar vários minutos).</li>
         <li>Quando acabar, abre sozinha uma pasta na sua <b>Área de Trabalho</b> chamada <b>captura-...</b>. Dentro dela está o arquivo <b>captura.json</b>.</li>
       </ol>
-      <a class="btn primary legacy-dl" href="/api/legacy/ferramenta.bat">Baixar o programa de cópia</a>
+      <a class="btn primary legacy-dl" href="/api/legacy/ferramenta.bat">Baixar o programa de cópia</a> <a class="btn legacy-dl" href="/api/legacy/ferramenta-site.bat">Baixar o programa que copia o visual do site</a>
       <p class="hint">Se o Node.js não estiver instalado, o programa instala sozinho (se pedir permissão, clique em Sim) e pede para você abrir o arquivo de novo. Ele só lê o sistema do Marcos: não clica em botões, não apaga nada e a senha nunca passa por aqui.</p>
     </div>
     <div class="panel"><h2>Passo 2: importar o arquivo captura.json</h2>

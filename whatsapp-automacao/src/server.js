@@ -36,7 +36,7 @@ import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Audit } from './audit.js';
 import { byAttendant, attendantOf } from './attendants.js';
 import { LegacyContracts, cashRowsFromCapture } from './legacy-import.js';
-import { buildBat } from './legacy-tool.js';
+import { buildBat, buildSiteBat } from './legacy-tool.js';
 import { Ingest, MIME as FILE_MIME } from './legacy-ingest.js';
 import { Resumes, MIME_BY_EXT } from './resumes.js';
 import { VideoCalls, priceSeen } from './videocalls.js';
@@ -3068,6 +3068,10 @@ app.get('/api/legacy/ferramenta.bat', (req, res) => {
   // O arquivo baixado leva uma chave temporária (8 horas) só para enviar a cópia para cá.
   const { token } = ingest.issueToken(req.user);
   res.type('application/octet-stream').set('Content-Disposition', 'attachment; filename="CAPTURAR-CONTRATOS.bat"').send(buildBat(undefined, { url: linkBase(req), token }));
+});
+app.get('/api/legacy/ferramenta-site.bat', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador');
+  res.type('application/octet-stream').set('Content-Disposition', 'attachment; filename="COPIAR-VISUAL-DO-SITE.bat"').send(buildSiteBat({ site: String(req.query.site || '') }));
 });
 app.get('/api/legacy/audit', (_req, res) => res.json({ last: (store.data.legacyAudits || []).at(-1) || null, history: (store.data.legacyAudits || []).slice(-5).map((a) => ({ at: a.at, ok: a.ok, paginas: a.paginas })) }));
 app.post('/api/legacy/apply', (req, res) => {

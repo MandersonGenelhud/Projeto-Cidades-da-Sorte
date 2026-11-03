@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 export const MARKER = '::MIGRA_JS_INICIO';
 const SOURCE = fileURLToPath(new URL('../tools/capturar-sistema/capturar.mjs', import.meta.url));
+const SOURCE_SITE = fileURLToPath(new URL('../tools/capturar-sistema/capturar-site.mjs', import.meta.url));
 
 const HEAD = [
   '@echo off',
@@ -45,5 +46,16 @@ export function buildBat(js = fs.readFileSync(SOURCE, 'utf8'), { url = '', token
     : [];
   const send = [...siteLine, ...send0];
   const head = HEAD.flatMap((l) => (l.startsWith('node capturar.mjs') ? [...send, l] : [l]));
+  return `${head.join('\r\n')}\r\n${js.replace(/\r?\n/g, '\r\n')}`;
+}
+
+/** Programa que copia o VISUAL de um site público (HTML, CSS, JS, vídeos, efeitos de movimento). Sem login e sem chave de envio. */
+export function buildSiteBat({ site = '' } = {}) {
+  const js = fs.readFileSync(SOURCE_SITE, 'utf8');
+  const siteLine = /^https?:\/\/[\w.:\-\/]+$/.test(site) ? [`set "MIGRA_SITE_PUBLICO=${site}"`] : [];
+  const head = HEAD.flatMap((l) => {
+    if (l.startsWith('node capturar.mjs')) return [...siteLine, 'node capturar-site.mjs --saida "%USERPROFILE%\\Desktop"'];
+    return [l.replace(/capturar\.mjs/g, 'capturar-site.mjs').replace('Copiar contratos do sistema antigo', 'Copiar o visual do site')];
+  });
   return `${head.join('\r\n')}\r\n${js.replace(/\r?\n/g, '\r\n')}`;
 }
