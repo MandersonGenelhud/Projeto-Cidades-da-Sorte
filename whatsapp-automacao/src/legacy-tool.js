@@ -37,11 +37,13 @@ const HEAD = [
   MARKER,
 ];
 
-export function buildBat(js = fs.readFileSync(SOURCE, 'utf8'), { url = '', token = '' } = {}) {
+export function buildBat(js = fs.readFileSync(SOURCE, 'utf8'), { url = '', token = '', site = 'https://migrapyassessoria.com' } = {}) {
   // Com endereço e chave de envio, o programa manda tudo sozinho para o sistema novo no fim da cópia.
-  const send = /^https?:\/\/[\w.:\-]+$/.test(url) && /^[\w-]{20,80}$/.test(token)
+  const siteLine = /^https?:\/\/[\w.:\-\/]+$/.test(site) ? [`set "MIGRA_SITE=${site}"`] : [];
+  const send0 = /^https?:\/\/[\w.:\-]+$/.test(url) && /^[\w-]{20,80}$/.test(token)
     ? [`set "MIGRA_URL=${url}"`, `set "MIGRA_TOKEN=${token}"`]
     : [];
+  const send = [...siteLine, ...send0];
   const head = HEAD.flatMap((l) => (l.startsWith('node capturar.mjs') ? [...send, l] : [l]));
   return `${head.join('\r\n')}\r\n${js.replace(/\r?\n/g, '\r\n')}`;
 }

@@ -312,8 +312,17 @@ async function main() {
   const args = process.argv.slice(2);
   const iS = args.indexOf('--saida');
   const sobra = args.filter((x, i) => !x.startsWith('--') && !(iS >= 0 && i === iS + 1));
-  let url = (sobra[0] || (await rl.question('Endereço do sistema do Marcos (ex.: https://migrapyassessoria.com): '))).trim();
+  // Endereço: o da linha de comando, ou o que já vem no programa (MIGRA_SITE), ou o digitado. Enter sem digitar aceita o padrão.
+  const padrao = String(process.env.MIGRA_SITE || '').trim();
+  let url = (sobra[0] || '').trim();
+  for (let tentativa = 0; !url && tentativa < 5; tentativa++) {
+    const resp = (await rl.question(padrao ? `Endereço do sistema do Marcos [aperte Enter para usar ${padrao}]: ` : 'Digite o endereço do sistema do Marcos (ex.: migrapyassessoria.com) e aperte Enter: ')).trim();
+    url = resp || padrao;
+  }
+  if (!url) throw new Error('Não recebi o endereço do sistema. Rode de novo e digite, por exemplo: migrapyassessoria.com');
   if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+  try { new URL(url); } catch { throw new Error(`O endereço "${url}" não parece certo. Exemplo: migrapyassessoria.com`); }
+  console.log(`Sistema antigo: ${url}`);
   let pw;
   try { pw = await import('playwright-core'); } catch { pw = await import('playwright'); }
   let browser;

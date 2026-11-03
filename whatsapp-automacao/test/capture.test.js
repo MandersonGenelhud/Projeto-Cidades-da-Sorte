@@ -136,11 +136,34 @@ test('o programa lê o endereço certo mesmo quando o .bat manda --saida primeir
   const out = await new Promise((resolve) => {
     const p = spawn(process.execPath, [file, '--saida', os.tmpdir()], { stdio: ['pipe', 'pipe', 'pipe'] });
     let buf = '';
-    p.stdout.on('data', (d) => { buf += d; if (/Endereço do sistema/.test(buf)) p.kill(); });
+    p.stdout.on('data', (d) => { buf += d; if (/ndereço do sistema/.test(buf)) p.kill(); });
     p.stderr.on('data', (d) => (buf += d));
     const t = setTimeout(() => p.kill(), 6000);
     p.on('close', () => { clearTimeout(t); resolve(buf); });
   });
-  assert.match(out, /Endereço do sistema/);
+  assert.match(out, /ndereço do sistema/);
   assert.doesNotMatch(out, /invalid URL|--saida"/);
 });
+
+test('endereço: Enter aceita o padrão que vem no programa, domínio sem https é completado e vazio não derruba (erro "navigating to https://")', async () => {
+  const { spawn } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const file = fileURLToPath(new URL('../tools/capturar-sistema/capturar.mjs', import.meta.url));
+  const rodar = (env, resposta) => new Promise((resolve) => {
+    const p = spawn(process.execPath, [file, '--saida', os.tmpdir()], { env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'] });
+    let buf = ''; let enviou = false;
+    p.stdout.on('data', (d) => { buf += d; if (!enviou && /Endereço|endereço/.test(buf)) { enviou = true; p.stdin.write(`${resposta}\n`); } if (/Sistema antigo:/.test(buf)) setTimeout(() => p.kill(), 300); });
+    p.stderr.on('data', (d) => (buf += d));
+    const t = setTimeout(() => p.kill(), 8000);
+    p.on('close', () => { clearTimeout(t); resolve(buf); });
+  });
+  const a = await rodar({ MIGRA_SITE: 'https://migrapyassessoria.com' }, '');
+  assert.match(a, /Sistema antigo: https:\/\/migrapyassessoria\.com/, 'Enter sem digitar usa o padrão do programa');
+  const b = await rodar({ MIGRA_SITE: '' }, 'meusite.com');
+  assert.match(b, /Sistema antigo: https:\/\/meusite\.com/, 'domínio sem https é completado');
+  assert.doesNotMatch(a + b, /invalid URL|navigating to "https:\/\/"/);
+  assert.equal((a.match(/Programa de cópia de contratos iniciado/g) || []).length, 1, 'a mensagem de início aparece uma vez');
+  assert.match(buildBatSample(), /set "MIGRA_SITE=https:\/\/migrapyassessoria\.com"/);
+});
+import { buildBat as buildBatSample0 } from '../src/legacy-tool.js';
+const buildBatSample = () => buildBatSample0();
