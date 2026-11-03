@@ -42,6 +42,9 @@ import { Resumes, MIME_BY_EXT } from './resumes.js';
 import { VideoCalls, priceSeen } from './videocalls.js';
 import { Live } from './live.js';
 import { Recordings } from './recordings.js';
+import { Tutorials } from './tutorials.js';
+import { Cities, CATEGORIES as CITY_CATEGORIES } from './cities.js';
+import { Marketing, PRESETS as MKT_PRESETS } from './marketing.js';
 import { Documents, TYPES as DOC_TYPES } from './documents.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
@@ -283,6 +286,9 @@ const videocalls = new VideoCalls({ store, auth });
 const live = new Live({ store });
 const recordings = new Recordings({ store });
 const documents = new Documents({ store });
+const tutorials = new Tutorials({ store });
+const cityGuide = new Cities({ store });
+const marketing = new Marketing({ store });
 const cashHook = (cap) => (typeof cash === 'undefined' ? null : cash.importLegacy(cashRowsFromCapture(cap)));
 agent.liveInfo = () => live.promptInfo(`${publicBase()}/live`);
 const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
@@ -1258,7 +1264,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1681,6 +1687,8 @@ const SELLER_ROUTES = [
   ['GET', /^\/referral\/(me|qr)$/],
   ['PATCH', /^\/me\/prefs$/],
   ['GET', /^\/recordings$/],
+  ['GET', /^\/(tutorials(\/[a-f0-9]+)?|cities(\/[a-f0-9]+)?)$/],
+  ['POST', /^\/cities\/[a-f0-9]+\/send$/],
   ['*', /^\/videocall\/me$/],
   ['POST', /^\/videocall\/[a-z0-9]+\/cancel$/],
 ];
@@ -2290,6 +2298,7 @@ const SECRET_PATHS = [
   ['instagram', 'accessToken'],
   ['instagram', 'appSecret'],
   ['payments', 'mercadopago', 'accessToken'],
+  ['marketing', 'metaToken'],
   ['updater', 'token'],
 ];
 const MASK = '••••••';
@@ -2716,6 +2725,77 @@ app.post('/api/documents/:id/notify', async (req, res) => {
   audit.record({ user: req.user, ip: clientIp(req), action: 'enviou', entity: 'aviso de documento', label: `${d.clientName} · ${DOC_TYPES[d.type]}` });
   res.json({ ok: true });
 });
+// ---- Tutoriais e treinamento semanal ----
+const tutErr = (fn) => { try { return fn(); } catch (e) { throw httpError(/não encontrado/.test(e.message) ? 404 : 400, e.message); } };
+const needAdmin = (req) => { if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador'); };
+app.get('/api/tutorials', (req, res) => res.json(tutorials.list(req.user)));
+app.get('/api/tutorials/:id', (req, res) => { const t = tutorials.get(req.user, req.params.id); if (!t) throw httpError(404, 'Tutorial não encontrado'); res.json(t); });
+app.post('/api/tutorials', (req, res) => { needAdmin(req); const t = tutErr(() => tutorials.add(req.body || {}, req.user.name)); audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'tutorial', label: t.title }); res.json(t); });
+app.patch('/api/tutorials/:id', (req, res) => { needAdmin(req); const t = tutErr(() => tutorials.update(req.params.id, req.body || {})); audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'tutorial', label: t.title }); res.json(t); });
+app.delete('/api/tutorials/:id', (req, res) => { needAdmin(req); const t = tutErr(() => tutorials.remove(req.params.id)); audit.record({ user: req.user, ip: clientIp(req), action: 'excluiu', entity: 'tutorial', label: t.title }); res.json({ ok: true }); });
+const weeklyStats = () => {
+  const since = Date.now() - 7 * 86_400_000;
+  const recent = (iso) => iso && Date.parse(iso) >= since;
+  return { vendasNovas: sales.list.filter((x) => !x.legacy && recent(x.createdAt)).length, orcamentosEnviados: quotes.list.filter((q) => recent(q.createdAt)).length, contatosNovos: crm.leads.filter((l) => recent(l.createdAt)).length, vendedoresAtivos: auth.users.filter((u) => u.role === 'seller' && u.active !== false).length };
+};
+async function runWeeklyTraining({ force = false } = {}) {
+  const t = await tutorials.generateWeekly({ llm, business: store.settings.business?.description || store.settings.business?.name || '', stats: weeklyStats(), learnings: learnings.approvedText(), force });
+  if (!t) return null;
+  let i = 0;
+  for (const u of auth.users.filter((x) => x.role === 'seller' && x.active !== false && x.whatsapp)) {
+    if (wa.status === 'connected') await wa.send(u.whatsapp, { text: tutorials.noticeText(t, i++), typing: false }).catch(() => {});
+  }
+  store.addLog({ type: 'system', message: `Treinamento da semana criado: ${t.title}` });
+  return t;
+}
+app.post('/api/tutorials/weekly/run', async (req, res) => {
+  needAdmin(req);
+  const t = await runWeeklyTraining({ force: true }).catch((e) => { throw httpError(400, e.message); });
+  if (!t) throw httpError(400, 'A IA não está configurada (aba Agente IA).');
+  audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'treinamento semanal', label: t.title });
+  res.json(t);
+});
+
+// ---- Guia de Cidades ----
+app.get('/api/cities', (req, res) => res.json({ categories: CITY_CATEGORIES, cities: cityGuide.list(String(req.query.q || '')) }));
+app.get('/api/cities/:id', (req, res) => { const c = cityGuide.get(req.params.id); if (!c) throw httpError(404, 'Cidade não encontrada'); res.json({ ...c, message: cityGuide.message(c.id) }); });
+const cityAdmin = (fn) => (req, res) => { needAdmin(req); res.json(tutErr(() => fn(req))); };
+app.post('/api/cities', cityAdmin((req) => { const c = cityGuide.addCity(req.body || {}); audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'cidade do guia', label: c.name }); return c; }));
+app.post('/api/cities/:id/items', cityAdmin((req) => cityGuide.addItem(req.params.id, req.body || {})));
+app.patch('/api/cities/:id/items/:itemId', cityAdmin((req) => cityGuide.updateItem(req.params.id, req.params.itemId, req.body || {})));
+app.delete('/api/cities/:id/items/:itemId', cityAdmin((req) => { cityGuide.removeItem(req.params.id, req.params.itemId); return { ok: true }; }));
+app.post('/api/cities/:id/import', cityAdmin((req) => { const r = cityGuide.importText(req.params.id, req.body?.text); audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'guia de cidades', label: `${r.added} local(is) importado(s) em ${cityGuide.get(req.params.id)?.name}` }); return r; }));
+// O vendedor (ou o administrador) manda o guia da cidade ao cliente: só depois de ver o texto e só para quem ele escolhe.
+app.post('/api/cities/:id/send', async (req, res) => {
+  const c = cityGuide.get(req.params.id); if (!c) throw httpError(404, 'Cidade não encontrada');
+  const phone = normalizePhone(req.body?.phone) || normalizePhone(`+${String(req.body?.phone || '').replace(/\D/g, '')}`);
+  if (!phone) throw httpError(400, 'Informe o WhatsApp do cliente com DDD e código do país');
+  if (wa.status !== 'connected') throw httpError(400, 'O WhatsApp não está conectado agora.');
+  await wa.send(phone, { text: cityGuide.message(c.id, req.body?.name), typing: false });
+  cityGuide.recordSent({ cityId: c.id, phone, by: req.user.name });
+  audit.record({ user: req.user, ip: clientIp(req), action: 'enviou', entity: 'guia de cidade', label: `${c.name} para +${phone}` });
+  res.json({ ok: true });
+});
+
+// ---- Marketing (números dos anúncios da Meta) ----
+app.get('/api/marketing', (req, res) => {
+  needAdmin(req);
+  const view = marketing.withCrm(marketing.snapshot, crm.leads);
+  res.json({ configured: marketing.configured, adAccountId: marketing.config.adAccountId || '', hasToken: Boolean(marketing.config.metaToken), presets: MKT_PRESETS, snapshot: view, summary: marketing.plainSummary(view) });
+});
+app.put('/api/marketing/config', (req, res) => {
+  needAdmin(req);
+  tutErr(() => marketing.setConfig(req.body || {}));
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'marketing', label: 'Conta de anúncios da Meta e chave de acesso (valor oculto)' });
+  res.json({ ok: true, configured: marketing.configured });
+});
+app.post('/api/marketing/sync', async (req, res) => {
+  needAdmin(req);
+  try { await marketing.sync({ preset: String(req.body?.preset || 'last_30d') }); } catch (e) { throw httpError(e.status === 401 ? 400 : e.status || 502, e.auth ? 'A Meta recusou a chave de acesso (vencida ou sem permissão). Gere outra e cole em Configurar.' : e.message); }
+  const view = marketing.withCrm(marketing.snapshot, crm.leads);
+  res.json({ snapshot: view, summary: marketing.plainSummary(view) });
+});
+
 // ---- Reuniões gravadas (biblioteca de links) ----
 app.get('/api/recordings', (req, res) => res.json(recordings.list({ q: String(req.query.q || '') })));
 const recAdmin = (req) => { if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador cadastra gravações'); };
@@ -4135,6 +4215,9 @@ if (process.env.NODE_ENV !== 'test') {
   setTimeout(() => notifyFollowUps().catch(() => {}), 60_000).unref();
   // Pix pelo Mercado Pago: confere a cada minuto se foi pago.
   setInterval(() => payments.checkPending().catch(() => {}), 60_000).unref();
+  // Treinamento semanal dos vendedores: a cada 7 dias a IA cria um novo e os vendedores são avisados no WhatsApp.
+  setInterval(() => runWeeklyTraining().catch((e) => store.addLog({ type: 'error', message: `Treinamento semanal: ${e.message}` })), 6 * 3_600_000).unref();
+  setTimeout(() => runWeeklyTraining().catch(() => {}), 5 * 60_000).unref();
 
   const shutdown = async () => {
     scheduler.stop();
