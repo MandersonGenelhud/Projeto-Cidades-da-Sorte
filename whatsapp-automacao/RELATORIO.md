@@ -61,6 +61,7 @@ Atualizado em 31/10/2026. Tudo abaixo está no sistema depois de **Atualizar ago
 - **Tutoriais e treinamento semanal:** guia do sistema para o vendedor (sem a parte do administrador) e para o administrador; toda semana a IA cria um treinamento novo de fechamento e os vendedores são avisados no WhatsApp com uma frase de incentivo.
 - **Cobrança e previsão:** lista de parcelas vencidas com faixa de atraso, mensagem educada por faixa, aprovação do administrador, fila com limite por dia e horário; previsão do que entra em cada mês.
 - **Ficha do cliente (360):** busca por nome, telefone ou CPF e visão única de contratos, parcelas, orçamentos, documentos, CRM, conversas e linha do tempo; detecção e junção de cadastros repetidos.
+- **Tarefas da equipe:** o que cada pessoa precisa fazer, com prazo, cliente e lembrete no WhatsApp no dia do prazo.
 - **Guia de Cidades:** cidades do Paraguai por departamento, contatos úteis por categoria (cadastrados pelo administrador ou colados de planilha), emergência nacional a conferir e envio do guia ao cliente.
 - **Marketing (Meta):** aba com gasto, contatos, custo por contato e custo por venda dos anúncios, em português simples, a partir da conta de anúncios (chave de leitura colada no painel).
 - **Cobrança / Vencimentos:** a cópia lê as parcelas em aberto de cada contrato (data, valor, vencida ou não) e o "Levar para Vendas" usa essas datas reais. Também copia o caixa e a contabilidade do sistema antigo.

@@ -47,6 +47,7 @@ import { Cities, CATEGORIES as CITY_CATEGORIES } from './cities.js';
 import { Marketing, PRESETS as MKT_PRESETS } from './marketing.js';
 import { Collections } from './collections.js';
 import { Customer360 } from './customer360.js';
+import { Tasks } from './tasks.js';
 import { Documents, TYPES as DOC_TYPES } from './documents.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
@@ -1266,7 +1267,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1691,6 +1692,7 @@ const SELLER_ROUTES = [
   ['GET', /^\/recordings$/],
   ['GET', /^\/(tutorials(\/[a-f0-9]+)?|cities(\/[a-f0-9]+)?)$/],
   ['POST', /^\/cities\/[a-f0-9]+\/send$/],
+  ['*', /^\/tasks(\/[a-f0-9]+)?$/],
   ['*', /^\/videocall\/me$/],
   ['POST', /^\/videocall\/[a-z0-9]+\/cancel$/],
 ];
@@ -2848,6 +2850,13 @@ app.get('/api/customers/360', (req, res) => {
   if (!phone && !doc && !name) throw httpError(400, 'Informe telefone, documento ou nome');
   res.json(customer360.build({ phone: String(phone), doc: String(doc), name: String(name) }));
 });
+// ---- Tarefas da equipe ----
+const tasks = new Tasks({ store, auth });
+const tk = (fn) => { try { return fn(); } catch (e) { throw httpError(/não encontrada/.test(e.message) ? 404 : 400, e.message); } };
+app.get('/api/tasks', (req, res) => res.json({ counts: tasks.counts(req.user), items: tasks.list(req.user, { status: String(req.query.status || 'open'), q: String(req.query.q || ''), who: req.user.role === 'admin' ? String(req.query.who || '') : '' }).slice(0, 300), people: req.user.role === 'admin' ? auth.users.filter((u) => u.active !== false && !u.pending).map((u) => ({ id: u.id, name: u.name })) : [] }));
+app.post('/api/tasks', (req, res) => { const t = tk(() => tasks.add(req.user, req.body || {})); if (t.assigneeId !== req.user.id) audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'tarefa', label: `${t.title} → ${auth.get(t.assigneeId)?.name}` }); res.json(t); });
+app.patch('/api/tasks/:id', (req, res) => res.json(tk(() => tasks.update(req.user, req.params.id, req.body || {}))));
+app.delete('/api/tasks/:id', (req, res) => { tk(() => tasks.remove(req.user, req.params.id)); res.json({ ok: true }); });
 // ---- Reuniões gravadas (biblioteca de links) ----
 app.get('/api/recordings', (req, res) => res.json(recordings.list({ q: String(req.query.q || '') })));
 const recAdmin = (req) => { if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador cadastra gravações'); };
@@ -4270,6 +4279,8 @@ if (process.env.NODE_ENV !== 'test') {
   // Treinamento semanal dos vendedores: a cada 7 dias a IA cria um novo e os vendedores são avisados no WhatsApp.
   setInterval(() => runWeeklyTraining().catch((e) => store.addLog({ type: 'error', message: `Treinamento semanal: ${e.message}` })), 6 * 3_600_000).unref();
   setTimeout(() => runWeeklyTraining().catch(() => {}), 5 * 60_000).unref();
+  // Lembretes de tarefas da equipe (WhatsApp de cada pessoa), a cada 10 minutos, só no horário comercial.
+  setInterval(() => { const h = new Date().getHours(); if (wa.status === 'connected' && h >= 8 && h < 19) tasks.remind((phone, text) => wa.send(phone, { text, typing: false })).catch(() => {}); }, 10 * 60_000).unref();
   // Cobrança aprovada: manda uma mensagem por vez, respeitando limite, horário e intervalo.
   setInterval(() => collections.tick().catch((e) => store.addLog({ type: 'error', message: `Cobrança: ${e.message}` })), 20_000).unref();
 
