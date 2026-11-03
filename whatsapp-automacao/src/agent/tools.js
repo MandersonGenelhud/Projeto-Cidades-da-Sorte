@@ -56,7 +56,7 @@ export const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'horarios_videochamada',
-      description: 'Lista os próximos dias e horários livres para a VIDEOCHAMADA com um consultor da equipe (conversa de 40 minutos). Use quando o cliente disser que vai falar com marido, esposa ou família. Sem data, começa por amanhã. Só ofereça horários devolvidos aqui.',
+      description: 'Lista os próximos dias e horários livres para a VIDEOCHAMADA com um consultor da equipe (conversa de 40 minutos). SÓ para quem já viu o valor e confirmou que tem condições financeiras de arcar com ele; para os demais, nunca use. Use quando esse cliente disser que vai falar com marido, esposa ou família. Sem data, começa por amanhã. Só ofereça horários devolvidos aqui.',
       parameters: { type: 'object', properties: { a_partir_de: { type: 'string', description: 'AAAA-MM-DD (opcional; padrão: amanhã)' } } },
     },
   },
@@ -64,7 +64,7 @@ export const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'agendar_videochamada',
-      description: 'Marca a videochamada de 40 minutos com um consultor da equipe, depois que o cliente escolher dia e horário dentre os livres. Se o cliente já tinha uma marcada, esta substitui a anterior.',
+      description: 'Marca a videochamada de 40 minutos com um consultor da equipe, depois que o cliente escolher dia e horário dentre os livres. SÓ se o valor já foi apresentado e o cliente confirmou ter condições financeiras (o sistema recusa sem isso). Se o cliente já tinha uma marcada, esta substitui a anterior.',
       parameters: {
         type: 'object',
         properties: {
@@ -73,8 +73,10 @@ export const TOOL_DEFINITIONS = [
           nome: { type: 'string', description: 'Nome do cliente' },
           pessoas: { type: 'number', description: 'Quantas pessoas participam (opcional)' },
           observacoes: { type: 'string', description: 'O que ficou combinado ou a dúvida principal (opcional)' },
+          valor_apresentado: { type: 'boolean', description: 'true se você já apresentou o valor do pacote a este cliente' },
+          tem_condicoes: { type: 'boolean', description: 'true se o cliente confirmou, com as próprias palavras, que o valor faz sentido e que tem condições de arcar' },
         },
-        required: ['data', 'hora', 'nome'],
+        required: ['data', 'hora', 'nome', 'valor_apresentado', 'tem_condicoes'],
       },
     },
   },

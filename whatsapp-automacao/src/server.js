@@ -39,7 +39,7 @@ import { LegacyContracts } from './legacy-import.js';
 import { buildBat } from './legacy-tool.js';
 import { Ingest, MIME as FILE_MIME } from './legacy-ingest.js';
 import { Resumes, MIME_BY_EXT } from './resumes.js';
-import { VideoCalls } from './videocalls.js';
+import { VideoCalls, priceSeen } from './videocalls.js';
 import { Live } from './live.js';
 import { Recordings } from './recordings.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
@@ -283,13 +283,17 @@ const live = new Live({ store });
 const recordings = new Recordings({ store });
 agent.liveInfo = () => live.promptInfo(`${publicBase()}/live`);
 const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
+// Só quem já viu o valor (e disse que tem condições) vai para a videochamada com o consultor.
+const notQualified = () => ({ ok: false, erro: 'Videochamada só para quem já viu o valor e confirmou que tem condições financeiras. Apresente o valor, pergunte com delicadeza se faz sentido e se ele consegue arcar; se não tiver condições, NÃO ofereça videochamada: agradeça, esclareça e use agendar_retorno se fizer sentido.' });
 agent.videoSlots = (conv, args) => {
+  if (!priceSeen(conv)) return notQualified();
   const r = videocalls.nextDays(args?.a_partir_de);
   const c = videocalls.config;
   if (!r.dias.length) return { ok: false, instrucao: `Não há horário de videochamada livre nos próximos dias${r.primeiroDiaSemAtendimento ? ` (${r.primeiroDiaSemAtendimento.motivo})` : ''}. Diga com naturalidade que a agenda está cheia, siga tirando as dúvidas e use agendar_retorno para voltar em outro dia.` };
   return { ok: true, duracao_minutos: c.durationMin, ...r, instrucao: `Ofereça 2 ou 3 destes horários, só estes${r.primeiroDiaSemAtendimento ? `. Amanhã não há atendimento por vídeo (${r.primeiroDiaSemAtendimento.motivo}); o próximo dia livre está na lista` : ''}.` };
 };
 agent.videoBook = async (conv, args, { dryRun } = {}) => {
+  if (args.valor_apresentado !== true || args.tem_condicoes !== true || !priceSeen(conv)) return notQualified();
   const simulated = dryRun || String(conv.key).startsWith('sim:');
   const b = videocalls.book({ date: args.data, time: args.hora, name: args.nome, phone: conv.phone, people: args.pessoas, notes: args.observacoes, convKey: conv.key }, { dryRun: simulated });
   if (!simulated) {

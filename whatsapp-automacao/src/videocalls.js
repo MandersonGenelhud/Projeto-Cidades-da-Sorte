@@ -8,6 +8,9 @@ const pad = (n) => String(n).padStart(2, '0');
 const hhmm = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
 
+/** A IA já falou um valor (R$, US$, dólares, reais, guaranis) nesta conversa? Condição para oferecer a videochamada. */
+export const priceSeen = (conv) => (conv?.messages || []).some((m) => m.role === 'assistant' && /(R\$|US\$|U\$S|USD|\d[\d.,]*\s*(mil\b|d[óo]lares|reais|guaranies|gs\b))/i.test(String(m.content || '')));
+
 export const DEFAULTS = {
   enabled: true,
   durationMin: 40, // tempo da conversa

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VideoCalls } from '../src/videocalls.js';
+import { VideoCalls, priceSeen } from '../src/videocalls.js';
 import { Agent } from '../src/agent/agent.js';
 import { LocalCalendar } from '../src/agent/calendar.js';
 import { presetSettings } from '../src/agent/presets.js';
@@ -102,4 +102,31 @@ test('IA: regra do marido/esposa no texto, ferramentas só com a agenda ligada',
   assert.match(system, /de manhã ou de tarde/);
   assert.match(system, /nunca o Marcos/);
   assert.ok(tools.includes('horarios_videochamada') && tools.includes('agendar_videochamada'));
+});
+
+test('videochamada só para quem tem condições: regra no texto, campos obrigatórios e trava de valor', () => {
+  const tool = TOOL_DEFINITIONS.find((t) => t.function.name === 'agendar_videochamada').function;
+  assert.deepEqual(tool.parameters.required.slice(-2), ['valor_apresentado', 'tem_condicoes']);
+  assert.equal(priceSeen({ messages: [{ role: 'user', content: 'quanto custa?' }] }), false);
+  assert.equal(priceSeen({ messages: [{ role: 'assistant', content: 'Olá! Posso te ajudar?' }] }), false);
+  assert.equal(priceSeen({ messages: [{ role: 'assistant', content: 'O pacote Ouro é R$ 12.997,00.' }] }), true);
+  assert.equal(priceSeen({ messages: [{ role: 'assistant', content: 'Fica em 2 mil dólares.' }] }), true);
+  assert.equal(priceSeen({ messages: [{ role: 'user', content: 'tenho R$ 5.000' }] }), false, 'valor dito só pelo cliente não conta');
+});
+
+test('videochamada: o texto da IA exige apresentar o valor e checar condições antes de convidar', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('clinica-sorriso'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const T = new Date(2026, 9, 26, 9, 5);
+  let system = '';
+  const llm = { configured: true, async chat({ messages }) { system = messages[0].content; return { content: 'ok', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm, calendar: new LocalCalendar({ store, getConfig: () => store.settings.agenda, now: () => T }), now: () => T });
+  agent.videoSlots = async () => ({ ok: true }); agent.videoBook = async () => ({ ok: true });
+  await agent.handleIncoming({ key: 'k3', phone: '5511999990003', name: 'Rita', text: 'oi' }, async () => {});
+  assert.match(system, /NÃO é para todo mundo/);
+  assert.match(system, /TEM CONDIÇÕES FINANCEIRAS/);
+  assert.match(system, /Esse valor faz sentido para você\? Você teria condições/);
+  assert.match(system, /NÃO ofereça videochamada, NÃO use horarios_videochamada/);
+  assert.match(system, /nunca humilhe/);
 });
