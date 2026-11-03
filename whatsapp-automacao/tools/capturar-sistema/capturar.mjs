@@ -129,6 +129,18 @@ function juntar(base, novo) {
   return n;
 }
 
+/** Guarda a página (HTML limpo + foto da tela inteira) de modelos de contrato e de algumas amostras, para eu copiar o modelo aprovado. */
+async function salvarModelo(page, pasta, url, lista) {
+  const n = String(lista.length + 1).padStart(2, '0');
+  fs.mkdirSync(path.join(pasta, 'modelos'), { recursive: true });
+  try {
+    const html = await page.evaluate(() => document.documentElement.outerHTML.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, ''));
+    fs.writeFileSync(path.join(pasta, 'modelos', `${n}.html`), html.slice(0, 400_000));
+    await page.screenshot({ path: path.join(pasta, 'modelos', `${n}.png`), fullPage: true }).catch(() => {});
+    lista.push({ n, url });
+  } catch { /* página que não deu para guardar */ }
+}
+
 const semHash = (u) => u.split('#')[0];
 const padrao = (u) => { try { const x = new URL(u); return x.pathname.replace(/\/\d+(?=\/|$)/g, '/{n}').replace(/[0-9a-f]{8,}/gi, '{id}'); } catch { return u; } };
 
@@ -155,7 +167,7 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
   });
   const fila = [semHash(inicio)];
   const vistos = new Set(fila);
-  const paginas = []; const pdfs = new Map();
+  const paginas = []; const pdfs = new Map(); const modelos = []; let amostras = 0;
   while (fila.length && paginas.length < maxPaginas) {
     const url = fila.shift();
     try {
@@ -173,6 +185,9 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
         for (const l of mais.pdfs) d.pdfs.push(l);
         if (juntar(d, mais) === 0) break;
       }
+      // Modelo de contrato (gerador, modelos, assinatura) e 3 amostras de contratos: HTML + foto da tela.
+      if (modelos.length < 12 && /(gerador|modelo|template|minuta|assin)/i.test(url)) await salvarModelo(page, pasta, url, modelos);
+      else if (amostras < 3 && /contrat/i.test(url) && /\/\d+/.test(url)) { amostras += 1; await salvarModelo(page, pasta, url, modelos); }
       // Botões que só MOSTRAM informação: sino de notificações, abas (ex.: contratos vencidos) e "carregar mais".
       const feitos = [];
       for (let k = 0; k < 15; k++) {
@@ -221,6 +236,7 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
   const linhas = [`Sistema: ${origem}`, `Páginas lidas: ${paginas.length} · PDFs baixados: ${n} · respostas JSON: ${api.length}`, ''];
   for (const [k, g] of grupos) linhas.push(`${k}  (${g.n} páginas)`, ...[...g.colunas].slice(0, 5).map((c) => `   colunas: ${c}`), g.rotulos.size ? `   campos: ${[...g.rotulos].slice(0, 40).join(' | ')}` : '', '');
   if (videos.size) { linhas.push('Vídeos encontrados (endereços):'); for (const m of [...videos.values()].slice(0, 60)) linhas.push(`  ${m.title ? `${m.title} | ` : ''}${m.src}`); linhas.push(''); }
+  if (modelos.length) { linhas.push('Modelos e amostras de contrato guardados na pasta "modelos" (podem ter dados de clientes: envie só os modelos em branco):'); for (const m of modelos) linhas.push(`  ${m.n}: ${padrao(m.url)}`); linhas.push(''); }
   linhas.push('Respostas JSON (só os nomes dos campos):');
   for (const a of api.slice(0, 40)) { const first = Array.isArray(a.json) ? a.json[0] : a.json; linhas.push(`  ${padrao(a.url)}: ${first && typeof first === 'object' ? Object.keys(first).slice(0, 30).join(', ') : typeof first}`); }
   fs.writeFileSync(path.join(pasta, 'mapa.txt'), linhas.join('\n'));

@@ -23,7 +23,7 @@ function sistemaFalso() {
     if (u.pathname === '/contratos') {
       const pg = Number(u.searchParams.get('pagina') || 1);
       const part = CONTRATOS.slice((pg - 1) * 4, pg * 4);
-      return send(`<h1>Contratos</h1><a href="/sair">Sair</a><table><thead><tr><th>Nº</th><th>Cliente</th><th>Valor</th><th>Data</th><th></th></tr></thead><tbody>${part.map((c) => `<tr><td>${c.n}</td><td>${c.nome}</td><td>R$ ${c.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td>${c.data}</td><td><a href="/contratos/ver/${c.n}">Ver</a> <a href="/contratos/excluir/${c.n}">Excluir</a></td></tr>`).join('')}</tbody></table>${pg === 1 ? '<a href="/contratos?pagina=2">Próxima</a>' : ''}<a href="/contratos/dinamico">Clientes</a><a href="https://www.youtube.com/watch?v=abcDEF12345" title="Depoimento da Maria">vídeo</a><video src="/contratos/v.mp4"></video><button aria-label="Notificações" onclick="document.getElementById('nt').textContent='Aviso: contrato 503 vencido há 5 dias'">sino</button><div id="nt"></div><button role="tab" aria-selected="false" onclick="document.getElementById('ab').textContent='Aba Vencidos: 2 contratos'">Vencidos</button><div id="ab"></div><button role="tab" onclick="fetch('/contratos/excluir/aba')">Excluir aba</button>`);
+      return send(`<h1>Contratos</h1><a href="/sair">Sair</a><table><thead><tr><th>Nº</th><th>Cliente</th><th>Valor</th><th>Data</th><th></th></tr></thead><tbody>${part.map((c) => `<tr><td>${c.n}</td><td>${c.nome}</td><td>R$ ${c.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td>${c.data}</td><td><a href="/contratos/ver/${c.n}">Ver</a> <a href="/contratos/excluir/${c.n}">Excluir</a></td></tr>`).join('')}</tbody></table>${pg === 1 ? '<a href="/contratos?pagina=2">Próxima</a>' : ''}<a href="/contratos/dinamico">Clientes</a><a href="https://www.youtube.com/watch?v=abcDEF12345" title="Depoimento da Maria">vídeo</a><video src="/contratos/v.mp4"></video><button aria-label="Notificações" onclick="document.getElementById('nt').textContent='Aviso: contrato 503 vencido há 5 dias'">sino</button><div id="nt"></div><button role="tab" aria-selected="false" onclick="document.getElementById('ab').textContent='Aba Vencidos: 2 contratos'">Vencidos</button><div id="ab"></div><a href="/contratos/gerador">Gerador de contratos</a><button role="tab" onclick="fetch('/contratos/excluir/aba')">Excluir aba</button>`);
     }
     const m = u.pathname.match(/^\/contratos\/ver\/(\d+)$/);
     if (m) {
@@ -36,6 +36,7 @@ function sistemaFalso() {
         function show() { document.getElementById('b').innerHTML = todos.slice(p * 5, p * 5 + 5).map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join(''); document.getElementById('nx').disabled = (p + 1) * 5 >= todos.length; }
         function go() { p++; show(); } show();</script>`);
     }
+    if (u.pathname === '/contratos/gerador') return send('<h1>Gerador de contratos</h1><p>CLÁUSULA PRIMEIRA – DO OBJETO: o presente contrato tem por objeto a assessoria migratória.</p><textarea>CLÁUSULA SEGUNDA – DAS OBRIGAÇÕES</textarea>');
     if (u.pathname.endsWith('.pdf')) return send('%PDF-1.4 fake', 'application/pdf');
     res.writeHead(404); res.end('x');
   });
@@ -82,7 +83,7 @@ test('ferramenta de captura: percorre a lista e as páginas, lê fichas e PDFs, 
   const context = await browser.newContext();
   const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'cap-'));
   const r = await capturar(context, { inicio: `${url}/contratos`, pasta, espera: 0, log: () => {} });
-  assert.equal(r.paginas, 3 + CONTRATOS.length, 'lista (2 páginas) + clientes + uma ficha por contrato');
+  assert.equal(r.paginas, 4 + CONTRATOS.length, 'lista (2 páginas) + clientes + gerador + uma ficha por contrato');
   assert.equal(r.pdfs, CONTRATOS.length);
   assert.ok(!hits.some((h) => /sair|excluir/.test(h)), 'nunca visitou sair nem excluir');
   const bruto = fs.readFileSync(path.join(pasta, 'captura.json'), 'utf8');
@@ -100,6 +101,10 @@ test('ferramenta de captura: percorre a lista e as páginas, lê fichas e PDFs, 
   const dinamica = JSON.parse(bruto).pages.find((p) => p.url.endsWith('/dinamico'));
   assert.equal(dinamica.tables[0].rows.length, 12, 'clicou em Próxima até acabar e juntou as 3 páginas da lista');
   assert.ok(!hits.some((h) => /excluir/.test(h)), 'nunca clicou em Excluir');
+  const modeloHtml = fs.readdirSync(path.join(pasta, 'modelos')).filter((f) => f.endsWith('.html')).map((f) => fs.readFileSync(path.join(pasta, 'modelos', f), 'utf8'));
+  assert.ok(modeloHtml.some((h) => h.includes('CLÁUSULA PRIMEIRA – DO OBJETO')), 'guardou o modelo de contrato do gerador');
+  assert.ok(fs.readdirSync(path.join(pasta, 'modelos')).some((f) => f.endsWith('.png')), 'e a foto da tela dele');
+  assert.match(mapa, /Modelos e amostras de contrato/);
   const lista = JSON.parse(bruto).pages.find((p) => /\/contratos(\?|$)/.test(p.url));
   assert.match(lista.texto, /Aviso: contrato 503 vencido há 5 dias/, 'abriu o sino de notificações e leu o aviso');
   assert.match(lista.texto, /Aba Vencidos: 2 contratos/, 'abriu a aba de vencidos');
