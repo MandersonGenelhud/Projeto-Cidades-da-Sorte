@@ -52,6 +52,9 @@ Atualizado em 31/10/2026. Tudo abaixo está no sistema depois de **Atualizar ago
 - **Preço do serviço (revenda da automação).** A aba **Preço do serviço** mede o consumo real da IA (tokens e respostas por escritório) e calcula o custo por resposta, os custos fixos, o suporte e a margem, com planos sugeridos, excedente e texto de proposta. Os preços do Google são digitados por você (nunca ficam no código). Guia completo em `PRECIFICACAO.md`.
 - **Cópia completa do sistema do Marcos:** o programa de cópia agora também lê os números das telas, o sino de notificações, as abas (contratos vencidos), as parcelas e os cadastros de clientes. No painel, **Contratos antigos → Levar para Vendas e CRM** transforma os contratos com parcelas em vendas (vencimentos, atrasos e a receber no Painel executivo, sem comissão) e os clientes em prospectos do CRM.
 - **Cópia e envio 100% automáticos:** o programa baixado pelo painel copia o sistema antigo (com as fotos e documentos) e já manda tudo para o sistema novo: contratos, clientes, parcelas, arquivos no contrato certo, vendas e CRM. Sem importar nada à mão.
+- **Vagas e currículos:** quem pergunta por emprego, vaga ou oportunidade de vendedor/corretor recebe a resposta de que as 3 vagas de vendedor foram preenchidas e é convidado a mandar o currículo; ninguém é avisado (nem o Marcos, nem parceiros). Contato e arquivo ficam na aba **Currículos**.
+- **Auditoria da cópia:** em **Contratos antigos** compara o que o sistema antigo mostra (ex.: 371 clientes) com o que foi copiado e lista páginas que não abriram. A cópia agora tenta de novo e troca de aba quando o navegador fica sem recursos.
+- **Lacunas do CRM:** `LACUNAS-CRM.md` com o que falta, por prioridade.
 - **Ainda falta:** endereço próprio de cada site (domínio por marca), pacote de documentos e legislação de imigração, painel consolidado por empresa, número de contrato compartilhado com o site do Marcos.
 
 ## 5. Pendências suas

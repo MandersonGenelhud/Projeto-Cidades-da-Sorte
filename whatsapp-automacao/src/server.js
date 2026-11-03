@@ -38,6 +38,7 @@ import { byAttendant, attendantOf } from './attendants.js';
 import { LegacyContracts } from './legacy-import.js';
 import { buildBat } from './legacy-tool.js';
 import { Ingest, MIME as FILE_MIME } from './legacy-ingest.js';
+import { Resumes, MIME_BY_EXT } from './resumes.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
 import { siteGuard, siteHostsFrom, siteOfficeMap, hostOf } from './site-host.js';
@@ -206,6 +207,13 @@ sectors.officeOfKey = officeOfKey;
 /** Com um escritório escolhido (administrador geral) ou fixo (equipe), mostra só ele; 'all' mostra os dois. */
 const inOffice = (req, office) => !req.office || req.office === 'all' || req.office === (normOffice(office) || 'py');
 // Cada escritório pode ter a própria IA: nome da atendente, texto do negócio e instruções próprias.
+// Banco de currículos: quem pergunta por vaga ou manda currículo fica guardado, sem avisar ninguém.
+const resumes = new Resumes({ store, dataDir: DATA_DIR, download: (msg) => wa.downloadAudio(msg), send: (jid, p) => wa.send(jid, { ...p, typing: false }), remember: (conv, role, text) => agent.remember(conv, role, text) });
+agent.registerCandidate = async (conv, args, { dryRun } = {}) => {
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: 'Simulação: diga que as vagas de vendedor foram preenchidas (eram 3), que hoje não precisamos de mais gente e que pode mandar o currículo.' };
+  resumes.register(conv, args);
+  return { ok: true, instrucao: 'Contato guardado no banco de currículos (ninguém foi avisado). Agora diga com educação: todas as vagas de vendedor já foram preenchidas (eram apenas 3), hoje não estamos precisando de mais gente, mas se quiser pode enviar o currículo por aqui que deixamos guardado no banco de dados e retornamos caso surja necessidade. Não prometa retorno nem prazo.' };
+};
 // Consumo da IA por escritório (base do preço do serviço).
 const usage = new Usage({ store });
 llm.onUsage = (u) => usage.record(u);
@@ -991,6 +999,11 @@ wa.on('message', (msg) => {
     else if (!nina.enabled) store.addLog({ type: 'error', message: 'Nina: recebi uma mensagem sua, mas a Nina está desligada (Caixa → ⚙️ → Nina).' });
     return;
   }
+  // Candidato a vaga mandou o currículo: guarda o arquivo e agradece, sem avisar ninguém.
+  if (!msg.isGroup && !msg.fromMe) {
+    const cv = agent.conversation(msg.jid, { create: false });
+    if (cv && resumes.wants(msg, cv)) { resumes.handle(msg, cv).catch((err) => store.addLog({ type: 'error', message: `Currículo: ${err.message}` })); return; }
+  }
   // Cliente com Pix em aberto mandou foto/PDF: se for o comprovante, a IA lê, confere e dá baixa; se não for, segue o atendimento.
   if (receipts.wants(msg)) {
     receipts.handle(msg).then((done) => done || routeIncoming(msg)).catch((err) => { store.addLog({ type: 'error', message: `Comprovante: ${err.message}` }); routeIncoming(msg); });
@@ -1162,7 +1175,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -2540,6 +2553,28 @@ app.put('/api/site', (req, res) => {
   res.json(after);
 });
 
+// Currículos (só administrador).
+app.get('/api/resumes', (req, res) => {
+  const q = String(req.query.q || '').toLowerCase();
+  res.json(resumes.list.filter((r) => !q || `${r.name} ${r.phone} ${r.interest} ${r.summary}`.toLowerCase().includes(q)).map(({ files, ...r }) => ({ ...r, files: files.map(({ stored, ...f }) => f) })).reverse());
+});
+app.get('/api/resumes/export.csv', (req, res) => {
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'currículos', label: 'Baixou a planilha de currículos' });
+  res.type('text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="curriculos.csv"').send(resumes.csv());
+});
+app.get('/api/resumes/:id/files/:fid', (req, res) => {
+  const f = resumes.filePath(req.params.id, req.params.fid);
+  if (!f || !fs.existsSync(f.path)) throw httpError(404, 'Arquivo não encontrado');
+  res.set({ 'Content-Type': MIME_BY_EXT[f.ext] || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': 'sandbox', 'Content-Disposition': `inline; filename="${encodeURIComponent(f.name)}"` });
+  res.sendFile(f.path);
+});
+app.patch('/api/resumes/:id', (req, res) => res.json(resumes.update(req.params.id, req.body || {})));
+app.delete('/api/resumes/:id', (req, res) => {
+  const r = resumes.list.find((x) => x.id === req.params.id);
+  resumes.remove(req.params.id);
+  audit.record({ user: req.user, ip: clientIp(req), action: 'excluiu', entity: 'currículo', label: r ? `${r.name || r.phone || r.id}` : req.params.id });
+  res.json({ ok: true });
+});
 // Contratos do sistema antigo (importados pela ferramenta tools/capturar-sistema). Só administrador.
 const legacyUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 80_000_000 } }).single('file');
 const readCapture = (req) => {

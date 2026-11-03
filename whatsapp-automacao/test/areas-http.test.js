@@ -59,6 +59,8 @@ test('perfis na prática: vendedor não exclui, gerente cadastra mas não exclui
   assert.equal((await seller('/api/audit')).status, 403);
   assert.equal((await seller('/api/school/summary')).status, 403);
   assert.equal((await seller('/api/attendants')).status, 403);
+  for (const u of ['/api/resumes', '/api/resumes/export.csv', '/api/legacy/audit']) assert.equal((await seller(u)).status, 403, u);
+  assert.equal((await admin('/api/resumes')).status, 200);
   assert.equal((await manager('/api/attendants')).status, 403);
   assert.equal((await admin('/api/attendants')).status, 200);
   // painel executivo: só administrador; módulos em standby: vendedor só lê

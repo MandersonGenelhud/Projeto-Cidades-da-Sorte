@@ -245,12 +245,28 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
-      name: 'avisar_marcos',
-      description: 'Para assuntos que não são venda de pacote: quem quer trabalhar na Migra (contratação, currículo, vaga: vai para o Gabriel, da equipe), propostas de parceria de negócio, fornecedores, imprensa ou investidores (vão para o Marcos); e quem quer a mentoria paga com o Marcos (assunto "mentoria"). Avisa no WhatsApp com o resumo.',
+      name: 'registrar_candidato',
+      description: 'Quem pergunta por vaga, emprego, trabalho, oportunidade de vendedor ou corretor na Migra ou na corretora, ou fala em enviar currículo. Registra o contato no banco de currículos (ninguém é avisado, não vai para o Marcos nem para parceiros). Depois responda que as vagas foram preenchidas e convide a mandar o currículo.',
       parameters: {
         type: 'object',
         properties: {
-          assunto: { type: 'string', enum: ['contratação', 'parceria de negócio', 'fornecedor', 'imprensa', 'mentoria', 'outro'] },
+          nome: { type: 'string', description: 'Nome da pessoa, se disse' },
+          interesse: { type: 'string', description: 'Que vaga ou área procura (vendedor, corretor, administrativo…)' },
+          resumo: { type: 'string', description: 'Experiência, cidade e o que contou sobre si, em até 3 frases' },
+        },
+        required: ['interesse'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'avisar_marcos',
+      description: 'Para assuntos que não são venda de pacote: propostas de parceria de negócio, fornecedores, imprensa ou investidores (vão para o Marcos); e quem quer a mentoria paga com o Marcos (assunto "mentoria"). Avisa no WhatsApp com o resumo.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assunto: { type: 'string', enum: ['parceria de negócio', 'fornecedor', 'imprensa', 'mentoria', 'outro'] },
           resumo: { type: 'string', description: 'O que a pessoa quer, em até 3 frases' },
           nome: { type: 'string', description: 'Nome da pessoa ou da empresa' },
         },
@@ -427,6 +443,10 @@ export async function runTool(name, args, ctx) {
       case 'agendar_retorno': {
         if (!ctx.onReturn) return { erro: 'Indisponível. Use passar_fechamento_para_humano.' };
         return await ctx.onReturn(args);
+      }
+      case 'registrar_candidato': {
+        if (!ctx.onCandidate) return { ok: true, instrucao: 'Diga que as vagas estão preenchidas e que pode mandar o currículo.' };
+        return await ctx.onCandidate(args);
       }
       case 'avisar_marcos': {
         if (!ctx.onOwner) {
