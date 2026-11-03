@@ -18,13 +18,16 @@ export const DEFAULT_PRICING = {
   setupBrl: 0,        // taxa de implantação (única)
   estInTokens: 17000, // estimativa de entrada por resposta, usada só enquanto não há consumo medido
   estOutTokens: 400,  // estimativa de saída por resposta
+  spentBrl: 0,        // gasto REAL já feito com a IA (R$), informado por quem paga a conta
+  spentAsOf: '',      // data em que esse gasto foi informado
 };
 
 export function cleanPricing(input = {}, base = DEFAULT_PRICING) {
   const out = { ...base };
-  for (const [k, max] of [['inPerM', 1000], ['outPerM', 1000], ['usdBrl', 100], ['fixedBrl', 1e7], ['clients', 1000], ['supportHours', 1000], ['hourBrl', 1e5], ['markupPct', 2000], ['setupBrl', 1e7], ['estInTokens', 2e6], ['estOutTokens', 1e5]]) {
+  for (const [k, max] of [['inPerM', 1000], ['outPerM', 1000], ['usdBrl', 100], ['fixedBrl', 1e7], ['clients', 1000], ['supportHours', 1000], ['hourBrl', 1e5], ['markupPct', 2000], ['setupBrl', 1e7], ['estInTokens', 2e6], ['estOutTokens', 1e5], ['spentBrl', 1e8]]) {
     if (input[k] !== undefined) out[k] = k === 'clients' ? Math.max(1, Math.floor(num(input[k], max))) : num(input[k], max);
   }
+  if (input.spentAsOf !== undefined) out.spentAsOf = /^\d{4}-\d{2}-\d{2}$/.test(String(input.spentAsOf)) ? String(input.spentAsOf) : '';
   return out;
 }
 
@@ -32,6 +35,61 @@ export class Usage {
   constructor({ store }) {
     this.store = store;
     store.data.usage ||= { days: {} };
+    // Dia em que a medição exata começou (antes disso só existe a contagem estimada pela memória das conversas).
+    store.data.usage.since ||= dayOf();
+  }
+
+  /**
+   * Uma vez só: conta, nas conversas guardadas, as mensagens que a atendente já tinha enviado ANTES da medição exata.
+   * É um mínimo (cada conversa guarda só as últimas 200 mensagens) e entra como "estimado".
+   */
+  backfill(conversations, officeOf = () => 'py') {
+    const u = this.store.data.usage;
+    if (u.backfill) return u.backfill;
+    const since = u.since;
+    let messages = 0; let from = ''; let to = '';
+    for (const c of conversations) {
+      if (c.simulation) continue;
+      const office = officeOf(c) || 'py';
+      for (const m of c.messages || []) {
+        if (m.role !== 'assistant' || !m.at) continue;
+        const day = dayOf(m.at);
+        if (day >= since) continue;
+        const b = this.#bucket(office, day);
+        b.est = (b.est || 0) + 1;
+        messages += 1;
+        if (!from || day < from) from = day;
+        if (!to || day > to) to = day;
+      }
+    }
+    u.backfill = { messages, from, to, at: new Date().toISOString() };
+    this.store.save();
+    return u.backfill;
+  }
+
+  /** Painel: total, hoje, mês e por mês (de um escritório ou dos dois). */
+  summary(office = '', now = new Date()) {
+    const u = this.store.data.usage;
+    const today = dayOf(now);
+    const out = { since: u.since, backfill: u.backfill || null, measuredReplies: 0, estimatedReplies: 0, total: 0, calls: 0, inTok: 0, outTok: 0, today: 0, month: 0, byMonth: [], first: '', last: '' };
+    const months = new Map();
+    for (const [day, offices] of Object.entries(this.days)) {
+      for (const [id, b] of Object.entries(offices)) {
+        if (office && id !== office) continue;
+        const n = (b.replies || 0) + (b.est || 0);
+        out.measuredReplies += b.replies || 0; out.estimatedReplies += b.est || 0;
+        out.calls += b.atendimento.calls + b.outros.calls; out.inTok += b.atendimento.inTok + b.outros.inTok; out.outTok += b.atendimento.outTok + b.outros.outTok;
+        if (day === today) out.today += n;
+        if (day.slice(0, 7) === today.slice(0, 7)) out.month += n;
+        if (n) { if (!out.first || day < out.first) out.first = day; if (!out.last || day > out.last) out.last = day; }
+        const m = months.get(day.slice(0, 7)) || { month: day.slice(0, 7), replies: 0, estimated: 0 };
+        m.replies += b.replies || 0; m.estimated += b.est || 0;
+        months.set(day.slice(0, 7), m);
+      }
+    }
+    out.total = out.measuredReplies + out.estimatedReplies;
+    out.byMonth = [...months.values()].sort((x, y) => x.month.localeCompare(y.month));
+    return out;
   }
 
   get days() {

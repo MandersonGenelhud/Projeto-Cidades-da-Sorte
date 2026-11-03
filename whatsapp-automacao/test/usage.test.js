@@ -77,3 +77,28 @@ test('calibra com o gasto real: mensagens do período, custo por mensagem e proj
   assert.deepEqual([only.messages, only.periodDays], [3, 1]);
   assert.equal(historyReport([], { totalCostBrl: 1 }).empty, true);
 });
+
+test('memória das conversas vira contagem estimada uma vez só; medição exata soma por cima; resumo por mês e custo por resposta', () => {
+  const store = tempStore();
+  const u = new Usage({ store });
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  store.data.usage.since = today; // a medição exata começou hoje
+  const at = (d) => `${d}T15:00:00Z`;
+  const convs = [
+    { key: 'a', messages: [{ role: 'user', content: 'x', at: at('2026-10-30') }, { role: 'assistant', content: 'x', at: at('2026-10-30') }, { role: 'assistant', content: 'x', at: at('2026-10-31') }, { role: 'assistant', content: 'x', at: `${today}T15:00:00Z` }] },
+    { key: 'b', messages: [{ role: 'assistant', content: 'x', at: at('2026-10-31') }] },
+    { key: 'sim', simulation: true, messages: [{ role: 'assistant', content: 'x', at: at('2026-10-31') }] },
+  ];
+  const b = u.backfill(convs, (c) => (c.key === 'b' ? 'pr' : 'py'));
+  assert.deepEqual([b.messages, b.from, b.to], [3, '2026-10-30', '2026-10-31'], 'só antes da medição exata; simulação não conta');
+  assert.equal(u.backfill(convs).messages, 3, 'não conta de novo');
+  u.reply('py'); u.reply('pr');
+  const now = new Date();
+  const all = u.summary('', now);
+  assert.deepEqual([all.estimatedReplies, all.measuredReplies, all.total], [3, 2, 5]);
+  assert.equal(u.summary('pr', now).total, 2, '1 estimada + 1 medida do Paraná');
+  assert.deepEqual(all.byMonth.map((m) => [m.month, m.estimated, m.replies]), [['2026-10', 3, 0], [today.slice(0, 7), 0, 2]]);
+  assert.equal(all.first, '2026-10-30');
+  // estimadas não entram na média de tokens por resposta
+  assert.equal(u.month('2026-10').replies, 0);
+});

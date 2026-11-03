@@ -2292,6 +2292,8 @@ const conversationOffice = (c) => {
   const lead = crm.findForConversation({ key: c.key, phone: c.phone, username: c.username });
   return lead ? crm.officeOf(lead) : officeOfKey(c.key);
 };
+// Conta, uma vez só, as mensagens que a atendente já tinha enviado antes da medição exata (mínimo, pela memória das conversas).
+usage.backfill(Object.values(store.data.conversations || {}), conversationOffice);
 const lineOwnerOf = (key) => { const l = parseLineKey(key); const line = l && lines.get(l.id); return line ? { ownerId: line.ownerId || null, label: line.label } : null; };
 // Administrador: cada conversa vem com o atendente responsável, para a tela separar por pessoa.
 app.get('/api/conversations', (req, res) => {
@@ -2370,11 +2372,14 @@ const execFor = (office) => {
   const only = office && office !== 'all' ? office : '';
   const stats = crm.stats({ from: month.from, to: month.to, office: only });
   const open = visits.list.filter((v) => ['pendente', 'aguardando_taxa', 'remarcar'].includes(v.status)).length;
-  return buildExecutive({
+  const exec = buildExecutive({
     sales: sales.list.filter((s) => !only || sales.officeOf(s) === only), now,
     crm: { newLeads: stats.newLeads, openLeads: stats.openLeads, openValue: stats.openValue, won: stats.won, wonValue: stats.wonValue, lost: stats.lost, conversion: stats.conversion, avgTicket: stats.avgTicket, followUps: stats.followUps, byStage: stats.byStage, bySource: stats.bySource, months: stats.months },
     extras: { visitasAbertas: only && only !== 'py' ? 0 : open, retomarNovos: only && only !== 'py' ? 0 : reengage.summary().novo, esperando: pending.list().filter((p) => !only || officeOfKey(p.jid) === only).length, whatsapp: wa.status },
   });
+  const us = usage.summary(only);
+  exec.usage = { month: us.month, today: us.today, total: us.total };
+  return exec;
 };
 app.get('/api/executive', (req, res) => res.json(execFor(req.office)));
 // Escritórios: nomes, IA própria de cada um e comparativo de resultados.
@@ -2427,6 +2432,15 @@ app.get('/api/pricing', (req, res) => {
   const office = OFFICE_IDS.includes(req.query.office) ? req.query.office : '';
   const measured = usage.month(month, office);
   res.json({ month, office, config: pricingCfg(), measured, model: priceModel(measured, pricingCfg()), aiModel: store.settings.agent?.geminiModel || '', provider: store.settings.agent?.provider || '' });
+});
+// Quantas respostas a atendente já enviou (total, hoje, mês) e quanto custa cada uma, com o gasto real informado.
+app.get('/api/usage/summary', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador geral');
+  const office = OFFICE_IDS.includes(req.query.office) ? req.query.office : req.office !== 'all' ? req.office : '';
+  const sum = usage.summary(office);
+  const cfg = pricingCfg();
+  const per = sum.total && cfg.spentBrl ? cfg.spentBrl / sum.total : 0;
+  res.json({ ...sum, office, spentBrl: cfg.spentBrl, spentAsOf: cfg.spentAsOf, costPerReply: Number(per.toFixed(4)), costPer1000: Math.round(per * 1000 * 100) / 100 });
 });
 // Calibra o preço com o gasto real já feito (R$) e as mensagens que a atendente já enviou.
 app.get('/api/pricing/history', (req, res) => {

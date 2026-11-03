@@ -9,6 +9,9 @@
     <div class="page-head"><h1>Preço do serviço</h1></div>
     <p class="hint">Calcula quanto cobrar de uma empresa (como a Migra Paraná) pela automação: custo da IA por resposta, custos fixos, suporte e a sua margem. O sistema mede o consumo real. <b>Os preços do Google você digita</b> (ai.google.dev/pricing), para a conta nunca usar número velho.</p>
     <div id="prWarn"></div>
+    <div class="panel"><h2>Mensagens da atendente</h2>
+      <div id="usCards" class="cards"></div><p id="usNote" class="hint"></p>
+      <div class="row"><label>Gasto real com a IA até hoje (R$) <input id="usSpent" inputmode="decimal" placeholder="415,83" /></label><button class="btn" id="usSave" type="button">Salvar gasto</button></div></div>
     <div class="panel"><h2>Calibrar com o gasto real</h2>
       <p class="hint">Digite quanto já foi gasto com a IA (em reais) e, se quiser, o período. O sistema conta as mensagens que a atendente já enviou, divide pelos dias em que rodou e projeta 30 dias. A contagem é um mínimo, porque cada conversa guarda só as últimas 200 mensagens.</p>
       <div class="row"><label>Gasto total até agora (R$) <input id="hsCost" inputmode="decimal" placeholder="415,83" /></label><label>De <input id="hsFrom" type="date" /></label><label>Até <input id="hsTo" type="date" /></label>
@@ -45,7 +48,22 @@
   const f = q('#prForm');
   let last = null;
   const month = () => q('#prMonth').value || new Date().toISOString().slice(0, 7);
+  async function loadUsage() {
+    const u = await api('/api/usage/summary');
+    const n = (v) => Number(v || 0).toLocaleString('pt-BR');
+    q('#usCards').innerHTML = `<div class="card"><b>${n(u.total)}</b><span>respostas da atendente até hoje</span></div><div class="card"><b>${n(u.month)}</b><span>neste mês</span></div><div class="card"><b>${n(u.today)}</b><span>hoje</span></div>
+      <div class="card"><b>${u.costPerReply ? brl(u.costPerReply) : '—'}</b><span>custo por resposta${u.costPerReply ? ` (${brl(u.costPer1000)} a cada 1.000)` : ' (informe o gasto)'}</span></div>`;
+    const b = u.backfill;
+    q('#usNote').textContent = `Total = ${n(u.estimatedReplies)} respostas contadas pela memória das conversas${b?.from ? ` (de ${b.from.split('-').reverse().join('/')} a ${b.to.split('-').reverse().join('/')}; é um mínimo, porque cada conversa guarda só as últimas 200 mensagens)` : ''} + ${n(u.measuredReplies)} medidas com exatidão desde ${u.since.split('-').reverse().join('/')}.${u.spentBrl ? ` Gasto informado: ${brl(u.spentBrl)}${u.spentAsOf ? ` em ${u.spentAsOf.split('-').reverse().join('/')}` : ''}.` : ''}`;
+    if (u.spentBrl && !q('#usSpent').value) q('#usSpent').value = String(u.spentBrl).replace('.', ',');
+  }
+  q('#usSave').onclick = async () => {
+    const v = Number(String(q('#usSpent').value || '').replace(/\./g, '').replace(',', '.'));
+    if (!(v >= 0)) return toast('Digite o gasto em reais', true);
+    try { await api('/api/pricing', { method: 'PUT', body: { spentBrl: v, spentAsOf: new Date().toISOString().slice(0, 10) } }); toast('Gasto salvo'); loadUsage(); } catch (e) { toast(e.message, true); }
+  };
   async function load() {
+    loadUsage().catch(() => {});
     q('#prMonth').value ||= new Date().toISOString().slice(0, 7);
     const r = await api(`/api/pricing?month=${month()}&office=${q('#prOffice').value}`);
     last = r;

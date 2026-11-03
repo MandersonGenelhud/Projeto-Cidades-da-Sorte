@@ -41,6 +41,7 @@
         ${kpi('alert', 'Em atraso', brl(k.atrasadoTotal), `${k.atrasadasQtd} parcela(s)`, k.atrasadasQtd ? 'r' : 'g')}
         ${kpi('trend', 'Vendido no mês', brl(k.vendidoMes), `comissões em aberto: ${brl(k.comissaoAberta)}`, 'v')}
         ${kpi('attendants', 'Leads novos no mês', crm.newLeads ?? 0, `${crm.openLeads ?? 0} em aberto`, 'c')}
+        ${kpi('inbox', 'Respostas da IA no mês', (d.usage?.month ?? 0).toLocaleString('pt-BR'), `${(d.usage?.total ?? 0).toLocaleString('pt-BR')} no total, ${(d.usage?.today ?? 0).toLocaleString('pt-BR')} hoje`)}
         ${kpi('award', 'Conversão', crm.conversion == null ? '—' : `${crm.conversion}%`, `${crm.won ?? 0} fechado(s) · ${brl(crm.wonValue)}`, 'g')}
       </section>
       <section class="xd-card"><div class="xd-card-head"><h2>Cobranças e vencimentos</h2>
