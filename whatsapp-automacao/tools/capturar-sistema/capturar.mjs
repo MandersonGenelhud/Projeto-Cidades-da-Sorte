@@ -111,7 +111,9 @@ function marcarSeguro([perigoso, jaFeitos]) {
     const ehSino = /notifica/.test(rotulo) || /bell/.test(`${el.className} ${alvo.className}`.toString().toLowerCase()) || /notif/.test((alvo.getAttribute('data-testid') || '').toLowerCase());
     const ehAba = alvo.getAttribute('role') === 'tab' && alvo.getAttribute('aria-selected') !== 'true';
     const ehMais = /^(carregar mais|ver mais|mostrar mais|load more)$/.test(rotulo);
-    if (!(ehSino || ehAba || ehMais)) continue;
+    // Botões que só trocam a forma de ver (ex.: Kanban / Lista em Processos): a lista traz a tabela com valor, pago e prazo.
+    const ehVisao = /^(lista|tabela|list|table)$/.test(rotulo);
+    if (!(ehSino || ehAba || ehMais || ehVisao)) continue;
     if (alvo.disabled || alvo.getAttribute('aria-disabled') === 'true' || !alvo.offsetParent) continue;
     if (ruim.test(rotulo) || ruim.test(href || '')) continue;
     const form = alvo.closest('form');

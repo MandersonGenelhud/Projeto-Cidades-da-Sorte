@@ -42,6 +42,7 @@ import { Resumes, MIME_BY_EXT } from './resumes.js';
 import { VideoCalls, priceSeen } from './videocalls.js';
 import { Live } from './live.js';
 import { Recordings } from './recordings.js';
+import { Documents, TYPES as DOC_TYPES } from './documents.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
 import { siteGuard, siteHostsFrom, siteOfficeMap, hostOf } from './site-host.js';
@@ -281,6 +282,7 @@ const ingest = new Ingest({ store, dataDir: DATA_DIR, legacy, sales: null, crm: 
 const videocalls = new VideoCalls({ store, auth });
 const live = new Live({ store });
 const recordings = new Recordings({ store });
+const documents = new Documents({ store });
 agent.liveInfo = () => live.promptInfo(`${publicBase()}/live`);
 const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 // Só quem já viu o valor (e disse que tem condições) vai para a videochamada com o consultor.
@@ -1241,7 +1243,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1682,6 +1684,8 @@ app.use('/api', (req, res, next) => {
   if (user.role === 'admin') return next();
   // Quem cuida das visitas (Silvani) confirma, remarca e cancela pela aba Visitas.
   if (/^\/visits(\/[a-f0-9]+\/(confirm|reschedule|cancel|done))?$/.test(req.path) && isVisitDesk(user)) return next();
+  // Quem cuida dos documentos (setor de documentação) usa a aba Documentos.
+  if (/^\/documents(\/|$)/.test(req.path) && (user.sectors || []).includes('documentacao')) return next();
   // Administrador do escritório: cuida da equipe, das conversas e dos resultados SÓ do próprio escritório (cada rota confere o escritório).
   if (user.officeAdmin && OFFICE_ADMIN_ROUTES.some(([method, re]) => method === req.method && re.test(req.path))) return next();
   // Gerente: cadastra mapas, lotes e produtos (criar e editar, nunca excluir).
@@ -2155,6 +2159,30 @@ app.delete('/api/blacklist/:phone', (req, res) => {
 
 // Grupos
 app.get('/api/groups', async (_req, res) => res.json(await wa.getGroups()));
+// Quem do grupo já foi atendido: cruza os membros com as conversas, o CRM e os clientes/contratos copiados do sistema antigo.
+// Só lê o grupo (nada é enviado a ninguém) e só o administrador vê.
+const digitsOf = (v) => String(v || '').replace(/\D/g, '');
+function attendedPhones() {
+  const m = new Map();
+  const add = (phone, via) => { const d = digitsOf(phone); if (d.length >= 8 && !m.has(d)) m.set(d, via); };
+  for (const c of Object.values(store.data.conversations || {})) add(c.phone, 'conversa');
+  for (const l of crm.leads) add(l.phone, 'CRM');
+  for (const c of legacy.clients) add(c.phone, 'cliente antigo');
+  for (const r of legacy.list) add(r.phone, 'contrato antigo');
+  return m;
+}
+app.get('/api/groups/:id/coverage', async (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador');
+  const phones = [...new Set((await wa.getGroupParticipants(req.params.id)).map(digitsOf))].filter(Boolean);
+  const have = attendedPhones();
+  const members = phones.map((p) => ({ phone: p, attended: have.has(p), via: have.get(p) || '' }));
+  const unattended = members.filter((x) => !x.attended);
+  if (req.query.format === 'csv') {
+    const cell = (v) => `"${String(v).replace(/"/g, '""')}"`;
+    return res.type('text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="grupo-nao-atendidos.csv"').send(`﻿telefone\r\n${unattended.map((x) => cell(`+${x.phone}`)).join('\r\n')}`);
+  }
+  res.json({ total: members.length, attended: members.length - unattended.length, unattended: unattended.length, members: members.slice(0, 2000) });
+});
 app.post('/api/groups/:id/import', async (req, res) => {
   const phones = await wa.getGroupParticipants(req.params.id);
   const tag = String(req.body.tag || 'grupo').trim();
@@ -2627,6 +2655,51 @@ app.put('/api/site', (req, res) => {
 });
 
 // Currículos (só administrador).
+// ---- Documentos emitidos (admissão temporária, cédula, RUC, licença…) ----
+const docErr = (fn) => { try { return fn(); } catch (e) { throw httpError(/não encontrado/.test(e.message) ? 404 : 400, e.message); } };
+const docPhone = (d) => {
+  const raw = d.phone || legacy.clients.find((c) => String(c.name || '').trim().toLowerCase() === String(d.clientName || '').trim().toLowerCase())?.phone || '';
+  return normalizePhone(raw) || normalizePhone(`+${String(raw).replace(/\D/g, '')}`) || '';
+};
+app.get('/api/documents', (req, res) => res.json({ types: DOC_TYPES, counts: documents.counts(), rules: documents.rules, toNotify: documents.toNotify().length, items: documents.list({ type: String(req.query.type || ''), status: String(req.query.status || ''), q: String(req.query.q || ''), responsible: String(req.query.responsible || ''), trash: req.query.trash === '1' }).slice(0, 500) }));
+app.post('/api/documents', (req, res) => {
+  const d = docErr(() => documents.add(req.body || {}, req.user.name));
+  audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'documento', label: `${d.clientName} · ${DOC_TYPES[d.type]}` });
+  res.json(d);
+});
+app.put('/api/documents/rules', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador muda as regras de aviso');
+  const r = docErr(() => documents.setRules(req.body || {}));
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'documentos', label: 'Regras de aviso de renovação', changes: [{ field: 'rules', label: 'Meses de aviso e renovação', from: '', to: JSON.stringify(r).slice(0, 200), sensitive: false }] });
+  res.json(r);
+});
+app.patch('/api/documents/:id', (req, res) => {
+  const d = docErr(() => documents.update(req.params.id, req.body || {}));
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'documento', label: `${d.clientName} · ${DOC_TYPES[d.type]}` });
+  res.json(d);
+});
+app.delete('/api/documents/:id', (req, res) => {
+  const d = docErr(() => documents.remove(req.params.id));
+  audit.record({ user: req.user, ip: clientIp(req), action: 'excluiu', entity: 'documento', label: `${d.clientName} · ${DOC_TYPES[d.type]} (vai para a lixeira)` });
+  res.json({ ok: true });
+});
+app.post('/api/documents/:id/restore', (req, res) => { docErr(() => documents.restore(req.params.id)); res.json({ ok: true }); });
+app.get('/api/documents/:id/notice', (req, res) => {
+  const d = documents.all.find((x) => x.id === req.params.id && !x.deletedAt);
+  if (!d) throw httpError(404, 'Documento não encontrado');
+  res.json({ text: documents.noticeText(d), phone: docPhone(d) });
+});
+app.post('/api/documents/:id/notify', async (req, res) => {
+  const d = documents.all.find((x) => x.id === req.params.id && !x.deletedAt);
+  if (!d) throw httpError(404, 'Documento não encontrado');
+  const phone = docPhone(d);
+  if (!phone) throw httpError(400, 'Não achei o telefone deste cliente. Preencha o telefone no documento.');
+  if (wa.status !== 'connected') throw httpError(400, 'O WhatsApp não está conectado agora.');
+  await wa.send(phone, { text: documents.noticeText(d), typing: false });
+  documents.markNoticed(d.id);
+  audit.record({ user: req.user, ip: clientIp(req), action: 'enviou', entity: 'aviso de documento', label: `${d.clientName} · ${DOC_TYPES[d.type]}` });
+  res.json({ ok: true });
+});
 // ---- Reuniões gravadas (biblioteca de links) ----
 app.get('/api/recordings', (req, res) => res.json(recordings.list({ q: String(req.query.q || '') })));
 const recAdmin = (req) => { if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador cadastra gravações'); };
@@ -2732,7 +2805,9 @@ const readCapture = (req) => {
 };
 app.post('/api/legacy/preview', legacyUpload, (req, res) => res.json(legacy.preview(readCapture(req))));
 app.post('/api/legacy/import', legacyUpload, (req, res) => {
-  const r = legacy.import(readCapture(req), req.user);
+  const cap = readCapture(req);
+  const r = legacy.import(cap, req.user);
+  r.documents = documents.importCapture(cap);
   audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'contratos antigos', label: `Importação: ${r.added} novo(s), ${r.updated} atualizado(s)` });
   res.json(r);
 });
@@ -2744,6 +2819,7 @@ app.post('/api/legacy/ingest/captura', ingestAuth, ingestCaptura, (req, res) => 
   let json;
   try { json = JSON.parse(req.file?.buffer.toString('utf8') || ''); } catch { throw httpError(400, 'Arquivo de cópia inválido'); }
   const run = ingest.start(req.ingestRec, json);
+  try { run.summary.documents = documents.importCapture(json); } catch (e) { store.addLog({ type: 'error', message: `Documentos da cópia: ${e.message}` }); }
   store.addLog({ type: 'system', message: `Cópia do sistema antigo recebida: ${run.summary.added} contrato(s) novo(s), ${run.summary.newClients} cliente(s) novo(s)` });
   res.json({ run: run.id, summary: run.summary, expectedFiles: run.owners.length });
 });

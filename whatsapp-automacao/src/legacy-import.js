@@ -12,10 +12,12 @@ export const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, 
 const SYN = {
   number: [/^(n|no|num|numero|nro|n o)( do)?( contrato)?$/, /^(numero|codigo|cod|id)( do)? contrato$/, /^contrato( n.*)?$/, /^codigo$/, /^cod$/, /^id$/],
   client: [/^(nome|cliente|contratante|comprador|titular)( completo| do cliente)?$/, /^razao social$/],
-  doc: [/^(cpf|cnpj|cedula|ci|rg|documento|ruc|cpf cnpj|cedula de identidade)( do cliente)?$/, /^(numero do )?documento$/],
+  doc: [/^(cpf|cnpj|cedula|ci|rg|documento|ruc|cpf cnpj|cpf doc|cedula de identidade)( do cliente)?$/, /^(numero do )?documento$/],
   phone: [/^(telefone|celular|whatsapp|fone|tel|contato)( do cliente)?$/],
   email: [/^e ?mail( do cliente)?$/],
-  value: [/^(valor|total|preco|valor total|valor do contrato|valor liquido|valor bruto)$/, /^valor( .*)?$/],
+  paid: [/^(pago|valor pago|total pago|ja pago|recebido|valor recebido|total recebido)$/],
+  nextDue: [/^(proximo prazo|proximo vencimento|prox vencimento|proxima parcela|vencimento)$/],
+  value: [/^(valor|total|preco|valor total|valor do contrato|valor liquido|valor bruto)$/, /^valor( (?!pago|recebido).*)?$/],
   date: [/^(data|emissao|data de emissao|data do contrato|assinatura|data de assinatura|criado em|data de criacao|cadastro|data de cadastro)$/, /^data( .*)?$/],
   status: [/^(status|situacao|estado)( do contrato)?$/],
   service: [/^(servico|servicos|pacote|produto|plano|descricao|objeto|tipo)( do contrato)?$/],
@@ -54,7 +56,7 @@ const currencyOf = (v) => (/us\$|usd|\$ ?\d/i.test(String(v)) && !/r\$/i.test(St
 
 /** Objeto cru (rótulo → valor) → registro normalizado. Devolve null se não parece um contrato. */
 export function normalizeRecord(raw, { source = '' } = {}) {
-  const rec = { number: '', client: '', doc: '', phone: '', email: '', value: null, currency: 'BRL', date: '', status: '', service: '', installments: null, seller: '', source, raw: {} };
+  const rec = { number: '', client: '', doc: '', phone: '', email: '', value: null, paid: null, nextDue: '', currency: 'BRL', date: '', status: '', service: '', installments: null, seller: '', source, raw: {} };
   let valueText = '';
   for (const [label, val] of Object.entries(raw || {})) {
     if (val === null || val === undefined || typeof val === 'object') continue;
@@ -64,6 +66,8 @@ export function normalizeRecord(raw, { source = '' } = {}) {
     const f = field(label);
     if (!f || rec[f] === '' || rec[f] === null) {
       if (f === 'value') { const n = parseMoney(text); if (n !== null && rec.value === null) { rec.value = n; valueText = text; } }
+      else if (f === 'paid') { const n = parseMoney(text); if (n !== null && rec.paid === null) rec.paid = n; }
+      else if (f === 'nextDue') { const d = parseDate(text); if (d && !rec.nextDue) rec.nextDue = d; }
       else if (f === 'date') { const d = parseDate(text); if (d && !rec.date) rec.date = d; }
       else if (f === 'installments') { const n = parseMoney(text); if (n !== null) rec.installments = Math.round(n); }
       else if (f && !rec[f]) rec[f] = text.slice(0, 160);
@@ -302,6 +306,10 @@ export class LegacyContracts {
       const cur = byKey.get(keyOf(r));
       if (cur) {
         for (const f of Object.keys(r)) if (f !== 'raw' && (cur[f] === '' || cur[f] === null) && r[f] !== '' && r[f] !== null) cur[f] = r[f];
+        // Dados que mudam (pago, próximo prazo, situação) valem os da cópia mais nova.
+        if (r.paid !== null) cur.paid = r.paid;
+        if (r.nextDue) cur.nextDue = r.nextDue;
+        if (r.status) cur.status = r.status;
         cur.raw = { ...r.raw, ...cur.raw };
         updated += 1;
       } else {
@@ -331,19 +339,28 @@ export class LegacyContracts {
    * atrasos e o painel executivo) e clientes viram prospectos no CRM. Nada é enviado a ninguém, e comissão fica zerada.
    */
   apply({ sales, crm, user, doSales = true, doClients = true }) {
-    const out = { sales: 0, salesSkipped: 0, noParcels: 0, clients: 0, clientsSkipped: 0 };
+    const out = { sales: 0, salesSkipped: 0, noParcels: 0, synthetic: 0, clients: 0, clientsSkipped: 0 };
     const hasContract = new Set();
     if (doSales) {
       for (const r of this.list) {
-        if (!r.parcels?.length) { out.noParcels += 1; continue; }
+        let parcels = r.parcels;
+        // Sem a tabela de parcelas, mas com "valor total", "pago" e "próximo prazo" (lista de Processos): monta o que dá para saber, sem inventar data.
+        if (!parcels?.length && r.value !== null && r.paid !== null && r.value > 0) {
+          const total0 = r.value; const paid0 = Math.min(Math.max(r.paid, 0), total0); const rest = Math.round((total0 - paid0) * 100) / 100;
+          parcels = [];
+          if (paid0 > 0) parcels.push({ label: 'Valor já pago (sistema antigo)', value: Math.round(paid0 * 100) / 100, due: r.date || '', paid: true, paidAt: r.date || '' });
+          if (rest > 0) parcels.push({ label: 'Saldo em aberto (sistema antigo)', value: rest, due: r.nextDue || '', paid: false, paidAt: '' });
+          if (parcels.length) out.synthetic += 1;
+        }
+        if (!parcels?.length) { out.noParcels += 1; continue; }
         if (sales.list.some((s) => s.legacyNumber === r.number && s.legacy)) { out.salesSkipped += 1; continue; }
-        const total = r.value ?? Math.round(r.parcels.reduce((a, p) => a + p.value, 0) * 100) / 100;
+        const total = r.value ?? Math.round(parcels.reduce((a, p) => a + p.value, 0) * 100) / 100;
         const created = r.date ? `${r.date}T12:00:00.000Z` : new Date().toISOString();
         sales.list.push({
           id: crypto.randomBytes(6).toString('hex'), number: `ANT-${r.number || r.id.slice(0, 6)}`, legacy: true, legacyNumber: r.number, quoteId: null, quoteNumber: '', leadId: null,
           client: { nome: r.client, phone: String(r.phone || '').replace(/\D/g, ''), doc: r.doc || '' }, sellerId: null, sellerName: r.seller || '',
           items: [{ name: r.service || 'Contrato do sistema antigo', qty: 1, price: total, total }], total,
-          parcels: r.parcels.map((p) => ({ label: p.label, value: p.value, due: p.due, status: p.paid ? 'pago' : 'pendente', ...(p.paid ? { paidAt: p.paidAt, method: 'Sistema antigo', confirmedBy: 'Importação' } : {}) })),
+          parcels: parcels.map((p) => ({ label: p.label, value: p.value, due: p.due, status: p.paid ? 'pago' : 'pendente', ...(p.paid ? { paidAt: p.paidAt, method: 'Sistema antigo', confirmedBy: 'Importação' } : {}) })),
           commission: { pct: 0, value: 0, manual: true, status: 'paga', paidAt: null, note: 'Contrato do sistema antigo: sem comissão pelo sistema novo' }, affiliate: null,
           status: /cancel|rescind|distrat/i.test(r.status || '') ? 'cancelada' : 'ativa', office: 'py', createdAt: created, createdBy: user?.name || 'Importação', history: [{ at: new Date().toISOString(), by: user?.name || 'Importação', text: `Importado do sistema antigo (contrato ${r.number})` }],
         });
