@@ -45,6 +45,7 @@ import { Recordings } from './recordings.js';
 import { Tutorials } from './tutorials.js';
 import { Cities, CATEGORIES as CITY_CATEGORIES } from './cities.js';
 import { Marketing, PRESETS as MKT_PRESETS } from './marketing.js';
+import { Collections } from './collections.js';
 import { Documents, TYPES as DOC_TYPES } from './documents.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
@@ -1264,7 +1265,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -2796,6 +2797,36 @@ app.post('/api/marketing/sync', async (req, res) => {
   res.json({ snapshot: view, summary: marketing.plainSummary(view) });
 });
 
+// ---- Cobrança de vencidos e previsão de recebimento ----
+const normName = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const collections = new Collections({
+  store, sales,
+  resolvePhone: (s) => {
+    const raw = s.client?.phone || legacy.clients.find((c) => (s.client?.doc && c.doc && c.doc === s.client.doc) || normName(c.name) === normName(s.client?.nome))?.phone || '';
+    return normalizePhone(raw) || normalizePhone(`+${String(raw).replace(/\D/g, '')}`) || '';
+  },
+  send: (phone, text) => wa.send(phone, { text, typing: false }),
+  canSend: () => wa.status === 'connected',
+});
+const collScope = (req) => (s) => inOffice(req, sales.officeOf(s));
+app.get('/api/collections', (req, res) => {
+  needAdmin(req);
+  const rows = collections.overdue({ minDays: Number(req.query.minDays) || 1, q: String(req.query.q || ''), inOffice: collScope(req) });
+  res.json({ summary: collections.summary(rows), rows: rows.slice(0, 400), shown: Math.min(rows.length, 400), status: collections.status(), forecast: collections.forecast({ inOffice: collScope(req) }) });
+});
+app.post('/api/collections/enqueue', (req, res) => {
+  needAdmin(req);
+  const out = collections.enqueue(Array.isArray(req.body?.keys) ? req.body.keys.map(String) : [], req.user.name);
+  audit.record({ user: req.user, ip: clientIp(req), action: 'aprovou', entity: 'cobrança de vencidos', label: `${out.queued} parcela(s) aprovada(s) para aviso (${out.skipped.length} ficaram de fora)` });
+  res.json(out);
+});
+app.delete('/api/collections/queue', (req, res) => { needAdmin(req); const n = collections.cancelQueue(); audit.record({ user: req.user, ip: clientIp(req), action: 'cancelou', entity: 'cobrança de vencidos', label: `fila cancelada (${n})` }); res.json({ cancelled: n }); });
+app.put('/api/collections/config', (req, res) => {
+  needAdmin(req);
+  const c = tutErr(() => collections.setConfig(req.body || {}));
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'cobrança de vencidos', label: 'Limites de envio', changes: [{ field: 'config', label: 'Limites', from: '', to: JSON.stringify(c), sensitive: false }] });
+  res.json(c);
+});
 // ---- Reuniões gravadas (biblioteca de links) ----
 app.get('/api/recordings', (req, res) => res.json(recordings.list({ q: String(req.query.q || '') })));
 const recAdmin = (req) => { if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador cadastra gravações'); };
@@ -4218,6 +4249,8 @@ if (process.env.NODE_ENV !== 'test') {
   // Treinamento semanal dos vendedores: a cada 7 dias a IA cria um novo e os vendedores são avisados no WhatsApp.
   setInterval(() => runWeeklyTraining().catch((e) => store.addLog({ type: 'error', message: `Treinamento semanal: ${e.message}` })), 6 * 3_600_000).unref();
   setTimeout(() => runWeeklyTraining().catch(() => {}), 5 * 60_000).unref();
+  // Cobrança aprovada: manda uma mensagem por vez, respeitando limite, horário e intervalo.
+  setInterval(() => collections.tick().catch((e) => store.addLog({ type: 'error', message: `Cobrança: ${e.message}` })), 20_000).unref();
 
   const shutdown = async () => {
     scheduler.stop();
