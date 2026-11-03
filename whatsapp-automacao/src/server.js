@@ -40,6 +40,7 @@ import { buildBat } from './legacy-tool.js';
 import { Ingest, MIME as FILE_MIME } from './legacy-ingest.js';
 import { Resumes, MIME_BY_EXT } from './resumes.js';
 import { VideoCalls } from './videocalls.js';
+import { Live } from './live.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
 import { siteGuard, siteHostsFrom, siteOfficeMap, hostOf } from './site-host.js';
@@ -277,6 +278,8 @@ const ingest = new Ingest({ store, dataDir: DATA_DIR, legacy, sales: null, crm: 
 
 // Videochamadas com a equipe (a IA marca quando o cliente vai falar com marido, esposa ou família).
 const videocalls = new VideoCalls({ store, auth });
+const live = new Live({ store });
+agent.liveInfo = () => live.promptInfo(`${publicBase()}/live`);
 const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 agent.videoSlots = (conv, args) => {
   const r = videocalls.nextDays(args?.a_partir_de);
@@ -1197,7 +1200,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1347,6 +1350,8 @@ app.get('/migra', sitePage('migra'));
 app.get('/motors', sitePage('motors'));
 app.get('/school', sitePage('school'));
 app.get('/marcas', sitePage('marcas'));
+app.get('/live', sitePage('live'));
+app.get('/api/public/live', (_req, res) => res.set('Cache-Control', 'no-store').json(live.publicView()));
 app.get('/api/public/vehicles', (_req, res) => {
   res.json({
     whatsapp: mainWhatsapp(),
@@ -2578,6 +2583,19 @@ app.put('/api/site', (req, res) => {
 });
 
 // Currículos (só administrador).
+// ---- Página de live (Google Meet) ----
+app.get('/api/live', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador');
+  res.json({ ...live.cfg, pageUrl: `${publicBase()}/live` });
+});
+app.put('/api/live', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador');
+  const before = live.cfg;
+  let next;
+  try { next = live.set(req.body || {}); } catch (e) { throw httpError(400, e.message); }
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'live', label: before.status !== next.status ? `Live: ${before.status} → ${next.status}` : 'Dados da página de live', changes: ['status', 'title', 'startsAt', 'meetLink', 'groups'].filter((k) => JSON.stringify(before[k]) !== JSON.stringify(next[k])).map((k) => ({ field: k, label: k, from: JSON.stringify(before[k]).slice(0, 160), to: JSON.stringify(next[k]).slice(0, 160), sensitive: false })) });
+  res.json({ ...next, pageUrl: `${publicBase()}/live` });
+});
 // ---- Videochamadas ----
 const videoView = (req) => ({
   config: videocalls.config, hosts: videocalls.hosts(), upcoming: videocalls.upcoming(), needsReschedule: videocalls.needsReschedule(),

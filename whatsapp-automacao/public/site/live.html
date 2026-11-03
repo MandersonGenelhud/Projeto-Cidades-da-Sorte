@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Live da Migra</title>
+  <meta name="description" content="Participe ao vivo e tire suas dúvidas com a equipe da Migra." />
+  <link rel="icon" href="/img/migra-emblema.png" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/site/site.css" />
+  <style>
+    .live{min-height:60vh;display:grid;place-items:center;text-align:center;padding:48px 16px}
+    .live .box{max-width:720px;width:100%}
+    .live h1{font-size:clamp(28px,6vw,44px);margin:12px 0}
+    .live .msg{font-size:clamp(20px,4.5vw,28px);line-height:1.35;margin:16px 0}
+    .live .when{font-size:clamp(18px,4vw,24px);font-weight:600;margin:8px 0 24px}
+    .live .dot{display:inline-block;width:14px;height:14px;border-radius:50%;background:#d93025;margin-right:8px;animation:pulse 1.2s infinite}
+    @keyframes pulse{50%{opacity:.3}}
+    .live .btn.big{font-size:clamp(20px,5vw,26px);padding:18px 36px}
+    .live .groups{margin-top:36px;display:grid;gap:12px;justify-items:center}
+    .live .groups p{font-size:18px;margin:0}
+    .live .groups a{font-size:18px;padding:14px 22px}
+  </style>
+</head>
+<body>
+  <section class="live"><div class="box" id="box"><p class="msg">Carregando…</p></div></section>
+  <script src="/site/site.js"></script>
+  <script>
+    const fmt = (s) => s ? `${s.slice(8, 10)}/${s.slice(5, 7)} às ${s.slice(11)}` : '';
+    async function load() {
+      let v;
+      try { v = await api('/api/public/live'); } catch { return; }
+      const g = (v.groups || []).map((x) => `<a class="btn" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">Entrar no grupo: ${esc(x.name)}</a>`).join('');
+      const groups = g ? `<div class="groups"><p>Entre também nos grupos de WhatsApp para falar com a equipe da Migra e receber o aviso das próximas lives:</p>${g}</div>` : '';
+      let h = '';
+      if (v.status === 'live') {
+        h = `<span class="eyebrow"><span class="dot"></span>AO VIVO</span><h1>${esc(v.title)}</h1><p class="msg">${esc(v.text)}</p>${v.meetLink ? `<a class="btn primary big" href="${esc(v.meetLink)}" target="_blank" rel="noopener noreferrer">Entrar na live agora</a>` : ''}${groups}`;
+      } else if (v.status === 'soon') {
+        h = `<span class="eyebrow">Em breve</span><h1>${esc(v.title)}</h1><p class="msg">${esc(v.text)}</p>${v.startsAt ? `<p class="when">${esc(fmt(v.startsAt))}</p>` : ''}${groups}`;
+      } else if (v.status === 'ended') {
+        h = `<h1>${esc(v.title)}</h1><p class="msg">${esc(v.text)}</p>${groups}`;
+      } else {
+        h = `<h1>Live da Migra</h1><p class="msg">Não há live marcada no momento. Entre nos grupos para receber o aviso da próxima.</p>${groups}`;
+      }
+      const box = document.getElementById('box');
+      if (box.dataset.h !== h) { box.dataset.h = h; box.innerHTML = h; }
+    }
+    siteChrome('live');
+    load();
+    setInterval(load, 20000);
+  </script>
+</body>
+</html>
