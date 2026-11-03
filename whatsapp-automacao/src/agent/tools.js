@@ -55,6 +55,32 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'horarios_videochamada',
+      description: 'Lista os próximos dias e horários livres para a VIDEOCHAMADA com um consultor da equipe (conversa de 40 minutos). Use quando o cliente disser que vai falar com marido, esposa ou família. Sem data, começa por amanhã. Só ofereça horários devolvidos aqui.',
+      parameters: { type: 'object', properties: { a_partir_de: { type: 'string', description: 'AAAA-MM-DD (opcional; padrão: amanhã)' } } },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'agendar_videochamada',
+      description: 'Marca a videochamada de 40 minutos com um consultor da equipe, depois que o cliente escolher dia e horário dentre os livres. Se o cliente já tinha uma marcada, esta substitui a anterior.',
+      parameters: {
+        type: 'object',
+        properties: {
+          data: { type: 'string', description: 'AAAA-MM-DD' },
+          hora: { type: 'string', description: 'HH:MM exatamente como veio em horarios_videochamada' },
+          nome: { type: 'string', description: 'Nome do cliente' },
+          pessoas: { type: 'number', description: 'Quantas pessoas participam (opcional)' },
+          observacoes: { type: 'string', description: 'O que ficou combinado ou a dúvida principal (opcional)' },
+        },
+        required: ['data', 'hora', 'nome'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'encaminhar_para_vendedor',
       description: 'Só quando o cliente INSISTIR em falar com uma pessoa ou continuar com receio depois de você tentar de tudo: você mesma fecha a venda. O sistema escolhe o vendedor da vez, envia o resumo para ele e devolve o link do WhatsApp do vendedor para você mandar ao cliente. Preencha só com o que o cliente realmente disse; não invente.',
       parameters: {
@@ -403,6 +429,14 @@ export async function runTool(name, args, ctx) {
       case 'cancelar_agendamento': {
         const appt = await ctx.calendar.cancel(args.id, ctx.phone, { dryRun: ctx.dryRun });
         return { ok: true, cancelado: { data: appt.date, hora: appt.time } };
+      }
+      case 'horarios_videochamada': {
+        if (!ctx.onVideoSlots) return { erro: 'Videochamada indisponível. Use agendar_visita_escritorio ou transferir_para_humano.' };
+        return await ctx.onVideoSlots(args);
+      }
+      case 'agendar_videochamada': {
+        if (!ctx.onVideoBook) return { erro: 'Videochamada indisponível.' };
+        return await ctx.onVideoBook(args);
       }
       case 'encaminhar_para_vendedor': {
         if (!ctx.onRoute) return { erro: 'Encaminhamento indisponível. Use transferir_para_humano.' };

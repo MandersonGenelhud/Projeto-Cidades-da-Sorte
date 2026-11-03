@@ -39,6 +39,7 @@ import { LegacyContracts } from './legacy-import.js';
 import { buildBat } from './legacy-tool.js';
 import { Ingest, MIME as FILE_MIME } from './legacy-ingest.js';
 import { Resumes, MIME_BY_EXT } from './resumes.js';
+import { VideoCalls } from './videocalls.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
 import { siteGuard, siteHostsFrom, siteOfficeMap, hostOf } from './site-host.js';
@@ -273,6 +274,27 @@ const realty = new Realty({ store, dataDir: DATA_DIR });
 const audit = new Audit({ store });
 const legacy = new LegacyContracts({ store });
 const ingest = new Ingest({ store, dataDir: DATA_DIR, legacy, sales: null, crm: null });
+
+// Videochamadas com a equipe (a IA marca quando o cliente vai falar com marido, esposa ou família).
+const videocalls = new VideoCalls({ store, auth });
+const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
+agent.videoSlots = (conv, args) => {
+  const r = videocalls.nextDays(args?.a_partir_de);
+  const c = videocalls.config;
+  if (!r.dias.length) return { ok: false, instrucao: `Não há horário de videochamada livre nos próximos dias${r.primeiroDiaSemAtendimento ? ` (${r.primeiroDiaSemAtendimento.motivo})` : ''}. Diga com naturalidade que a agenda está cheia, siga tirando as dúvidas e use agendar_retorno para voltar em outro dia.` };
+  return { ok: true, duracao_minutos: c.durationMin, ...r, instrucao: `Ofereça 2 ou 3 destes horários, só estes${r.primeiroDiaSemAtendimento ? `. Amanhã não há atendimento por vídeo (${r.primeiroDiaSemAtendimento.motivo}); o próximo dia livre está na lista` : ''}.` };
+};
+agent.videoBook = async (conv, args, { dryRun } = {}) => {
+  const simulated = dryRun || String(conv.key).startsWith('sim:');
+  const b = videocalls.book({ date: args.data, time: args.hora, name: args.nome, phone: conv.phone, people: args.pessoas, notes: args.observacoes, convKey: conv.key }, { dryRun: simulated });
+  if (!simulated) {
+    notify('videocall', { id: b.id });
+    const host = auth.get(b.hostId);
+    if (host?.whatsapp && wa.status === 'connected') wa.send(host.whatsapp, { text: `📹 *Nova videochamada marcada*\n${videocalls.fmt(b)} (${b.durationMin} min)\nCliente: ${b.name}${b.phone ? ` (+${b.phone})` : ''}${b.people ? `\nPessoas: ${b.people}` : ''}${b.notes ? `\nObs.: ${b.notes}` : ''}`, typing: false }).catch(() => {});
+  }
+  return { ok: true, simulacao: simulated || undefined, data: b.date, hora: b.time, duracao_minutos: b.durationMin, consultor: firstName(b.hostName), link: b.meetLink || '', instrucao: `Videochamada marcada para ${videocalls.fmt(b)}, com ${b.durationMin} minutos de bate-papo para tirar as dúvidas que ficaram e alinhar o início do procedimento. Confirme ao cliente com calor humano e peça que venha com o marido/a esposa. ${b.meetLink ? `Envie o link da sala: ${b.meetLink}` : 'Diga que o consultor envia o link da sala antes da hora.'}` };
+};
+agent.videoInfo = (conv) => [videocalls.promptInfo(), ...videocalls.forPhone(conv.phone).map((b) => `Este cliente JÁ TEM videochamada marcada: ${videocalls.fmt(b)}. Não marque outra, a menos que ele queira remarcar.`)].join('\n');
 const motors = new Motors({ store });
 const school = new School({ store });
 const proposals = new Proposals({ store, realty, audit });
@@ -1175,7 +1197,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1594,6 +1616,8 @@ const SELLER_ROUTES = [
   ['POST', /^\/quotes\/[a-f0-9]+\/sale$/],
   ['GET', /^\/referral\/(me|qr)$/],
   ['PATCH', /^\/me\/prefs$/],
+  ['*', /^\/videocall\/me$/],
+  ['POST', /^\/videocall\/[a-z0-9]+\/cancel$/],
 ];
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth/') || req.path.startsWith('/public/') || req.path.startsWith('/affiliate/')) return next();
@@ -2554,6 +2578,47 @@ app.put('/api/site', (req, res) => {
 });
 
 // Currículos (só administrador).
+// ---- Videochamadas ----
+const videoView = (req) => ({
+  config: videocalls.config, hosts: videocalls.hosts(), upcoming: videocalls.upcoming(), needsReschedule: videocalls.needsReschedule(),
+  candidates: auth.users.filter((u) => u.role !== 'admin' && u.active !== false && !u.pending).map((u) => ({ id: u.id, name: u.name })),
+});
+app.get('/api/videocall', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador');
+  res.json(videoView(req));
+});
+app.put('/api/videocall/config', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador');
+  const before = videocalls.config;
+  let next;
+  try { next = videocalls.setConfig(req.body || {}); } catch (e) { throw httpError(400, e.message); }
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'videochamadas', label: 'Regras da agenda de videochamadas', changes: Object.keys(next).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(before[k])).map((k) => ({ field: k, label: k, from: JSON.stringify(before[k]).slice(0, 160), to: JSON.stringify(next[k]).slice(0, 160), sensitive: false })) });
+  res.json(videoView(req));
+});
+app.post('/api/videocall/hosts', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador');
+  const u = auth.get(String(req.body?.userId || ''));
+  if (!u) throw httpError(404, 'Usuário não encontrado');
+  videocalls.setHost(u.id, Boolean(req.body?.on));
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'videochamadas', label: `${u.name} ${req.body?.on ? 'passou a fazer' : 'deixou de fazer'} videochamadas` });
+  res.json(videoView(req));
+});
+app.get('/api/videocall/me', (req, res) => res.json({ host: videocalls.isHost(req.user.id), ...(videocalls.mine(req.user.id) || {}), config: { durationMin: videocalls.config.durationMin, meetLink: videocalls.config.meetLink } }));
+app.post('/api/videocall/me', async (req, res) => {
+  let r;
+  try { r = videocalls.setMine(req.user.id, req.body || {}); } catch (e) { throw httpError(400, e.message); }
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'videochamadas', label: `${req.user.name}: disponibilidade ${r.active ? 'ligada' : 'desligada'}${r.offDates.length ? `, sem atendimento em ${r.offDates.map((d) => d.split('-').reverse().join('/')).join(', ')}` : ''}` });
+  if ((req.body?.tomorrowOff || req.body?.offDate) && r.needsReschedule.length) notifyAdmins(`📹 ${req.user.name} avisou que não faz videochamada em um dia que já tem cliente marcado: ${r.needsReschedule.length} cliente(s) precisam ser avisados e remarcados (painel → Videochamadas).`).catch(() => {});
+  res.json({ host: true, ...r });
+});
+app.post('/api/videocall/:id/cancel', (req, res) => {
+  const b = videocalls.data.bookings.find((x) => x.id === req.params.id);
+  if (!b) throw httpError(404, 'Videochamada não encontrada');
+  if (req.user.role !== 'admin' && b.hostId !== req.user.id) throw httpError(403, 'Só quem faz a videochamada ou o administrador pode cancelar');
+  videocalls.cancel(b.id, 'cancelada pela equipe');
+  audit.record({ user: req.user, ip: clientIp(req), action: 'cancelou', entity: 'videochamada', label: `${b.name} · ${videocalls.fmt(b)}` });
+  res.json({ ok: true });
+});
 app.get('/api/resumes', (req, res) => {
   const q = String(req.query.q || '').toLowerCase();
   res.json(resumes.list.filter((r) => !q || `${r.name} ${r.phone} ${r.interest} ${r.summary}`.toLowerCase().includes(q)).map(({ files, ...r }) => ({ ...r, files: files.map(({ stored, ...f }) => f) })).reverse());

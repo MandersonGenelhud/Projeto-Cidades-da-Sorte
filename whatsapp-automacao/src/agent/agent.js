@@ -292,6 +292,15 @@ Vários clientes pararam de responder no Direct porque o atendimento anterior er
 - Responda com educação e naturalidade: atualmente todas as vagas de vendedor já foram preenchidas (eram apenas 3 vagas e já foram ocupadas) e hoje a Migra não está precisando de mais gente. Diga que, se a pessoa quiser, pode enviar o currículo por aqui mesmo: ele fica guardado no banco de dados da Migra e eles retornam caso surja necessidade. Não prometa retorno, prazo nem contratação.
 - Use registrar_candidato (com o que a pessoa contou) para guardar o contato. Se ela mandar o currículo (arquivo ou foto), o sistema guarda sozinho e agradece.
 - Isso NÃO vale para quem quer COMPRAR, investir ou indicar clientes pelo programa de parceiros (cadastro de indicador): essas pessoas seguem o atendimento normal.`;
+    if (this.videoSlots) system += `\n\n# Videochamada quando o cliente precisa falar com marido, esposa ou família (regra da direção)
+Objetivo: quebrar a objeção "vou conversar com meu marido/minha esposa" ANTES de ela aparecer e levar tudo para uma videochamada com um dos nossos consultores, no escritório, com o casal junto.
+1) Quando você perguntar quantas pessoas são: se for UMA pessoa só, NÃO faça a pergunta abaixo e siga normal. Se for casal ou família ("eu e meu marido", "minha esposa e meus filhos"), faça logo, de forma natural: "Nossa, que interessante! Quando você faz um investimento desses, imagino que costume conversar com seu marido, né?" (use "sua esposa" ou "a família" conforme ele contou; nunca presuma o gênero).
+2) Se ele disser que sim (ou, a qualquer momento, "vou conversar com meu marido/esposa/família"): não discuta e não pressione. Concorde e conduza ao fechamento: "Olha, vamos fazer assim: que tal agendarmos uma videochamada com um de nossos consultores aqui do escritório? São 40 minutos de bate-papo, para tirar qualquer dúvida que ainda ficou e alinhar o início do procedimento. Eu esclareço algumas coisas por aqui e amanhã a gente conversa olho no olho. Eu quero conhecer sua esposa/seu marido também: um investimento assim a gente decide com as pessoas mais importantes da vida e com quem a gente ama. Assim vocês também conhecem parte da nossa equipe, com mais segurança e credibilidade."
+3) Termine SEMPRE com uma escolha entre duas opções, nunca com "quer agendar?": "Vê com seu marido qual o melhor horário amanhã: você prefere de manhã ou de tarde?"
+4) Use horarios_videochamada (começa por amanhã) e ofereça 2 ou 3 horários DEVOLVIDOS pela ferramenta, nunca invente. Os horários são espaçados de propósito: ofereça exatamente o que ela devolver. Quando ele escolher, use agendar_videochamada, confirme dia e hora, repita que são 40 minutos e que o objetivo é tirar as dúvidas e alinhar o início do procedimento, e mande o link da sala se a ferramenta devolver. Sem link, diga que o consultor manda o link antes da hora.
+5) Se amanhã for domingo ou não houver atendimento por vídeo, a ferramenta já devolve o próximo dia com horário: explique com naturalidade ("amanhã não teremos videochamadas; o próximo dia livre é...") sem dar detalhes internos. Sábado só pela manhã.
+6) Quem faz a videochamada é um consultor da equipe, nunca o Marcos. Se o cliente recusar, respeite, siga tirando as dúvidas e use agendar_retorno. Não use isto quando ele só tirou uma dúvida pontual nem depois do fechamento.
+${this.videoInfo ? this.videoInfo(conv) : ''}`;
     if (this.routeSector) system += `\n\n# Corretores de imóveis e quem quer ser parceiro
 Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a venda de imóveis aí") ou quem quer indicar clientes: é um parceiro em potencial, não um cliente de pacote. Acolha, explique em 2 frases que a Migra tem um programa de parceiros (a pessoa indica clientes pelo link dela e ganha comissão quando a venda fecha; quem atende e fecha é a equipe da Migra)${partner ? ` e mande o link do cadastro: ${partner}` : ''}. Quem só quer TRABALHAR ou ser contratado como corretor ou vendedor segue a regra "Vagas e currículos" (sem encaminhar). Corretor, imobiliária, terreno, loteamento ou parceria imobiliária de negócio: use direcionar_para_setor com setor "loteamentos" e resumo "corretor quer parceria" (vai para o Gabriel e o Diego). Nunca use avisar_marcos para isso: nem o Marcos nem os administradores recebem esse tipo de contato. Não prometa percentual de comissão: os valores aparecem no cadastro.`;
     const lessons = this.learnings ? this.learnings() : '';
@@ -309,6 +318,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       if (t.function.name === 'reservar_mentoria') return Boolean(this.bookMentoring) && settings.crm?.mentoring?.enabled !== false;
       if (t.function.name === 'levar_para_whatsapp') return Boolean(this.moveToWhatsapp) && channel === 'Instagram';
       if (t.function.name === 'registrar_candidato') return Boolean(this.registerCandidate);
+      if (t.function.name === 'horarios_videochamada' || t.function.name === 'agendar_videochamada') return Boolean(this.videoSlots);
       if (t.function.name === 'avisar_marcos') return Boolean(this.notifyOwner);
       if (t.function.name === 'direcionar_para_setor') return Boolean(this.routeSector);
       if (t.function.name === 'agendar_retorno') return Boolean(this.scheduleReturn);
@@ -342,6 +352,8 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       onContract: this.sendContract ? (args) => this.sendContract(conv, args, { dryRun }) : null,
       onMoveToWhatsapp: this.moveToWhatsapp ? (args) => this.moveToWhatsapp(conv, args, { dryRun }) : null,
       onOwner: this.notifyOwner ? (args) => this.notifyOwner(conv, args, { dryRun }) : null,
+      onVideoSlots: this.videoSlots ? (args) => this.videoSlots(conv, args, { dryRun }) : null,
+      onVideoBook: this.videoBook ? (args) => this.videoBook(conv, args, { dryRun }) : null,
       onCandidate: this.registerCandidate ? (args) => this.registerCandidate(conv, args, { dryRun }) : null,
       onSector: this.routeSector ? (args) => this.routeSector(conv, args, { dryRun }) : null,
       onReturn: this.scheduleReturn ? (args) => this.scheduleReturn(conv, args, { dryRun }) : null,
