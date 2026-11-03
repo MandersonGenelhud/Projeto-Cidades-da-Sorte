@@ -1,4 +1,4 @@
-// Domínio próprio do site público da Migra (ex.: www.migraparaguai.com): no domínio do site só aparecem
+// Domínio próprio do site público da Migra (ex.: www.migraparaguay.com): no domínio do site só aparecem
 // as páginas públicas. O painel, o login e a API da equipe NÃO existem nesse endereço (404).
 import fs from 'node:fs';
 

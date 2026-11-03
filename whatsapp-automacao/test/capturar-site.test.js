@@ -50,10 +50,10 @@ test('copiar o visual do site: baixa HTML, CSS e JS, acha a animação e o víde
 });
 
 test('programa do visual do site: .bat próprio, sem chave de envio e com o endereço padrão', () => {
-  const bat = buildSiteBat({ site: 'https://migraparaguai.com' });
+  const bat = buildSiteBat({ site: 'https://migraparaguay.com' });
   assert.match(bat, /node capturar-site\.mjs/);
   assert.match(bat, /capturar-site\.mjs',\$js/);
-  assert.match(bat, /MIGRA_SITE_PUBLICO=https:\/\/migraparaguai\.com/);
+  assert.match(bat, /MIGRA_SITE_PUBLICO=https:\/\/migraparaguay\.com/);
   assert.doesNotMatch(bat, /MIGRA_TOKEN|MIGRA_URL/);
   assert.match(bat, /copiarSite/);
 });

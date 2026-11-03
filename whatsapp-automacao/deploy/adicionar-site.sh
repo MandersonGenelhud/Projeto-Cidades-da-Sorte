@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Liga o domínio de um SITE PÚBLICO da Migra (separado do painel) nesta VPS, para um dos escritórios.
-# Uso (na VPS):  bash /opt/migra/app/whatsapp-automacao/deploy/adicionar-site.sh migraparaguai.com py
-#                bash /opt/migra/app/whatsapp-automacao/deploy/adicionar-site.sh migraparaguai.com.br pr
+# Uso (na VPS):  bash /opt/migra/app/whatsapp-automacao/deploy/adicionar-site.sh migraparaguay.com py
+#                bash /opt/migra/app/whatsapp-automacao/deploy/adicionar-site.sh migraparaguay.com.br pr
 # (py = escritório do Paraguai, pr = escritório do Paraná; sem o segundo parâmetro vale py)
 # Antes: no painel do registro do domínio, crie o registro A (nome @ e também www) apontando para o IP desta VPS.
 # No endereço do site só aparecem as páginas públicas: o painel e o login continuam só no endereço do sistema.
@@ -9,7 +9,7 @@
 set -euo pipefail
 DOM="${1:-}"
 OFF="${2:-py}"
-[ -n "$DOM" ] || { echo "Informe o domínio. Ex.: bash adicionar-site.sh migraparaguai.com.br pr"; exit 1; }
+[ -n "$DOM" ] || { echo "Informe o domínio. Ex.: bash adicionar-site.sh migraparaguay.com.br pr"; exit 1; }
 case "$OFF" in py|pr) ;; *) echo "O escritório precisa ser py (Paraguai) ou pr (Paraná)."; exit 1;; esac
 DOM="${DOM#https://}"; DOM="${DOM#http://}"; DOM="${DOM#www.}"; DOM="${DOM%%/*}"
 cd /opt/migra/app/whatsapp-automacao

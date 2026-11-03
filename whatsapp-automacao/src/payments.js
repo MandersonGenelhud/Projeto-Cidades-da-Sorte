@@ -285,7 +285,7 @@ export class Payments {
       total_amount: p.amount.toFixed(2),
       processing_mode: 'automatic',
       transactions: { payments: [{ amount: p.amount.toFixed(2), payment_method: { id: 'pix', type: 'bank_transfer' }, expiration_time: 'P2D' }] },
-      payer: { email: this.config.mercadopago.payerEmail || this.config.company?.email || 'cliente@migraparaguai.com' },
+      payer: { email: this.config.mercadopago.payerEmail || this.config.company?.email || 'cliente@migraparaguay.com' },
     }, crypto.randomUUID());
   }
 
