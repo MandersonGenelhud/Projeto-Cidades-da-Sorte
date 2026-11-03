@@ -126,7 +126,10 @@ test('videochamada: o texto da IA exige apresentar o valor e checar condições 
   await agent.handleIncoming({ key: 'k3', phone: '5511999990003', name: 'Rita', text: 'oi' }, async () => {});
   assert.match(system, /NÃO é para todo mundo/);
   assert.match(system, /TEM CONDIÇÕES FINANCEIRAS/);
-  assert.match(system, /Esse valor faz sentido para você\? Você teria condições/);
+  assert.match(system, /Como a nossa demanda está alta/);
+  assert.match(system, /Faz sentido para você investir agora, ou prefere não agendar e tirar as dúvidas por aqui mesmo/);
+  assert.match(system, /Mais alguma dúvida\?/);
+  assert.match(system, /sem tentar prolongar a conversa/);
   assert.match(system, /NÃO ofereça videochamada, NÃO use horarios_videochamada/);
   assert.match(system, /nunca humilhe/);
 });
