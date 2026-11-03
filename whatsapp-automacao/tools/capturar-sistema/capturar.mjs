@@ -2,6 +2,7 @@
 // Roda no SEU computador, com o SEU login digitado por você no navegador que ela abre.
 // A senha nunca passa por aqui. Ela só LÊ páginas (nunca clica em botões nem envia formulários,
 // e evita links de sair, excluir, cancelar e parecidos). O resultado vai para a pasta "captura-..."
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
@@ -15,7 +16,7 @@ const SEM_VALOR = /(senha|password|passwd|token|csrf|_token|captcha|cartao|card)
 /** Roda dentro da página: lê tabelas, campos de formulário e pares "rótulo: valor". Nunca lê campo de senha. */
 function lerPagina() {
   const txt = (el) => (el?.textContent || '').replace(/\s+/g, ' ').trim();
-  const out = { title: document.title, tables: [], fields: [], links: [], pdfs: [], arquivos: [], media: [], texto: (document.body?.innerText || '').slice(0, 60000) };
+  const out = { title: document.title, tables: [], fields: [], links: [], pdfs: [], arquivos: [], assinaturas: [], media: [], texto: (document.body?.innerText || '').slice(0, 60000) };
   for (const t of document.querySelectorAll('table')) {
     const rows = [...t.querySelectorAll('tr')];
     if (rows.length < 2) continue;
@@ -56,6 +57,12 @@ function lerPagina() {
   // Documentos e fotos enviados (RG, comprovantes, contratos escaneados): imagens grandes e links de arquivo.
   for (const im of document.querySelectorAll('img[src]')) {
     if (/^https?:/i.test(im.src) && im.naturalWidth >= 150 && im.naturalHeight >= 150 && !/(\/assets\/|\/static\/|\/_next\/|favicon|logo|sprite|icon|avatar|placeholder)/i.test(im.src)) out.arquivos.push(im.src);
+  }
+  // Assinaturas (a da empresa aparece em todos os contratos): imagens pequenas dentro de um bloco que fala "assinatura".
+  for (const im of document.querySelectorAll('img[src]')) {
+    const bloco = im.closest('section,article,div[class*="card" i],div') ;
+    const texto = (bloco?.parentElement?.innerText || bloco?.innerText || '').slice(0, 400);
+    if (/assinatura/i.test(texto) && im.naturalWidth >= 40 && /^(https?:|data:image\/(png|jpe?g|webp|svg\+xml);base64,)/i.test(im.src) && im.src.length < 1_500_000) out.assinaturas.push({ src: im.src, rotulo: texto.replace(/\s+/g, ' ').slice(0, 160) });
   }
   for (const a of document.querySelectorAll('a[href]')) {
     if (/^https?:/i.test(a.href) && /\.(jpe?g|png|webp|docx?|odt)(\?|$)/i.test(a.href)) out.arquivos.push(a.href);
@@ -177,6 +184,23 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
   ouvir(page);
   // Troca a aba por uma nova (o login continua) para liberar a memória do navegador.
   const reciclar = async () => { try { const nova = await context.newPage(); ouvir(nova); await page.close().catch(() => {}); page = nova; } catch { /* segue com a aba atual */ } };
+  // As páginas do sistema antigo demoram: espera a rede acalmar, sumirem os "carregando" e o conteúdo parar de mudar.
+  const aguardar = async (pg, limite = 25000) => {
+    const fim = Date.now() + limite;
+    await pg.waitForLoadState('networkidle', { timeout: Math.min(limite, 20000) }).catch(() => {});
+    let antes = -1; let estavel = 0;
+    while (Date.now() < fim && estavel < 3) {
+      const e = await pg.evaluate(() => {
+        const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+        const girando = [...document.querySelectorAll('[class*="spinner" i],[class*="loading" i],[class*="skeleton" i],[aria-busy="true"],[role="progressbar"]')].some(vis);
+        const txt = /carregando|aguarde|loading/i.test((document.body?.innerText || '').slice(0, 4000));
+        return { girando: girando || txt, tam: (document.body?.innerText || '').length };
+      }).catch(() => ({ girando: false, tam: 0 }));
+      if (!e.girando && e.tam === antes) estavel += 1; else estavel = 0;
+      antes = e.tam;
+      await new Promise((r) => setTimeout(r, 700));
+    }
+  };
   const fila = [semHash(inicio)];
   const vistos = new Set(fila);
   const paginas = []; const pdfs = new Map(); const modelos = []; let amostras = 0;
@@ -192,14 +216,13 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
         try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }); abriu = true; } catch (e) { ultimo = e.message; await esperar(3000 * (t + 1)); await reciclar(); }
       }
       if (!abriu) throw new Error(ultimo);
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await aguardar(page);
       const d = await page.evaluate(lerPagina);
       // Listas com botão "Próxima": clica (só nele) até acabar, juntando as linhas de cada página.
       for (let cliques = 0; cliques < 400; cliques++) {
         if (!(await page.evaluate(marcarProxima, PERIGOSO.source).catch(() => false))) break;
         await page.locator('[data-migra-prox="1"]').first().click({ timeout: 4000 }).catch(() => {});
-        await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => {});
-        await new Promise((r) => setTimeout(r, Math.max(150, espera / 3)));
+        await aguardar(page, 15000);
         const mais = await page.evaluate(lerPagina);
         for (const l of mais.links) d.links.push(l);
         for (const l of mais.pdfs) d.pdfs.push(l);
@@ -215,13 +238,23 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
         if (!chave) break;
         feitos.push(chave);
         await page.locator('[data-migra-seguro="1"]').first().click({ timeout: 3000 }).catch(() => {});
-        await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-        await new Promise((r) => setTimeout(r, Math.max(200, espera / 2)));
+        await aguardar(page, 12000);
         const mais = await page.evaluate(lerPagina);
         for (const l of mais.links) d.links.push(l);
         juntar(d, mais);
       }
-      paginas.push({ url, ...d, links: undefined, pdfs: d.pdfs });
+      for (const a of d.assinaturas || []) {
+        try {
+          const dir = path.join(pasta, 'assinaturas'); fs.mkdirSync(dir, { recursive: true });
+          const m = /^data:image\/(png|jpe?g|webp|svg\+xml);base64,(.+)$/i.exec(a.src);
+          const buf = m ? Buffer.from(m[2], 'base64') : Buffer.from(await (await context.request.get(a.src, { timeout: 20000 })).body());
+          const hash = crypto.createHash('sha256').update(buf).digest('hex').slice(0, 12);
+          const ext = m ? m[1].replace('jpeg', 'jpg').replace('+xml', '') : (/\.(png|jpe?g|webp|svg)/i.exec(a.src)?.[1] || 'png').toLowerCase();
+          const f = path.join(dir, `assinatura-${hash}.${ext}`);
+          if (!fs.existsSync(f)) { fs.writeFileSync(f, buf); log(`  assinatura salva: ${path.basename(f)} (${a.rotulo.slice(0, 60)})`); }
+        } catch { /* segue */ }
+      }
+      paginas.push({ url, ...d, assinaturas: undefined, links: undefined, pdfs: d.pdfs });
       for (const l of d.links) { const u = semHash(l); if (!vistos.has(u) && permitido(u)) { vistos.add(u); fila.push(u); } }
       for (const l of [...d.pdfs, ...d.arquivos]) if (l.startsWith(origem) && !PERIGOSO.test(l) && !pdfs.has(l)) pdfs.set(l, null);
     } catch (e) { falhas.push({ url, motivo: e.message.split('\n')[0].slice(0, 160) }); log(`  (pulei ${url}: ${e.message.split('\n')[0]})`); }
