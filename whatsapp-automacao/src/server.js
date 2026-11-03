@@ -35,7 +35,7 @@ import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Audit } from './audit.js';
 import { byAttendant, attendantOf } from './attendants.js';
-import { LegacyContracts } from './legacy-import.js';
+import { LegacyContracts, cashRowsFromCapture } from './legacy-import.js';
 import { buildBat } from './legacy-tool.js';
 import { Ingest, MIME as FILE_MIME } from './legacy-ingest.js';
 import { Resumes, MIME_BY_EXT } from './resumes.js';
@@ -283,6 +283,7 @@ const videocalls = new VideoCalls({ store, auth });
 const live = new Live({ store });
 const recordings = new Recordings({ store });
 const documents = new Documents({ store });
+const cashHook = (cap) => (typeof cash === 'undefined' ? null : cash.importLegacy(cashRowsFromCapture(cap)));
 agent.liveInfo = () => live.promptInfo(`${publicBase()}/live`);
 const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 // Só quem já viu o valor (e disse que tem condições) vai para a videochamada com o consultor.
@@ -875,6 +876,20 @@ agent.channelNote = (conv) => {
   if (!owner) return '';
   const first = owner.name.split(' ')[0];
   return `Você atende pelo WhatsApp de ${owner.name}, consultor(a) da equipe. Os clientes daqui são de ${first}. Apresente-se como a assistente de ${first} na Migra (ex.: "Oi! Aqui é a assistente de ${first}, da Migra"). ${first} acompanha as conversas e assume quando o cliente precisar. Não encaminhe para outro vendedor: este cliente já é de ${first}.`;
+};
+// Histórico de orçamentos deste número (inclusive os desativados por prazo): a IA retoma de onde o cliente parou.
+agent.quoteContext = (conv) => {
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
+  const mine = quotes.list.filter((q) => q.convKey === conv.key || (lead && q.leadId === lead.id) || (conv.phone && q.phone && samePhone(q.phone, conv.phone)));
+  if (!mine.length) return '';
+  const last = mine.at(-1);
+  const st = quoteStatus(last);
+  const brDate = (d) => String(d).split('-').reverse().join('/');
+  const items = last.items.map((i) => `${i.name} × ${i.qty}`).join(', ');
+  const head = `Este cliente JÁ RECEBEU orçamento: ${last.number} de ${brDate(last.issued)} (${items}), total R$ ${Number(last.plan.total).toLocaleString('pt-BR')}, entrada R$ ${Number(last.plan.entry).toLocaleString('pt-BR')}.`;
+  if (st === 'vendido') return `${head} Já virou venda: não ofereça outro orçamento, trate como cliente.`;
+  if (st === 'ativo') return `${head} Está ATIVO até ${brDate(last.validUntil)}: não gere outro, retome o que foi combinado e conduza ao fechamento.`;
+  return `${head} Passou da validade em ${brDate(last.validUntil)} e foi DESATIVADO (ele não respondeu a tempo; os dados dele continuam guardados). Se ele voltar a falar em seguir, diga que lembra do atendimento anterior, retome com os mesmos pacotes e gere um orçamento novo com gerar_orcamento (os valores valem pela tabela de hoje). Não repita as perguntas que ele já respondeu.`;
 };
 agent.contextFor = (conv) => {
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
@@ -1661,6 +1676,7 @@ const SELLER_ROUTES = [
   ['POST', /^\/contract\/extract$/],
   ['GET', /^\/sales(\/summary)?$/],
   ['GET', /^\/sales\/[a-f0-9]+$/],
+  ['POST', /^\/sales\/[a-f0-9]+\/parcel\/\d+\/claim$/],
   ['POST', /^\/quotes\/[a-f0-9]+\/sale$/],
   ['GET', /^\/referral\/(me|qr)$/],
   ['PATCH', /^\/me\/prefs$/],
@@ -2808,6 +2824,7 @@ app.post('/api/legacy/import', legacyUpload, (req, res) => {
   const cap = readCapture(req);
   const r = legacy.import(cap, req.user);
   r.documents = documents.importCapture(cap);
+  r.cash = cashHook(cap);
   audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'contratos antigos', label: `Importação: ${r.added} novo(s), ${r.updated} atualizado(s)` });
   res.json(r);
 });
@@ -2819,6 +2836,7 @@ app.post('/api/legacy/ingest/captura', ingestAuth, ingestCaptura, (req, res) => 
   let json;
   try { json = JSON.parse(req.file?.buffer.toString('utf8') || ''); } catch { throw httpError(400, 'Arquivo de cópia inválido'); }
   const run = ingest.start(req.ingestRec, json);
+  try { run.summary.cash = cashHook(json); } catch (e) { store.addLog({ type: 'error', message: `Caixa da cópia: ${e.message}` }); }
   try { run.summary.documents = documents.importCapture(json); } catch (e) { store.addLog({ type: 'error', message: `Documentos da cópia: ${e.message}` }); }
   store.addLog({ type: 'system', message: `Cópia do sistema antigo recebida: ${run.summary.added} contrato(s) novo(s), ${run.summary.newClients} cliente(s) novo(s)` });
   res.json({ run: run.id, summary: run.summary, expectedFiles: run.owners.length });
@@ -3388,19 +3406,36 @@ closing.onFilled = async (f) => {
 // Orçamentos: cada vendedor vê os dele; o administrador vê todos.
 const quoteOffice = (q) => normOffice(q.office) || officeOfUser(auth.get(q.createdBy?.id));
 const canSeeQuote = (user, q) => user.role === 'admin' || (sees(user, quoteOffice(q)) && (Boolean(user.officeAdmin) || q.createdBy?.id === user.id));
+// Orçamento ativo, vendido, ou desativado (passou da validade sem virar venda): continua guardado com os dados do cliente, só deixa de contar como oferta ativa.
+const quoteStatus = (q) => (sales.list.some((x) => x.quoteId === q.id && x.status !== 'cancelada') ? 'vendido' : q.validUntil < new Date().toISOString().slice(0, 10) ? 'desativado' : 'ativo');
 const quoteView = (q) => ({
   id: q.id, number: q.number, client: q.client, phone: q.phone, consultant: q.consultant, total: q.plan.total, entry: q.plan.entry,
   items: q.items.map((r) => ({ name: r.name, qty: r.qty })), issued: q.issued, validUntil: q.validUntil, leadId: q.leadId,
   createdBy: q.createdBy?.name || '', createdAt: q.createdAt, custom: Boolean(q.plan.custom), hasContract: Boolean(q.contract), contractSigned: q.contract?.status === 'assinado', sale: sales.list.find((s) => s.quoteId === q.id && s.status !== 'cancelada')?.number || '',
   expired: q.validUntil < new Date().toISOString().slice(0, 10),
+  status: quoteStatus(q),
   url: `/api/quotes/${q.id}/pdf`, publicUrl: quoteLink(q),
 });
 app.get('/api/quotes', (req, res) => {
   const term = String(req.query.q || '').toLowerCase().trim();
   const list = quotes.list.filter((q) => canSeeQuote(req.user, q) && inOffice(req, quoteOffice(q)))
     .filter((q) => !term || [q.number, q.client, q.phone, q.consultant].some((x) => String(x || '').toLowerCase().includes(term)))
+    .filter((q) => { const f = String(req.query.status || 'ativos'); const st = quoteStatus(q); return f === 'todos' || (f === 'desativados' ? st === 'desativado' : st !== 'desativado'); })
     .slice(-300).reverse().map(quoteView);
   res.json(list);
+});
+// Cliente voltou: reativa o orçamento desativado por mais 7 dias (mesmos valores), sem criar outro.
+app.post('/api/quotes/:id/reactivate', (req, res) => {
+  const q = quotes.list.find((x) => x.id === req.params.id);
+  if (!q || !canSeeQuote(req.user, q)) throw httpError(404, 'Orçamento não encontrado');
+  if (quoteStatus(q) !== 'desativado') throw httpError(400, 'Este orçamento não está desativado');
+  const days = Number(store.settings.quotes?.validityDays) || 7;
+  const d = new Date(); d.setDate(d.getDate() + days);
+  q.validUntil = d.toISOString().slice(0, 10);
+  q.reactivatedAt = new Date().toISOString();
+  store.save();
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'orçamento', label: `${q.number} reativado por ${days} dias (${q.client})` });
+  res.json(quoteView(q));
 });
 // Prévia ao vivo (sem número, sem gravar).
 app.post('/api/quotes/preview', (req, res) => {
@@ -3716,6 +3751,16 @@ app.post('/api/quotes/:id/sale', (req, res) => {
 app.post('/api/sales/:id/parcel/:index', (req, res) => {
   const s = sales.setParcel(req.user, req.params.id, req.params.index, req.body || {});
   securityEvent('venda_parcela', req.user, req, `${s.number} · ${s.parcels[Number(req.params.index)]?.label} · ${req.body?.paid === false ? 'desfeito' : 'recebido'}`);
+  res.json(sales.view(s));
+});
+// O vendedor avisa que o cliente pagou (entrada ou parcela): o administrador é avisado na hora no WhatsApp e confirma com um clique.
+app.post('/api/sales/:id/parcel/:index/claim', (req, res) => {
+  const s = sales.claimParcel(req.user, req.params.id, req.params.index, req.body || {});
+  const p = s.parcels[Number(req.params.index)];
+  if (!req.body?.undo && p?.claim) {
+    notifyAdmins(`💰 *${req.user.name} avisou um pagamento*\n👤 ${s.client?.nome || 'Cliente'}\n🧾 ${s.number} · ${p.label}\n💵 R$ ${Number(p.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${p.claim.method}, ${p.claim.date.split('-').reverse().join('/')})\n\nConfira se o valor caiu e confirme no painel (Contratos e vendas → abrir a venda → Confirmar recebimento).`).catch(() => {});
+  }
+  securityEvent('venda_parcela_informada', req.user, req, `${s.number} · ${p?.label} · ${req.body?.undo ? 'aviso retirado' : 'pagamento informado'}`);
   res.json(sales.view(s));
 });
 app.post('/api/sales/:id/commission', (req, res) => {

@@ -158,6 +158,8 @@ Quem chega neste WhatsApp já foi atendido pela primeira IA, que tirou as dúvid
 6) Respostas curtas, uma pergunta por vez, sem repetir o que já foi dito.`;
     const known = this.contextFor ? this.contextFor(conv) : '';
     if (known) system += `\n\n# O que já sabemos deste cliente (CRM)\n${known}\nUse isso: cumprimente pelo nome, mostre que já sabe o interesse dele ("vi aqui que você...") e siga para o fechamento sem repetir perguntas já respondidas.`;
+    const qctx = this.quoteContext ? this.quoteContext(conv) : '';
+    if (qctx) system += `\n\n# Orçamentos e histórico deste cliente\n${qctx}\nA conversa anterior com este número está na sua memória: use o que ele já disse (interesse, família, objeções) em vez de perguntar de novo.`;
     // Com os setores no painel, o especialista antigo (terrenos → Robson) dá lugar a eles.
     const specialists = !this.routeSector && Boolean(this.routeSpecialist) && (settings.crm?.specialists || []).some((s) => s.topic && s.name);
     const pay = settings.payments || {};

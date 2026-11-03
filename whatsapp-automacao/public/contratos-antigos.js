@@ -54,7 +54,7 @@
     if (!confirm('Levar os contratos com parcelas para Vendas (vencimentos, atrasos e painel) e os clientes para o CRM? Nada é enviado a ninguém e a comissão fica zerada. Pode repetir sem duplicar.')) return;
     try {
       const r = await api('/api/legacy/apply', { method: 'POST', body: {} });
-      toast(`Pronto: ${r.sales} venda(s) com parcelas, ${r.clients} cliente(s) no CRM (${r.salesSkipped + r.clientsSkipped} já existiam, ${r.noParcels} contrato(s) sem parcelas).`);
+      toast(`Pronto: ${r.sales} venda(s) com parcelas, ${r.clients} cliente(s) no CRM (${r.salesSkipped + r.clientsSkipped} já existiam, ${r.noParcels} contrato(s) sem parcelas). ${r.fromCobranca ? `${r.fromCobranca} com as parcelas reais da Cobrança.` : ''}${r.upgraded ? ` ${r.upgraded} atualizado(s) com as parcelas reais.` : ''}`);
     } catch (e) { toast(e.message, true); }
   };
   async function loadAudit() {

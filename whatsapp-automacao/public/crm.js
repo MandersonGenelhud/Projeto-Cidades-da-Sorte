@@ -1416,14 +1416,18 @@ async function quotePreview() {
 }
 const quotePreviewSoon = () => { clearTimeout(quoteState.timer); quoteState.timer = setTimeout(quotePreview, 350); };
 async function loadQuoteList() {
-  const list = await api(`/api/quotes?q=${encodeURIComponent($('#quoteSearch').value || '')}`);
+  if (!$('#quoteStatus')) {
+    $('#quoteSearch').insertAdjacentHTML('afterend', '<select id="quoteStatus"><option value="ativos">Ativos e vendidos</option><option value="desativados">Desativados (venceram)</option><option value="todos">Todos</option></select>');
+    $('#quoteStatus').addEventListener('change', loadQuoteList);
+  }
+  const list = await api(`/api/quotes?q=${encodeURIComponent($('#quoteSearch').value || '')}&status=${encodeURIComponent($('#quoteStatus').value)}`);
   const admin = window.currentUser?.role === 'admin';
   $('#quoteTable').innerHTML = `<thead><tr><th>Número</th><th>Emissão</th><th>Cliente</th><th>Pacotes</th><th>Total</th>${admin ? '<th>Vendedor</th>' : ''}<th>Validade</th><th></th></tr></thead>
     <tbody>${list.map((q) => `<tr><td><b>${esc(q.number)}</b></td><td>${esc(q.issued.split('-').reverse().join('/'))}</td>
       <td>${esc(q.client)}<div class="hint">${q.phone ? esc(fmtPhone(q.phone)) : ''}</div></td>
       <td class="small">${q.items.map((i) => `${esc(i.name)} × ${i.qty}`).join('<br>')}${q.custom ? '<div class="hint">parcelas personalizadas</div>' : ''}</td>
       <td><b>${brl2(q.total)}</b></td>${admin ? `<td>${esc(q.createdBy || q.consultant)}</td>` : ''}
-      <td>${q.expired ? '<span class="badge canceled">Vencido</span>' : `<span class="badge done">até ${esc(q.validUntil.split('-').reverse().join('/'))}</span>`}</td>
+      <td>${q.status === 'desativado' ? `<span class="badge canceled">Desativado</span> <button type="button" class="btn small" data-react="${esc(q.id)}">Reativar</button>` : q.expired ? '<span class="badge canceled">Vencido</span>' : `<span class="badge done">até ${esc(q.validUntil.split('-').reverse().join('/'))}</span>`}</td>
       <td><a class="btn small" href="${q.url}" target="_blank" rel="noopener">Abrir PDF</a> <a class="btn small" href="${q.url}?download=1">Baixar</a>
         ${q.sale ? `<span class="badge done">${esc(q.sale)}</span>` : `<button type="button" class="btn small" data-sale="${esc(q.id)}" data-number="${esc(q.number)}">Lançar venda</button>`}
         <button type="button" class="btn small${q.hasContract ? '' : ' primary'}" data-contract="${esc(q.id)}" data-number="${esc(q.number)}">${q.contractSigned ? 'Contrato assinado' : q.hasContract ? 'Contrato ✓' : 'Contrato'}</button></td></tr>`).join('') || `<tr><td colspan="${admin ? 8 : 7}" class="muted">Nenhum orçamento ainda.</td></tr>`}</tbody>`;
@@ -1650,6 +1654,8 @@ async function openSale(id) {
     <div class="table-wrap"><table><thead><tr><th>Parcela</th><th>Valor</th><th>Vencimento</th><th>Situação</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>
       ${v.parcels.map((p, i) => `<tr><td><b>${esc(p.label)}</b></td><td>${brl2(p.value)}</td><td>${dBr(p.due)}</td>
         <td>${p.status === 'pago' ? `<span class="badge done">Recebida ${dBr(p.paidAt)}</span><div class="hint">${esc(p.method || '')}${p.confirmedBy ? ` · por ${esc(p.confirmedBy)}` : ''}</div>` : p.due && p.due < new Date().toISOString().slice(0, 10) ? '<span class="badge paused">Atrasada</span>' : '<span class="badge pending">A receber</span>'}</td>
+        ${!admin && v.status !== 'cancelada' && p.status !== 'pago' ? `<td>${p.claim ? `<span class="badge paused">Aviso enviado ao Marcos</span> <button class="btn small" data-claim="${i}" data-undo="1">Retirar aviso</button>` : `<button class="btn small primary" data-claim="${i}">Cliente pagou</button>`}</td>` : ''}
+        ${admin && p.claim && p.status !== 'pago' ? `<td><span class="badge paused">${esc(p.claim.by)} avisou: pago em ${dBr(p.claim.date)}</span></td>` : ''}
         ${admin && v.status !== 'cancelada' ? `<td>${p.status === 'pago' ? `<button class="btn small" data-parcel="${i}" data-paid="0">Desfazer</button>` : `<button class="btn small primary" data-parcel="${i}" data-paid="1">Confirmar recebimento</button>`}</td>` : admin ? '<td></td>' : ''}</tr>`).join('')}
     </tbody></table></div>
     <h3>Comissão</h3>
@@ -1667,6 +1673,14 @@ async function openSale(id) {
   const act = async (url, body, msg) => {
     try { await api(url, { method: 'POST', body }); toast(msg); openSale(id); loaders.contracts(); } catch (err) { toast(err.message, true); }
   };
+  $$('#saleBody [data-claim]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.undo) return act(`/api/sales/${id}/parcel/${b.dataset.claim}/claim`, { undo: true }, 'Aviso retirado');
+    const date = prompt('Dia em que o cliente pagou (dd/mm/aaaa):', new Date().toLocaleDateString('pt-BR'));
+    if (!date) return;
+    const [d, m, y] = date.split('/');
+    const method = prompt('Forma de pagamento (Pix, cartão, transferência…):', 'Pix') || 'Pix';
+    act(`/api/sales/${id}/parcel/${b.dataset.claim}/claim`, { date: `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`, method }, 'O Marcos foi avisado e vai confirmar o recebimento');
+  }));
   $$('#saleBody [data-parcel]').forEach((b) => b.addEventListener('click', () => {
     const paid = b.dataset.paid === '1';
     if (paid) {
@@ -1693,6 +1707,12 @@ $('#saleClose').addEventListener('click', () => $('#saleDialog').close());
 $('#salesTable').addEventListener('click', (e) => {
   const id = e.target.closest('tr[data-sale-id]')?.dataset.saleId;
   if (id) openSale(id);
+});
+// Orçamentos → reativar um desativado
+$('#quoteTable').addEventListener('click', async (e) => {
+  const r = e.target.closest('[data-react]');
+  if (!r) return;
+  try { await api(`/api/quotes/${r.dataset.react}/reactivate`, { method: 'POST', body: {} }); toast('Orçamento reativado'); loadQuoteList(); } catch (err) { toast(err.message, true); }
 });
 // Orçamentos → lançar a venda
 $('#quoteTable').addEventListener('click', async (e) => {

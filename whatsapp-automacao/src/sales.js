@@ -131,13 +131,34 @@ export class Sales {
     if (!p) throw err(400, 'Parcela não encontrada');
     if (paid) {
       if (!isDate(date)) throw err(400, 'Data inválida');
-      Object.assign(p, { status: 'pago', paidAt: date, method: String(method || 'Pix').slice(0, 40), note: String(note || '').slice(0, 200), confirmedBy: user.name });
+      Object.assign(p, { status: 'pago', paidAt: date, method: String(method || 'Pix').slice(0, 40), note: String(note || '').slice(0, 200), confirmedBy: user.name, claim: null });
       this.#log(sale, user, `${p.label} recebida em ${date.split('-').reverse().join('/')} (${p.method}): ${brl(p.value)}`);
     } else {
       Object.assign(p, { status: 'pendente', paidAt: null, method: null, confirmedBy: null });
       this.#log(sale, user, `${p.label}: recebimento desfeito`);
     }
     if (sale.status !== 'cancelada') sale.status = sale.parcels.every((x) => x.status === 'pago') ? 'concluida' : 'ativa';
+    this.store.save();
+    this.notify('sales', { id });
+    return sale;
+  }
+
+  /** O vendedor da venda avisa que o cliente pagou: a parcela fica "informada" (ainda NÃO é recebida) até o administrador confirmar. */
+  claimParcel(user, id, index, { date = today(), method = 'Pix', note = '', undo = false } = {}) {
+    const sale = this.#mustSee(user, id);
+    if (user.role !== 'admin' && !user.officeAdmin && sale.sellerId !== user.id) throw err(403, 'Só o vendedor desta venda informa recebimentos');
+    const p = sale.parcels[Number(index)];
+    if (!p) throw err(400, 'Parcela não encontrada');
+    if (p.status === 'pago') throw err(400, 'Esta parcela já está recebida');
+    if (sale.status === 'cancelada') throw err(400, 'Venda cancelada');
+    if (undo) {
+      p.claim = null;
+      this.#log(sale, user, `${p.label}: aviso de pagamento retirado`);
+    } else {
+      if (!isDate(date)) throw err(400, 'Data inválida');
+      p.claim = { by: user.name, byId: user.id, at: new Date().toISOString(), date, method: String(method || 'Pix').slice(0, 40), note: String(note || '').slice(0, 200) };
+      this.#log(sale, user, `${p.label}: ${user.name} avisou que o cliente pagou ${brl(p.value)} (${p.claim.method}, ${date.split('-').reverse().join('/')}). Aguardando confirmação do administrador`);
+    }
     this.store.save();
     this.notify('sales', { id });
     return sale;

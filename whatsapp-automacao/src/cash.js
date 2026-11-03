@@ -99,6 +99,20 @@ export class Cash {
     return this.list.find((e) => e.id === id && !e.deleted) || null;
   }
 
+  /** Traz os movimentos do caixa do sistema antigo (sem duplicar; ficam marcados como "sistema antigo"). */
+  importLegacy(rows = []) {
+    const have = new Set(this.list.filter((e) => e.legacyKey).map((e) => e.legacyKey));
+    let added = 0;
+    for (const r of rows) {
+      if (have.has(r.key)) continue;
+      const e = this.add({ name: 'Importação' }, { kind: r.kind, amount: r.amount, date: r.date, description: r.description, category: r.category || (r.kind === 'entrada' ? 'Recebimento (sistema antigo)' : 'Despesa (sistema antigo)'), notes: 'Copiado do sistema antigo', scope: 'empresa' });
+      e.legacyKey = r.key; e.legacy = true;
+      have.add(r.key); added += 1;
+    }
+    if (added) this.store.save();
+    return { found: rows.length, added };
+  }
+
   update(user, id, patch) {
     const e = this.get(id);
     if (!e) throw err(404, 'Lançamento não encontrado');
@@ -129,7 +143,8 @@ export class Cash {
         description: `${p.description || 'Pix'}${p.payerName ? ` · ${p.payerName}` : ''}`, method: 'Pix', account: '', payee: p.payerName || '', status: 'pago', notes: '', scope: 'empresa' });
     }
     for (const s of this.sales?.list || []) {
-      if (s.status === 'cancelada') continue;
+      // Vendas copiadas do sistema antigo: o caixa antigo vem pelas próprias telas de caixa dele (importadas à parte), para não contar duas vezes.
+      if (s.status === 'cancelada' || s.legacy) continue;
       s.parcels.forEach((x, i) => {
         // A entrada confirmada por Pix já aparece como pagamento acima.
         if (x.status !== 'pago' || !x.paidAt || String(x.confirmedBy || '').startsWith('Sistema')) return;
