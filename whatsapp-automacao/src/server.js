@@ -46,6 +46,7 @@ import { Tutorials } from './tutorials.js';
 import { Cities, CATEGORIES as CITY_CATEGORIES } from './cities.js';
 import { Marketing, PRESETS as MKT_PRESETS } from './marketing.js';
 import { Collections } from './collections.js';
+import { Customer360 } from './customer360.js';
 import { Documents, TYPES as DOC_TYPES } from './documents.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
@@ -1265,7 +1266,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -2826,6 +2827,26 @@ app.put('/api/collections/config', (req, res) => {
   const c = tutErr(() => collections.setConfig(req.body || {}));
   audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'cobrança de vencidos', label: 'Limites de envio', changes: [{ field: 'config', label: 'Limites', from: '', to: JSON.stringify(c), sensitive: false }] });
   res.json(c);
+});
+// ---- Ficha 360 do cliente ----
+const customer360 = new Customer360({
+  sales: () => sales.list, quotes: () => quotes.list, leads: () => crm.leads, conversations: () => Object.values(store.data.conversations || {}),
+  documents: () => documents.all.filter((d) => !d.deletedAt), legacyClients: () => legacy.clients, legacyContracts: () => legacy.list, collectionsLog: () => collections.data.log,
+});
+app.get('/api/customers/search', (req, res) => { needAdmin(req); res.json(customer360.search(String(req.query.q || ''))); });
+app.get('/api/customers/duplicates', (req, res) => { needAdmin(req); res.json(customer360.duplicates({ source: req.query.source === 'leads' ? 'leads' : 'clients' }).slice(0, 200)); });
+app.post('/api/customers/duplicates/merge', (req, res) => {
+  needAdmin(req);
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String).slice(0, 10) : [];
+  const r = tutErr(() => legacy.mergeClients(ids));
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'clientes duplicados', label: `Juntou ${ids.length} cadastros em um` });
+  res.json(r);
+});
+app.get('/api/customers/360', (req, res) => {
+  needAdmin(req);
+  const { phone = '', doc = '', name = '' } = req.query;
+  if (!phone && !doc && !name) throw httpError(400, 'Informe telefone, documento ou nome');
+  res.json(customer360.build({ phone: String(phone), doc: String(doc), name: String(name) }));
 });
 // ---- Reuniões gravadas (biblioteca de links) ----
 app.get('/api/recordings', (req, res) => res.json(recordings.list({ q: String(req.query.q || '') })));

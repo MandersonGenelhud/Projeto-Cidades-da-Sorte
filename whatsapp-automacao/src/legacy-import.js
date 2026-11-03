@@ -469,6 +469,21 @@ export class LegacyContracts {
     return out;
   }
 
+  /** Junta cadastros repetidos de clientes antigos: fica o primeiro, completa os campos vazios e tira os outros. */
+  mergeClients(ids = []) {
+    const group = ids.map((id) => this.clients.find((c) => c.id === id)).filter(Boolean);
+    if (group.length < 2) throw err(400, 'Escolha pelo menos dois cadastros repetidos');
+    const keep = group[0];
+    for (const o of group.slice(1)) {
+      for (const f of Object.keys(o)) if (!['id', 'extra'].includes(f) && (keep[f] === '' || keep[f] === null || keep[f] === undefined) && o[f]) keep[f] = o[f];
+      keep.extra = { ...(o.extra || {}), ...(keep.extra || {}) };
+    }
+    const drop = new Set(group.slice(1).map((c) => c.id));
+    this.store.data.legacyClients = this.clients.filter((c) => !drop.has(c.id));
+    this.store.save();
+    return { kept: keep.id, removed: drop.size };
+  }
+
   search({ q = '', limit = 200 } = {}) {
     const n = norm(q);
     return this.list
