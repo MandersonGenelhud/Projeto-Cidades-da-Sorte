@@ -13,7 +13,7 @@ test('setores: loteamento vai para os atendentes do setor, um de cada vez, com o
   auth.create({ name: 'Marcos', login: 'marcos', password: 'segredo123', role: 'admin' });
   const robson = auth.create({ name: 'Robson Lima', login: 'robson', password: 'segredo123', role: 'seller', whatsapp: '595981000001' });
   const crm = new Crm({ store, auth });
-  store.updateSettings({ crm: { sectors: { loteamentos: { people: parsePeople('Robson = +595 981 000001\nJulia = +595 982 000002') } } } });
+  store.updateSettings({ crm: { sectors: { loteamentos: { only: '', people: parsePeople('Robson = +595 981 000001\nJulia = +595 982 000002') } } } });
   const sent = [];
   const admins = [];
   const sectors = new Sectors({ store, crm, auth, send: async (phone, text) => sent.push({ phone, text }), notifyAdmins: async (t) => admins.push(t) });
@@ -156,7 +156,7 @@ test('área por pessoa: botões da Equipe definem quem recebe cada setor, migra 
   const eliezer = mk('Eliezer', '5545999990013', { sectors: ['veiculos'] });
   assert.deepEqual(auth.list().find((u) => u.name === 'Eliezer').sectors, ['veiculos']);
   // Lista antiga de Regras → marcação por pessoa (uma vez), e nomes sem cadastro ficam como estavam.
-  store.updateSettings({ crm: { sectors: { loteamentos: { people: [{ name: 'Gabriel', whatsapp: '' }, { name: 'Fulano sem cadastro', whatsapp: '595981000000' }] }, documentacao: { people: [{ name: 'Camila', whatsapp: '' }] } } } });
+  store.updateSettings({ crm: { sectors: { loteamentos: { only: '', people: [{ name: 'Gabriel', whatsapp: '' }, { name: 'Fulano sem cadastro', whatsapp: '595981000000' }] }, documentacao: { people: [{ name: 'Camila', whatsapp: '' }] } } } });
   const sectors = new Sectors({ store, crm: {}, auth });
   sectors.migrate();
   assert.deepEqual(gabriel.sectors, ['loteamentos']);
@@ -172,4 +172,35 @@ test('área por pessoa: botões da Equipe definem quem recebe cada setor, migra 
   auth.update(gabriel.id, { sectors: ['veiculos'] });
   const crm = new Crm({ store, auth });
   assert.deepEqual(crm.rotation().map((u) => u.name), ['Camila']);
+});
+
+test('terrenos e imóveis: tudo vai só para o Gabriel, de qualquer linha, sem rodízio com o Diego', async () => {
+  const store = tempStore();
+  const auth = new Auth({ store, dataDir: store.dataDir });
+  const crm = new Crm({ store, auth });
+  assert.equal(store.settings.crm.sectors.loteamentos.only, 'Gabriel');
+  store.updateSettings({ crm: { sectors: { loteamentos: { people: [{ name: 'Gabriel', whatsapp: '5545999990002' }, { name: 'Diego', whatsapp: '5545999990003' }] } } } });
+  const sent = [];
+  const sectors = new Sectors({ store, crm, auth, send: async (phone) => sent.push(phone), notifyAdmins: async () => {} });
+  for (const n of ['1', '2', '3']) await sectors.route({ key: `55119111122${n}${n}@s.whatsapp.net`, phone: `55119111122${n}${n}`, name: 'C' }, { setor: 'loteamentos', resumo: 'quer apartamento' });
+  assert.deepEqual(sent, ['5545999990002', '5545999990002', '5545999990002']);
+});
+
+test('prompt: conhecimento do Gabriel sobre imóveis (só filtrar o projeto, parcelado, apartamentos) e rota única', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const seen = [];
+  const llm = { configured: true, chat: async ({ messages }) => { seen.push(messages[0].content); return { content: 'Claro!', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm });
+  agent.routeSector = async () => ({ ok: true });
+  const conv = agent.conversation('5511900002222@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Tenho interesse em um terreno');
+  await agent.think(conv);
+  assert.match(seen[0], /TODO assunto de imóvel, de qualquer vendedor ou linha, vai para o Gabriel/);
+  assert.match(seen[0], /SÓ FILTRAR/);
+  assert.match(seen[0], /lotes comerciais e residenciais, e também apartamentos/);
+  assert.match(seen[0], /parcelado/);
+  assert.match(seen[0], /curiosos/);
+  assert.doesNotMatch(seen[0], /Gabriel e (o )?Diego/);
 });

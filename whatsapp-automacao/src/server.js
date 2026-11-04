@@ -747,7 +747,7 @@ agent.bookMentoring = async (conv, args = {}, { dryRun } = {}) => {
 };
 /** Quem recebe quem quer trabalhar na Migra (Prospectos → Regras): só o nome de quem está na Equipe, ou "Nome = WhatsApp". */
 const jobsContact = () => resolvePeople(store.settings.crm?.jobsContact || [], auth.users)[0] || null;
-// Corretor, terreno, loteamento e parceria imobiliária: direto para o Gabriel e o Diego (setor Loteamentos). O Marcos não recebe.
+// Corretor, terreno, loteamento e parceria imobiliária: direto para o Gabriel (setor Loteamentos). O Marcos não recebe.
 const REAL_ESTATE_TOPIC = /corretor|creci|imobili|terren|loteament|\blote\b|\blotes\b|im[oó]ve(?:l|is)/i;
 agent.notifyOwner = async (conv, args, { dryRun } = {}) => {
   if (['parceria de negócio', 'outro'].includes(args.assunto) && REAL_ESTATE_TOPIC.test(`${args.resumo || ''} ${args.nome || ''}`)) {

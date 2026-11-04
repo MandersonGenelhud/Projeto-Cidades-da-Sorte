@@ -17,7 +17,7 @@ Atualizado em 31/10/2026. Tudo abaixo está no sistema depois de **Atualizar ago
 ## 2. Equipe e áreas
 - **Equipe**: cada pessoa tem os botões 🛂 Documentação · 🏡 Terrenos · 🚗 Veículos. Define quem recebe cada tipo de cliente (IA, Nina, Instagram e indicações de parceiros).
 - **WhatsApp de cada vendedor** (na própria Equipe e em Conexões): QR Code, liga/desliga a IA e o **nome da atendente** de cada número (não pode ser "Nina").
-- **Corretor, terreno e parceria imobiliária** vão para Gabriel e Diego, nunca para o Marcos. Um único aviso por cliente (sem repetir).
+- **Corretor, terreno e parceria imobiliária** vão só para o Gabriel (setor Loteamentos com atendente exclusivo, sem rodízio), nunca para o Marcos nem para o Diego. Um único aviso por cliente (sem repetir).
 
 ## 3. Visitas e pagamentos
 - **Visita presencial com a assessoria**: taxa de reserva de **R$ 150**, paga antes por Pix, **estornada se o cliente fechar**. Cliente da Migra não paga.
@@ -90,3 +90,8 @@ Atualizado em 31/10/2026. Tudo abaixo está no sistema depois de **Atualizar ago
 
 ## 7. Onde está o código
 - Repositório MandersonGenelhud/Projeto-Cidades-da-Sorte, branch `claude/whatsapp-automation-tool-247je5`, pasta `whatsapp-automacao/`.
+
+## Imóveis: conhecimento do Gabriel e rota única (Nov/2026)
+- A atendente virtual aprendeu com o áudio do Gabriel: imóvel é diferente de assessoria (dinheiro e investimento pessoal); ele atende lotes comerciais e residenciais e apartamentos para comprar; o papel da IA é só filtrar o projeto (investir, ou comprar parcelado para construir ou morar depois; entrada e parcela; prazo; cidade) e marcar o quanto a pessoa parece pronta, porque hoje chegam muitos curiosos.
+- Todo assunto de terreno, lote, loteamento e apartamento, de qualquer vendedor ou linha, vai para o Gabriel (`sectors.loteamentos.only`, migração `lotsGabriel2026`). Quem desligar o campo volta ao rodízio.
+- Limite: o direcionamento depende de a IA chamar a ferramenta; não há travamento automático por palavra-chave (para não tirar cliente de migração que só cita terreno).

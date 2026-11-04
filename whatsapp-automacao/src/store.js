@@ -54,7 +54,7 @@ const DEFAULT_DATA = {
       specialists: (PRESET.crm?.specialists || []).map((x) => ({ ...x })),
       // Setores do Grupo Migra e os atendentes de cada um (Prospectos → Regras → Setores).
       sectors: {
-        loteamentos: { label: 'Loteamentos e terrenos (Migra Imobiliária)', people: [] },
+        loteamentos: { label: 'Loteamentos e terrenos (Migra Imobiliária)', people: [], only: 'Gabriel' },
         documentacao: { label: 'Documentação e migração (Migra Paraguai)', people: [] },
         veiculos: { label: 'Veículos (Migra Motors)', people: [] },
       },
@@ -280,6 +280,13 @@ export class Store extends EventEmitter {
       }
       crmS.jobsContact = [{ name: 'Gabriel', whatsapp: '' }];
       crmS.teamRouting2026 = true;
+      this.flush();
+    }
+    // Nov/2026: TODO assunto de terreno, lote e imóvel, de qualquer vendedor, vai só para o Gabriel (sem rodízio com o Diego).
+    if (crmS && !crmS.lotsGabriel2026) {
+      crmS.sectors ||= {};
+      crmS.sectors.loteamentos = { ...(crmS.sectors.loteamentos || {}), only: 'Gabriel' };
+      crmS.lotsGabriel2026 = true;
       this.flush();
     }
     // Instalações antigas vinham com 7 dias: passa para 15 uma vez (depois vale o que o Marcos escolher).
