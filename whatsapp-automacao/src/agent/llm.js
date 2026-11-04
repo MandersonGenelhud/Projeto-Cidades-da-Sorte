@@ -54,6 +54,13 @@ function friendlyError(provider, status, message) {
   return `${label}: ${message}`;
 }
 
+/** Claude pela OpenRouter só guarda em cache se o começo do prompt vier marcado: o texto fixo (igual para todos) é guardado e o final (hora, cliente) segue normal. Cobra cerca de 10% por leitura. */
+function cacheable(m, len, provider, model) {
+  if (m.role !== 'system' || !len || provider !== 'openrouter' || !/claude|anthropic/i.test(String(model)) || typeof m.content !== 'string' || len < 2000) return m;
+  const head = m.content.slice(0, len); const rest = m.content.slice(len);
+  return { ...m, content: [{ type: 'text', text: head, cache_control: { type: 'ephemeral' } }, ...(rest.trim() ? [{ type: 'text', text: rest }] : [])] };
+}
+
 export class LLMClient {
   constructor({ getConfig, fetchImpl = globalThis.fetch }) {
     this.getConfig = getConfig; // () => { provider, apiKey, model, temperature }
@@ -115,7 +122,7 @@ export class LLMClient {
     const body = {
       model,
       // O campo _anthropic só existe na conversa com o Claude.
-      messages: messages.map(({ _anthropic, ...m }) => m),
+      messages: messages.map(({ _anthropic, _cacheLen, ...m }) => cacheable(m, _cacheLen, provider, model)),
       ...(p.noTemperature ? {} : { temperature: Number(temperature ?? 0.4) }),
       [p.maxTokensKey || 'max_tokens']: p.maxTokensKey ? 4096 : 2048,
       ...(p.extraBody || {}),

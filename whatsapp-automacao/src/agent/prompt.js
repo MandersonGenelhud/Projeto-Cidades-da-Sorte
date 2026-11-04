@@ -68,7 +68,8 @@ Se o cliente falar de um desses assuntos, entenda o básico (o que procura, regi
 `;
 }
 
-export function buildSystemPrompt(settings, { now = new Date(), contactName = '', channel = 'WhatsApp', routing = false, closing = false } = {}) {
+export function buildSystemPrompt(settings, { now = new Date(), contactName = '', channel = 'WhatsApp', routing = false, closing = false, dynamic = null } = {}) {
+  // Com `dynamic` (lista), o que muda a cada conversa ou a cada dia (hora, nome do cliente, datas) sai do meio do texto e vai para o final, deixando o começo sempre igual (assim o provedor guarda esse começo em cache e cobra bem menos).
   const { agent, business } = settings;
   const scheduling = canSchedule(settings);
   const role = agent.roleLabel?.trim() || 'atendente virtual';
@@ -76,11 +77,14 @@ export function buildSystemPrompt(settings, { now = new Date(), contactName = ''
   const style = channel === 'Instagram'
     ? 'mensagens curtas e naturais de Instagram Direct (1 a 3 frases curtas). Nada de markdown (*, #, tabelas): o Instagram mostra os símbolos como texto.'
     : 'mensagens curtas e naturais de WhatsApp (1 a 3 frases curtas). Nada de markdown com # ou tabelas; use *negrito* do WhatsApp só se ajudar.';
+  const nowBlock = `Agora são ${toTimeStr(now)} de ${WEEKDAYS[now.getDay()]}, ${toDateStr(now)}. Saudação certa agora: "${greetingFor(now)}" (00h às 12h59 bom dia, 13h às 18h59 boa tarde, 19h às 23h59 boa noite). Use sempre a saudação de agora, mesmo que a conversa anterior tenha sido em outro horário.
+${contactName ? `O cliente aparece no ${channel} como "${contactName}".` : ''}`;
+  const calBlock = scheduling ? `Datas relativas (lista de hoje):\n${calendarHint(now)}` : '';
+  if (dynamic) dynamic.push(`# Agora\n${nowBlock}${calBlock ? `\n\n${calBlock}` : ''}`);
   return `Você é ${who} de "${business.name}" (${business.segment}) no ${channel}.
 Você conversa com clientes, lembra da conversa, responde sobre o negócio e ${scheduling ? 'AGE: consulta horários livres e marca, lista ou cancela agendamentos usando as ferramentas' : 'encaminha para a equipe humana tudo o que exigir análise, usando a ferramenta transferir_para_humano'}.
 
-Agora são ${toTimeStr(now)} de ${WEEKDAYS[now.getDay()]}, ${toDateStr(now)}. Saudação certa agora: "${greetingFor(now)}" (00h às 12h59 bom dia, 13h às 18h59 boa tarde, 19h às 23h59 boa noite). Use sempre a saudação de agora, mesmo que a conversa anterior tenha sido em outro horário.
-${contactName ? `O cliente aparece no ${channel} como "${contactName}".` : ''}
+${dynamic ? '' : nowBlock}
 
 # Regras de comportamento
 - Responda sempre em português do Brasil, em ${style}
@@ -104,8 +108,8 @@ ${scheduling ? `
 - Antes de marcar, tenha: nome do cliente, serviço, data e horário. Peça o que faltar, um item por vez.
 - Confirme os dados com o cliente e só então use agendar_horario. Depois confirme o agendamento com data, hora e endereço.
 - Para remarcar: cancele o antigo (cancelar_agendamento) e marque o novo, respeitando as políticas.
-- Datas relativas: use a lista abaixo.
-${calendarHint(now)}
+- Datas relativas: use a lista "Datas relativas" do final deste texto.
+${dynamic ? '' : calendarHint(now)}
 ` : ''}${routing ? routingSection(settings, closing) : ''}${salesSection(business, now)}${specialistsSection(settings)}
 # Personalidade e instruções do dono
 ${agent.instructions || ''}

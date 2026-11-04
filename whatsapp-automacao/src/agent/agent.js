@@ -146,7 +146,9 @@ export class Agent {
     const ov = this.officeSettingsFor ? this.officeSettingsFor(conv) : null;
     const base = ov ? { ...settings, business: { ...settings.business, ...(ov.business || {}) }, agent: { ...settings.agent, ...(ov.agent || {}) } } : settings;
     const promptSettings = nameHere ? { ...base, agent: { ...base.agent, agentName: nameHere } } : base;
-    let system = buildSystemPrompt(promptSettings, { now: this.now(), contactName: conv.name, channel, routing, closing });
+    // O que muda a cada conversa (hora, cliente, CRM, contratos) vai para `tail`, no fim: o começo fica igual para todos e o provedor o guarda em cache (bem mais barato).
+    const tail = [];
+    let system = buildSystemPrompt(promptSettings, { now: this.now(), contactName: conv.name, channel, routing, closing, dynamic: tail });
     if (note) system += `\n\n# Este WhatsApp\n${note}`;
     if (note) system += `\n\n# Você é a IA de FECHAMENTO (segunda mente; regra da direção)
 Quem chega neste WhatsApp já foi atendido pela primeira IA, que tirou as dúvidas e fez a peneira. Seu único objetivo aqui é FECHAR: documentação, entrada (reserva) e contrato. Seja direta, sem enrolação, sem encher linguiça.
@@ -159,11 +161,11 @@ Quem chega neste WhatsApp já foi atendido pela primeira IA, que tirou as dúvid
     // Contexto extra (CRM, contratos, orçamentos) nunca pode calar a IA: se falhar, segue sem ele e registra o motivo.
     const safe = (name, fn) => { try { return fn ? fn.call(this, conv) || '' : ''; } catch (err) { this.store.addLog({ type: 'error', message: `Contexto "${name}" falhou e foi ignorado para a IA responder: ${err.message}` }); return ''; } };
     const known = safe('CRM', this.contextFor);
-    if (known) system += `\n\n# O que já sabemos deste cliente (CRM)\n${known}\nUse isso: cumprimente pelo nome, mostre que já sabe o interesse dele ("vi aqui que você...") e siga para o fechamento sem repetir perguntas já respondidas.`;
+    if (known) tail.push(`# O que já sabemos deste cliente (CRM)\n${known}\nUse isso: cumprimente pelo nome, mostre que já sabe o interesse dele ("vi aqui que você...") e siga para o fechamento sem repetir perguntas já respondidas.`);
     const cctx = safe('contratos', this.contractContext);
-    if (cctx) system += `\n\n# Contratos deste cliente (sistema novo e antigo)\n${cctx}`;
+    if (cctx) tail.push(`# Contratos deste cliente (sistema novo e antigo)\n${cctx}`);
     const qctx = safe('orçamentos', this.quoteContext);
-    if (qctx) system += `\n\n# Orçamentos e histórico deste cliente\n${qctx}\nA conversa anterior com este número está na sua memória: use o que ele já disse (interesse, família, objeções) em vez de perguntar de novo.`;
+    if (qctx) tail.push(`# Orçamentos e histórico deste cliente\n${qctx}\nA conversa anterior com este número está na sua memória: use o que ele já disse (interesse, família, objeções) em vez de perguntar de novo.`);
     // Com os setores no painel, o especialista antigo (terrenos → Robson) dá lugar a eles.
     const specialists = !this.routeSector && Boolean(this.routeSpecialist) && (settings.crm?.specialists || []).some((s) => s.topic && s.name);
     const pay = settings.payments || {};
@@ -287,9 +289,9 @@ Regras: (1) diga com clareza que o aplicativo AINDA ESTÁ EM DESENVOLVIMENTO: ao
     if (this.sendPlan) system += '\n\n# Passo a passo do pagamento\nQuando o cliente perguntar como funciona o pagamento, quanto paga em cada etapa, ou logo depois de fechar, use enviar_etapas_pagamento com o pacote e o número de pessoas. O sistema manda o fluxograma com os valores e as datas de cada parcela (contando da data de hoje; sábado e domingo passam para segunda); você só comenta em uma frase e pergunta se ficou alguma dúvida. Não refaça as contas por conta própria.';
     if (pix && !closing) system += `\n\n# Pagamento da reserva por Pix\nQuando o cliente decidir fechar, peça o nome completo e o CPF de quem vai pagar e use gerar_pix com o número de adultos. O sistema envia o QR Code e o código copia e cola em mensagens separadas, logo antes da sua resposta: diga o valor, que o código está na mensagem anterior para copiar e colar no app do banco, e que o recibo em nome da empresa chega aqui assim que o pagamento for confirmado. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que o pagamento foi confirmado por conta própria.`;
     if (conv.continuity) {
-      system += `\n\n# Continuidade desta conversa (leia antes de responder)
+      tail.push(`# Continuidade desta conversa (leia antes de responder)
 As mensagens anteriores do lado da empresa foram escritas pelo Marcos ou pela equipe, pessoalmente. Continue de onde a conversa parou: não recomece a apresentação, não repita perguntas já respondidas e não contradiga o que já foi combinado.
-Onde parou e próximo passo: ${conv.continuity}`;
+Onde parou e próximo passo: ${conv.continuity}`);
     }
     const m = settings.crm?.mentoring;
     if (this.notifyOwner && m?.enabled !== false && Number(m?.price) > 0) {
@@ -331,14 +333,14 @@ Objetivo, para quem passou por (a), (b) e (c): quebrar a objeção "vou conversa
 5) Se amanhã for domingo ou não houver atendimento por vídeo, a ferramenta já devolve o próximo dia com horário: explique com naturalidade ("amanhã não teremos videochamadas; o próximo dia livre é...") sem dar detalhes internos. Sábado só pela manhã.
 6) Quem faz a videochamada é um consultor da equipe, nunca o Marcos. Se o cliente recusar, respeite, siga tirando as dúvidas e use agendar_retorno. Não use isto quando ele só tirou uma dúvida pontual nem depois do fechamento.
 ${this.videoInfo ? this.videoInfo(conv) : ''}`;
-    { const li = this.liveInfo ? this.liveInfo() : ''; if (li) system += `\n\n${li}`; }
+    { const li = this.liveInfo ? this.liveInfo() : ''; if (li) tail.push(li); }
     if (this.routeSector) system += `\n\n# Corretores de imóveis e quem quer ser parceiro
 Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a venda de imóveis aí") ou quem quer indicar clientes: é um parceiro em potencial, não um cliente de pacote. Acolha, explique em 2 frases que a Migra tem um programa de parceiros (a pessoa indica clientes pelo link dela e ganha comissão quando a venda fecha; quem atende e fecha é a equipe da Migra)${partner ? ` e mande o link do cadastro: ${partner}` : ''}. Quem só quer TRABALHAR ou ser contratado como corretor ou vendedor segue a regra "Vagas e currículos" (sem encaminhar). Corretor, imobiliária, terreno, loteamento ou parceria imobiliária de negócio: use direcionar_para_setor com setor "loteamentos" e resumo "corretor quer parceria" (vai para o Gabriel). Nunca use avisar_marcos para isso: nem o Marcos nem os administradores recebem esse tipo de contato. Não prometa percentual de comissão: os valores aparecem no cadastro.`;
     const lessons = this.learnings ? this.learnings() : '';
     if (lessons) system += `\n\n# Aprendizados de vendas fechadas (aprovados pelo Marcos)\nO que já funcionou com clientes reais da Migra. Use quando a situação for parecida, sempre com os fatos da base:\n${lessons}`;
-    if (extraSystem) system += `\n\n${extraSystem}`;
+    if (extraSystem) tail.push(extraSystem);
     if (delayed) {
-      system += '\n\n# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece com a saudação de agora e agradeça por aguardar, por exemplo: "Oi, bom dia! Agradeço por aguardar. Nossa demanda está muito alta e responder um a um ficou um pouco complicado." Nunca peça desculpas. Depois siga a conversa normalmente, respondendo o que ele perguntou.';
+      tail.push('# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece com a saudação de agora e agradeça por aguardar, por exemplo: "Oi, bom dia! Agradeço por aguardar. Nossa demanda está muito alta e responder um a um ficou um pouco complicado." Nunca peça desculpas. Depois siga a conversa normalmente, respondendo o que ele perguntou.');
     }
     // Sem agenda, o agente só pode transferir para a equipe.
     const tools = TOOL_DEFINITIONS.filter((t) => {
@@ -367,7 +369,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
     });
     // Quem ficou esperando: lê pelo menos 30 mensagens (as 20 anteriores + as que ele mandou).
     const history = conv.messages.slice(-Math.max(2, Number(cfg.memoryMessages || 20), delayed ? 30 : 0));
-    const messages = [{ role: 'system', content: system }, ...history.map(({ role, content }) => ({ role, content }))];
+    const messages = [{ role: 'system', content: [system, ...tail].join('\n\n'), _cacheLen: system.length }, ...history.map(({ role, content }) => ({ role, content }))];
     const actions = [];
     const ctx = {
       calendar: this.calendar,
