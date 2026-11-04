@@ -990,12 +990,13 @@ $('#formAgent').addEventListener('submit', withBusy($('#formAgent'), async (e) =
     },
   });
   const st = await api('/api/agent/status');
-  let msg = 'Agente salvo ';
+  const okMsg = 'Agente salvo';
+  let msg = okMsg;
   const provName = { openrouter: 'OpenRouter', openai: 'ChatGPT (OpenAI)', anthropic: 'Claude' }[st.provider] || 'Google Gemini';
   if (st.enabled && !st.configured) msg = `Salvo, mas falta a chave do ${provName}`;
   else if (!st.enabled && st.configured) msg = 'Salvo, mas o agente está DESLIGADO: marque "Agente ligado" e salve de novo';
   else if (st.enabled && st.audience === 'test' && !st.testNumbers) msg = 'Modo de teste sem números: o agente não vai responder ninguém';
-  toast(msg, msg.startsWith(''));
+  toast(msg, msg !== okMsg); // vermelho só quando há um aviso (falta chave, desligado, teste sem números)
   loaders.agent();
 }));
 
