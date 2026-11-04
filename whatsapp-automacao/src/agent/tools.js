@@ -85,6 +85,7 @@ export const TOOL_DEFINITIONS = [
     function: {
       name: 'consultar_meu_contrato',
       description: 'Consulta no sistema o(s) contrato(s) de QUEM ESTÁ CONVERSANDO (pelo número de WhatsApp desta conversa), inclusive os do sistema antigo: valor, quanto já foi pago, parcelas em atraso, próxima parcela e documentos a renovar. Use quando o cliente perguntar do contrato, do pagamento, de parcela ou de renovação, ou quando precisar dar continuidade a um contrato que ele já tem. Só devolve dados deste número; nunca busque por nome ou CPF de terceiros.',
+      parameters: { type: 'object', properties: {} },
     },
   },
   {

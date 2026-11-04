@@ -62,7 +62,7 @@ test('IA: só enxerga contrato do PRÓPRIO número; outro número ou CPF digitad
   assert.match(txt, /Contrato 2026-000215/); assert.match(txt, /EM ATRASO: 1 parcela/); assert.match(txt, /documento a renovar até 20\/11\/2026/);
   assert.ok(!/Carlos|222333/.test(txt), 'não mistura outro cliente');
   assert.ok(TOOL_DEFINITIONS.some((t) => t.function.name === 'consultar_meu_contrato'));
-  assert.ok(!TOOL_DEFINITIONS.find((t) => t.function.name === 'consultar_meu_contrato').function.parameters, 'a ferramenta não aceita nome nem CPF');
+  assert.deepEqual(Object.keys(TOOL_DEFINITIONS.find((t) => t.function.name === 'consultar_meu_contrato').function.parameters.properties), [], 'a ferramenta não aceita nome nem CPF');
   assert.match((await runTool('consultar_meu_contrato', {}, {})).erro, /indispon/i);
   let called;
   await runTool('consultar_meu_contrato', { cpf: '1' }, { onMyContracts: async (a) => { called = a; return { ok: true }; } });

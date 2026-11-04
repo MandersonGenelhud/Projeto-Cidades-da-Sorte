@@ -156,11 +156,13 @@ Quem chega neste WhatsApp já foi atendido pela primeira IA, que tirou as dúvid
 4) Pretexto ou objeção ("vou pensar", "depois", "preciso ver"): descubra o motivo real em UMA pergunta e contorne com os fatos da base, sem pressão, em até duas tentativas, voltando sempre ao fechamento (ficha e entrada).
 5) Se ele realmente NÃO tiver o dinheiro da entrada agora: não insista. Use passar_fechamento_para_humano (motivo "sem o valor da entrada agora" e o resumo) para o atendimento humano combinar a melhor forma e a data de retomar o contato, e diga que a equipe volta a falar com ele.
 6) Respostas curtas, uma pergunta por vez, sem repetir o que já foi dito.`;
-    const known = this.contextFor ? this.contextFor(conv) : '';
+    // Contexto extra (CRM, contratos, orçamentos) nunca pode calar a IA: se falhar, segue sem ele e registra o motivo.
+    const safe = (name, fn) => { try { return fn ? fn.call(this, conv) || '' : ''; } catch (err) { this.store.addLog({ type: 'error', message: `Contexto "${name}" falhou e foi ignorado para a IA responder: ${err.message}` }); return ''; } };
+    const known = safe('CRM', this.contextFor);
     if (known) system += `\n\n# O que já sabemos deste cliente (CRM)\n${known}\nUse isso: cumprimente pelo nome, mostre que já sabe o interesse dele ("vi aqui que você...") e siga para o fechamento sem repetir perguntas já respondidas.`;
-    const cctx = this.contractContext ? this.contractContext(conv) : '';
+    const cctx = safe('contratos', this.contractContext);
     if (cctx) system += `\n\n# Contratos deste cliente (sistema novo e antigo)\n${cctx}`;
-    const qctx = this.quoteContext ? this.quoteContext(conv) : '';
+    const qctx = safe('orçamentos', this.quoteContext);
     if (qctx) system += `\n\n# Orçamentos e histórico deste cliente\n${qctx}\nA conversa anterior com este número está na sua memória: use o que ele já disse (interesse, família, objeções) em vez de perguntar de novo.`;
     // Com os setores no painel, o especialista antigo (terrenos → Robson) dá lugar a eles.
     const specialists = !this.routeSector && Boolean(this.routeSpecialist) && (settings.crm?.specialists || []).some((s) => s.topic && s.name);

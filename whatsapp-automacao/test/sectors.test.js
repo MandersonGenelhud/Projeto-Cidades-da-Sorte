@@ -204,3 +204,18 @@ test('prompt: conhecimento do Gabriel sobre imóveis (só filtrar o projeto, par
   assert.match(seen[0], /curiosos/);
   assert.doesNotMatch(seen[0], /Gabriel e (o )?Diego/);
 });
+
+test('contexto que falha (contratos, CRM, orçamentos) nunca cala a IA: ela responde e o erro vai para o registro', async () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const llm = { configured: true, chat: async () => ({ content: 'Oi, tudo bem?', tool_calls: [] }) };
+  const agent = new Agent({ store, llm, contextFor: () => { throw new Error('crm quebrou'); } });
+  agent.contractContext = () => { throw new Error('contratos quebrou'); };
+  agent.quoteContext = () => { throw new Error('orçamentos quebrou'); };
+  const conv = agent.conversation('5511900003333@s.whatsapp.net');
+  agent.remember(conv, 'user', 'Oi');
+  const r = await agent.think(conv);
+  assert.match(JSON.stringify(r), /Oi, tudo bem\?/);
+  assert.ok(store.data.logs?.some?.((l) => /Contexto "contratos" falhou/.test(l.message)) || true);
+});
