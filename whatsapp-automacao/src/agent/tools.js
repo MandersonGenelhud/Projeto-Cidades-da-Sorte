@@ -83,6 +83,13 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'consultar_meu_contrato',
+      description: 'Consulta no sistema o(s) contrato(s) de QUEM ESTÁ CONVERSANDO (pelo número de WhatsApp desta conversa), inclusive os do sistema antigo: valor, quanto já foi pago, parcelas em atraso, próxima parcela e documentos a renovar. Use quando o cliente perguntar do contrato, do pagamento, de parcela ou de renovação, ou quando precisar dar continuidade a um contrato que ele já tem. Só devolve dados deste número; nunca busque por nome ou CPF de terceiros.',
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'encaminhar_para_vendedor',
       description: 'Só quando o cliente INSISTIR em falar com uma pessoa ou continuar com receio depois de você tentar de tudo: você mesma fecha a venda. O sistema escolhe o vendedor da vez, envia o resumo para ele e devolve o link do WhatsApp do vendedor para você mandar ao cliente. Preencha só com o que o cliente realmente disse; não invente.',
       parameters: {
@@ -471,6 +478,10 @@ export async function runTool(name, args, ctx) {
       case 'agendar_videochamada': {
         if (!ctx.onVideoBook) return { erro: 'Videochamada indisponível.' };
         return await ctx.onVideoBook(args);
+      }
+      case 'consultar_meu_contrato': {
+        if (!ctx.onMyContracts) return { erro: 'Consulta indisponível. Use transferir_para_humano.' };
+        return await ctx.onMyContracts(args);
       }
       case 'encaminhar_para_vendedor': {
         if (!ctx.onRoute) return { erro: 'Encaminhamento indisponível. Use transferir_para_humano.' };

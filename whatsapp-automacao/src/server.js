@@ -49,6 +49,8 @@ import { Collections } from './collections.js';
 import { Customer360 } from './customer360.js';
 import { Tasks } from './tasks.js';
 import { Commitments } from './commitments.js';
+import { ContractCards } from './contract-cards.js';
+import { Alerts } from './alerts.js';
 import { Documents, TYPES as DOC_TYPES } from './documents.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
@@ -1315,7 +1317,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1741,6 +1743,7 @@ const SELLER_ROUTES = [
   ['GET', /^\/(tutorials(\/[a-f0-9]+)?|cities(\/[a-f0-9]+)?)$/],
   ['POST', /^\/cities\/[a-f0-9]+\/send$/],
   ['*', /^\/tasks(\/[a-f0-9]+)?$/],
+  ['GET', /^\/(contract-cards|alerts)$/],
   ['*', /^\/videocall\/me$/],
   ['POST', /^\/videocall\/[a-z0-9]+\/cancel$/],
 ];
@@ -2905,6 +2908,31 @@ app.get('/api/tasks', (req, res) => res.json({ counts: tasks.counts(req.user), i
 app.post('/api/tasks', (req, res) => { const t = tk(() => tasks.add(req.user, req.body || {})); if (t.assigneeId !== req.user.id) audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'tarefa', label: `${t.title} → ${auth.get(t.assigneeId)?.name}` }); res.json(t); });
 app.patch('/api/tasks/:id', (req, res) => res.json(tk(() => tasks.update(req.user, req.params.id, req.body || {}))));
 app.delete('/api/tasks/:id', (req, res) => { tk(() => tasks.remove(req.user, req.params.id)); res.json({ ok: true }); });
+// ---- Quadros dos contratos, avisos (sininho) e consulta da IA ----
+const contractCards = new ContractCards({ sales: () => sales.list, legacy: () => legacy.list, quotes: () => quotes.list, documents: () => documents.all, legacyClients: () => legacy.clients });
+const alerts = new Alerts({ cards: contractCards, collections, documents, quotes: () => quotes.list, tasks });
+agent.contractContext = (conv) => {
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
+  const text = contractCards.summarizeFor(conv.phone || lead?.phone);
+  return text ? `Este cliente JÁ TEM contrato com a Migra (inclusive os do sistema antigo). Dados reais do sistema:\n${text}\nContinue o atendimento a partir disso: não trate como cliente novo, não peça de novo o que já está registrado e não ofereça pacote que ele já contratou. Fale de valores e parcelas só deste cliente (é ele quem está conversando).` : '';
+};
+agent.myContracts = (conv, _args, { dryRun } = {}) => {
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: 'Simulação: no atendimento real a ferramenta devolve os contratos deste número.' };
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
+  const list = contractCards.forPhone(conv.phone || lead?.phone);
+  if (!list.length) return { ok: true, encontrado: false, instrucao: 'Não achei contrato ligado a ESTE número. Não procure por nome nem CPF que o cliente digitar (pode ser de outra pessoa). Diga com educação que vai pedir para a equipe conferir e use transferir_para_humano.' };
+  const brl = (v) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  return { ok: true, encontrado: true, contratos: list.slice(0, 5).map((c) => ({ numero: c.number, servico: c.service, total: brl(c.total), pago: brl(c.paid), em_aberto: brl(c.open), parcelas_pagas: `${c.parcelsPaid} de ${c.parcels}`, em_atraso: c.overdueParcels ? `${c.overdueParcels} parcela(s), ${brl(c.overdueValue)}` : 'nenhuma', proxima: c.next ? `${c.next.value ? `${brl(c.next.value)} em ` : ''}${c.next.due.split('-').reverse().join('/')}` : 'sem parcela futura', documento_a_renovar: c.renewal ? c.renewal.at.split('-').reverse().join('/') : 'não' })), instrucao: 'Responda só o que ele perguntou, com clareza e gentileza, em mensagens curtas. Se houver atraso, ofereça enviar o Pix ou o link do cartão (use gerar_pix ou gerar_link_cartao se ele concordar). Você não altera contrato nem dá baixa: para isso use cliente_informou_pagamento ou transferir_para_humano.' };
+};
+const cardsScope = (req) => (c) => (req.user.role === 'admin' ? inOffice(req, c.saleId ? sales.officeOf(sales.get(c.saleId)) : 'py') : c.kind === 'venda' && sales.canSee(req.user, sales.get(c.saleId)));
+app.get('/api/contract-cards', (req, res) => {
+  const out = contractCards.search({ q: String(req.query.q || ''), filter: String(req.query.filter || ''), sort: String(req.query.sort || 'recente'), page: Number(req.query.page) || 1, per: Math.min(60, Number(req.query.per) || 24), canSee: cardsScope(req) });
+  res.json(out);
+});
+app.get('/api/alerts', (req, res) => {
+  const items = alerts.build({ user: req.user, inOffice: collScope(req) });
+  res.json({ count: items.reduce((n, i) => n + (i.level === 'urgente' ? 1 : 0), 0) + items.filter((i) => i.level !== 'urgente').length, urgent: items.filter((i) => i.level === 'urgente').length, items });
+});
 // ---- Reuniões gravadas (biblioteca de links) ----
 app.get('/api/recordings', (req, res) => res.json(recordings.list({ q: String(req.query.q || '') })));
 const recAdmin = (req) => { if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador cadastra gravações'); };
@@ -4358,6 +4386,14 @@ if (process.env.NODE_ENV !== 'test') {
   // Treinamento semanal dos vendedores: a cada 7 dias a IA cria um novo e os vendedores são avisados no WhatsApp.
   setInterval(() => runWeeklyTraining().catch((e) => store.addLog({ type: 'error', message: `Treinamento semanal: ${e.message}` })), 6 * 3_600_000).unref();
   setTimeout(() => runWeeklyTraining().catch(() => {}), 5 * 60_000).unref();
+  // Resumo diário no WhatsApp dos administradores (uma vez por dia, a partir das 9h): vencidos, vencimentos, renovações, assinaturas.
+  setInterval(() => {
+    const d = new Date(); const day = d.toISOString().slice(0, 10);
+    if (d.getHours() < 9 || d.getHours() >= 19 || store.data.alertsDigestDay === day || wa.status !== 'connected') return;
+    store.data.alertsDigestDay = day; store.save();
+    const text = alerts.digestText(alerts.build({ user: { role: 'admin' } }));
+    if (text) notifyAdmins(text).catch(() => {});
+  }, 10 * 60_000).unref();
   // Horários marcados com clientes (calendário e videochamadas): chama na hora combinada e lembra antes. Nada fica esquecido.
   const commitments = new Commitments({ store, agent, videocalls, send: (key, text) => wa.send(key, { text }), canSend: (key) => (key && wa.isConnected ? wa.isConnected(key) : wa.status === 'connected') && agent.active, log: (l) => store.addLog(l) });
   setInterval(() => { commitments.tickAppointments().catch((e) => store.addLog({ type: 'error', message: `Compromissos: ${e.message}` })); commitments.tickVideocalls().catch(() => {}); }, 3 * 60_000).unref();

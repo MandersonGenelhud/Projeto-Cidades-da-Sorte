@@ -175,7 +175,23 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
   const api = []; let apiBytes = 0; const falhas = [];
   const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
   // Respostas JSON do sistema (com teto de memória: o navegador estourava com "INSUFFICIENT_RESOURCES").
+  // Código do próprio aplicativo (JavaScript e CSS do mesmo endereço) e a lista de rotas que ele chama: serve para refazer as mesmas funções no sistema novo.
+  const rotas = new Set(); const codigoSalvo = new Set(); let codigoBytes = 0;
+  const idNorm = (p) => p.replace(/\/[0-9a-f]{8}-[0-9a-f-]{27}/gi, '/:id').replace(/\/\d{2,}/g, '/:n');
   const ouvir = (pg) => pg.on('response', async (res) => {
+    try {
+      const u = res.url(); const metodo = res.request().method();
+      if (u.startsWith(origem)) { const x = new URL(u); if (/\/api\/|\/rest\/|\/graphql|\/trpc|\/_next\/data|\/functions\/v1/i.test(x.pathname) || /json/i.test(res.headers()['content-type'] || '')) rotas.add(`${metodo} ${idNorm(x.pathname)}${x.search ? ` ?${[...x.searchParams.keys()].join('&')}` : ''}`); }
+      const tipoCod = (res.headers()['content-type'] || '').toLowerCase();
+      if (u.startsWith(origem) && metodo === 'GET' && /(javascript|text\/css|json)/.test(tipoCod) && /\.(m?js|css|map)(\?|$)/i.test(new URL(u).pathname) && !codigoSalvo.has(u) && codigoBytes < 200_000_000) {
+        const corpo = await res.body().catch(() => null);
+        if (corpo && corpo.length < 25_000_000) {
+          codigoSalvo.add(u); codigoBytes += corpo.length;
+          fs.mkdirSync(path.join(pasta, 'app-codigo'), { recursive: true });
+          fs.writeFileSync(path.join(pasta, 'app-codigo', `${crypto.createHash('sha1').update(u).digest('hex').slice(0, 8)}-${path.basename(new URL(u).pathname).replace(/[^\w.-]/g, '').slice(0, 60)}`), corpo);
+        }
+      }
+    } catch { /* recurso que não deu para guardar */ }
     try {
       const ct = res.headers()['content-type'] || '';
       if (!/json/i.test(ct) || res.request().method() !== 'GET' || !res.url().startsWith(origem) || api.length >= 4000 || apiBytes > 250_000_000) return;
@@ -301,6 +317,7 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
   }
   const captura = { feitoEm: new Date().toISOString(), origem, falhas, pages: paginas.map(({ links, ...p }) => { const lista = [...new Set([...p.pdfs, ...p.arquivos])].map((u) => baixados.get(u)).filter(Boolean); return { ...p, pdfs: lista.filter((x) => x.kind === 'pdf').map((x) => x.name), arquivos: lista }; }), api };
   fs.writeFileSync(path.join(pasta, 'captura.json'), JSON.stringify(captura));
+  try { fs.writeFileSync(path.join(pasta, 'rotas-api.txt'), [...rotas].sort().join('\n')); } catch { /* sem lista de rotas */ }
   // Lista de conferência: cada arquivo com tamanho e impressão digital, para provar que o arquivo único chegou inteiro.
   try {
     const itens = [];

@@ -158,6 +158,8 @@ Quem chega neste WhatsApp já foi atendido pela primeira IA, que tirou as dúvid
 6) Respostas curtas, uma pergunta por vez, sem repetir o que já foi dito.`;
     const known = this.contextFor ? this.contextFor(conv) : '';
     if (known) system += `\n\n# O que já sabemos deste cliente (CRM)\n${known}\nUse isso: cumprimente pelo nome, mostre que já sabe o interesse dele ("vi aqui que você...") e siga para o fechamento sem repetir perguntas já respondidas.`;
+    const cctx = this.contractContext ? this.contractContext(conv) : '';
+    if (cctx) system += `\n\n# Contratos deste cliente (sistema novo e antigo)\n${cctx}`;
     const qctx = this.quoteContext ? this.quoteContext(conv) : '';
     if (qctx) system += `\n\n# Orçamentos e histórico deste cliente\n${qctx}\nA conversa anterior com este número está na sua memória: use o que ele já disse (interesse, família, objeções) em vez de perguntar de novo.`;
     // Com os setores no painel, o especialista antigo (terrenos → Robson) dá lugar a eles.
@@ -343,6 +345,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       if (t.function.name === 'enviar_contrato') return Boolean(this.sendContract);
       if (t.function.name === 'reservar_mentoria') return Boolean(this.bookMentoring) && settings.crm?.mentoring?.enabled !== false;
       if (t.function.name === 'levar_para_whatsapp') return Boolean(this.moveToWhatsapp) && channel === 'Instagram';
+      if (t.function.name === 'consultar_meu_contrato') return Boolean(this.myContracts);
       if (t.function.name === 'registrar_candidato') return Boolean(this.registerCandidate);
       if (t.function.name === 'horarios_videochamada' || t.function.name === 'agendar_videochamada') return Boolean(this.videoSlots);
       if (t.function.name === 'avisar_marcos') return Boolean(this.notifyOwner);
@@ -380,6 +383,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       onMoveToWhatsapp: this.moveToWhatsapp ? (args) => this.moveToWhatsapp(conv, args, { dryRun }) : null,
       onOwner: this.notifyOwner ? (args) => this.notifyOwner(conv, args, { dryRun }) : null,
       onCardOptions: this.cardOptions ? (args) => this.cardOptions(conv, args, { dryRun }) : null,
+      onMyContracts: this.myContracts ? (args) => this.myContracts(conv, args, { dryRun }) : null,
       onCard: this.createCardLink ? (args) => this.createCardLink(conv, args, { dryRun }) : null,
       onVideoSlots: this.videoSlots ? (args) => this.videoSlots(conv, args, { dryRun }) : null,
       onVideoBook: this.videoBook ? (args) => this.videoBook(conv, args, { dryRun }) : null,
