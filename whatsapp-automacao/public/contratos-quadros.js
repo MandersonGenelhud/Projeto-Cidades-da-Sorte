@@ -33,7 +33,7 @@
   const brl = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   const br = (d) => (d ? String(d).split('-').reverse().join('/') : '—');
   const ST = { em_atraso: ['Em atraso', '#d93025'], ativo: ['Em dia', '#1f8a5b'], quitado: ['Quitado', '#1a73e8'], cancelado: ['Cancelado', '#80868b'] };
-  const FIL = [['', 'Todos'], ['em_atraso', 'Em atraso'], ['a_renovar', 'A renovar'], ['aguardando', 'Aguardando assinatura'], ['ativo', 'Em dia'], ['quitado', 'Quitados'], ['cancelado', 'Cancelados'], ['antigo', 'Do sistema antigo']];
+  const FIL = [['', 'Todos'], ['em_atraso', 'Em atraso'], ['vencendo', 'Vencem em 7 dias'], ['a_renovar', 'A renovar'], ['aguardando', 'Aguardando assinatura'], ['ativo', 'Em dia'], ['quitado', 'Quitados'], ['cancelado', 'Cancelados'], ['antigo', 'Do sistema antigo']];
   const f = { q: '', filter: '', sort: 'recente', page: 1 };
   let last;
   const initials = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
@@ -53,7 +53,7 @@
     const r = await api(`/api/contract-cards?${qs}`); last = r;
     const pages = Math.max(1, Math.ceil(r.total / r.per));
     sec.innerHTML = `<p class="hint">Um quadro para cada contrato, do sistema novo e do antigo. Busque pelo nome, número do contrato, CPF, telefone, serviço ou vendedor. Clique no quadro para ver a ficha completa do cliente.</p>
-      <div class="panel"><div class="row"><input id="ccQ" placeholder="Buscar nome, nº do contrato, CPF, telefone…" value="${esc(f.q)}" style="flex:1;min-width:220px" /><select id="ccS"><option value="recente" ${f.sort === 'recente' ? 'selected' : ''}>Mais recentes</option><option value="atraso" ${f.sort === 'atraso' ? 'selected' : ''}>Maior atraso</option><option value="valor" ${f.sort === 'valor' ? 'selected' : ''}>Maior valor</option><option value="renovacao" ${f.sort === 'renovacao' ? 'selected' : ''}>Renovação mais próxima</option><option value="nome" ${f.sort === 'nome' ? 'selected' : ''}>Nome (A a Z)</option></select></div>
+      <div class="panel"><div class="row"><input id="ccQ" placeholder="Buscar nome, nº do contrato, CPF, telefone…" value="${esc(f.q)}" style="flex:1;min-width:220px" /><select id="ccS"><option value="recente" ${f.sort === 'recente' ? 'selected' : ''}>Mais recentes</option><option value="atraso" ${f.sort === 'atraso' ? 'selected' : ''}>Maior atraso</option><option value="valor" ${f.sort === 'valor' ? 'selected' : ''}>Maior valor</option><option value="vencimento" ${f.sort === 'vencimento' ? 'selected' : ''}>Próxima parcela primeiro</option><option value="renovacao" ${f.sort === 'renovacao' ? 'selected' : ''}>Renovação mais próxima</option><option value="nome" ${f.sort === 'nome' ? 'selected' : ''}>Nome (A a Z)</option></select></div>
         <div class="row" style="flex-wrap:wrap">${FIL.map(([k, v]) => `<button class="btn small ${f.filter === k ? 'primary' : ''}" data-a="fil" data-v="${k}">${v} <span class="hint">${k === '' ? r.counts.todos : (r.counts[k] ?? '')}</span></button>`).join('')}</div></div>
       <div class="grid2" style="grid-template-columns:repeat(auto-fill,minmax(310px,1fr))">${r.items.map(card).join('') || '<p class="muted">Nenhum contrato com esses filtros.</p>'}</div>
       <div class="row" style="justify-content:center"><button class="btn small" data-a="prev" ${f.page <= 1 ? 'disabled' : ''}>Anterior</button><span class="hint">Página ${r.page} de ${pages} · ${r.total} contrato(s)</span><button class="btn small" data-a="next" ${f.page >= pages ? 'disabled' : ''}>Próxima</button></div>`;
@@ -74,7 +74,11 @@
   sec.addEventListener('change', (e) => { if (e.target.id === 'ccS') { f.sort = e.target.value; load().catch(() => {}); } });
   loaders.contracts = () => (view === 'quadros' ? load().catch((e) => toast(e.message, true)) : listLoader?.());
   // Endereço antigo (#contractcards e avisos do sininho) abre os quadros.
-  window.tabRedirects = { ...window.tabRedirects, contractcards: () => { setView('quadros'); showTab('contracts'); } };
+  window.tabRedirects = { ...window.tabRedirects, contractcards: (opts = {}) => {
+    // Vindo de um aviso: já abre filtrado (em atraso, vencem em 7 dias, aguardando assinatura).
+    if (opts.filter !== undefined) { f.filter = opts.filter; f.page = 1; f.q = ''; f.sort = { em_atraso: 'atraso', vencendo: 'vencimento', a_renovar: 'renovacao' }[opts.filter] || 'recente'; }
+    setView('quadros'); showTab('contracts');
+  } };
   loaders.contractcards = window.tabRedirects.contractcards;
 
   // ---------- Sininho de avisos ----------
@@ -93,15 +97,47 @@
     let r; try { r = await api('/api/alerts'); } catch { return; }
     const badge = document.getElementById('bellBadge');
     badge.hidden = !r.items.length; badge.textContent = r.items.length;
-    pop.innerHTML = `<div style="padding:8px 10px;font-weight:600">Avisos</div>${r.items.map((i) => `<button class="card" data-tab="${esc(i.tab)}" style="display:block;width:100%;text-align:left;margin:6px 0;border-left:4px solid ${LV[i.level]}"><b>${esc(i.title)}</b><div class="hint">${esc(i.text)}</div></button>`).join('') || '<p class="muted" style="padding:10px">Nada pendente agora.</p>'}<div class="hint" style="padding:8px 10px">Você também recebe um resumo no WhatsApp todo dia às 9h.</div>`;
+    pop.innerHTML = `<div style="padding:8px 10px;font-weight:600">Avisos</div>${r.items.map((i) => `<button class="card alert-item" data-tab="${esc(i.tab)}" data-filter="${esc(i.filter || '')}" style="display:block;width:100%;text-align:left;margin:6px 0;border-left:4px solid ${LV[i.level]}"><b>${esc(i.title)}</b><div class="hint">${esc(i.text)}</div><span class="alert-go">${esc(i.action || 'Ver')} →</span></button>`).join('') || '<p class="muted" style="padding:10px">Nada pendente agora.</p>'}<div class="hint" style="padding:8px 10px">Você também recebe um resumo no WhatsApp todo dia às 9h.</div>`;
     // Notificação do navegador quando aparece um aviso novo (precisa da sua permissão).
     const fresh = r.items.filter((i) => !seen.has(i.id));
     r.items.forEach((i) => seen.add(i.id));
     if (!first && fresh.length && 'Notification' in window && Notification.permission === 'granted') fresh.slice(0, 3).forEach((i) => { try { new Notification(i.title, { body: i.text }); } catch { /* sem notificação */ } });
+    showPush(r.items);
     first = false;
   }
   bell.addEventListener('click', () => { pop.hidden = !pop.hidden; if (!pop.hidden && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {}); });
-  pop.addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { pop.hidden = true; showTab(b.dataset.tab); } });
+  const openAlert = (tab, filter) => window.goTo(tab, filter ? { filter } : (tab === 'conversations' ? { focus: '#pendingPanel' } : {}));
+  pop.addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { pop.hidden = true; openAlert(b.dataset.tab, b.dataset.filter); } });
+
+  // Avisos importantes (urgente e atenção) aparecem por cima da tela, uma vez por dia cada, com Verificar e Fechar.
+  const SEEN_KEY = 'migraAlertSeen';
+  const today = () => new Date().toISOString().slice(0, 10);
+  const seenToday = () => { try { const v = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}'); return v.day === today() ? new Set(v.ids) : new Set(); } catch { return new Set(); } };
+  const markSeen = (ids) => { try { const s = seenToday(); ids.forEach((i) => s.add(i)); localStorage.setItem(SEEN_KEY, JSON.stringify({ day: today(), ids: [...s] })); } catch { /* ok */ } };
+  const pushBox = document.createElement('div');
+  pushBox.id = 'alertPush';
+  pushBox.setAttribute('role', 'alertdialog');
+  pushBox.setAttribute('aria-label', 'Avisos importantes');
+  pushBox.hidden = true;
+  document.body.appendChild(pushBox);
+  const closePush = () => { markSeen(pushBox._ids || []); pushBox.hidden = true; };
+  function showPush(items) {
+    const seen = seenToday();
+    const list = items.filter((i) => (i.level === 'urgente' || i.level === 'atencao') && !seen.has(i.id)).slice(0, 3);
+    if (!list.length) return;
+    pushBox._ids = list.map((i) => i.id);
+    pushBox.innerHTML = `<div class="ap-head"><b>Avisos importantes</b><button type="button" class="ap-x" data-ap="close" aria-label="Fechar todos">×</button></div>${list.map((i) => `<div class="ap-item ${esc(i.level)}"><b>${esc(i.title)}</b><p>${esc(i.text)}</p><div class="ap-actions"><button type="button" class="btn small primary" data-ap="go" data-tab="${esc(i.tab)}" data-filter="${esc(i.filter || '')}">Verificar</button><button type="button" class="btn small" data-ap="skip" data-id="${esc(i.id)}">Fechar</button></div></div>`).join('')}`;
+    pushBox.hidden = false;
+  }
+  pushBox.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ap]'); if (!b) return;
+    if (b.dataset.ap === 'close') return closePush();
+    if (b.dataset.ap === 'go') { closePush(); return openAlert(b.dataset.tab, b.dataset.filter); }
+    markSeen([b.dataset.id]);
+    b.closest('.ap-item').outerHTML = '';
+    if (!pushBox.querySelector('.ap-item')) pushBox.hidden = true;
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pushBox.hidden) closePush(); });
   document.addEventListener('click', (e) => { if (!pop.hidden && !pop.contains(e.target) && !bell.contains(e.target)) pop.hidden = true; });
   const start = setInterval(() => { if (!window.currentUser) return; clearInterval(start); refresh(); setInterval(refresh, 5 * 60_000); }, 600);
 })();

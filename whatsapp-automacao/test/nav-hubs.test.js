@@ -25,3 +25,15 @@ test('menu enxuto: toda tela do painel está em uma seção, sem repetir, e o sc
   // A regra de quem vê cada tela é a mesma do showTab.
   assert.match(js, /data-admin'\) && u\.role !== 'admin' && !\(b\.hasAttribute\('data-officeadmin'\) && u\.officeAdmin\)/);
 });
+
+test('busca de telas: o navegador não preenche sozinho e chave colada por engano é apagada', () => {
+  const js = read('public/nav-hubs.js');
+  assert.match(js, /find\.readOnly = true/, 'só libera ao clicar');
+  assert.match(js, /setAttribute\('autocomplete', 'off'\)/);
+  const m = js.match(/const looksLikeKey = \(v\) => (.+);\n/);
+  const looksLikeKey = new Function('v', `return ${m[1]}`);
+  for (const k of ['github_pat_11ARJTXHY0lapX1K', 'ghp_abcdefghijklmnop', 'AIzaSyD-xxxx', 'EAAGxxxxx']) assert.equal(looksLikeKey(k), true, k);
+  for (const ok of ['cobr', 'Contratos', 'ficha do cliente', 'retornos']) assert.equal(looksLikeKey(ok), false, ok);
+  const html = read('public/index.html');
+  assert.ok(!/id="updateToken" type="password"/.test(html), 'a chave do GitHub não é campo de senha (o navegador não salva)');
+});

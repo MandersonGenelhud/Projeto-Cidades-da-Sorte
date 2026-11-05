@@ -44,6 +44,16 @@
   find.type = 'search';
   find.placeholder = 'Ir para a tela…';
   find.setAttribute('aria-label', 'Procurar tela');
+  // O navegador não pode preencher sozinho esta busca (ele colava a chave do GitHub salva aqui).
+  find.name = 'migra-ir-para-tela';
+  find.autocomplete = 'off';
+  find.setAttribute('autocomplete', 'off');
+  find.setAttribute('spellcheck', 'false');
+  find.setAttribute('data-lpignore', 'true');
+  find.setAttribute('data-1p-ignore', '');
+  find.readOnly = true; // só libera quando a pessoa clica: o preenchimento automático não entra
+  find.addEventListener('focus', () => { find.readOnly = false; });
+  find.addEventListener('blur', () => { find.readOnly = true; });
   const results = document.createElement('div');
   results.className = 'nav-results';
   results.hidden = true;
@@ -145,7 +155,13 @@
   }).observe(sub, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'data-admin'] });
 
   const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  // Se mesmo assim aparecer uma chave (github_pat_, ghp_, AIza…), apaga na hora e não procura.
+  const looksLikeKey = (v) => /^(github_pat_|gh[pousr]_|AIza|EAA[A-Za-z0-9]|IGAA|sk-|xox[bp]-)/.test(v.trim()) || /^[A-Za-z0-9_\-]{36,}$/.test(v.trim());
+  const scrub = () => { if (looksLikeKey(find.value)) { find.value = ''; side.hidden = false; results.hidden = true; return true; } return false; };
+  setTimeout(scrub, 300); setTimeout(scrub, 1500);
+  find.addEventListener('change', scrub);
   find.addEventListener('input', () => {
+    if (scrub()) return;
     const q = norm(find.value.trim());
     side.hidden = Boolean(q);
     results.hidden = !q;

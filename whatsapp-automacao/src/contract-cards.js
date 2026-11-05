@@ -62,14 +62,19 @@ export class ContractCards {
     const n = norm(q); const d = digits(q);
     let list = this.all().filter((c) => canSee(c));
     if (n || d.length >= 3) list = list.filter((c) => norm(`${c.number} ${c.client} ${c.service} ${c.seller} ${c.statusText || ''}`).includes(n) || (d.length >= 3 && (digits(c.doc).includes(d) || c.phone.includes(d) || digits(c.number).includes(d))));
-    const counts = { todos: list.length, em_atraso: 0, a_renovar: 0, ativo: 0, quitado: 0, cancelado: 0, aguardando: 0 };
-    for (const c of list) { if (c.status in counts) counts[c.status] += 1; if (c.renewal && ['renovar', 'vencido', 'proximo'].includes(c.renewal.state)) counts.a_renovar += 1; if (c.signature === 'aguardando') counts.aguardando += 1; }
+    // "Vencem em 7 dias": a próxima parcela cai entre hoje e daqui a 7 dias.
+    const t = this.today();
+    const lim = new Date(new Date(`${t}T12:00:00Z`).getTime() + 7 * 86_400_000).toISOString().slice(0, 10);
+    const dueSoon = (c) => c.status !== 'cancelado' && Boolean(c.next?.due) && c.next.due >= t && c.next.due <= lim;
+    const counts = { todos: list.length, em_atraso: 0, vencendo: 0, a_renovar: 0, ativo: 0, quitado: 0, cancelado: 0, aguardando: 0 };
+    for (const c of list) { if (c.status in counts) counts[c.status] += 1; if (dueSoon(c)) counts.vencendo += 1; if (c.renewal && ['renovar', 'vencido', 'proximo'].includes(c.renewal.state)) counts.a_renovar += 1; if (c.signature === 'aguardando') counts.aguardando += 1; }
     const f = {
+      vencendo: dueSoon,
       em_atraso: (c) => c.status === 'em_atraso', a_renovar: (c) => c.renewal && ['renovar', 'vencido', 'proximo'].includes(c.renewal.state), ativo: (c) => c.status === 'ativo',
       quitado: (c) => c.status === 'quitado', cancelado: (c) => c.status === 'cancelado', aguardando: (c) => c.signature === 'aguardando', antigo: (c) => c.legacy, novo: (c) => !c.legacy,
     }[filter];
     if (f) list = list.filter(f);
-    const order = { recente: (a, b) => String(b.date).localeCompare(String(a.date)) || String(b.number).localeCompare(String(a.number)), atraso: (a, b) => b.overdueValue - a.overdueValue, valor: (a, b) => b.total - a.total, nome: (a, b) => a.client.localeCompare(b.client, 'pt'), renovacao: (a, b) => (a.renewal?.at || '9999').localeCompare(b.renewal?.at || '9999') }[sort] || ((a, b) => 0);
+    const order = { recente: (a, b) => String(b.date).localeCompare(String(a.date)) || String(b.number).localeCompare(String(a.number)), atraso: (a, b) => b.overdueValue - a.overdueValue, valor: (a, b) => b.total - a.total, nome: (a, b) => a.client.localeCompare(b.client, 'pt'), renovacao: (a, b) => (a.renewal?.at || '9999').localeCompare(b.renewal?.at || '9999'), vencimento: (a, b) => (a.next?.due || '9999').localeCompare(b.next?.due || '9999') }[sort] || ((a, b) => 0);
     list.sort(order);
     const p = Math.max(1, Number(page) || 1);
     return { counts, total: list.length, page: p, per, items: list.slice((p - 1) * per, p * per) };

@@ -1077,9 +1077,9 @@ tbody tr:hover td { background: color-mix(in srgb, var(--blue) 6%, transparent);
 .xd-btn { background: var(--panel); color: var(--text); border: 1px solid var(--glass-border); border-radius: 10px; padding: 9px 16px; font: inherit; font-weight: 500; cursor: pointer; min-height: 42px; box-shadow: var(--shadow-sm); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .xd-btn:hover { background: color-mix(in srgb, var(--panel-solid) 90%, transparent); }
 .xd-alerts { display: flex; flex-wrap: wrap; gap: 8px; }
-.xd-alerts span { display: inline-flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--glass-border); border-left: 3px solid #a85454; border-radius: 10px; padding: 8px 14px; font-size: 14px; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
-.xd-alerts span .ico { color: #a85454; }
-.xd-alerts.ok span { border-left-color: var(--green); }
+.xd-alerts > span, .xd-alerts > .xd-alert { color: var(--text); display: inline-flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--glass-border); border-left: 3px solid #a85454; border-radius: 10px; padding: 8px 14px; font-size: 14px; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.xd-alerts > * .ico { color: #a85454; }
+.xd-alerts.ok > span { border-left-color: var(--green); }
 .xd-grid { display: grid; gap: 16px; }
 .xd-kpis { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 .xd-two { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
@@ -1191,3 +1191,29 @@ nav.subnav button .ico { opacity: .8; }
 @media (max-width: 600px) { .c3-tl li { grid-template-columns: 1fr; gap: 2px; } }
 .exec-robot { margin-top: 18px; }
 .btn.primary .hint { color: inherit; opacity: .85; }
+
+/* Campo de chave: aparece com bolinhas, mas não é "senha" para o navegador (assim ele não salva nem cola em outro lugar) */
+.secret-field { -webkit-text-security: disc; font-family: monospace; }
+/* Avisos: atalhos para resolver */
+.flash { animation: flashRing 2.2s ease; }
+@keyframes flashRing { 0%, 60% { box-shadow: 0 0 0 3px var(--green); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.alert-go { display: inline-block; margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--green-dark); }
+.alert-item:hover .alert-go { text-decoration: underline; }
+#alertPush { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(380px, calc(100vw - 32px)); background: var(--panel, #fff); color: var(--text); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 18px 50px -12px rgba(0, 0, 0, .45); padding: 12px; animation: pushIn .25s ease; }
+@keyframes pushIn { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+#alertPush .ap-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+#alertPush .ap-x { background: none; border: 0; font-size: 22px; line-height: 1; cursor: pointer; color: var(--muted); padding: 2px 8px; border-radius: 8px; }
+#alertPush .ap-x:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+#alertPush .ap-item { border-radius: 10px; padding: 10px 12px; margin-top: 8px; background: color-mix(in srgb, var(--text) 4%, transparent); box-shadow: inset 4px 0 0 #e8710a; }
+#alertPush .ap-item.urgente { box-shadow: inset 4px 0 0 #d93025; }
+#alertPush .ap-item p { margin: 4px 0 8px; font-size: 13.5px; color: var(--muted); }
+#alertPush .ap-actions { display: flex; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { #alertPush, .flash { animation: none; } }
+.xd-alert { display: inline-flex; align-items: center; gap: 6px; font: inherit; cursor: pointer; }
+.xd-alert .xd-go { font-weight: 600; margin-left: 6px; opacity: .8; }
+.xd-alert:hover .xd-go, .xd-alert:focus-visible .xd-go { opacity: 1; text-decoration: underline; }
+button.xd-kpi.xd-link { font: inherit; text-align: left; cursor: pointer; width: 100%; color: inherit; }
+button.xd-kpi.xd-link:hover { transform: translateY(-2px); }
+button.xd-kpi.xd-link:focus-visible, .xd-alert:focus-visible, .xd-more:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.xd-more { float: right; background: none; border: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--green-dark); cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.xd-more:hover { text-decoration: underline; }

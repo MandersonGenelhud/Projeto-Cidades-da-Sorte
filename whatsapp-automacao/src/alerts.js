@@ -3,6 +3,7 @@
 const money = (v) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 const br = (d) => String(d).split('-').reverse().join('/');
 const DAY = 86_400_000;
+const ACTION = { atraso: 'Ver os atrasados', vence3: 'Ver quem vence', renovar: 'Ver documentos', assinar: 'Ver contratos', orcamento: 'Ver orçamentos', tarefas: 'Ver tarefas' };
 
 export class Alerts {
   constructor({ cards, collections, documents, quotes = () => [], tasks = null, today = () => new Date().toISOString().slice(0, 10), now = () => new Date() }) {
@@ -10,17 +11,18 @@ export class Alerts {
   }
   build({ user = { role: 'admin' }, inOffice = () => true } = {}) {
     const t = this.today(); const items = [];
-    const push = (id, level, title, text, tab, count = 1) => items.push({ id: `${id}:${t}`, level, title, text, tab, count });
+    // tab + filter: para onde o aviso leva quando a pessoa clica (a tela onde se resolve).
+    const push = (id, level, title, text, tab, count = 1, filter = '') => items.push({ id: `${id}:${t}`, level, title, text, tab, count, filter, action: ACTION[id] || 'Ver' });
     if (user.role === 'admin') {
       const over = this.collections.overdue({ inOffice });
       if (over.length) { const sum = this.collections.summary(over); push('atraso', 'urgente', `${over.length} parcela(s) vencida(s)`, `${money(sum.valor)} em atraso de ${sum.clientes} cliente(s). ${sum.faixas.firme.n} com mais de 60 dias.`, 'collections', over.length); }
       const soon = []; const limit = new Date(this.now().getTime() + 3 * DAY).toISOString().slice(0, 10);
       for (const c of this.cards.all()) if (c.status !== 'cancelado' && c.next && c.next.due >= t && c.next.due <= limit && c.next.value) soon.push(c);
-      if (soon.length) push('vence3', 'atencao', `${soon.length} parcela(s) vencem em até 3 dias`, `${money(soon.reduce((s, c) => s + c.next.value, 0))} a receber: ${soon.slice(0, 3).map((c) => `${c.client.split(' ')[0]} (${br(c.next.due)})`).join(', ')}${soon.length > 3 ? '…' : ''}.`, 'contractcards', soon.length);
+      if (soon.length) push('vence3', 'atencao', `${soon.length} parcela(s) vencem em até 3 dias`, `${money(soon.reduce((s, c) => s + c.next.value, 0))} a receber: ${soon.slice(0, 3).map((c) => `${c.client.split(' ')[0]} (${br(c.next.due)})`).join(', ')}${soon.length > 3 ? '…' : ''}.`, 'contractcards', soon.length, 'vencendo');
       const ren = this.cards.all().filter((c) => c.renewal && ['vencido', 'renovar'].includes(c.renewal.state));
       if (ren.length) push('renovar', 'atencao', `${ren.length} documento(s) para renovar`, `${ren.slice(0, 3).map((c) => `${c.client.split(' ')[0]} (${br(c.renewal.at)})`).join(', ')}${ren.length > 3 ? '…' : ''}. Abra Documentos e avise o cliente.`, 'documents', ren.length);
       const wait = this.cards.all().filter((c) => c.signature === 'aguardando' && c.status !== 'cancelado');
-      if (wait.length) push('assinar', 'info', `${wait.length} contrato(s) aguardando assinatura`, `${wait.slice(0, 3).map((c) => c.client.split(' ')[0]).join(', ')}${wait.length > 3 ? '…' : ''} ainda não assinaram.`, 'contractcards', wait.length);
+      if (wait.length) push('assinar', 'info', `${wait.length} contrato(s) aguardando assinatura`, `${wait.slice(0, 3).map((c) => c.client.split(' ')[0]).join(', ')}${wait.length > 3 ? '…' : ''} ainda não assinaram.`, 'contractcards', wait.length, 'aguardando');
       const exp = this.quotes().filter((q) => !q.contract && q.validUntil >= t && q.validUntil <= new Date(this.now().getTime() + DAY).toISOString().slice(0, 10) && !this.cards.sales().some((s) => s.quoteId === q.id));
       if (exp.length) push('orcamento', 'info', `${exp.length} orçamento(s) vencem até amanhã`, `${exp.slice(0, 3).map((q) => q.client).join(', ')}. Depois do prazo ficam desativados.`, 'quotes', exp.length);
     }

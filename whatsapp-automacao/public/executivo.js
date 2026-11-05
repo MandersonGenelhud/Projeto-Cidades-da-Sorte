@@ -19,7 +19,7 @@
     return `<div class="xd-bars" role="img" aria-label="Gráfico de barras por mês">${items.map((i) => `<div class="xd-col" title="${esc(i.label)}: ${esc(label(i))}">
       <div class="xd-pair"><i class="xd-bar a" style="height:${Math.max(i[a] ? 3 : 0, Math.round((i[a] / max) * 100))}%"></i>${b ? `<i class="xd-bar b" style="height:${Math.max(i[b] ? 3 : 0, Math.round((i[b] / max) * 100))}%"></i>` : ''}</div><span>${esc(i.label)}</span></div>`).join('')}</div>`;
   };
-  const kpi = (ic, label, value, sub, tone = '') => `<div class="xd-kpi ${tone}"><span class="xd-ico">${icon(ic, 18)}</span><small>${label}</small><b>${value}</b><em>${sub || ''}</em></div>`;
+  const kpi = (ic, label, value, sub, tone = '', go = '', filter = '') => `<${go ? `button type="button" data-go="${go}" data-filter="${filter}" title="Abrir ${label.toLowerCase()}"` : 'div'} class="xd-kpi ${tone}${go ? ' xd-link' : ''}"><span class="xd-ico">${icon(ic, 18)}</span><small>${label}</small><b>${value}</b><em>${sub || ''}</em></${go ? 'button' : 'div'}>`;
 
   function render() {
     const d = data;
@@ -27,24 +27,24 @@
     const k = d.kpis;
     const crm = d.crm || {};
     const alerts = [];
-    if (k.atrasadasQtd) alerts.push(`${k.atrasadasQtd} parcela(s) em atraso somando ${brl(k.atrasadoTotal)}`);
-    if (d.extras.esperando) alerts.push(`${d.extras.esperando} cliente(s) esperando resposta`);
-    if (d.extras.visitasAbertas) alerts.push(`${d.extras.visitasAbertas} visita(s) para resolver`);
-    if (d.extras.retomarNovos) alerts.push(`${d.extras.retomarNovos} contato(s) para retomar`);
-    if (d.extras.whatsapp !== 'connected') alerts.push('WhatsApp desconectado');
+    if (k.atrasadasQtd) alerts.push([`${k.atrasadasQtd} parcela(s) em atraso somando ${brl(k.atrasadoTotal)}`, 'collections']);
+    if (d.extras.esperando) alerts.push([`${d.extras.esperando} cliente(s) esperando resposta`, 'conversations', '#pendingPanel']);
+    if (d.extras.visitasAbertas) alerts.push([`${d.extras.visitasAbertas} visita(s) para resolver`, 'visits']);
+    if (d.extras.retomarNovos) alerts.push([`${d.extras.retomarNovos} contato(s) para retomar`, 'reengage']);
+    if (d.extras.whatsapp !== 'connected') alerts.push(['WhatsApp desconectado', 'connection']);
     ex.querySelector('#xd').innerHTML = `
       <header class="xd-head"><div><small>${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</small><h1>Painel</h1></div><button class="xd-btn" id="xdRefresh" type="button">Atualizar</button></header>
-      ${alerts.length ? `<div class="xd-alerts">${alerts.map((a) => `<span>${icon('alert', 15)}${esc(a)}</span>`).join('')}</div>` : '<div class="xd-alerts ok"><span>Sem pendências no momento</span></div>'}
+      ${alerts.length ? `<div class="xd-alerts">${alerts.map(([a, tab, focus]) => `<button type="button" class="xd-alert" data-go="${tab}" data-focus="${focus || ''}">${icon('alert', 15)}${esc(a)}<span class="xd-go">Resolver →</span></button>`).join('')}</div>` : '<div class="xd-alerts ok"><span>Sem pendências no momento</span></div>'}
       <section class="xd-grid xd-kpis">
-        ${kpi('wallet', 'Recebido no mês', brl(k.recebidoMes), `${d.months.at(-1).vendas} venda(s) no mês`, 'g')}
-        ${kpi('inbox', 'A receber (total)', brl(k.aReceberTotal), `${k.contratosAtivos} contratos ativos`, 'c')}
-        ${kpi('alert', 'Em atraso', brl(k.atrasadoTotal), `${k.atrasadasQtd} parcela(s)`, k.atrasadasQtd ? 'r' : 'g')}
-        ${kpi('trend', 'Vendido no mês', brl(k.vendidoMes), `comissões em aberto: ${brl(k.comissaoAberta)}`, 'v')}
-        ${kpi('attendants', 'Leads novos no mês', crm.newLeads ?? 0, `${crm.openLeads ?? 0} em aberto`, 'c')}
-        ${kpi('inbox', 'Respostas da IA no mês', (d.usage?.month ?? 0).toLocaleString('pt-BR'), `${(d.usage?.total ?? 0).toLocaleString('pt-BR')} no total, ${(d.usage?.today ?? 0).toLocaleString('pt-BR')} hoje`)}
-        ${kpi('award', 'Conversão', crm.conversion == null ? '—' : `${crm.conversion}%`, `${crm.won ?? 0} fechado(s) · ${brl(crm.wonValue)}`, 'g')}
+        ${kpi('wallet', 'Recebido no mês', brl(k.recebidoMes), `${d.months.at(-1).vendas} venda(s) no mês`, 'g', 'payments')}
+        ${kpi('inbox', 'A receber (total)', brl(k.aReceberTotal), `${k.contratosAtivos} contratos ativos`, 'c', 'contractcards', 'ativo')}
+        ${kpi('alert', 'Em atraso', brl(k.atrasadoTotal), `${k.atrasadasQtd} parcela(s)`, k.atrasadasQtd ? 'r' : 'g', 'collections')}
+        ${kpi('trend', 'Vendido no mês', brl(k.vendidoMes), `comissões em aberto: ${brl(k.comissaoAberta)}`, 'v', 'sales')}
+        ${kpi('attendants', 'Leads novos no mês', crm.newLeads ?? 0, `${crm.openLeads ?? 0} em aberto`, 'c', 'leads')}
+        ${kpi('inbox', 'Respostas da IA no mês', (d.usage?.month ?? 0).toLocaleString('pt-BR'), `${(d.usage?.total ?? 0).toLocaleString('pt-BR')} no total, ${(d.usage?.today ?? 0).toLocaleString('pt-BR')} hoje`, '', 'conversations')}
+        ${kpi('award', 'Conversão', crm.conversion == null ? '—' : `${crm.conversion}%`, `${crm.won ?? 0} fechado(s) · ${brl(crm.wonValue)}`, 'g', 'sales')}
       </section>
-      <section class="xd-card"><div class="xd-card-head"><h2>Cobranças e vencimentos</h2>
+      <section class="xd-card"><div class="xd-card-head"><h2>Cobranças e vencimentos <button type="button" class="xd-more" data-go="contractcards" data-filter="vencendo">Ver quem vence →</button></h2>
         <div class="xd-seg" role="tablist">${Object.entries(d.cobrancas).map(([key, v]) => `<button type="button" data-per="${key}" class="${key === per ? 'on' : ''}">${esc(v.label)}</button>`).join('')}</div></div>
         <p class="xd-muted">${dm(c.from)} a ${dm(c.to)} · ${c.quantidade} cobrança(s) com vencimento no período</p>
         <div class="xd-grid xd-four">
@@ -59,12 +59,13 @@
         <div class="xd-card"><h2>O que deve entrar nas próximas 8 semanas</h2>${bars(d.semanas.map((w) => ({ ...w, label: dm(w.from) })), { a: 'valor', label: (i) => `${brl(i.valor)} (${i.quantidade} parcela(s))` })}<p class="xd-muted">Total: <b>${brl(d.semanas.reduce((a, w) => a + w.valor, 0))}</b></p></div>
       </section>
       <section class="xd-grid xd-two">
-        <div class="xd-card"><h2>Atrasos por faixa</h2>${d.faixas.map((f) => `<div class="xd-row"><span>${esc(f.label)}</span><b>${f.quantidade}</b><em>${brl(f.valor)}</em></div>`).join('')}
+        <div class="xd-card"><h2>Atrasos por faixa <button type="button" class="xd-more" data-go="collections">Ver todos →</button></h2>${d.faixas.map((f) => `<div class="xd-row"><span>${esc(f.label)}</span><b>${f.quantidade}</b><em>${brl(f.valor)}</em></div>`).join('')}
           <h3>Maiores atrasos</h3>${d.atrasadas.slice(0, 6).map((p) => `<div class="xd-row"><span>${esc(p.client || p.number)}<small>${esc(p.label)} · venceu ${dm(p.due)}</small></span><b>${p.daysLate}d</b><em>${brl2(p.value)}</em></div>`).join('') || '<p class="xd-muted">Nenhuma parcela em atraso. </p>'}</div>
-        <div class="xd-card"><h2>Vendedores no mês</h2>${d.vendedores.map((v) => `<div class="xd-row"><span>${esc(v.name)}<small>${v.vendas} venda(s) · recebido ${brl(v.recebido)}</small></span><b>${brl(v.vendido)}</b><em>comissão ${brl(v.comissaoAberta)}</em></div>`).join('') || '<p class="xd-muted">Sem vendas ainda.</p>'}
+        <div class="xd-card"><h2>Vendedores no mês <button type="button" class="xd-more" data-go="sales">Ver vendas →</button></h2>${d.vendedores.map((v) => `<div class="xd-row"><span>${esc(v.name)}<small>${v.vendas} venda(s) · recebido ${brl(v.recebido)}</small></span><b>${brl(v.vendido)}</b><em>comissão ${brl(v.comissaoAberta)}</em></div>`).join('') || '<p class="xd-muted">Sem vendas ainda.</p>'}
           <h3>De onde vêm os clientes (mês)</h3><div class="xd-chips">${(crm.bySource || []).map((s) => `<span>${esc(s.label)} <b>${s.count}</b></span>`).join('') || '<span>Sem dados</span>'}</div></div>
       </section>`;
     ex.querySelector('#xdRefresh').onclick = load;
+    ex.querySelectorAll('#xd [data-go]').forEach((b) => (b.onclick = () => window.goTo(b.dataset.go, b.dataset.filter ? { filter: b.dataset.filter } : b.dataset.focus ? { focus: b.dataset.focus } : {})));
     ex.querySelectorAll('[data-per]').forEach((b) => (b.onclick = () => { per = b.dataset.per; render(); }));
   }
   async function load() {

@@ -81,6 +81,21 @@ test('avisos: vencidas, vencem em 3 dias, renovar, assinatura e orçamentos; res
   assert.match(titles, /1 documento\(s\) para renovar/);
   assert.match(titles, /1 contrato\(s\) aguardando assinatura/);
   assert.equal(items[0].level, 'urgente', 'o mais grave primeiro');
+  // Cada aviso leva para a tela onde se resolve, já filtrada, com o texto do botão.
+  const by = Object.fromEntries(items.map((i) => [i.id.split(':')[0], i]));
+  assert.deepEqual([by.atraso.tab, by.atraso.action], ['collections', 'Ver os atrasados']);
+  assert.deepEqual([by.vence3.tab, by.vence3.filter], ['contractcards', 'vencendo']);
+  assert.deepEqual([by.assinar.tab, by.assinar.filter], ['contractcards', 'aguardando']);
+  assert.equal(by.renovar.tab, 'documents');
   assert.match(a.digestText(items), /Resumo do dia da Migra/);
   assert.equal(a.build({ user: { role: 'seller', id: 'x' } }).length, 0, 'vendedor não recebe os avisos financeiros do administrador');
+});
+
+test('quadros: filtro "vencem em 7 dias" pega só a próxima parcela entre hoje e 7 dias, e ordena por vencimento', () => {
+  const { cards } = make();
+  const r = cards.search({ filter: 'vencendo', sort: 'vencimento' });
+  assert.ok(r.total >= 1, 'há parcela vencendo');
+  assert.equal(r.counts.vencendo, r.total);
+  for (const c of r.items) { assert.ok(c.next.due >= TODAY && c.next.due <= '2026-11-11', c.number); assert.notEqual(c.status, 'cancelado'); }
+  assert.ok(!r.items.some((c) => c.number === '2026-000300'), 'quem vence dia 20 fica fora');
 });

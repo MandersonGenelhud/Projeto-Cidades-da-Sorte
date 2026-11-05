@@ -78,9 +78,9 @@ const lines = (text) => String(text || '').split(/[\n,;]+/).map((s) => s.trim())
 // ---------- Navegação ----------
 const loaders = {};
 // Telas que foram juntadas a outra: o endereço antigo leva para a nova (window.tabRedirects).
-function showTab(name) {
+function showTab(name, opts) {
   const redirect = window.tabRedirects?.[name];
-  if (redirect) return redirect();
+  if (redirect) return redirect(opts);
   const btn = $(`nav button[data-tab="${name}"]`);
   if (!btn || (btn.hasAttribute('data-admin') && window.currentUser?.role !== 'admin' && !(btn.hasAttribute('data-officeadmin') && window.currentUser?.officeAdmin))) name = window.currentUser?.role === 'admin' ? 'sales' : 'leads';
   $$('nav button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
@@ -92,6 +92,18 @@ function showTab(name) {
   if (window.currentUser?.role === 'admin' && $(`#tab-${name} [data-ai-banner]`)) renderAgentStatus().catch(() => {});
 }
 $$('nav button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+/** Leva para a tela onde se resolve um aviso: goTo('collections') ou goTo('contractcards', { filter: 'em_atraso' }) ou { focus: '#pendingPanel' }. */
+window.goTo = (tab, opts = {}) => {
+  showTab(tab, opts);
+  if (!opts.focus) return;
+  setTimeout(() => {
+    const el = document.querySelector(opts.focus);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.add('flash');
+    setTimeout(() => el.classList.toggle('flash', false), 2200);
+  }, 350);
+};
 
 // ---------- Status / conexão ----------
 let connState = { status: 'disconnected' };
@@ -1565,7 +1577,7 @@ function connectEvents() {
     if ($('#tab-logs').classList.contains('active') && (!$('#logType').value || $('#logType').value === log.type)) {
       $('#logsList').insertAdjacentHTML('afterbegin', logItem(log));
     }
-    if ($('#tab-dashboard').classList.contains('active')) {
+    if ($('#tab-executive')?.classList.contains('active') && $('#statsCards')) {
       clearTimeout(connectEvents.t);
       connectEvents.t = setTimeout(loaders.dashboard, 500);
     }
