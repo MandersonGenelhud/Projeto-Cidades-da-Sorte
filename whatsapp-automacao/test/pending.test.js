@@ -328,3 +328,29 @@ test('modo de teste: o motivo informado é "teste", não outro', () => {
   const r = inbox.enqueue(['595981111111@s.whatsapp.net']);
   assert.equal(r.queued, 0); assert.equal(r.reasons.teste, 1);
 });
+
+test('limite por NÚMERO: cada WhatsApp (principal e de cada vendedor) tem o seu; conversa pausada não gasta vaga', async () => {
+  const { store, wa } = setup();
+  store.updateSettings({ agent: { triagePending: false } });
+  const agent = new Agent({ store, llm: { configured: true, chat: async () => ({ content: 'Oi! Agradeço por aguardar.', tool_calls: [] }) }, calendar: null });
+  const autoReply = new AutoReply({ store, wa, agent });
+  const clock = new Date(2026, 9, 30, 10, 0);
+  const inbox = new PendingInbox({ store, agent, wa, autoReply, delay: [0, 0], careful: true, now: () => clock });
+  wa.send = async (to, payload) => { wa.sent.push({ to, ...payload }); inbox.resolve(to); return { jid: to }; };
+  wa.isConnected = () => true;
+  store.updateSettings({ agent: { pendingPerHour: 1, autoAnswerPending: false } });
+  const add = (jid, name) => { inbox.items[jid] = { jid, phone: jid.replace(/\D/g, '').slice(-12), name, texts: ['oi'], at: Date.now() - 3600_000, channel: 'whatsapp' }; };
+  // Uma conversa pausada primeiro (o Marcos assumiu): não pode gastar a vaga do número principal.
+  add('595981000009@s.whatsapp.net', 'Pausada');
+  Object.assign(agent.conversation('595981000009@s.whatsapp.net'), { handoff: true, handoffReason: 'um humano assumiu' });
+  add('595981000001@s.whatsapp.net', 'Principal 1');
+  add('595981000002@s.whatsapp.net', 'Principal 2');
+  add('l:franciely:595981000003@s.whatsapp.net', 'Da Franciely');
+  inbox.enqueue(Object.keys(inbox.items));
+  await waitFor(() => /limite de 1 respostas por hora em cada número/.test(inbox.status().waiting));
+  const to = wa.sent.map((s) => s.to).sort();
+  assert.deepEqual(to, ['595981000001@s.whatsapp.net', 'l:franciely:595981000003@s.whatsapp.net'], 'o número principal e o da Franciely responderam um cada');
+  assert.equal(inbox.status().senders, 1, 'só falta o principal (que já usou a vaga dele)');
+  inbox.cancel();
+  await waitFor(() => !inbox.running);
+});

@@ -1208,7 +1208,7 @@ async function loadPending() {
     </label>`).join('') || '<p class="muted">Ninguém esperando resposta. </p>';
   const hhmm = (ms) => (ms ? new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—');
   $('#pendingStatus').innerHTML = r.running
-    ? `<b>Respondendo com cuidado</b> para proteger o número: no máximo <b>${r.perHour} por hora</b>, das ${r.from ?? 7}h às ${r.to ?? 21}h, uma de cada vez (45 a 90 s entre uma e outra).<br>
+    ? `<b>Respondendo com cuidado</b> para proteger os números: no máximo <b>${r.perHour} por hora em cada WhatsApp</b> (o principal e o de cada vendedor contam separados), das ${r.from ?? 7}h às ${r.to ?? 21}h, com 45 a 90 s entre uma resposta e outra do mesmo número.${r.senders > 1 ? ` Agora ${r.senders} números estão respondendo ao mesmo tempo.` : ''}<br>
        ${r.queue} na fila · ${r.sentLastHour ?? 0} respondidas na última hora · última resposta enviada às ${hhmm(r.lastSentAt)}${r.etaMin ? ` · tempo estimado: cerca de ${Math.ceil(r.etaMin / 60)} h` : ''}${r.waiting ? `<br>Esperando: ${esc(r.waiting)}.` : ''}<br>
        <span class="muted">Não é falha: é de propósito, para o WhatsApp não bloquear o número. Pode fechar esta tela; a fila continua. Para responder mais rápido, aumente "Respostas por hora" aqui em cima (com cuidado).</span>`
     : (r.lastError ? `A fila parou: ${esc(r.lastError.message)}. Veja Conexões → Saúde do sistema.` : '');

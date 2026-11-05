@@ -2,6 +2,14 @@
 // Vêm do histórico que o celular envia ao conectar e de mensagens que o agente
 // não respondeu (agente desligado ou em modo de teste).
 import { randomBetween } from './utils.js';
+import { parseLineKey } from './lines.js';
+
+/** De qual número sai a resposta: cada WhatsApp (principal, cada vendedor, Instagram) tem o seu próprio limite e ritmo. */
+export const senderOf = (jid) => {
+  const l = parseLineKey(String(jid || ''));
+  if (l) return `linha:${l.id}`;
+  return String(jid || '').startsWith('ig:') ? 'instagram' : 'principal';
+};
 
 /**
  * A partir de mensagens normalizadas (de várias conversas), devolve as conversas
@@ -87,7 +95,9 @@ export class PendingInbox {
     // para o WhatsApp não estranhar um número que de repente responde centenas de conversas.
     this.careful = careful;
     this.now = now;
-    this.sentAt = []; // horários das respostas da última hora
+    this.sentAt = []; // horários das respostas da última hora (todos os números juntos, só para o painel)
+    this.sentBy = {}; // número → horários das respostas da última hora (o limite vale por número)
+    this.nextBy = {}; // número → quando pode mandar a próxima (intervalo entre uma e outra, por número)
     this.waiting = ''; // por que a fila está esperando (aparece no painel)
     this.queue = [];
     this.running = false;
@@ -115,10 +125,11 @@ export class PendingInbox {
     const { perHour, from, to } = this.#limits();
     const nowMs = this.now().getTime();
     const sentLastHour = this.sentAt.filter((t) => nowMs - t < 3_600_000).length;
+    const senders = new Set(this.queue.map(senderOf)).size || 1;
     return {
       count: this.list().length, queue: this.queue.length, running: this.running, waiting: this.waiting, perHour, from, to,
       lastError: this.lastError || null, sentLastHour, lastSentAt: this.lastSentAt || null, lastProgressAt: this.lastProgressAt || null,
-      etaMin: this.careful && this.queue.length ? Math.ceil((this.queue.length / perHour) * 60) : null,
+      senders, etaMin: this.careful && this.queue.length ? Math.ceil((this.queue.length / (perHour * senders)) * 60) : null,
     };
   }
 
@@ -264,26 +275,41 @@ export class PendingInbox {
     return { perHour: Math.max(1, Number(a.pendingPerHour) || 30), from: Number.isFinite(from) ? from : 7, to: Number.isFinite(to) ? to : 21 };
   }
 
-  /** Espera o horário permitido e a vaga dentro do limite por hora. */
+  /**
+   * Espera o horário permitido e devolve o próximo cliente a responder.
+   * O limite por hora e o intervalo entre respostas valem POR NÚMERO: enquanto um WhatsApp espera a vez dele,
+   * os clientes dos outros números seguem sendo atendidos.
+   */
   async #gate() {
-    if (!this.careful) return;
+    if (!this.careful) return this.queue[0];
     for (;;) {
-      if (!this.queue.length) return;
+      if (!this.queue.length) return null;
       const { perHour, from, to } = this.#limits();
       const now = this.now();
+      const ms = now.getTime();
       const h = now.getHours();
+      let waitMs = 60_000;
       if (h < from || h >= to) {
         this.waiting = `fora do horário (responde das ${from}h às ${to}h)`;
       } else {
-        this.sentAt = this.sentAt.filter((t) => now.getTime() - t < 3_600_000);
-        if (this.sentAt.length < perHour) {
-          this.waiting = '';
-          return;
-        }
-        this.waiting = `limite de ${perHour} respostas por hora atingido; continua sozinho em alguns minutos`;
+        this.sentAt = this.sentAt.filter((t) => ms - t < 3_600_000);
+        for (const k of Object.keys(this.sentBy)) this.sentBy[k] = this.sentBy[k].filter((t) => ms - t < 3_600_000);
+        const pick = this.queue.find((jid) => {
+          const k = senderOf(jid);
+          return (this.sentBy[k] || []).length < perHour && (this.nextBy[k] || 0) <= ms;
+        });
+        if (pick) { this.waiting = ''; return pick; }
+        // Ninguém pode mandar agora: espera o número que libera primeiro (no máximo 1 minuto).
+        const soonest = Math.min(...[...new Set(this.queue.map(senderOf))].map((k) => {
+          const hour = (this.sentBy[k] || []).length >= perHour ? (this.sentBy[k][0] + 3_600_000) : 0;
+          return Math.max(hour, this.nextBy[k] || 0);
+        }));
+        waitMs = Math.min(60_000, Math.max(1000, soonest - ms));
+        const full = [...new Set(this.queue.map(senderOf))].every((k) => (this.sentBy[k] || []).length >= perHour);
+        this.waiting = full ? `limite de ${perHour} respostas por hora em cada número atingido; continua sozinho em alguns minutos` : 'intervalo entre uma resposta e outra (para proteger os números)';
       }
       this.#changed();
-      await this.#wait(60_000);
+      await this.#wait(waitMs);
     }
   }
 
@@ -293,21 +319,23 @@ export class PendingInbox {
     try {
       let fails = 0;
       while (this.queue.length) {
-        const failedJid = this.queue[0];
+        let failedJid = this.queue[0];
         try {
-        await this.#gate();
-        if (!this.queue.length) break;
+        const chosen = await this.#gate();
+        if (!this.queue.length || !chosen) break;
+        failedJid = chosen;
         // Conversa nova (sem nada antes) também passa pela análise: cria a memória dela aqui.
-        if (this.items[this.queue[0]]) {
-          const it = this.items[this.queue[0]];
-          const c = this.agent.conversation(this.queue[0]);
+        if (this.items[chosen]) {
+          const it = this.items[chosen];
+          const c = this.agent.conversation(chosen);
           c.phone ||= it.phone;
           c.name ||= it.name;
         }
-        const jid = this.queue[0];
+        const jid = chosen;
+        const sender = senderOf(jid);
         const p = this.items[jid];
         const startedAt = Date.now();
-        this.sentAt.push(startedAt);
+        let answered = false;
         let skip = false;
         const conv = this.agent.conversation(jid, { create: false });
         // Conversa pausada (ex.: "você respondeu pelo celular"): a IA não entra. Avisa em vez de pular em silêncio.
@@ -347,6 +375,7 @@ export class PendingInbox {
               try {
                 await this.wa.send(jid, { text, typingMs });
                 this.lastSentAt = Date.now();
+                answered = true;
                 this.store.addLog({ type: 'autoreply', phone: p.phone || jid, message: text, rule: 'Agente IA (pendente)' });
               } catch (err) {
                 this.store.addLog({ type: 'error', phone: p.phone || jid, message: `Pendente: ${err.message}` });
@@ -368,8 +397,16 @@ export class PendingInbox {
         if (conv) delete conv.continuity; // a análise vale só para a primeira resposta
         this.queue = this.queue.filter((j) => j !== jid);
         if (this.items[jid]) delete this.items[jid];
+        // Só conta no limite (e no intervalo daquele número) quando a resposta saiu de verdade.
+        if (answered) {
+          const at = this.now().getTime();
+          this.sentAt.push(at);
+          (this.sentBy[sender] ||= []).push(at);
+          this.nextBy[sender] = this.now().getTime() + randomBetween(this.delay[0], this.delay[1]) * 1000;
+        }
         this.#changed();
-        if (this.queue.length) await this.#wait(randomBetween(this.delay[0], this.delay[1]) * 1000);
+        if (this.queue.length && !this.careful) await this.#wait(randomBetween(this.delay[0], this.delay[1]) * 1000);
+        else if (this.queue.length) await this.#wait(1500); // pausa curta entre clientes de números diferentes
         fails = 0;
         } catch (err) {
           // Um cliente com problema não pode parar a fila inteira: registra o motivo, pula este e segue.
