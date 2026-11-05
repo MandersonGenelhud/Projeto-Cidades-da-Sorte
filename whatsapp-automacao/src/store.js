@@ -289,6 +289,15 @@ export class Store extends EventEmitter {
       crmS.lotsGabriel2026 = true;
       this.flush();
     }
+    // Nov/2026: as duas Assessorias Prime entram na lista de pacotes do orçamento (uma vez; depois vale o que o Marcos editar).
+    if (crmS && !crmS.primePackages2026) {
+      crmS.packages ||= [];
+      for (const p of [{ name: 'Assessoria Prime R$ 2.750', price: 2750 }, { name: 'Assessoria Prime R$ 1.560', price: 1560 }]) {
+        if (!crmS.packages.some((x) => x.name === p.name)) crmS.packages.push(p);
+      }
+      crmS.primePackages2026 = true;
+      this.flush();
+    }
     // Instalações antigas vinham com 7 dias: passa para 15 uma vez (depois vale o que o Marcos escolher).
     const a = this.data.settings.agent;
     if (a && !a.pendingDays15) {

@@ -1490,7 +1490,7 @@ function quoteBody() {
   const items = $$('#quoteItems .quote-item').map((r) => ({ pacote: $('[data-q="pkg"]', r).value, quantidade: Number($('[data-q="qty"]', r).value) || 1 }));
   const custom = f.planMode.value === 'custom';
   const parcels = custom ? $$('#quoteParcels .quote-parcel').map((r) => ({ pct: Number($('[data-p="pct"]', r).value), date: $('[data-p="date"]', r).value })) : null;
-  return { client: f.client.value.trim(), phone: f.phone.value.trim(), start: f.start.value, adults: Number(f.adults.value) || 1, items, parcels };
+  return { client: f.client.value.trim(), phone: f.phone.value.trim(), start: f.start.value, adults: Number(f.adults.value) || 1, items, parcels, discountPct: Number(f.discountPct?.value) || 0 };
 }
 async function quotePreview() {
   const b = quoteBody();
@@ -1499,7 +1499,8 @@ async function quotePreview() {
     const r = await api('/api/quotes/preview', { method: 'POST', body: b });
     quoteState.last = r;
     const p = r.plan;
-    $('#quotePreview').innerHTML = `<div class="quote-sum"><span class="hint">Investimento total · ${p.people} pessoa(s)</span><span class="big">${brl2(p.total)}</span>
+    $('#quotePreview').innerHTML = `<div class="quote-sum"><span class="hint">Investimento total · ${p.people} pessoa(s)${p.discountPct ? ` · com ${p.discountPct}% de desconto` : ''}</span><span class="big">${brl2(p.total)}</span>
+      ${p.discountPct ? `<div class="row-x"><span>Valor dos serviços<div class="hint">desconto de ${p.discountPct}%: - ${brl2(p.discount)}</div></span><b>${brl2(p.subtotal)}</b></div>` : ''}
       <div class="row-x"><span><b>Entrada na reserva</b> · ${diaSemana(p.start)}<div class="hint">${brl2(p.base)} de sinal + ${brl2(p.perAdult)} × ${p.adults} adulto(s) das certidões</div></span><b>${brl2(p.entry)}</b></div>
       ${p.parcels.map((x) => `<div class="row-x"><span>${esc(x.label)} (${x.pct}%)<div class="hint">${esc(diaSemana(x.date))}${x.moved ? ' · fim de semana, passou para segunda' : ''}</div></span><b>${brl2(x.value)}</b></div>`).join('')}</div>`;
   } catch (err) {

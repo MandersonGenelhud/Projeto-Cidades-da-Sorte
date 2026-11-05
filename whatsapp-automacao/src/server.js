@@ -3990,7 +3990,7 @@ app.post('/api/quotes/:id/reactivate', (req, res) => {
 // Prévia ao vivo (sem número, sem gravar).
 app.post('/api/quotes/preview', (req, res) => {
   const b = req.body || {};
-  const r = quotes.compute({ items: b.items, adults: b.adults, start: b.start, parcels: b.parcels });
+  const r = quotes.compute({ items: b.items, adults: b.adults, start: b.start, parcels: b.parcels, discountPct: b.discountPct });
   res.json({ ...r, text: quotes.message({ number: 'ORC-XXXX-XXXXX', items: r.items, plan: r.plan, validUntil: r.plan.start }).replace(/Válido até .*/, 'Válido por ' + (Number(store.settings.quotes?.validityDays) || 7) + ' dias') });
 });
 app.post('/api/quotes', async (req, res) => {
@@ -4002,7 +4002,7 @@ app.post('/api/quotes', async (req, res) => {
   if (b.send && req.user.role === 'admin' && !key) throw httpError(400, 'Escolha um cliente com WhatsApp para enviar');
   const q = quotes.create({
     items: b.items, adults: b.adults, client: b.client || lead?.name, phone: b.phone || lead?.phone || '',
-    consultant: req.user.name, leadId: lead?.id || null, convKey: key, start: b.start, parcels: b.parcels,
+    consultant: req.user.name, leadId: lead?.id || null, convKey: key, start: b.start, parcels: b.parcels, discountPct: b.discountPct,
     createdBy: { id: req.user.id, name: req.user.name },
   });
   if (key) {

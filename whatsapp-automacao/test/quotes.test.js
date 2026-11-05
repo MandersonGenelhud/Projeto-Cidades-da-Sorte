@@ -70,3 +70,23 @@ test('orçamento com parcelas combinadas pelo vendedor: somam 100% do saldo e fi
   quotes.compute({ items: [{ pacote: 'Ouro', quantidade: 1 }], start: '2026-10-30' });
   assert.equal(quotes.config.nextNumber, before);
 });
+
+test('orçamento: Assessoria Prime (R$ 2.750 e R$ 1.560), desconto de 1 a 15% e entrada nunca maior que o total', () => {
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  const auth = new Auth({ store, dataDir: store.dataDir });
+  const crm = new Crm({ store, auth });
+  const quotes = new Quotes({ store, dataDir: store.dataDir, secret: 's', matchPackage: (n) => crm.matchPackage(n) });
+  const a = quotes.compute({ items: [{ pacote: 'Assessoria Prime R$ 2.750', quantidade: 1 }], adults: 1 });
+  assert.equal(a.plan.total, 2750);
+  const b = quotes.compute({ items: [{ pacote: 'Assessoria Prime R$ 1.560', quantidade: 1 }], adults: 1 });
+  assert.equal(b.plan.total, 1560);
+  assert.ok(b.plan.entry <= b.plan.total, 'a entrada não passa do total');
+  assert.ok(b.plan.parcels.every((x) => x.value >= 0));
+  const c = quotes.compute({ items: [{ pacote: 'Assessoria Prime R$ 2.750', quantidade: 1 }], adults: 1, discountPct: 10 });
+  assert.deepEqual([c.plan.subtotal, c.plan.discount, c.plan.total, c.plan.discountPct], [2750, 275, 2475, 10]);
+  assert.throws(() => quotes.compute({ items: [{ pacote: 'Assessoria Prime R$ 2.750' }], discountPct: 20 }), /0 a 15%/);
+  const q = quotes.create({ items: [{ pacote: 'Assessoria Prime R$ 2.750', quantidade: 1 }], adults: 1, client: 'Ana', discountPct: 15 });
+  assert.equal(q.plan.total, 2337.5);
+  assert.match(quotes.message(q), /Desconto de 15%/);
+});

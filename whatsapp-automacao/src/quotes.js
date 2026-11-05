@@ -71,7 +71,7 @@ export class Quotes {
    * Calcula sem gravar (prévia ao vivo no painel). items: [{ pacote, quantidade }]; adults: adultos (taxa das certidões);
    * parcels (opcional): parcelas combinadas com o cliente [{ pct, date }], somando 100% do saldo.
    */
-  compute({ items, adults, start = todayIso(), parcels = null }) {
+  compute({ items, adults, start = todayIso(), parcels = null, discountPct = 0 }) {
     const rows = [];
     for (const it of items || []) {
       if (!it || !(it.pacote || it.name)) continue;
@@ -87,7 +87,12 @@ export class Quotes {
     if (!rows.length) throw err(400, 'Informe ao menos um pacote');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(start))) start = todayIso();
     const people = rows.reduce((s, r) => s + r.qty, 0);
-    const total = rows.reduce((s, r) => s + r.total, 0);
+    const subtotal = rows.reduce((s, r) => s + r.total, 0);
+    // Desconto escolhido no orçamento: de 0 a 15%, sobre o valor dos pacotes.
+    const d = Math.round(Number(discountPct) || 0);
+    if (d < 0 || d > 15) throw err(400, 'Desconto de 0 a 15%');
+    const discount = Math.round(subtotal * d) / 100;
+    const total = Math.round((subtotal - discount) * 100) / 100;
     const pay = this.store.settings.payments || {};
     let steps = pay.plan?.steps?.length ? pay.plan.steps : DEFAULT_STEPS;
     let custom = false;
@@ -111,11 +116,11 @@ export class Quotes {
       perAdult: pay.reservation?.perAdult ?? 800,
       steps,
     });
-    return { items: rows, plan: { ...plan, custom } };
+    return { items: rows, plan: { ...plan, custom, subtotal, discountPct: d, discount } };
   }
 
-  create({ items, adults, client = '', phone = '', consultant = '', leadId = null, convKey = null, start = todayIso(), parcels = null, createdBy = null }) {
-    const { items: rows, plan } = this.compute({ items, adults, start, parcels });
+  create({ items, adults, client = '', phone = '', consultant = '', leadId = null, convKey = null, start = todayIso(), parcels = null, createdBy = null, discountPct = 0 }) {
+    const { items: rows, plan } = this.compute({ items, adults, start, parcels, discountPct });
     start = plan.start;
     const year = Number(start.slice(0, 4));
     const rec = {
@@ -160,6 +165,7 @@ export class Quotes {
       '*Serviços*',
       ...rec.items.map((r) => `• ${r.name.toUpperCase()}${r.qty > 1 ? ` × ${r.qty}` : ''}`),
       '',
+      ...(p.discountPct ? [`Valor dos serviços: ${money(p.subtotal)}`, `Desconto de ${p.discountPct}%: - ${money(p.discount)}`] : []),
       `*Total: ${money(p.total)}*`,
       '',
       '*Pagamento no PIX*',
@@ -274,7 +280,8 @@ export class Quotes {
     let fy = y + 16;
     c.text('RESUMO FINANCEIRO', fx + 16, fy, { size: 7.5, bold: true, color: C.gold, spacing: 1 });
     fy += 18;
-    c.text('Investimento total', fx + 16, fy, { size: 9, color: '#cfe0d7' });
+    c.text(p.discountPct ? `Investimento total (com ${p.discountPct}% de desconto)` : 'Investimento total', fx + 16, fy, { size: 9, color: '#cfe0d7' });
+    if (p.discountPct) c.text(`de ${money(p.subtotal)}`, fx + 16, fy + 13, { size: 8, color: '#cfe0d7' });
     c.text(money(p.total), fx + fw - 16, fy + 12, { size: 20, bold: true, color: C.gold, align: 'right' });
     fy += 42;
     c.rect(fx + 10, fy, fw - 20, boxH - (fy - y) - 10, { fill: C.green2, radius: 8 });

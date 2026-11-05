@@ -257,6 +257,8 @@ Faça a peneira com calma. Quando o cliente estiver pronto para fechar, siga o f
       { name: 'Pacote Empresa (EAS)', price: 20997 },
       { name: 'Pacote Empresa (S.A.)', price: 25997 },
       { name: 'Pacote Estudantil', price: 5997 },
+      { name: 'Assessoria Prime R$ 2.750', price: 2750 },
+      { name: 'Assessoria Prime R$ 1.560', price: 1560 },
     ],
   },
 };

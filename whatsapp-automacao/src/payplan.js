@@ -41,7 +41,7 @@ export function paymentPlan({ price, people = 1, adults = people, base = 1000, p
   // Com total fixo (orçamento com pacotes diferentes), os adultos não ficam presos ao número de pessoas.
   const a = Math.max(1, fixedTotal != null ? Math.round(Number(adults) || p) : Math.min(p, Math.round(Number(adults) || p)));
   const total = cents(fixedTotal != null ? fixedTotal : Number(price) * p);
-  const entry = cents(Number(base) + Number(perAdult) * a);
+  const entry = Math.min(total, cents(Number(base) + Number(perAdult) * a)); // nunca maior que o total
   const balance = cents(Math.max(0, total - entry));
   let rest = balance;
   const parcels = steps.map((s, i) => {
