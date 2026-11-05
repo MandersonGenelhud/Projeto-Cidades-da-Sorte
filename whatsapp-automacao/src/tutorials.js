@@ -96,10 +96,46 @@ const ADMIN_SYSTEM = `Como o sistema funciona (administrador)
 6. Treinamentos
 - O treinamento semanal dos vendedores é criado pela IA, com os números da própria equipe. Você pode editar, ocultar ou criar um à mão.`;
 
+const SELLER_SHORTCUTS = `Atalhos no seu WhatsApp (o WhatsApp conectado ao sistema)
+Digite o atalho na conversa do cliente, como se fosse uma mensagem. O sistema entende, faz o trabalho e apaga o atalho da conversa: o cliente não vê. A resposta chega só para você, no seu WhatsApp. Só vale o que você digita no seu aparelho; se o cliente digitar um atalho, nada acontece.
+
+1. Contrato
+- /contrato  → gera o contrato e manda o link para o cliente assinar pelo celular. Se faltarem dados pessoais, manda a ficha e o contrato sai sozinho quando ele preencher.
+- /contrato cédula 2 pessoas  → o mesmo, dizendo o pacote e quantas pessoas. Se você não escrever o pacote, o sistema lê a conversa e escolhe sozinho; se não tiver certeza, avisa e pede que você escreva.
+- Exemplo: o cliente disse "pode mandar o contrato". Você digita /contrato e segue conversando.
+
+2. Orçamento e ficha
+- /orcamento residência 2 pessoas  → gera e envia o orçamento em PDF.
+- /ficha  → envia o link da ficha de dados pessoais (é só tocar e preencher, uns 2 minutos).
+
+3. Controle da IA na conversa
+- /pausa  → a IA para de responder aquele cliente (use quando for assumir a conversa).
+- /ia  → devolve a conversa para a IA.
+- Dica: quando você responde pelo celular, a IA já pausa sozinha. Use /ia quando quiser que ela volte.
+
+4. Organização
+- /lembrar amanhã 14h ligar para ele  → cria uma tarefa para você, com data e horário. Entende hoje, amanhã, segunda a domingo e datas como 20/11.
+- /status  → mostra, só para você, o contrato e as parcelas daquele cliente (pago, em aberto, atraso).
+- /ajuda  → lista os atalhos.
+
+Boas práticas
+- Um atalho por mensagem, no começo da mensagem (a barra / vem primeiro).
+- Se o sistema não conseguir, você recebe o motivo e uma dica no seu WhatsApp. Nada é enviado ao cliente quando dá erro.
+- Atalhos funcionam nos números conectados no sistema (QR Code). No Instagram, use o painel.`;
+
+const ADMIN_SHORTCUTS = `Atalhos da administração no WhatsApp
+Valem os atalhos dos vendedores (veja o guia deles) e mais estes, só para quem é administrador:
+- /resumo  → vencidas, vencimentos do dia e avisos importantes.
+- /saude  → como estão o WhatsApp, a IA e a fila de clientes esperando.
+Pode digitar na conversa "Você" (consigo mesmo), sem apagar nada de ninguém. Se um vendedor tentar, recebe "Esse atalho é só do administrador".
+Todos os atalhos ficam no registro de segurança (Auditoria), com o nome de quem usou.`;
+
 export const SEED = [
   { key: 'seed-seller-system', title: 'Como usar o sistema (vendedor)', audience: 'seller', category: 'Sistema', body: SELLER_SYSTEM },
   { key: 'seed-seller-closing', title: 'Fechamento: postura, roteiro e confiança', audience: 'seller', category: 'Fechamento', body: SELLER_CLOSING },
   { key: 'seed-seller-objections', title: 'Quebra de objeções, passo a passo', audience: 'seller', category: 'Fechamento', body: SELLER_OBJECTIONS },
+  { key: 'seed-seller-shortcuts', title: 'Atalhos no seu WhatsApp (/contrato, /orcamento e outros)', audience: 'seller', category: 'Sistema', body: SELLER_SHORTCUTS },
+  { key: 'seed-admin-shortcuts', title: 'Atalhos da administração no WhatsApp', audience: 'admin', category: 'Sistema', body: ADMIN_SHORTCUTS },
   { key: 'seed-admin-system', title: 'Como o sistema funciona (administrador)', audience: 'admin', category: 'Sistema', body: ADMIN_SYSTEM },
 ];
 

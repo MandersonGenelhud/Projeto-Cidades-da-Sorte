@@ -134,3 +134,18 @@ test('na prática: vendedor lê guia e tutoriais dele, não vê o do administrad
   assert.doesNotMatch(JSON.stringify(await (await admin('/api/settings')).json()), /SEGREDO-META-1234/, 'a chave sai mascarada nas configurações');
   assert.doesNotMatch(JSON.stringify(await (await admin('/api/audit')).json()), /SEGREDO-META/);
 });
+
+test('treinamento: atalhos do WhatsApp aparecem para o vendedor e os da administração só para o administrador', async () => {
+  const { Tutorials } = await import('../src/tutorials.js');
+  const { COMMANDS } = await import('../src/seller-commands.js');
+  const store = tempStore();
+  const t = new Tutorials({ store });
+  const seller = { id: 's', role: 'seller' }; const admin = { id: 'a', role: 'admin' };
+  const item = t.list(seller).find((x) => /Atalhos no seu WhatsApp/.test(x.title));
+  assert.ok(item, 'vendedor vê o guia de atalhos');
+  const mine = t.get(seller, item.id);
+  for (const [name, c] of Object.entries(COMMANDS)) if (!c.admin) assert.ok(mine.body.includes(`/${name}`), `guia do vendedor cita /${name}`);
+  assert.ok(!/\/resumo|\/saude/.test(mine.body), 'vendedor não vê os atalhos de administrador');
+  assert.ok(!t.list(seller).some((x) => /administração/.test(x.title)));
+  assert.ok(t.list(admin).some((x) => /Atalhos da administração/.test(x.title)));
+});
