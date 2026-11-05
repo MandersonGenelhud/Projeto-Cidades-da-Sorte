@@ -676,6 +676,7 @@ loaders.settings = async () => {
   loadSecurity().catch(() => {});
   const [s, blacklist] = await Promise.all([api('/api/settings'), api('/api/blacklist')]);
   settingsCache = s;
+  showUpdateTokenState(s.updater?.token);
   fillPayForm(s.payments || {});
   fillClosingForm(s.closing || {});
   $('#formBrand').name.value = s.brand?.name || '';
@@ -1511,13 +1512,22 @@ $('#formAppt').addEventListener('submit', withBusy($('#formAppt'), async (e) => 
 }));
 
 // ---------- Atualização ----------
+// A chave do GitHub fica guardada no painel (no servidor). O campo fica vazio de propósito; aqui mostra que ela está salva.
+function showUpdateTokenState(masked) {
+  const el = $('#updateTokenState');
+  if (!el) return;
+  el.innerHTML = masked
+    ? `<b>Chave salva no painel</b> (termina em ${esc(String(masked).slice(-4))}). Não precisa colar de novo: é só clicar em "Verificar" e "Atualizar". Só cole outra se trocar a chave no GitHub.`
+    : 'Nenhuma chave salva ainda. Cole a chave e clique em "Salvar chave": ela fica guardada no painel.';
+}
 $('#btnUpdateToken').addEventListener('click', async () => {
   const token = $('#updateToken').value.trim();
   if (!token) return toast('Cole a chave de leitura do GitHub', true);
   try {
     await api('/api/settings', { method: 'PUT', body: { updater: { token } } });
     $('#updateToken').value = '';
-    toast('Chave salva. Clique em "Verificar".');
+    showUpdateTokenState(`••••${token.slice(-4)}`);
+    toast('Chave salva no painel. Clique em "Verificar".');
   } catch (err) { toast(err.message, true); }
 });
 $('#btnUpdateCheck').addEventListener('click', async () => {
