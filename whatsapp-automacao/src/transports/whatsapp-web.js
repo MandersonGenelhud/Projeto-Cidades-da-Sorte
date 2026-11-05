@@ -241,12 +241,14 @@ export class WhatsAppClient extends EventEmitter {
     {
       // Mensagem recente que o dono digitou no próprio celular: o WhatsApp às vezes entrega como "append" (e não "notify").
       // Na conversa "Você" vale como pedido à Nina; na conversa de um cliente vale como mensagem do consultor (ex.: /contrato).
+      // O WhatsApp devolve na hora, como "append", as mensagens que o PRÓPRIO sistema acabou de mandar (antes de o envio
+      // terminar e o id ficar guardado). Por isso espera um pouco antes de decidir se foi o dono quem digitou.
       if (type === 'append') {
         for (const msg of messages) {
           if (!msg.key?.fromMe) continue;
           if (Date.now() - msgTime(msg) > 90_000) continue;
-          if (isSelfChat(msg.key.remoteJid, sock.user)) this.#emitSelfChat(msg, sock);
-          else this.#emitOwner(msg);
+          const self = isSelfChat(msg.key.remoteJid, sock.user);
+          setTimeout(() => (self ? this.#emitSelfChat(msg, sock) : this.#emitOwner(msg)), this.appendDelayMs ?? 4000).unref?.();
         }
       }
       if (type === 'append') {
@@ -436,7 +438,8 @@ export class WhatsAppClient extends EventEmitter {
   async revoke(to, id) {
     this.#ensureConnected();
     const jid = await this.resolveJid(to);
-    await this.sock.sendMessage(jid, { delete: { remoteJid: jid, fromMe: true, id } });
+    const r = await this.sock.sendMessage(jid, { delete: { remoteJid: jid, fromMe: true, id } });
+    if (r?.key?.id) this.sentIds.add(r.key.id);
   }
 
   async send(to, { text = '', media = null, typing = true, typingMs } = {}) {
@@ -473,7 +476,10 @@ export class WhatsAppClient extends EventEmitter {
       if (this.sentIds.size > 5000) this.sentIds.delete(this.sentIds.values().next().value);
     }
     // Áudio não aceita legenda: envia o texto separado.
-    if (media?.mimetype?.startsWith('audio/') && text) await this.sock.sendMessage(jid, { text });
+    if (media?.mimetype?.startsWith('audio/') && text) {
+      const extra = await this.sock.sendMessage(jid, { text });
+      if (extra?.key?.id) this.sentIds.add(extra.key.id);
+    }
     return { id: sent?.key?.id, jid };
   }
 

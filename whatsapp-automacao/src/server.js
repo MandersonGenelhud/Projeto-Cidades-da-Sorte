@@ -192,6 +192,8 @@ const agent = new Agent({
     if (phone && wa.status === 'connected') await wa.send(phone, { text, typing: false });
   },
 });
+// Destrava conversas pausadas por engano (resposta da própria IA lida como se fosse do celular).
+try { agent.repairEchoPauses(); } catch (err) { console.error('Conserto das pausas:', err.message); }
 const campaigns = new CampaignRunner({ store, wa, notify });
 const autoReply = new AutoReply({ store, wa, notify, agent });
 const scheduler = new Scheduler({ store, wa, campaigns, notify });

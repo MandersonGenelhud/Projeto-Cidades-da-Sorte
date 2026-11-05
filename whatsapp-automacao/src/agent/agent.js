@@ -104,6 +104,38 @@ export class Agent {
    * O dono respondeu pelo próprio celular: guarda na memória e, se configurado,
    * pausa o agente nesta conversa para os dois não responderem ao mesmo tempo.
    */
+  /**
+   * Conserto: entre a versão de 05/11/2026 e a correção, a própria resposta da IA às vezes voltou do WhatsApp como se o dono
+   * tivesse respondido, e a conversa pausou. Sinal: a mesma resposta da IA gravada duas vezes seguidas, com segundos de diferença,
+   * e a pausa "você respondeu pelo celular" no mesmo momento. Só nesses casos a IA volta a atender (e tira a cópia repetida).
+   */
+  repairEchoPauses() {
+    let fixed = 0;
+    for (const conv of Object.values(this.store.data.conversations || {})) {
+      if (!conv.handoff || conv.handoffReason !== OWNER_PAUSE || !conv.ownerRepliedAt) continue;
+      const msgs = conv.messages || [];
+      for (let i = msgs.length - 2; i >= 0; i--) {
+        const a = msgs[i]; const b = msgs[i + 1];
+        if (a.role !== 'assistant' || b.role !== 'assistant' || a.content !== b.content) continue;
+        const ta = Date.parse(a.at); const tb = Date.parse(b.at);
+        if (!(Math.abs(tb - ta) < 20_000 && Math.abs(conv.ownerRepliedAt - ta) < 20_000)) continue;
+        // A pausa veio desse eco (não houve resposta de verdade do dono depois).
+        if (msgs.slice(i + 2).some((m) => m.role === 'assistant' && Date.parse(m.at) >= conv.ownerRepliedAt + 20_000)) break;
+        msgs.splice(i, 1);
+        conv.handoff = false;
+        conv.handoffReason = '';
+        delete conv.ownerRepliedAt;
+        fixed += 1;
+        break;
+      }
+    }
+    if (fixed) {
+      this.store.save();
+      this.store.addLog({ type: 'system', message: `▶️ A IA voltou a atender ${fixed} conversa(s) que tinham pausado por engano (a resposta da própria IA foi lida como se fosse do celular).` });
+    }
+    return fixed;
+  }
+
   ownerReplied({ key, phone, text }) {
     const pause = this.config.pauseOnOwnerReply !== false;
     // Conversa que o Marcos começou (a IA nunca tinha atendido): já nasce pausada, para a IA não entrar quando o cliente responder.
