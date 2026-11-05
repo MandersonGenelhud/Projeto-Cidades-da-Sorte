@@ -75,6 +75,7 @@ import { parseJsonObject } from './crm-ai.js';
 import { collectHandoffs, digestMessage } from './digest.js';
 import { searchConversations } from './convsearch.js';
 import { ServiceCatalog, CATEGORIES as SERVICE_CATEGORIES } from './services.js';
+import { Commissions } from './commissions.js';
 import { buildScreenMap, compareMap } from './legacy-map.js';
 import { Sectors, resolvePeople, isOwner } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
@@ -311,7 +312,7 @@ function importExtras(cap) {
   for (const fn of extraImporters) step(fn.label, () => fn(cap));
   return out;
 }
-const extraImporters = [];
+const extraImporters = [Object.assign((cap) => commissions.importCapture(cap), { label: 'comissoes' })];
 const cashHook = (cap) => (typeof cash === 'undefined' ? null : cash.importLegacy(cashRowsFromCapture(cap)));
 agent.liveInfo = () => live.promptInfo(`${publicBase()}/live`);
 const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
@@ -540,6 +541,16 @@ const sales = new Sales({
     return a ? { id: a.id, name: a.name, ...affiliates.rate(l.commissionCategory || l.category) } : null;
   },
 });
+// Níveis de comissão (meta do mês) e saques: a comissão da venda segue o nível quando os níveis estão ligados.
+const commissions = new Commissions({
+  store, sales, auth,
+  notify: async (kind, payload) => {
+    if (kind === 'admins') return notifyAdmins(payload);
+    if (kind === 'seller' && payload.seller?.whatsapp && wa.status === 'connected') return wa.send(payload.seller.whatsapp, { text: payload.text, typing: false });
+    return null;
+  },
+});
+sales.levelPct = (id) => commissions.levelPct(id);
 // Pix da entrada confirmado: a venda é lançada sozinha a partir do último orçamento do cliente.
 const salesOnPaid = (p) => {
   try {
@@ -1340,7 +1351,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1768,6 +1779,8 @@ const SELLER_ROUTES = [
   ['*', /^\/tasks(\/[a-f0-9]+)?$/],
   ['GET', /^\/(contract-cards|alerts)$/],
   ['GET', /^\/services$/],
+  ['GET', /^\/commissions\/me$/],
+  ['POST', /^\/withdrawals$/],
   ['*', /^\/videocall\/me$/],
   ['POST', /^\/videocall\/[a-z0-9]+\/cancel$/],
 ];
@@ -2949,6 +2962,25 @@ app.get('/api/customers/360', (req, res) => {
 app.get('/api/services', (req, res) => res.json({ categories: SERVICE_CATEGORIES, items: serviceCatalog.list({ q: String(req.query.q || ''), category: String(req.query.category || ''), active: req.user.role === 'admin' ? String(req.query.active ?? '') : 'true' }) }));
 app.post('/api/services', (req, res) => { needAdmin(req); res.json(serviceCatalog.add(req.user, req.body || {})); });
 app.patch('/api/services/:id', (req, res) => { needAdmin(req); res.json(serviceCatalog.update(req.user, req.params.id, req.body || {})); });
+// ---- Níveis de comissão e saques ----
+app.get('/api/commissions/me', (req, res) => res.json(commissions.mine(req.user)));
+app.get('/api/commissions/overview', (req, res) => res.json(commissions.overview(req.user)));
+app.put('/api/commissions/levels', (req, res) => {
+  const r = commissions.setLevels(req.user, req.body || {});
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'níveis de comissão', label: `${r.enabled ? 'ligados' : 'desligados'}: ${r.plans.map((p) => `${p.label} ${p.pct}% (meta ${p.goal})`).join(', ')}` });
+  res.json(r);
+});
+app.post('/api/commissions/recalc', (req, res) => {
+  const r = commissions.recalcMonth(req.user, /^\d{4}-\d{2}$/.test(String(req.body?.month || '')) ? req.body.month : undefined);
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'comissões', label: `Comissões do mês ${r.month} recalculadas pelo nível (${r.changed} venda(s))` });
+  res.json(r);
+});
+app.post('/api/withdrawals', async (req, res) => res.json(await commissions.request(req.user, req.body || {})));
+app.post('/api/withdrawals/:id/:action', async (req, res) => {
+  const w = await commissions.decide(req.user, req.params.id, req.params.action, req.body || {});
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'saque de comissão', label: `${w.sellerName} · R$ ${w.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} → ${w.status}` });
+  res.json(w);
+});
 // ---- Tarefas da equipe ----
 const tasks = new Tasks({ store, auth });
 const tk = (fn) => { try { return fn(); } catch (e) { throw httpError(/não encontrada/.test(e.message) ? 404 : 400, e.message); } };

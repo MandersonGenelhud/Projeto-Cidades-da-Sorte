@@ -47,6 +47,13 @@ test('administrador geral: só outro administrador geral concede ou remove; ning
   assert.equal((await manderson(`/api/users/${ana.id}`, 'PATCH', { role: 'seller' })).status, 200);
   // Rebaixar o Manderson deixa o Marcos como único: permitido; depois rebaixar o último é bloqueado pelo sistema.
   assert.equal((await marcos(`/api/users/${many.id}`, 'PATCH', { role: 'seller' })).status, 200);
+  // Comissões e saques: vendedor vê só o próprio saldo e pede saque; aprovar, pagar e níveis só o administrador.
+  assert.equal((await anaCall('/api/commissions/me')).status, 200);
+  assert.equal((await anaCall('/api/commissions/overview')).status, 403);
+  assert.equal((await anaCall('/api/commissions/levels', 'PUT', { enabled: true })).status, 403);
+  assert.equal((await anaCall('/api/withdrawals/abc123/pay', 'POST', {})).status, 403);
+  assert.equal((await anaCall('/api/withdrawals', 'POST', { amount: 10, pixKey: 'x' })).status, 400, 'sem comissão liberada não há saque');
+  assert.equal((await marcos('/api/commissions/overview')).status, 200);
   const last = await fetch(`${base}/api/users/${me.id}`, { method: 'PATCH', headers: { ...J }, body: JSON.stringify({ role: 'seller' }) });
   assert.ok(last.status === 401 || last.status === 403, 'sem login não faz nada');
 });

@@ -52,11 +52,13 @@ export class Sales {
     sale.history.push({ at: new Date().toISOString(), by: by?.name || by || 'Sistema', text });
   }
 
-  /** Percentual de comissão: o do vendedor (se definido) ou o padrão do painel. */
+  /** Percentual de comissão: o do vendedor (se definido), senão o do nível do mês (se os níveis estiverem ligados), senão o padrão do painel. */
   commissionPct(sellerId) {
     const u = sellerId ? this.auth.get(sellerId) : null;
     const own = u?.commissionPct;
-    return Number.isFinite(Number(own)) && own !== null && own !== '' ? Number(own) : Number(this.config.commissionPct) || 0;
+    if (Number.isFinite(Number(own)) && own !== null && own !== '' && own !== undefined) return Number(own);
+    const level = this.levelPct ? this.levelPct(sellerId) : null;
+    return level !== null && level !== undefined ? Number(level) : Number(this.config.commissionPct) || 0;
   }
 
   /**
