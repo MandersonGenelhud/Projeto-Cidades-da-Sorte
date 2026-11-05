@@ -37,10 +37,14 @@ Já tínhamos funil em quadro com arrastar e soltar, lista, ficha 360 e históri
 - **"Salvar esta visão":** cada pessoa guarda as suas, por exemplo "Quentes do Instagram". Ficam neste aparelho.
 - Resumo no topo: quantos prospectos e quanto está em negociação.
 
-## 4. Próximos passos sugeridos (pedem decisão)
+## 4. Aprovado e feito (05/11/2026)
 
-1. **Juntar de verdade "Contratos (quadros)" e "Contratos e vendas"** em uma tela só, com botão Quadro/Lista, como já é em Prospectos.
-2. **Juntar "Painel" e "Painel executivo"**, com os números do atendimento automático virando um bloco do executivo.
-3. **Ficha do cliente com linha do tempo única:** conversa, orçamento, contrato, parcelas e tarefas em ordem de data, com a **origem de cada dado** ("disse no WhatsApp em 03/11").
-4. **Visões salvas no servidor**, para valerem no celular e no computador.
-5. **Correções visuais** apontadas pelo Impeccable (contraste baixo em 105 pontos dos sites e do painel). Isso faz parte da fase de front-end com as logos.
+1. **Contratos numa tela só:** "Contratos (quadros)" e "Contratos e vendas" viraram **Contratos**, com o botão **Quadros / Lista e comissões**. Link antigo e avisos do sininho abrem os quadros.
+2. **Painel único:** o antigo "Painel" (números do atendimento automático, atividade e como começar) virou um bloco recolhível no fim do **Painel** executivo.
+3. **Ficha do cliente com origem:** nome, telefone, documento e e-mail mostram **de onde vieram** (ex.: "contrato 2026-000215 (sistema antigo)", "Prospectos MIG-7XZ2"). Dado sem origem fica "não informado", nunca inventado. A linha do tempo junta vendas, pagamentos, contratos antigos, orçamentos, documentos, CRM, frases do cliente usadas pela IA como prova, conversas e cobranças, cada item com origem e quem fez, e tem filtro por tipo.
+4. **Visual:** o Impeccable apontava 105 textos com contraste baixo; agora são **0**. O verde dos botões e textos do site ficou um tom mais escuro, o cinza dos exemplos dentro dos campos do painel ficou mais forte e o fundo do topo das páginas ficou mais escuro. As **logos das empresas** (dourado e prata) agora aparecem no topo das páginas Migração, Imóveis e Motors, nos quadros de "Nossas empresas" e na seção "Empresas da Migra" do site principal. Antes essas imagens vinham de outro site; agora ficam no nosso servidor, em versão leve (30 a 50 KB cada).
+
+## 5. Próximos passos sugeridos
+
+1. Visões salvas no servidor, para valerem no celular e no computador.
+2. Outros pontos de estilo do Impeccable (bordas grossas de um lado só, cartões com ícone, brilhos), sem urgência.

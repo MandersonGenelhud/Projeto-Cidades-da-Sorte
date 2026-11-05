@@ -7,7 +7,7 @@ body.flow { background: #f5f5f7; color: #1d1d1f; font-family: -apple-system, Bli
 .flow-card h1 { font-size: 26px; letter-spacing: -.022em; margin: 2px 0 8px; }
 .flow-card h2 { font-size: 19px; letter-spacing: -.015em; margin: 0 0 4px; }
 .center { text-align: center; }
-.eyebrow-s { font-size: 13px; font-weight: 600; color: #1f9d4c; margin: 0; }
+.eyebrow-s { font-size: 13px; font-weight: 600; color: #167a3b; margin: 0; }
 .reassure { display: flex; gap: 10px; align-items: flex-start; background: #f2f8f4; color: #1e4d33; border-radius: 14px; padding: 12px 14px; font-size: 14.5px; line-height: 1.45; margin: 4px 0 6px; }
 .steps-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px; }
 .steps-bar span { height: 4px; border-radius: 4px; background: #e5e5ea; transition: background .3s; }
@@ -23,7 +23,7 @@ body.flow { background: #f5f5f7; color: #1d1d1f; font-family: -apple-system, Bli
 .flow-actions { display: flex; gap: 10px; margin-top: 6px; }
 .flow-actions .grow { flex: 1; }
 body.flow .btn { border-radius: 999px; padding: 14px 20px; font-size: 16px; }
-body.flow .btn.primary { background: #1f9d4c; border-color: #1f9d4c; color: #fff; }
+body.flow .btn.primary { background: #167a3b; border-color: #167a3b; color: #fff; }
 body.flow .btn.block { width: 100%; margin-top: 10px; }
 body.flow .btn.small { padding: 8px 14px; font-size: 14px; justify-self: start; }
 .err { color: #d70015; font-size: 14px; margin: 0; min-height: 0; }
@@ -35,5 +35,5 @@ body.flow .btn.small { padding: 8px 14px; font-size: 14px; justify-self: start; 
 .sig-box canvas { display: block; width: 100%; height: 180px; touch-action: none; cursor: crosshair; }
 .sig-line { position: absolute; left: 16px; right: 16px; bottom: 34px; border-top: 1px solid #d2d2d7; font-size: 11px; color: #aeaeb2; padding-top: 4px; pointer-events: none; }
 .check-row { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; }
-.check-row input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: #1f9d4c; flex: none; }
+.check-row input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: #167a3b; flex: none; }
 @media (max-width: 380px) { .fl.half { width: 100%; } }

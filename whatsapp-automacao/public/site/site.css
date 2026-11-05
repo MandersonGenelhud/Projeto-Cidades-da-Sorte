@@ -2,7 +2,7 @@
 :root {
   --ink: #0c2418;
   --ink-2: #133a28;
-  --leaf: #1f9d4c;
+  --leaf: #167a3b; /* verde da marca um tom mais escuro: texto branco e texto verde ficam legíveis (contraste AA) */
   --leaf-dark: #157a39;
   --lime: #7cc242;
   --gold: #e2b300;
@@ -61,11 +61,11 @@ textarea { resize: vertical; }
 .small { font-size: 13px; }
 
 /* Hero */
-.hero { background: linear-gradient(180deg, rgba(12, 36, 24, .55), rgba(12, 36, 24, .85)), var(--hero, var(--ink)) center/cover; color: #fff; }
+.hero { background: linear-gradient(180deg, rgba(12, 36, 24, .78), rgba(12, 36, 24, .92)), var(--hero, var(--ink)) center/cover; color: #fff; }
 .hero .wrap { padding-block: 64px 48px; display: grid; gap: 18px; }
 .hero h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.08; margin: 0; letter-spacing: -.02em; max-width: 18ch; text-wrap: balance; }
 .hero p { margin: 0; color: #d7e8dc; font-size: 17px; max-width: 56ch; }
-.eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: 12px; font-weight: 600; color: var(--lime); }
+.eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: 12px; font-weight: 600; color: #b4e08a; }
 
 /* Busca */
 .search { background: var(--panel); border-radius: var(--radius); padding: 14px; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 10px; box-shadow: var(--shadow); color: var(--text); }
@@ -187,3 +187,8 @@ dialog::backdrop { background: rgba(10, 20, 14, .55); }
 .block-label { position: absolute; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap; font-size: 12px; font-weight: 700; color: #1d1d1f; background: rgba(255, 255, 255, .88); padding: 2px 9px; border-radius: 999px; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
 .box, .card { border-radius: var(--radius); }
 .btn { border-radius: 999px; }
+
+/* Logos das empresas (dourado e prata): sempre sobre fundo escuro */
+.hero-logo { display: block; width: auto; height: clamp(84px, 14vw, 132px); max-width: 70%; object-fit: contain; object-position: left center; margin: 0 0 14px; }
+.brand-tile { display: grid; place-items: center; aspect-ratio: 16 / 10; background: radial-gradient(circle at 50% 45%, #0f3b29, var(--ink) 72%); }
+.brand-tile img { width: 62%; height: 78%; object-fit: contain; }

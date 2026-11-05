@@ -383,7 +383,7 @@ footer { padding: var(--sp-6) 0 var(--sp-8); border-top: 1px solid var(--line); 
 
 .grupo-card:hover { transform: translateY(-4px); border-color: var(--gold); }
 
-.grupo-card img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: rgb(4, 32, 24); }
+.grupo-card img { width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: contain; padding: 14%; display: block; background: radial-gradient(circle at 50% 45%, rgb(10, 52, 38), rgb(4, 32, 24) 70%); }
 
 .grupo-card .grupo-name { font-family: Cinzel, serif; font-size: var(--fs-sm); font-weight: 600; color: var(--ink); padding: 14px 12px 4px; letter-spacing: 0.03em; }
 
