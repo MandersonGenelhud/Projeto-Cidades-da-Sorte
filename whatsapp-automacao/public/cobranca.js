@@ -15,6 +15,9 @@
     const r = await api(`/api/collections?minDays=${f.minDays}&q=${encodeURIComponent(f.q)}`);
     const s = r.summary; const st = r.status; const fc = r.forecast; const max = Math.max(1, ...fc.months.map((m) => m.toReceive));
     sec.innerHTML = `<div class="page-head"><h1>Cobrança e previsão</h1></div>
+      <div class="panel"><h2>Relatórios em planilha</h2><p class="hint">Abre no Excel. Vale o escritório escolhido no alto da tela. Filtre por período se quiser.</p>
+        <div class="row"><label>De <input type="date" id="rpFrom" /></label><label>Até <input type="date" id="rpTo" /></label>
+        <button class="btn small" data-rp="vendas" type="button">Vendas</button><button class="btn small" data-rp="parcelas" type="button">Parcelas em aberto</button><button class="btn small" data-rp="cancelados" type="button">Contratos cancelados</button></div></div>
       <p class="hint">Parcelas vencidas de todas as vendas (inclusive as do sistema antigo). Nenhuma mensagem sai sozinha: você escolhe e aprova, e o sistema envia aos poucos, no horário comercial e dentro do limite por dia.</p>
       <div class="grid2"><div class="card"><div class="hint">Em atraso</div><b style="font-size:26px">${brl(s.valor)}</b><div class="hint">${s.parcelas} parcela(s) · ${s.clientes} cliente(s)</div></div>
         <div class="card"><div class="hint">Até 15 dias / 16 a 60 / mais de 60</div><b>${s.faixas.leve.n} · ${s.faixas.medio.n} · ${s.faixas.firme.n}</b><div class="hint">${brl(s.faixas.leve.valor)} · ${brl(s.faixas.medio.valor)} · ${brl(s.faixas.firme.valor)}</div></div>
@@ -51,4 +54,13 @@
     } catch (err) { toast(err.message, true); }
   });
   loaders.collections = () => load().catch((e) => toast(e.message, true));
+  sec.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-rp]'); if (!b) return;
+    const q = new URLSearchParams();
+    const from = sec.querySelector('#rpFrom')?.value; const to = sec.querySelector('#rpTo')?.value;
+    if (from) q.set('from', from); if (to) q.set('to', to);
+    // O escritório escolhido no alto da tela vai junto, como em todos os pedidos do painel.
+    try { const off = localStorage.getItem('migraOffice'); if (off === 'py' || off === 'pr') q.set('office', off); } catch { /* sem escritório escolhido */ }
+    location.href = `/api/reports/${b.dataset.rp}.csv?${q}`;
+  });
 })();

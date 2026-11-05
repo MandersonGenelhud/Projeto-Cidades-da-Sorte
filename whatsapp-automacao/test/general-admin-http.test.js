@@ -65,6 +65,12 @@ test('administrador geral: só outro administrador geral concede ou remove; ning
   assert.equal((await anaCall(`/api/projects/invite/${ana.id}`, 'POST', {})).status, 403, 'ninguém se convida');
   assert.equal((await anaCall('/api/projects', 'POST', { title: 'X', problem: 'Y', plan: 'Z' })).status, 400, 'plano fechado');
   assert.equal((await anaCall('/api/projects/abc123/decide', 'POST', { action: 'piloto' })).status, 403);
+  // Planilhas: só administrador.
+  assert.equal((await anaCall('/api/reports/vendas.csv')).status, 403);
+  assert.equal((await anaCall('/api/audit.csv')).status, 403);
+  const csv = await marcos('/api/reports/vendas.csv');
+  assert.equal(csv.status, 200); assert.match(csv.headers.get('content-type'), /text\/csv/);
+  assert.equal((await marcos('/api/reports/xyz.csv')).status, 404);
   const last = await fetch(`${base}/api/users/${me.id}`, { method: 'PATCH', headers: { ...J }, body: JSON.stringify({ role: 'seller' }) });
   assert.ok(last.status === 401 || last.status === 403, 'sem login não faz nada');
 });

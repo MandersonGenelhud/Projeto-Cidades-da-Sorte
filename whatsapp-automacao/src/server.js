@@ -80,6 +80,7 @@ import { Support, SLA as SUPPORT_SLA } from './support.js';
 import { ContractTemplates, importLessons, importTeamContacts } from './legacy-extras.js';
 import { PartnerProjects } from './partner-projects.js';
 import { AffiliateExtras } from './affiliate-extras.js';
+import { reportCsv, auditCsv, REPORTS } from './reports-csv.js';
 import { buildScreenMap, compareMap } from './legacy-map.js';
 import { Sectors, resolvePeople, isOwner } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
@@ -1878,7 +1879,7 @@ app.use('/api', (req, res, next) => {
   if (!user) return res.status(401).json({ error: auth.needsSetup ? 'Crie o administrador para começar' : 'Entre com seu login', login: true });
   req.user = user;
   // Administrador geral escolhe o escritório (cabeçalho X-Office); a equipe fica sempre no próprio.
-  req.office = user.role === 'admin' ? normOffice(req.get('x-office')) || 'all' : officeOfUser(user);
+  req.office = user.role === 'admin' ? normOffice(req.get('x-office') || (/\.csv$/.test(req.path) ? req.query.office : '')) || 'all' : officeOfUser(user);
   // Sem a verificação em duas etapas ligada, só dá para configurá-la.
   if (require2fa() && !user.totpEnabled && !/^\/(me|security\/2fa\/(setup|enable)|brand)$/.test(req.path)) {
     return res.status(403).json({ error: 'Ligue a verificação em duas etapas para usar o sistema.', setup2fa: true });
@@ -1920,7 +1921,22 @@ app.use('/api', audit.middleware([
 ]));
 app.get('/api/audit', (req, res) => {
   if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador vê a auditoria');
-  res.json({ items: audit.list(req.query), users: [...new Set(audit.log.map((e) => e.user))].sort() });
+  res.json({ items: audit.list(req.query), users: [...new Set(audit.log.map((e) => e.user))].sort(), entities: [...new Set(audit.log.map((e) => e.entity).filter(Boolean))].sort() });
+});
+app.get('/api/audit.csv', (req, res) => {
+  needAdmin(req);
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'auditoria', label: 'Baixou a planilha da auditoria' });
+  res.type('text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="auditoria.csv"').send(auditCsv(audit.list({ ...req.query, limit: 1000 })));
+});
+// Relatórios em planilha: vendas, parcelas em aberto e contratos cancelados (do escritório escolhido no alto da tela).
+app.get('/api/reports/:kind.csv', (req, res) => {
+  needAdmin(req);
+  const kind = req.params.kind;
+  if (!REPORTS[kind]) throw httpError(404, 'Relatório não encontrado');
+  const day = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : '');
+  const csv = reportCsv(kind, sales.list.filter((s) => inOffice(req, sales.officeOf(s))), { from: day(req.query.from), to: day(req.query.to), seller: String(req.query.seller || '') });
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'relatório', label: `Baixou a planilha: ${REPORTS[kind].title}` });
+  res.type('text/csv; charset=utf-8').set('Content-Disposition', `attachment; filename="${REPORTS[kind].file}-${new Date().toISOString().slice(0, 10)}.csv"`).send(csv);
 });
 app.get('/api/me', (req, res) => res.json(publicUser(req.user)));
 // Preferências que o próprio vendedor controla.

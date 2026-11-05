@@ -262,21 +262,31 @@
     <div class="page-head"><h1>Auditoria: quem mexeu em quê</h1></div>
     <p class="hint">Todo cadastro, alteração e exclusão de lotes, preços, juros, veículos, alunos, propostas e perfis de equipe fica aqui, com quem fez, quando e o valor <b>antes e depois</b>. Ninguém consegue apagar este registro pelo painel.</p>
     <div class="panel"><div class="row"><select id="aUser"><option value="">Todas as pessoas</option></select><select id="aAction"><option value="">Tudo</option><option value="criou">Criou</option><option value="alterou">Alterou</option><option value="excluiu">Excluiu</option></select>
-      <label><input type="checkbox" id="aSens" /> só dinheiro, juros e exclusões</label><input id="aQ" placeholder="Buscar (lote, nome, valor…)" /></div>
+      <label><input type="checkbox" id="aSens" /> só dinheiro, juros e exclusões</label><select id="aEntity"><option value="">Todos os tipos</option></select><input id="aQ" placeholder="Buscar (lote, nome, valor…)" /> <button class="btn small" id="aCsv" type="button">Baixar planilha</button></div>
       <div class="table-wrap"><table id="aTable"></table></div></div>`);
   async function loadAudit() {
     const q = new URLSearchParams();
     const u = aud.querySelector('#aUser').value; if (u) q.set('user', u);
     const ac = aud.querySelector('#aAction').value; if (ac) q.set('action', ac);
     if (aud.querySelector('#aSens').checked) q.set('sensitive', '1');
+    const en = aud.querySelector('#aEntity').value; if (en) q.set('entity', en);
     const t = aud.querySelector('#aQ').value.trim(); if (t) q.set('q', t);
-    const { items, users } = await api(`/api/audit?${q}`);
+    const { items, users, entities } = await api(`/api/audit?${q}`);
+    const es = aud.querySelector('#aEntity'); const ek = es.value;
+    es.innerHTML = `<option value="">Todos os tipos</option>${(entities || []).map((n) => `<option ${n === ek ? 'selected' : ''}>${esc(n)}</option>`).join('')}`;
     const sel = aud.querySelector('#aUser'); const keep = sel.value;
     sel.innerHTML = `<option value="">Todas as pessoas</option>${users.map((n) => `<option ${n === keep ? 'selected' : ''}>${esc(n)}</option>`).join('')}`;
     aud.querySelector('#aTable').innerHTML = `<thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Mudanças</th></tr></thead><tbody>${items.map((e) => `<tr${e.sensitive ? ' style="background:rgba(212,175,55,.12)"' : ''}><td>${fmtDate(e.at)}</td><td><b>${esc(e.user)}</b><div class="hint">${esc(e.role || '')} ${esc(e.ip || '')}</div></td><td>${{ criou: '🆕 criou', alterou: 'alterou', excluiu: 'excluiu' }[e.action] || esc(e.action)} ${esc(e.entity)}<div><b>${esc(e.label)}</b></div></td>
       <td>${e.changes.map((c) => `<div>${esc(c.label)}: <s>${esc(c.from || '—')}</s> → <b>${esc(c.to || '—')}</b></div>`).join('') || esc(e.note || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Nada registrado ainda.</td></tr>'}</tbody>`;
   }
-  for (const id of ['#aUser', '#aAction', '#aSens']) aud.querySelector(id).onchange = loadAudit;
+  for (const id of ['#aUser', '#aAction', '#aSens', '#aEntity']) aud.querySelector(id).onchange = loadAudit;
+  aud.querySelector('#aCsv').onclick = () => {
+    const q = new URLSearchParams();
+    for (const [k, id] of [['user', '#aUser'], ['action', '#aAction'], ['entity', '#aEntity']]) { const v = aud.querySelector(id).value; if (v) q.set(k, v); }
+    if (aud.querySelector('#aSens').checked) q.set('sensitive', '1');
+    const t = aud.querySelector('#aQ').value.trim(); if (t) q.set('q', t);
+    location.href = `/api/audit.csv?${q}`;
+  };
   aud.querySelector('#aQ').addEventListener('input', () => { clearTimeout(loadAudit.t); loadAudit.t = setTimeout(loadAudit, 300); });
   loaders.audit = loadAudit;
 })();
