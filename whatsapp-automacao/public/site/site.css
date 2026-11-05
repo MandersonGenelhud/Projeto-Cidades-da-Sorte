@@ -29,7 +29,7 @@ img { max-width: 100%; display: block; }
 /* Topo */
 .site-head { background: var(--ink); color: #eaf4ec; position: sticky; top: 0; z-index: 20; }
 .site-head .wrap { display: flex; align-items: center; gap: 20px; height: 68px; }
-.site-head .logo img { height: 40px; width: auto; }
+.site-head .logo img { height: 46px; width: auto; }
 .site-nav { display: flex; gap: 4px; margin-left: auto; align-items: center; }
 .site-nav a { text-decoration: none; color: #cfe2d5; padding: 8px 12px; border-radius: 8px; font-weight: 500; font-size: 14px; }
 .site-nav a:hover, .site-nav a.on { color: #fff; background: rgba(255, 255, 255, .08); }

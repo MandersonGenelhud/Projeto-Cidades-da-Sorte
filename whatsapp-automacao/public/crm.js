@@ -1442,7 +1442,7 @@ function onPaymentPaid(d) {
   const text = `Pix confirmado: ${brl(d.amount)}${d.name ? ` de ${d.name}` : ''}`;
   toast(text);
   try {
-    if ('Notification' in window && Notification.permission === 'granted') new Notification('Venda fechada! Pix confirmado', { body: `${text}\n${d.description || ''}`, icon: '/img/migra-emblema.png' });
+    if ('Notification' in window && Notification.permission === 'granted') new Notification('Venda fechada! Pix confirmado', { body: `${text}\n${d.description || ''}`, icon: '/img/migra-emblema-ouro.png' });
   } catch {}
   if ($('#tab-payments').classList.contains('active')) loaders.payments();
   onCrmEvent();

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { pixBrCode, valorPorExtenso } from './pix.js';
 import { PdfCanvas, PAGE } from './pdfdoc.js';
 
-const LOGO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'img', 'migra-logo-escuro.jpg');
+const LOGO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'img', 'migra-logo-escuro-ouro.jpg');
 const RC = { green: '#0B2A1E', gold: '#D4AF37', ink: '#1d1d1f', gray: '#5f6368', line: '#d9dedb', soft: '#F4F7F5' };
 const money = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const err = (status, message) => Object.assign(new Error(message), { status });

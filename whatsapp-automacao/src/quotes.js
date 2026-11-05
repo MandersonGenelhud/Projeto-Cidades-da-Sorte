@@ -8,7 +8,7 @@ import { PdfCanvas, PAGE } from './pdfdoc.js';
 import { paymentPlan, DEFAULT_STEPS, todayIso, fmtBr, money } from './payplan.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LOGO = path.join(__dirname, '..', 'public', 'img', 'migra-logo-escuro.jpg');
+const LOGO = path.join(__dirname, '..', 'public', 'img', 'migra-logo-escuro-ouro.jpg');
 
 const C = { green: '#0B2A1E', green2: '#14402F', gold: '#D4AF37', ink: '#1d1d1f', gray: '#6e6e73', line: '#e3e6e4', soft: '#F4F7F5' };
 
