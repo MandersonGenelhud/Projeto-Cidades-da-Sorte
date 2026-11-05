@@ -58,7 +58,7 @@ import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './office
 import { siteGuard, siteHostsFrom, siteOfficeMap, hostOf } from './site-host.js';
 import { mergeContent, sanitizeContent, renderHome, renderPremium } from './site-content.js';
 import { buildExecutive, periods as execPeriods, dayStr } from './executive.js';
-import { Reengage, rowsFrom, TEMPLATES as REENGAGE_TEMPLATES } from './reengage.js';
+import { Reengage, rowsFrom, leadRowsFromApi, TEMPLATES as REENGAGE_TEMPLATES } from './reengage.js';
 import { Motors } from './motors.js';
 import { School } from './school.js';
 import { Proposals, simulate as finSimulate, options as finOptions, schedule as finSchedule, isConfigured as finConfigured } from './finance.js';
@@ -77,6 +77,7 @@ import { searchConversations } from './convsearch.js';
 import { ServiceCatalog, CATEGORIES as SERVICE_CATEGORIES } from './services.js';
 import { Commissions } from './commissions.js';
 import { Support, SLA as SUPPORT_SLA } from './support.js';
+import { ContractTemplates, importLessons, importTeamContacts } from './legacy-extras.js';
 import { buildScreenMap, compareMap } from './legacy-map.js';
 import { Sectors, resolvePeople, isOwner } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
@@ -313,7 +314,12 @@ function importExtras(cap) {
   for (const fn of extraImporters) step(fn.label, () => fn(cap));
   return out;
 }
-const extraImporters = [Object.assign((cap) => commissions.importCapture(cap), { label: 'comissoes' }), Object.assign((cap) => support.importCapture(cap), { label: 'suporte' })];
+const extraImporters = [Object.assign((cap) => commissions.importCapture(cap), { label: 'comissoes' }), Object.assign((cap) => support.importCapture(cap), { label: 'suporte' }),
+  // Leads entram na Retomada de contatos só para conferência: nada é enviado sem a aprovação do administrador.
+  Object.assign((cap) => { const rows = leadRowsFromApi(cap); return rows.length ? reengage.import(rows) : { lidas: 0 }; }, { label: 'leads' }),
+  Object.assign((cap) => contractTemplates.importCapture(cap), { label: 'modelos' }),
+  Object.assign((cap) => importLessons(tutorials, cap), { label: 'aulas' }),
+  Object.assign((cap) => importTeamContacts(store, cap), { label: 'contatos_equipe' })];
 const cashHook = (cap) => (typeof cash === 'undefined' ? null : cash.importLegacy(cashRowsFromCapture(cap)));
 agent.liveInfo = () => live.promptInfo(`${publicBase()}/live`);
 const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
@@ -552,6 +558,8 @@ const commissions = new Commissions({
   },
 });
 sales.levelPct = (id) => commissions.levelPct(id);
+// Modelos de contrato do sistema antigo (Migra Paraguai, Migra Med, Migra Brasil, RUC).
+const contractTemplates = new ContractTemplates({ store });
 // Suporte interno (chamados com prazo de resposta e de solução).
 const support = new Support({
   store,
@@ -1793,6 +1801,7 @@ const SELLER_ROUTES = [
   ['GET', /^\/commissions\/me$/],
   ['POST', /^\/withdrawals$/],
   ['GET', /^\/support(\/[a-f0-9]+)?$/],
+  ['GET', /^\/team-contacts$/],
   ['POST', /^\/support(\/[a-f0-9]+\/messages)?$/],
   ['*', /^\/videocall\/me$/],
   ['POST', /^\/videocall\/[a-z0-9]+\/cancel$/],
@@ -2994,6 +3003,17 @@ app.post('/api/withdrawals/:id/:action', async (req, res) => {
   audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'saque de comissão', label: `${w.sellerName} · R$ ${w.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} → ${w.status}` });
   res.json(w);
 });
+// ---- Modelos de contrato (texto do sistema antigo, preenchido com os dados do cliente) e contatos da equipe ----
+app.get('/api/contract-templates', (req, res) => { needAdmin(req); res.json({ items: contractTemplates.list(), map: store.data.contractTemplateMap || {} }); });
+app.get('/api/contract-templates/:key', (req, res) => { needAdmin(req); res.json(contractTemplates.get(req.params.key)); });
+app.post('/api/contract-templates/:key/render', (req, res) => {
+  needAdmin(req);
+  const values = Object.fromEntries(Object.entries(req.body?.values || {}).map(([k, v]) => [String(k).slice(0, 40), String(v ?? '').slice(0, 4000)]));
+  const r = contractTemplates.render(req.params.key, values);
+  audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'contrato por modelo', label: `${r.name} · ${values.nome_completo || 'sem nome'}` });
+  res.json(r);
+});
+app.get('/api/team-contacts', (_req, res) => res.json({ items: (store.data.teamContacts || []).filter((c) => c.active !== false) }));
 // ---- Suporte interno ----
 app.get('/api/support', (req, res) => res.json({ sla: SUPPORT_SLA, ...support.list(req.user, { status: String(req.query.status || 'abertos'), q: String(req.query.q || '') }) }));
 app.post('/api/support', async (req, res) => res.json(await support.open(req.user, req.body || {})));

@@ -130,3 +130,5 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 | Níveis de comissão e saques (`/api/commissions/*`, `/api/withdrawals`) | Vendedor vê só o próprio saldo e só pede saque do que já foi liberado (proporcional ao recebimento confirmado pelo administrador); pedido em análise já sai do disponível; aprovar, pagar, recusar (com motivo), níveis e recálculo só administrador, tudo na Auditoria. Testes: `test/commissions.test.js`, `test/general-admin-http.test.js`. |
 
 | Suporte interno (`/api/support`) | Cada pessoa vê só os próprios chamados (o administrador vê todos); resolver só administrador, com a solução registrada e na Auditoria. Testes: `test/support.test.js`, `test/general-admin-http.test.js`. |
+
+| Modelos de contrato, aulas e contatos da equipe da cópia (`/api/contract-templates`, `/api/team-contacts`) | Modelos só administrador (gerar contrato fica na Auditoria; o texto aparece escapado); leads importados entram na Retomada só para conferência, sem envio automático; quem já virou cliente não entra; "perdido" no sistema antigo fica retido. Teste: `test/legacy-extras.test.js`. |

@@ -37,6 +37,20 @@
           ${admin ? `<td><button class="btn small" data-a="edit">Editar</button> <button class="btn small" data-a="toggle">${s.active ? 'Desativar' : 'Reativar'}</button></td>` : ''}</tr>`).join('') || `<tr><td colspan="6" class="muted">Nenhum serviço. ${admin ? 'Importe a cópia do sistema antigo (Contratos antigos) ou cadastre acima.' : ''}</td></tr>`}
         </tbody></table></div></div>`;
     sec.dataset.items = JSON.stringify(r.items);
+    if (admin) await loadTemplates().catch(() => {});
+  }
+  // Modelos de contrato do sistema antigo: escolhe o modelo, preenche os campos e gera o texto pronto para imprimir.
+  async function loadTemplates() {
+    const t = await api('/api/contract-templates');
+    if (!t.items.length) return;
+    const box = document.createElement('div');
+    box.className = 'panel';
+    box.innerHTML = `<h2>Modelos de contrato (do sistema antigo)</h2><p class="hint">Migra Paraguai, Migra Med, Migra Brasil e RUC, com o texto original. Escolha, preencha e gere o texto para imprimir ou salvar em PDF. A assinatura pelo celular continua no fluxo do orçamento.</p>
+      <select id="ctK">${t.items.map((x) => `<option value="${esc(x.key)}">${esc(x.name)} (${esc(x.version)})</option>`).join('')}</select><div id="ctF" class="grid2"></div><button class="btn primary" data-a="render">Gerar contrato</button>`;
+    sec.appendChild(box);
+    const fields = async () => { const m = await api(`/api/contract-templates/${encodeURIComponent(box.querySelector('#ctK').value)}`); box.querySelector('#ctF').innerHTML = m.variables.map((v) => `<label>${esc(v.label)}<input data-v="${esc(v.key)}" /></label>`).join(''); };
+    box.querySelector('#ctK').addEventListener('change', fields);
+    await fields();
   }
   sec.addEventListener('click', async (e) => {
     const t = e.target.closest('[data-a]'); if (!t) return;
@@ -47,6 +61,14 @@
       if (t.dataset.a === 'add') {
         await api('/api/services', { method: 'POST', body: { name: g('#svN').value, category: g('#svC').value, price: g('#svP').value, durationDays: g('#svD').value, commissionPct: g('#svK').value, description: g('#svX').value } });
         toast('Serviço cadastrado');
+      } else if (t.dataset.a === 'render') {
+        const values = Object.fromEntries([...sec.querySelectorAll('[data-v]')].map((i) => [i.dataset.v, i.value]));
+        const r = await api(`/api/contract-templates/${encodeURIComponent(g('#ctK').value)}/render`, { method: 'POST', body: { values } });
+        const w = window.open('', '_blank');
+        if (!w) return toast('Libere as janelas do navegador para ver o contrato', true);
+        w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(r.name)}</title><body style="font:15px/1.6 Georgia,serif;max-width:800px;margin:30px auto;white-space:pre-wrap">${esc(r.text)}<p style="font:13px sans-serif;color:#b00">${r.missing.length ? `Campos não preenchidos: ${esc(r.missing.join(', '))}` : ''}</p><button onclick="print()" style="font:14px sans-serif">Imprimir / salvar PDF</button></body>`);
+        w.document.close();
+        return;
       } else if (t.dataset.a === 'toggle') {
         await api(`/api/services/${id}`, { method: 'PATCH', body: { active: !item.active } });
       } else if (t.dataset.a === 'edit') {

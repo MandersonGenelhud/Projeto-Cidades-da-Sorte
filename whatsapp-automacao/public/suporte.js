@@ -33,6 +33,13 @@
           <div class="hint">${esc(t.createdBy)} · aberto em ${when(t.createdAt)} · resposta até ${when(t.firstResponseDue)} · solução até ${when(t.resolutionDue)}</div>
           <button class="btn small" data-a="view">${open === t.id ? 'Fechar' : 'Abrir conversa'}</button><div class="sp-detail" ${open === t.id ? '' : 'hidden'}></div></div>`).join('') || '<p class="muted">Nenhum chamado.</p>'}</div>`;
     if (open) await detail(open);
+    const c = await api('/api/team-contacts').catch(() => ({ items: [] }));
+    if (c.items.length) {
+      const box = document.createElement('div');
+      box.className = 'panel';
+      box.innerHTML = `<h2>Contatos da equipe</h2><div class="table-wrap"><table><thead><tr><th>Nome</th><th>Cargo</th><th>Setor</th><th>Telefone</th><th>E-mail</th></tr></thead><tbody>${c.items.map((x) => `<tr><td>${esc(x.name)}</td><td>${esc(x.role)}</td><td>${esc(x.department)}</td><td>${esc(x.phone)}</td><td>${esc(x.email)}</td></tr>`).join('')}</tbody></table></div>`;
+      sec.appendChild(box);
+    }
   }
   async function detail(id) {
     const box = sec.querySelector(`[data-id="${CSS.escape(id)}"] .sp-detail`);

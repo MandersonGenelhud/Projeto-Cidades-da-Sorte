@@ -41,6 +41,29 @@ export function guessSource(text, fallback = 'outro') {
   return fallback;
 }
 
+/**
+ * Leads da lista própria do sistema antigo ("/api/leads", em cada fila: distribuição, site, grupo, quiz).
+ * Quem já virou cliente (ganho ou enviado para contrato) fica de fora: não se "retoma" quem já fechou.
+ */
+export function leadRowsFromApi(captura) {
+  const out = []; const seen = new Set();
+  for (const a of captura?.api || []) {
+    let u; try { u = new URL(a.url, 'http://x'); } catch { continue; }
+    if (u.pathname.replace(/\/+$/, '') !== '/api/leads' || !Array.isArray(a.json?.data)) continue;
+    const lane = u.searchParams.get('lane') || '';
+    for (const x of a.json.data) {
+      if (!x || x.deleted_at || seen.has(x.id)) continue;
+      seen.add(x.id);
+      if (['won', 'sent_to_contract'].includes(x.status)) continue;
+      const platform = String(x.raw_payload?.platform || '').toLowerCase();
+      const source = lane === 'site' ? 'site' : lane === 'group' ? 'grupo' : lane === 'quiz' ? 'quiz'
+        : /^(ig|instagram)$/.test(platform) ? 'instagram' : /^(fb|facebook)$/.test(platform) ? 'facebook' : guessSource(`${x.source} ${platform}`, 'facebook');
+      out.push({ name: String(x.full_name || '').trim().slice(0, 120), phone: normalizePhone(x.whatsapp || x.phone || '') || '', email: String(x.email || '').trim().slice(0, 120), source, legacyStatus: x.status || '' });
+    }
+  }
+  return out;
+}
+
 /** Linhas {name, phone, email, source} a partir de um CSV (texto), de uma lista de objetos ou do captura.json. */
 export function rowsFrom(input, { source = '' } = {}) {
   const out = [];
@@ -59,6 +82,9 @@ export function rowsFrom(input, { source = '' } = {}) {
     return out;
   }
   if (input?.pages || input?.api) {
+    // Cópia do sistema antigo com a lista de leads: usa só ela (as outras listas são clientes e contratos, não leads).
+    const leads = leadRowsFromApi(input);
+    if (leads.length) return source ? leads.map((r) => ({ ...r, source })) : leads;
     for (const a of input.api || []) for (const o of objectsIn(a.json)) add(flat(o), a.url);
     for (const p of input.pages || []) {
       for (const t of p.tables || []) {
@@ -130,6 +156,8 @@ export class Reengage {
       };
       if (blocked) stats.naoIncomodar += 1; else if (h.talked) stats.jaAtendidos += 1; else stats.novos += 1;
       if (c.source === 'grupo' && c.status === 'novo') { c.hold = GROUP_NOTE; stats.grupo += 1; }
+      if (r.legacyStatus) c.legacyStatus = r.legacyStatus;
+      if (r.legacyStatus === 'lost' && c.status === 'novo' && !c.hold) c.hold = 'Marcado como perdido no sistema antigo: confira antes de enviar.';
       this.contacts.push(c);
       byPhone.set(c.phone, c);
     }
