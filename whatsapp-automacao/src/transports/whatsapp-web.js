@@ -93,6 +93,13 @@ export function reconnectDelay({ failures = 0, recentDrops = 0, loggedOut = fals
   return Math.max(base, flap);
 }
 
+// Hora da mensagem em milissegundos (o WhatsApp manda número ou um objeto "Long").
+const msgTime = (msg) => {
+  const t = msg?.messageTimestamp;
+  const n = typeof t === 'object' && t ? (typeof t.toNumber === 'function' ? t.toNumber() : Number(t.low ?? t)) : Number(t);
+  return Number.isFinite(n) && n > 0 ? n * 1000 : 0;
+};
+
 export class WhatsAppClient extends EventEmitter {
   constructor({ authDir, logLevel = 'silent' }) {
     super();
@@ -223,14 +230,23 @@ export class WhatsAppClient extends EventEmitter {
       if (normalized.length) this.emit('history', normalized);
     });
 
-    sock.ev.on('messages.upsert', ({ messages, type }) => {
+    sock.ev.on('messages.upsert', (u) => {
       if (this.sock !== sock) return;
-      // Mensagem recente do dono para si mesmo: vale como pedido à Nina mesmo se o WhatsApp a entregar como "append".
+      this.handleUpsert(u, sock);
+    });
+  }
+
+  /** Mensagens novas do WhatsApp (separado para dar para testar sem conexão de verdade). */
+  handleUpsert({ messages, type }, sock) {
+    {
+      // Mensagem recente que o dono digitou no próprio celular: o WhatsApp às vezes entrega como "append" (e não "notify").
+      // Na conversa "Você" vale como pedido à Nina; na conversa de um cliente vale como mensagem do consultor (ex.: /contrato).
       if (type === 'append') {
         for (const msg of messages) {
-          if (!msg.key?.fromMe || !isSelfChat(msg.key.remoteJid, sock.user)) continue;
-          if (Date.now() - (Number(msg.messageTimestamp) * 1000 || 0) > 90_000) continue;
-          this.#emitSelfChat(msg, sock);
+          if (!msg.key?.fromMe) continue;
+          if (Date.now() - msgTime(msg) > 90_000) continue;
+          if (isSelfChat(msg.key.remoteJid, sock.user)) this.#emitSelfChat(msg, sock);
+          else this.#emitOwner(msg);
         }
       }
       if (type === 'append') {
@@ -249,15 +265,24 @@ export class WhatsAppClient extends EventEmitter {
         }
         if (msg.key.fromMe) {
           // Mensagem que o dono mandou pelo celular (as deste sistema não chegam como "notify").
-          if (this.sentIds.has(msg.key.id)) continue;
-          const parsed = this.#parseIncoming({ ...msg, key: { ...msg.key, fromMe: false } });
-          if (parsed && !parsed.isGroup) this.emit('ownerMessage', parsed);
+          this.#emitOwner(msg);
           continue;
         }
         const parsed = this.#parseIncoming(msg);
         if (parsed) this.emit('message', parsed);
       }
-    });
+    }
+  }
+
+  /** Mensagem do dono (celular) na conversa de um cliente: uma vez só, mesmo que chegue como "append" e "notify". */
+  #emitOwner(msg) {
+    if (this.sentIds.has(msg.key.id)) return; // as que o próprio sistema mandou não contam
+    this.ownerSeen ||= new Set();
+    if (this.ownerSeen.has(msg.key.id)) return;
+    this.ownerSeen.add(msg.key.id);
+    if (this.ownerSeen.size > 1000) this.ownerSeen.delete(this.ownerSeen.values().next().value);
+    const parsed = this.#parseIncoming({ ...msg, key: { ...msg.key, fromMe: false } });
+    if (parsed && !parsed.isGroup) this.emit('ownerMessage', parsed);
   }
 
   #emitSelfChat(msg, sock) {

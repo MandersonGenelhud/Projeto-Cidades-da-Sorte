@@ -4098,10 +4098,14 @@ const sellerCommands = makeSellerCommands({
   agent, llm, contractFlow,
   packages: () => [...(store.settings.crm?.packages || []), ...serviceCatalog.activeNames()],
   say: async (convKey, text) => { await wa.send(convKey, { text, typing: false }); const c = agent.conversation(convKey, { create: false }); if (c) agent.remember(c, 'assistant', text); },
-  tell: async (owner, text) => { if (owner?.whatsapp) await wa.send(owner.whatsapp, { text, typing: false }); },
+  tell: async (owner, text) => {
+    if (owner?.whatsapp) return wa.send(owner.whatsapp, { text, typing: false });
+    store.addLog({ type: 'error', message: `Atalho: não sei para qual número mandar a resposta (cadastre o WhatsApp do Marcos em Configurações). ${text.slice(0, 120)}` });
+  },
   revoke: (jid, id) => wa.revoke(jid, id),
   // Quem digitou: o dono da linha (consultor) ou, no número principal, o administrador.
-  ownerOf: (msg) => { const l = parseLineKey(msg.jid); const u = l ? auth.get(lines.get(l.id)?.ownerId) : null; return u || { name: 'Administração', role: 'admin', whatsapp: store.settings.crm?.ownerPhone || msg.phone || '' }; },
+  // A resposta do atalho vai para o dono do número (Marcos ou o próprio número conectado, na conversa "Você"); nunca para o cliente.
+  ownerOf: (msg) => { const l = parseLineKey(msg.jid); const u = l ? auth.get(lines.get(l.id)?.ownerId) : null; return u || { name: 'Administração', role: 'admin', whatsapp: marcosPhone() }; },
   sendQuote: (conv, args) => agent.sendQuote(conv, args),
   sendForm: (conv, args) => agent.sendForm(conv, args),
   setHandoff: (key, value, reason) => agent.setHandoff(key, value, reason),
