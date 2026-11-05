@@ -20,7 +20,7 @@
       <p class="hint">Se o Node.js não estiver instalado, o programa instala sozinho (se pedir permissão, clique em Sim) e pede para você abrir o arquivo de novo. Ele só lê o sistema do Marcos: não clica em botões, não apaga nada e a senha nunca passa por aqui.</p>
     </div>
     <div class="panel"><h2>Passo 2: importar o arquivo captura.json</h2>
-      <div class="row"><input type="file" id="lgFile" accept=".json" /><button class="btn" id="lgPreview">1) Conferir o arquivo</button><button class="btn primary" id="lgImport" disabled>2) Importar</button><button class="btn" id="lgApply">3) Levar para Vendas e CRM</button></div>
+      <div class="row"><input type="file" id="lgFile" accept=".json" /><button class="btn" id="lgPreview">1) Conferir o arquivo</button><button class="btn primary" id="lgImport" disabled>2) Importar</button><button class="btn" id="lgMap" title="Lista as telas do sistema antigo e compara com o que já temos (sem dados de clientes)">4) Mapa das telas</button><button class="btn" id="lgApply">3) Levar para Vendas e CRM</button></div>
       <div id="lgOut" class="hint"></div></div>
     <div class="panel"><h2>Auditoria da cópia</h2><p class="hint">Compara o que o sistema antigo diz que tem (os números das telas) com o que foi copiado, e mostra páginas que não abriram.</p><div id="lgAudit"></div></div>
     <div class="panel"><div class="row"><input id="lgQ" placeholder="Buscar por número, cliente, documento…" /><span id="lgInfo" class="hint"></span></div>
@@ -48,6 +48,24 @@
       sec.querySelector('#lgImport').disabled = true;
       load();
     } catch (e) { toast(e.message, true); }
+  };
+  // Mapa das telas do sistema antigo x o que já temos. Não leva nomes nem valores de clientes.
+  let lastMap = null;
+  sec.querySelector('#lgMap').onclick = async () => {
+    try {
+      const r = await send('/api/legacy/screen-map');
+      lastMap = r;
+      const label = { tem: 'Já temos', parcial: 'Temos em parte', falta: 'Falta', conferir: 'Conferir' };
+      const rows = r.comparison.rows.map((x) => `<tr><td><b>${esc(x.theme)}</b><br><span class="hint">${esc(x.title || x.path)} · ${x.pages} página(s)</span></td><td>${esc(x.columns.join(', ') || x.fields.join(', ') || '—')}</td><td>${esc(x.ours)}</td><td><span class="badge ${x.status === 'tem' ? 'ok' : x.status === 'falta' ? 'paused' : 'pending'}">${label[x.status]}</span><br><span class="hint">${esc(x.note)}</span></td></tr>`).join('');
+      const c = r.comparison.byStatus;
+      sec.querySelector('#lgOut').innerHTML = `<b>${r.comparison.rows.length} tipos de tela</b> no sistema antigo: ${c.tem || 0} já temos, ${c.parcial || 0} em parte, ${c.falta || 0} faltam, ${c.conferir || 0} para conferir. <button type="button" class="btn small" id="lgMapDl">Baixar o mapa (sem dados de clientes)</button><div class="table-wrap"><table><thead><tr><th>Tela do sistema antigo</th><th>Colunas e campos</th><th>No Migra Hub</th><th>Situação</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      sec.querySelector('#lgMapDl').onclick = () => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify({ map: lastMap.map, comparison: lastMap.comparison }, null, 2)], { type: 'application/json' }));
+        a.download = 'mapa-do-sistema-antigo.json';
+        a.click();
+      };
+    } catch (e) { sec.querySelector('#lgOut').textContent = e.message; }
   };
   const brl2 = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   sec.querySelector('#lgApply').onclick = async () => {

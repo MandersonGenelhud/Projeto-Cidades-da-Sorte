@@ -73,6 +73,7 @@ import { contractPdf } from './contract.js';
 import { parseJsonObject } from './crm-ai.js';
 import { collectHandoffs, digestMessage } from './digest.js';
 import { searchConversations } from './convsearch.js';
+import { buildScreenMap, compareMap } from './legacy-map.js';
 import { Sectors, resolvePeople, isOwner } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
 import { Backups } from './backup.js';
@@ -3083,6 +3084,11 @@ const readCapture = (req) => {
   try { return JSON.parse(req.file.buffer.toString('utf8')); } catch { throw httpError(400, 'Este arquivo não é o captura.json gerado pela ferramenta.'); }
 };
 app.post('/api/legacy/preview', legacyUpload, (req, res) => res.json(legacy.preview(readCapture(req))));
+app.post('/api/legacy/screen-map', legacyUpload, (req, res) => {
+  needAdmin(req);
+  const map = buildScreenMap(readCapture(req));
+  res.json({ map, comparison: compareMap(map) });
+});
 app.post('/api/legacy/import', legacyUpload, (req, res) => {
   const cap = readCapture(req);
   const r = legacy.import(cap, req.user);

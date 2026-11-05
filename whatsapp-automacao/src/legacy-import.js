@@ -24,6 +24,7 @@ const SYN = {
   installments: [/^(parcelas|n de parcelas|numero de parcelas|qtd parcelas|quantidade de parcelas)$/],
   seller: [/^(vendedor|consultor|responsavel|atendente|comercial)$/],
 };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const field = (label) => {
   const k = norm(label);
   for (const [name, list] of Object.entries(SYN)) if (list.some((re) => re.test(k))) return name;
@@ -63,7 +64,9 @@ export function normalizeRecord(raw, { source = '' } = {}) {
     const text = String(val).trim();
     if (!text || text.length > 500) continue;
     rec.raw[String(label).slice(0, 60)] = text;
-    const f = field(label);
+    let f = field(label);
+    // Identificador técnico das telas do sistema (UUID, hash, "summary-overdue") não é número de contrato.
+    if (f === 'number' && (UUID.test(text) || /^[a-f0-9]{16,}$/i.test(text) || /^summary[-_]/i.test(text) || (norm(label) === 'id' && !/^\d{2,10}$/.test(text)))) f = null;
     if (!f || rec[f] === '' || rec[f] === null) {
       if (f === 'value') { const n = parseMoney(text); if (n !== null && rec.value === null) { rec.value = n; valueText = text; } }
       else if (f === 'paid') { const n = parseMoney(text); if (n !== null && rec.paid === null) rec.paid = n; }
@@ -74,8 +77,9 @@ export function normalizeRecord(raw, { source = '' } = {}) {
     }
   }
   if (valueText) rec.currency = currencyOf(valueText);
-  // Parece contrato? Precisa de número ou (cliente e valor).
-  if (!rec.number && !(rec.client && rec.value !== null)) return null;
+  // Parece contrato? Precisa de número com mais algum dado do contrato (cliente, valor, data ou documento), ou de cliente e valor.
+  const signals = Boolean(rec.client) + (rec.value !== null) + Boolean(rec.date) + Boolean(rec.doc);
+  if (!(rec.number && signals >= 1) && !(rec.client && rec.value !== null)) return null;
   rec.number = String(rec.number).replace(/^#/, '').trim();
   return rec;
 }
