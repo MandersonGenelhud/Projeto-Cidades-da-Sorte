@@ -2374,12 +2374,19 @@ function stripMaskedSecrets(patch) {
   return patch;
 }
 app.get('/api/settings', (_req, res) => res.json(publicSettings()));
+// Registra quando o agente é ligado/desligado ou muda entre teste e no ar (para descobrir quem ou o que mudou).
+function noteAgentMode(before, who) {
+  const a = store.settings.agent || {};
+  if (before.audience !== a.audience || before.enabled !== a.enabled) store.addLog({ type: 'system', message: `Agente: ${before.enabled ? 'ligado' : 'desligado'}/${before.audience || '-'} → ${a.enabled ? 'ligado' : 'desligado'}/${a.audience || '-'} (por ${who})` });
+}
 app.put('/api/settings', async (req, res) => {
   const before = JSON.stringify(cloudConfig());
   const igBefore = JSON.stringify(instagramConfig());
   // A tabela de taxas do cartão é substituída inteira (apagar uma linha no painel apaga a taxa).
   if (req.body?.payments?.card?.fees && store.data.settings.payments) store.data.settings.payments.card = { fees: {} };
+  const agBefore = { audience: store.settings.agent?.audience, enabled: store.settings.agent?.enabled };
   store.updateSettings(stripMaskedSecrets(req.body));
+  noteAgentMode(agBefore, req.user?.name || 'painel');
   // Prazo de quem a IA responde sozinha mudou: já coloca na fila quem entrou no prazo.
   if (req.body?.agent?.pendingMaxDays) setTimeout(() => pending.autoAnswer(), 1000).unref?.();
   // Credenciais da Meta mudaram: reconecta para validar.
@@ -2408,7 +2415,9 @@ app.get('/api/agent/status', (_req, res) => res.json(agentStatus()));
 app.post('/api/agent/enable', (req, res) => {
   const patch = { enabled: req.body.enabled !== false };
   if (req.body.audience === 'all') patch.audience = 'all';
+  const agBefore = { audience: store.settings.agent?.audience, enabled: store.settings.agent?.enabled };
   store.updateSettings({ agent: patch });
+  noteAgentMode(agBefore, req.user?.name || 'painel');
   // Ligou a IA: já começa a responder quem estava esperando.
   setTimeout(() => pending.autoAnswer({ minAgeMs: 0 }), 2000);
   res.json(agentStatus());
