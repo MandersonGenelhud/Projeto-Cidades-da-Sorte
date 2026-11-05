@@ -955,7 +955,7 @@ function renderTiers(tiers) {
     <label>Nível <input data-k="name" value="${esc(t.name)}" placeholder="Ouro" /></label>
     <label>% da meta <input data-k="percent" type="number" min="1" value="${esc(t.percent)}" /></label>
     <label class="grow">Bonificação <input data-k="reward" value="${esc(t.reward || '')}" placeholder="ex.: R$ 500, folga, viagem" /></label>
-    <button type="button" class="btn small danger" data-del-tier></button></div>`).join('');
+    <button type="button" class="btn small danger" data-del-tier>Remover</button></div>`).join('');
 }
 const readTiers = () => $$('#goalTiers .tier-row').map((row) => ({
   name: $('[data-k="name"]', row).value.trim(),
@@ -1475,14 +1475,14 @@ function quoteItemRow(name = '', qty = 1) {
   div.className = 'quote-item';
   div.innerHTML = `<select data-q="pkg">${quoteState.packages.map((p) => `<option value="${esc(p.name)}"${p.name === name ? ' selected' : ''}>${esc(p.name)} · ${brl2(p.price)}/pessoa</option>`).join('')}</select>
     <input data-q="qty" type="number" min="1" max="50" value="${qty}" title="Pessoas neste pacote" />
-    <button type="button" class="btn small" data-q="del" title="Remover"></button>`;
+    <button type="button" class="btn small" data-q="del" title="Remover">Remover</button>`;
   $('#quoteItems').append(div);
 }
 function quoteParcelRows(list) {
   $('#quoteParcels').innerHTML = `${list.map((p, i) => `<div class="quote-parcel"><b>${i + 1}ª</b>
       <label class="inline"><span>% do saldo</span> <input data-p="pct" type="number" min="1" max="100" step="0.5" value="${p.pct}" placeholder="%" aria-label="Percentual do saldo" /></label>
       <input data-p="date" type="date" value="${p.date}" />
-      <button type="button" class="btn small" data-p="del" title="Remover"></button></div>`).join('')}
+      <button type="button" class="btn small" data-p="del" title="Remover">Remover</button></div>`).join('')}
     <button type="button" class="btn small" id="btnQuoteAddParcel">Adicionar parcela</button>`;
 }
 function quoteBody() {
@@ -1948,9 +1948,9 @@ $('#reconfirmBox').addEventListener('click', async (e) => {
 // ---------- CAIXA (só administradores liberados) ----------
 const CUR = { BRL: 'R$', USD: 'US$', PYG: 'Gs.' };
 const cashMoney = (v, c = 'BRL') => `${CUR[c] || c} ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: c === 'PYG' ? 0 : 2, maximumFractionDigits: c === 'PYG' ? 0 : 2 })}`;
-const cashState = { data: null, editing: null, t: null };
+const cashState = { data: null, editing: null, t: null, book: (() => { try { return localStorage.getItem('cashBook') || 'migra'; } catch { return 'migra'; } })() };
 function cashQuery() {
-  const p = new URLSearchParams({ period: $('#cashPeriod').value });
+  const p = new URLSearchParams({ period: $('#cashPeriod').value, book: cashState.book });
   if ($('#cashKind').value) p.set('kind', $('#cashKind').value);
   if ($('#cashCategory').value) p.set('category', $('#cashCategory').value);
   if ($('#cashScope').value) p.set('scope', $('#cashScope').value);
@@ -1958,12 +1958,27 @@ function cashQuery() {
   return p.toString();
 }
 loaders.cash = async () => {
-  const d = await api(`/api/cash?${cashQuery()}`);
+  let d;
+  try { d = await api(`/api/cash?${cashQuery()}`); } catch (err) {
+    // Sem acesso ao caixa escolhido (ex.: só vê o da Contábil): volta para o outro.
+    if (cashState.book !== 'migra' || !/acesso/i.test(err.message)) throw err;
+    cashState.book = 'contabil';
+    d = await api(`/api/cash?${cashQuery()}`);
+  }
   cashState.data = d;
+  cashState.book = d.book;
+  // Troca entre o Caixa Migra e o Caixa Migra Contábil Paraguay (só aparece para quem vê os dois).
+  const books = Object.entries(d.books || {});
+  $('#cashBooks').hidden = books.length < 2;
+  $('#cashBooks').innerHTML = books.map(([id, label]) => `<button type="button" class="btn small" data-book="${esc(id)}" aria-pressed="${id === d.book}">${esc(id === 'migra' ? 'Migra' : 'Migra Contábil Paraguay')}</button>`).join('');
+  $('#cashTitle').textContent = d.books?.[d.book] || 'Caixa';
+  $('#cashScope').hidden = d.book !== 'migra';
+  $('#formCash').scope.closest('label').hidden = d.book !== 'migra';
   $('#btnCashExport').href = `/api/cash/export.csv?${cashQuery()}`;
   const curSel = $('#cashCategory').value;
   $('#cashCategory').innerHTML = `<option value="">Todas as categorias</option>${d.categories.map((c) => `<option>${esc(c)}</option>`).join('')}<option>Recebimento de clientes</option><option>Comissões pagas</option>`;
   $('#cashCategory').value = curSel;
+  $('#cashFormTitle').dataset.book = d.book;
   const f = $('#formCash');
   f.category.innerHTML = d.categories.map((c) => `<option>${esc(c)}</option>`).join('');
   f.method.innerHTML = `<option value="">—</option>${d.methods.map((m) => `<option>${esc(m)}</option>`).join('')}`;
@@ -1993,12 +2008,21 @@ loaders.cash = async () => {
       <td>${esc([e.account, e.method].filter(Boolean).join(' · ') || '—')}</td>
       <td style="color:${e.kind === 'entrada' ? '#17803d' : '#b42318'};font-weight:600;white-space:nowrap">${e.kind === 'entrada' ? '+' : '−'} ${cashMoney(e.amount, e.currency)}</td>
       <td>${e.status === 'a_pagar' ? `<span class="badge paused">${e.kind === 'saida' ? 'a pagar' : 'a receber'}${e.dueDate ? ` até ${dBr(e.dueDate)}` : ''}</span>` : '<span class="badge done">pago</span>'}</td>
-      <td class="row">${e.source === 'manual' ? `${e.status === 'a_pagar' ? '<button class="btn small primary" data-act="paid">Pago</button>' : ''}<button class="btn small" data-act="edit"></button><button class="btn small" data-act="history" title="Histórico"></button><button class="btn small danger" data-act="delete"></button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum lançamento neste período.</td></tr>'}</tbody>`;
+      <td class="row">${e.source === 'manual' ? `${e.status === 'a_pagar' ? '<button class="btn small primary" data-act="paid">Pago</button>' : ''}<button class="btn small" data-act="edit">Editar</button><button class="btn small" data-act="history" title="Quem mexeu e quando">Histórico</button><button class="btn small danger" data-act="delete">Apagar</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum lançamento neste período.</td></tr>'}</tbody>`;
   const cf = $('#formCashConfig');
   cf.categories.value = (settingsCache?.cash?.categories?.length ? settingsCache.cash.categories : d.categories).join('\n');
   loadNina().catch(() => {});
   $('#cashViewers').innerHTML = d.admins.map((a) => `<label class="check"><input type="checkbox" data-viewer="${esc(a.id)}" ${d.allowedUserIds.includes(a.id) ? 'checked' : ''} ${a.id === d.me.id ? '' : ''} /> ${esc(a.name)}${a.id === d.me.id ? ' (você)' : ''}</label>`).join('');
+  $('#cashViewersContabil').innerHTML = d.admins.map((a) => `<label class="check"><input type="checkbox" data-viewer-contabil="${esc(a.id)}" ${(d.contabilUserIds || []).includes(a.id) ? 'checked' : ''} /> ${esc(a.name)}${a.id === d.me.id ? ' (você)' : ''}</label>`).join('');
+  $('#cashConfig').hidden = !d.books?.migra;
 };
+$('#cashBooks').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-book]'); if (!b) return;
+  cashState.book = b.dataset.book;
+  try { localStorage.setItem('cashBook', cashState.book); } catch { /* ok */ }
+  $('#formCash').hidden = true;
+  loaders.cash().catch((err) => toast(err.message, true));
+});
 for (const sel of ['#cashPeriod', '#cashKind', '#cashCategory', '#cashScope']) $(sel).addEventListener('change', () => loaders.cash());
 $('#cashSearch').addEventListener('input', () => { clearTimeout(cashState.t); cashState.t = setTimeout(() => loaders.cash(), 300); });
 function openCashForm(e = null) {
@@ -2027,6 +2051,8 @@ $('#btnCashCancel').addEventListener('click', () => { $('#formCash').hidden = tr
 $('#formCash').addEventListener('submit', withBusy($('#formCash'), async (ev) => {
   const f = ev.target;
   const body = Object.fromEntries(new FormData(f));
+  if (!cashState.editing) body.book = cashState.book; // lançamento novo vai para o caixa que está aberto
+  if (cashState.book !== 'migra') body.scope = 'empresa';
   await api(cashState.editing ? `/api/cash/${cashState.editing}` : '/api/cash', { method: cashState.editing ? 'PATCH' : 'POST', body });
   f.hidden = true;
   toast('Lançamento salvo');
@@ -2058,6 +2084,7 @@ $('#formCashConfig').addEventListener('submit', withBusy($('#formCashConfig'), a
   await api('/api/cash/settings', { method: 'PUT', body: {
     categories: f.categories.value.split('\n').map((x) => x.trim()).filter(Boolean),
     allowedUserIds: $$('#cashViewers [data-viewer]').filter((i) => i.checked).map((i) => i.dataset.viewer),
+    contabilUserIds: $$('#cashViewersContabil [data-viewer-contabil]').filter((i) => i.checked).map((i) => i.dataset.viewerContabil),
   } });
   toast('Configurações do caixa salvas');
   settingsCache = await api('/api/settings').catch(() => settingsCache);

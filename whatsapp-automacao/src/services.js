@@ -80,6 +80,13 @@ export class ServiceCatalog {
     return s ? { name: s.name, price: s.price, serviceId: s.id } : null;
   }
 
+  /** Categoria do serviço com esse nome (ex.: 'contabil'), ou '' se não achar. */
+  categoryOf(name) {
+    const f = fold(name);
+    if (!f) return '';
+    return this.all.find((x) => fold(x.name) === f)?.category || '';
+  }
+
   activeNames() { return this.all.filter((s) => s.active && s.price > 0).map((s) => ({ name: s.name, price: s.price })); }
 
   /** Lista "/api/services" da cópia do sistema antigo → catálogo (atualiza pelo id antigo ou pelo nome; não apaga nada). */

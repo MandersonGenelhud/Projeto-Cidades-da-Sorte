@@ -29,7 +29,7 @@ import { makeSellerCommands } from './seller-commands.js';
 import { Learnings } from './learnings.js';
 import { ReceiptReader } from './receipts.js';
 import { OWNER_PAUSE } from './agent/agent.js';
-import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, toCsv as cashToCsv } from './cash.js';
+import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, BOOKS as CASH_BOOKS, toCsv as cashToCsv } from './cash.js';
 import { Nina } from './assistant.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
 import { Payments } from './payments.js';
@@ -1734,7 +1734,7 @@ app.get('/brand/logo', (_req, res) => {
 const require2fa = () => store.settings.security?.require2fa !== false;
 app.get('/api/auth/state', (req, res) => {
   const u = auth.fromRequest(req);
-  res.json({ needsSetup: auth.needsSetup, setupCodeRequired: Boolean(process.env.SETUP_CODE), user: u ? { ...publicUser(u), visitDesk: isVisitDesk(u), cashAccess: cash.canAccess(u) } : null, setup2fa: Boolean(u && require2fa() && !u.totpEnabled) });
+  res.json({ needsSetup: auth.needsSetup, setupCodeRequired: Boolean(process.env.SETUP_CODE), user: u ? { ...publicUser(u), visitDesk: isVisitDesk(u), cashAccess: cash.booksFor(u).length > 0 } : null, setup2fa: Boolean(u && require2fa() && !u.totpEnabled) });
 });
 // Cadastro do vendedor: fica aguardando a liberação do administrador (não entra antes disso).
 app.post('/api/auth/signup', (req, res) => {
@@ -4305,7 +4305,13 @@ app.post('/api/sales/:id/cancel', (req, res) => {
   res.json(sales.view(s));
 });
 // ---------- Controle de caixa (só administradores liberados) ----------
-const cash = new Cash({ store, auth, payments, sales, affiliates });
+// Venda só de serviços contábeis (categoria "Contábil" no catálogo) entra no caixa da Migra Contábil Paraguay.
+const cashBookOfSale = (sale) => {
+  if (sale?.cashBook === 'contabil' || sale?.cashBook === 'migra') return sale.cashBook;
+  const names = (sale?.items || []).map((i) => i.name).filter(Boolean);
+  return names.length && names.every((n) => serviceCatalog.categoryOf(n) === 'contabil') ? 'contabil' : 'migra';
+};
+const cash = new Cash({ store, auth, payments, sales, affiliates, bookOfSale: cashBookOfSale });
 const nina = new Nina({
   store, auth, cash, llm,
   stt: new FallbackStt(new HttpStt({ url: process.env.STT_URL }), new GeminiStt({ getConfig: agentConfig })),
@@ -4325,9 +4331,22 @@ const receipts = new ReceiptReader({
   getConfig: agentConfig,
 });
 app.use('/api/cash', (req, res, next) => {
-  if (!cash.canAccess(req.user)) return res.status(403).json({ error: 'O caixa é restrito: só os administradores liberados veem.' });
+  if (!cash.booksFor(req.user).length) return res.status(403).json({ error: 'O caixa é restrito: só os administradores liberados veem.' });
   next();
 });
+// Qual caixa a pessoa está usando (Migra ou Contábil). Sem permissão naquele caixa: 403.
+const cashBook = (req, book = req.query.book ?? req.body?.book) => {
+  const b = String(book || 'migra');
+  if (!CASH_BOOKS[b]) throw httpError(400, 'Caixa inválido');
+  if (!cash.canAccess(req.user, b)) throw httpError(403, `Você não tem acesso ao ${CASH_BOOKS[b]}.`);
+  return b;
+};
+const cashEntryOf = (req) => {
+  const e = cash.list.find((x) => x.id === req.params.id);
+  if (!e) throw httpError(404, 'Lançamento não encontrado');
+  cashBook(req, e.book || 'migra');
+  return e;
+};
 const cashRange = (period) => {
   const t = new Date();
   const iso = (d) => d.toISOString().slice(0, 10);
@@ -4340,9 +4359,12 @@ const cashRange = (period) => {
 };
 app.get('/api/cash', (req, res) => {
   const { from, to } = req.query.from || req.query.to ? { from: String(req.query.from || ''), to: String(req.query.to || '') } : cashRange(String(req.query.period || 'month'));
-  const entries = cash.entries({ from, to, kind: req.query.kind, category: req.query.category, q: req.query.q, status: req.query.status, scope: String(req.query.scope || '') });
+  const book = cashBook(req);
+  const entries = cash.entries({ from, to, kind: req.query.kind, category: req.query.category, q: req.query.q, status: req.query.status, scope: String(req.query.scope || ''), book });
   res.json({
-    from, to, count: entries.length,
+    from, to, count: entries.length, book,
+    books: Object.fromEntries(cash.booksFor(req.user).map((b) => [b, CASH_BOOKS[b]])),
+    contabilUserIds: store.settings.cash?.contabilUserIds || [],
     entries: entries.slice(0, 500),
     summary: cash.summary(entries),
     categories: cash.categories,
@@ -4358,12 +4380,15 @@ app.get('/api/cash', (req, res) => {
 // Planilha (CSV) do período e filtros atuais: abre no Excel e no Google Planilhas. Fica no registro de acessos.
 app.get('/api/cash/export.csv', (req, res) => {
   const { from, to } = req.query.from || req.query.to ? { from: String(req.query.from || ''), to: String(req.query.to || '') } : cashRange(String(req.query.period || 'month'));
-  const entries = cash.entries({ from, to, kind: req.query.kind, category: req.query.category, q: req.query.q, status: req.query.status, scope: String(req.query.scope || '') });
-  securityEvent('caixa_exportado', req.user, req, `${entries.length} lançamentos · ${req.query.period || 'month'}${req.query.scope ? ` · ${req.query.scope}` : ''}`);
+  const book = cashBook(req);
+  const entries = cash.entries({ from, to, kind: req.query.kind, category: req.query.category, q: req.query.q, status: req.query.status, scope: String(req.query.scope || ''), book });
+  securityEvent('caixa_exportado', req.user, req, `${CASH_BOOKS[book]} · ${entries.length} lançamentos · ${req.query.period || 'month'}${req.query.scope ? ` · ${req.query.scope}` : ''}`);
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="caixa-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.setHeader('Content-Disposition', `attachment; filename="caixa-${book === 'contabil' ? 'contabil-' : ''}${new Date().toISOString().slice(0, 10)}.csv"`);
   res.send(cashToCsv(entries));
 });
+// Nina lança no Caixa Migra: as telas dela exigem acesso a esse caixa.
+app.use('/api/cash/assistant', (req, _res, next) => { cashBook(req, 'migra'); next(); });
 // Nina: ajustes e estado da voz (só quem vê o caixa).
 app.get('/api/cash/assistant', (_req, res) => res.json({
   ...store.settings.assistant,
@@ -4404,21 +4429,24 @@ app.put('/api/cash/assistant', (req, res) => {
   res.json({ ok: true });
 });
 app.get('/api/cash/:id/history', (req, res) => {
-  const e = cash.list.find((x) => x.id === req.params.id);
-  if (!e) throw httpError(404, 'Lançamento não encontrado');
+  const e = cashEntryOf(req);
   res.json({ history: e.history, deleted: e.deleted || null });
 });
 app.post('/api/cash', (req, res) => {
+  cashBook(req, req.body?.book);
   const e = cash.add(req.user, req.body || {});
-  securityEvent('caixa_lancamento', req.user, req, `${e.kind} · ${e.amount} ${e.currency} · ${e.category}`);
+  securityEvent('caixa_lancamento', req.user, req, `${CASH_BOOKS[e.book]} · ${e.kind} · ${e.amount} ${e.currency} · ${e.category}`);
   res.json(e);
 });
 app.patch('/api/cash/:id', (req, res) => {
+  cashEntryOf(req);
+  if (req.body?.book !== undefined) cashBook(req, req.body.book); // mover para outro caixa: precisa ter acesso aos dois
   const e = cash.update(req.user, req.params.id, req.body || {});
   securityEvent('caixa_alterado', req.user, req, `${e.id} · ${e.kind} · ${e.amount} ${e.currency}`);
   res.json(e);
 });
 app.delete('/api/cash/:id', (req, res) => {
+  cashEntryOf(req);
   cash.remove(req.user, req.params.id, req.body?.reason);
   securityEvent('caixa_apagado', req.user, req, `${req.params.id} · ${req.body?.reason || ''}`);
   res.json({ ok: true });
@@ -4427,11 +4455,14 @@ app.put('/api/cash/settings', (req, res) => {
   const categories = (Array.isArray(req.body?.categories) ? req.body.categories : []).map((c) => String(c).trim().slice(0, 80)).filter(Boolean).slice(0, 40);
   const adminIds = new Set(auth.users.filter((u) => u.role === 'admin' && u.active !== false).map((u) => u.id));
   const allowed = (Array.isArray(req.body?.allowedUserIds) ? req.body.allowedUserIds : []).filter((id) => adminIds.has(id));
+  if (!cash.canAccess(req.user, 'migra')) throw httpError(403, 'Só quem vê o Caixa Migra muda as categorias e quem vê os caixas.');
   if (allowed.length && !allowed.includes(req.user.id)) throw httpError(400, 'Você não pode se tirar da lista de quem vê o caixa.');
-  store.updateSettings({ cash: { categories, allowedUserIds: allowed } });
+  const contabilIds = (Array.isArray(req.body?.contabilUserIds) ? req.body.contabilUserIds : store.settings.cash?.contabilUserIds || []).filter((id) => adminIds.has(id));
+  store.updateSettings({ cash: { categories, allowedUserIds: allowed, contabilUserIds: contabilIds } });
   store.settings.cash.allowedUserIds = allowed; // updateSettings junta listas por substituição; garante o valor exato
+  store.settings.cash.contabilUserIds = contabilIds;
   store.save();
-  securityEvent('caixa_acesso', req.user, req, allowed.length ? `liberado para ${allowed.length} administrador(es)` : 'liberado para todos os administradores');
+  securityEvent('caixa_acesso', req.user, req, `Caixa Migra: ${allowed.length ? `${allowed.length} administrador(es)` : 'todos os administradores'} · Caixa Contábil: ${contabilIds.length ? `${contabilIds.length} administrador(es)` : 'mesma regra do Caixa Migra'}`);
   res.json({ ok: true });
 });
 app.put('/api/sales/settings', (req, res) => {

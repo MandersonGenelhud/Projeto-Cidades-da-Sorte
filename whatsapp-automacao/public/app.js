@@ -194,8 +194,8 @@ loaders.contacts = async () => {
       <td>${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</td>
       <td>${c.blocked ? '<span class="badge failed">Descadastrado</span>' : '<span class="badge sent">Ativo</span>'}</td>
       <td>
-        <button class="btn small" data-edit="${esc(c.id)}"></button>
-        <button class="btn small danger" data-del="${esc(c.id)}"></button>
+        <button class="btn small" data-edit="${esc(c.id)}">Editar</button>
+        <button class="btn small danger" data-del="${esc(c.id)}">Apagar</button>
       </td>
     </tr>`).join('');
   $('#contactsCount').textContent = `${contactsCache.length} contato(s)${contactsCache.length > 1000 ? ' — mostrando os 1000 primeiros' : ''}`;
@@ -362,7 +362,7 @@ function campaignCard(c) {
   if (!['done', 'canceled'].includes(c.status)) actions.push('<button class="btn small danger" data-act="cancel">Cancelar</button>');
   if (c.counts.failed) actions.push('<button class="btn small" data-act="retry-failed">Reenviar falhas</button>');
   actions.push('<button class="btn small" data-act="detail">Detalhes</button>');
-  actions.push('<button class="btn small danger" data-act="delete"></button>');
+  actions.push('<button class="btn small danger" data-act="delete">Apagar</button>');
   return `<div class="item" data-id="${esc(c.id)}">
     <div class="grow">
       <b>${esc(c.name)}</b> <span class="badge ${c.status}">${STATUS_LABEL[c.status]}</span>
@@ -433,7 +433,7 @@ loaders.rules = async () => {
       <div class="row">
         <button class="btn small" data-act="toggle">${r.enabled ? 'Desativar' : '▶Ativar'}</button>
         <button class="btn small" data-act="edit">Editar</button>
-        <button class="btn small danger" data-act="delete"></button>
+        <button class="btn small danger" data-act="delete">Apagar</button>
       </div>
     </div>`).join('') || '<p class="muted">Nenhuma regra criada.</p>';
 };
@@ -530,7 +530,7 @@ loaders.schedules = async () => {
         <div class="meta">${fmtDate(s.runAt)} · ${REPEAT_LABEL[s.repeat]} · ${s.target.type === 'all' ? 'todos os contatos' : s.target.type === 'tags' ? `etiquetas: ${esc(s.target.tags.join(', '))}` : `${s.target.phones.length} número(s)`}${s.lastRunAt ? ` · último envio ${fmtDate(s.lastRunAt)}` : ''}</div>
         <div class="bubble">${esc(s.message)}</div>
       </div>
-      <button class="btn small danger" data-act="delete"></button>
+      <button class="btn small danger" data-act="delete">Apagar</button>
     </div>`).join('') || '<p class="muted">Nenhum agendamento.</p>';
   loadTags();
 };
@@ -1395,7 +1395,7 @@ async function openConversation(key) {
     <div class="row">
       <button class="btn small" id="btnConvLead">Ver prospecto</button>
       <button class="btn small" id="btnHandoff">${c.handoff ? 'Devolver para o robô' : 'Assumir conversa'}</button>
-      <button class="btn small danger" id="btnConvClear" title="Apagar memória" data-admin></button>
+      <button class="btn small danger" id="btnConvClear" title="Apagar memória" data-admin>Apagar memória</button>
     </div>`;
   renderClosingBar(key).catch(() => {});
   $('#convChat').innerHTML = c.messages.map((m) => chatBubble(m.role, m.content, m.at)).join('');

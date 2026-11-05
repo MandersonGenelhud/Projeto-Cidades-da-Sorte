@@ -546,7 +546,8 @@
     <!-- CAIXA (só administradores liberados) -->
     <section id="tab-cash" class="tab">
       <div class="page-head">
-        <h1>Caixa</h1>
+        <h1 id="cashTitle">Caixa</h1>
+        <div class="seg" id="cashBooks" role="group" aria-label="Qual caixa" hidden></div>
         <div class="row">
           <select id="cashPeriod"><option value="month">Este mês</option><option value="last">Mês passado</option><option value="30">Últimos 30 dias</option><option value="year">Este ano</option><option value="all">Tudo</option></select>
           <a class="btn" id="btnCashExport" href="#" title="Planilha que abre no Excel e no Google Planilhas">Baixar planilha</a>
@@ -591,6 +592,8 @@
           <label>Categorias de despesa (uma por linha; vazio = padrão) <textarea name="categories" rows="6"></textarea></label>
           <p class="hint">Quem pode ver o caixa (só administradores). Sem ninguém marcado, todos os administradores veem. Marque para limitar.</p>
           <div id="cashViewers"></div>
+          <p class="hint"><b>Caixa Migra Contábil Paraguay:</b> quem pode ver. Sem ninguém marcado, vale a mesma lista do Caixa Migra. Marque para limitar (por exemplo, só quem cuida da contabilidade).</p>
+          <div id="cashViewersContabil"></div>
           <button class="btn primary">Salvar</button>
         </form>
         <form class="form" id="formNina">
@@ -1018,7 +1021,7 @@
           <div id="stressList"></div>
           <div class="row">
             <input id="stressCustom" placeholder="Adicionar outra mensagem de teste" />
-            <button type="button" class="btn small" id="btnStressAdd"></button>
+            <button type="button" class="btn small" id="btnStressAdd">Adicionar</button>
           </div>
           <button type="button" class="btn primary" id="btnStressRun">▶Rodar todos os testes</button>
         </div>
@@ -1526,7 +1529,7 @@
   <div id="toast"></div>
   <dialog id="propDialog" class="lead-dialog">
     <form id="formProp" class="form" method="dialog">
-      <div class="conv-header"><h2 id="propTitle">Imóvel</h2><button type="button" class="btn small" id="propClose"></button></div>
+      <div class="conv-header"><h2 id="propTitle">Imóvel</h2><button type="button" class="btn small" id="propClose">Fechar</button></div>
       <div class="grid2 tight">
         <label>Título <input name="title" required /></label>
         <label>Tipo <select name="type"><option value="terreno">Terreno</option><option value="lote">Lote</option><option value="casa">Casa</option><option value="departamento">Apartamento</option><option value="galpao">Galpão</option><option value="fazenda">Fazenda / chácara</option><option value="local">Ponto comercial</option></select></label>
@@ -1567,7 +1570,7 @@
         <div><h2 id="leadTitle">Prospecto</h2><div id="leadBadges" class="lead-badges"></div></div>
         <div class="row">
           <a class="btn small" id="leadWa" target="_blank" rel="noopener" hidden>Abrir no meu WhatsApp</a>
-          <button type="button" class="btn small" id="leadClose"></button>
+          <button type="button" class="btn small" id="leadClose">Fechar</button>
         </div>
       </div>
       <div class="lead-grid">

@@ -147,3 +147,69 @@ test('caixa: escopo empresa/pessoal/dízimo separa os totais e a busca ignora ac
   store.data.cash.push({ id: 'old', kind: 'saida', amount: 5, currency: 'BRL', date: '2026-11-01', description: 'Antigo', category: 'Outros', status: 'pago', history: [] });
   assert.equal(cash.entries({ scope: 'empresa' }).some((e) => e.id === 'old'), true);
 });
+
+test('caixa da Contábil: lançamentos separados do Caixa Migra; venda só de serviço contábil entra sozinha no caixa certo', () => {
+  const store = tempStore();
+  const sales = { list: [
+    { id: 'sc', number: 'V-10', status: 'ativa', items: [{ name: 'RUC e contabilidade mensal' }], client: { nome: 'Ana' }, parcels: [{ label: 'Entrada', value: 900, status: 'pago', paidAt: '2026-11-02' }] },
+    { id: 'sm', number: 'V-11', status: 'ativa', items: [{ name: 'Residência temporária' }], client: { nome: 'Beto' }, parcels: [{ label: 'Entrada', value: 3000, status: 'pago', paidAt: '2026-11-03' }] },
+  ] };
+  const cash = new Cash({ store, auth: null, sales, bookOfSale: (s) => (s.items.every((i) => /contab/i.test(i.name)) ? 'contabil' : 'migra') });
+  cash.add(admin, { kind: 'saida', amount: 200, date: '2026-11-04', description: 'Sistema contábil', book: 'contabil' });
+  cash.add(admin, { kind: 'saida', amount: 500, date: '2026-11-04', description: 'Aluguel' });
+  assert.throws(() => cash.add(admin, { kind: 'saida', amount: 1, description: 'x', book: 'outro' }), /Caixa inválido/);
+  const migra = cash.entries({});
+  const contabil = cash.entries({ book: 'contabil' });
+  assert.deepEqual(migra.map((e) => e.description).sort(), ['Aluguel', 'V-11 · Entrada · Beto'], 'o Caixa Migra não mostra nada da Contábil');
+  assert.deepEqual(contabil.map((e) => e.description).sort(), ['Sistema contábil', 'V-10 · Entrada · Ana']);
+  assert.deepEqual(cash.summary(contabil).byCurrency.BRL, { entradas: 900, saidas: 200, aPagar: 0, aReceber: 0, saldo: 700 }, 'saldos nunca se misturam');
+  assert.match(cash.list.find((e) => e.book === 'contabil').history[0].text, /Caixa Migra Contábil Paraguay/);
+});
+
+test('caixa da Contábil: cada caixa tem quem pode ver; a lista da Contábil vazia segue a do Caixa Migra', () => {
+  const store = tempStore();
+  const cash = new Cash({ store, auth: null });
+  const marcos = { id: 'm', role: 'admin' }; const conta = { id: 'c', role: 'admin' }; const seller = { id: 's', role: 'seller' };
+  assert.deepEqual(cash.booksFor(marcos), ['migra', 'contabil'], 'sem listas: todos os administradores veem os dois');
+  assert.deepEqual(cash.booksFor(seller), [], 'vendedor nunca');
+  store.settings.cash = { allowedUserIds: ['m'], contabilUserIds: [] };
+  assert.deepEqual(cash.booksFor(conta), [], 'lista da Contábil vazia = mesma regra do Caixa Migra');
+  store.settings.cash = { allowedUserIds: ['m'], contabilUserIds: ['c'] };
+  assert.deepEqual(cash.booksFor(conta), ['contabil'], 'quem cuida da contabilidade vê só o caixa dela');
+  assert.deepEqual(cash.booksFor(marcos), ['migra'], 'e a Contábil limitada não aparece para quem não está na lista dela');
+  assert.equal(cash.canAccess(conta), false, 'sem dizer o caixa, vale o Caixa Migra (a Nina usa este)');
+});
+
+test('caixa da Contábil (servidor): quem só vê a Contábil não lê, não lança e não mexe no Caixa Migra nem na Nina', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-cash2-'));
+  const port = 39950 + Math.floor(Math.random() * 40);
+  const proc = spawn(process.execPath, ['src/server.js'], { cwd: ROOT, env: { ...process.env, DATA_DIR: dir, PORT: String(port), TUNNEL: 'off', OPEN_BROWSER: '' }, stdio: 'ignore' });
+  t.after(() => proc.kill());
+  const base = `http://127.0.0.1:${port}`;
+  for (let i = 0; i < 60; i++) { try { await fetch(`${base}/api/auth/state`); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
+  const owner = client(base);
+  await owner('/api/auth/setup', { method: 'POST', body: { name: 'Marcos', login: 'marcos', password: 'teste1234' } });
+  const s = await owner('/api/security/2fa/setup');
+  await owner('/api/security/2fa/enable', { method: 'POST', body: { code: totpCode(s.body.secret) } });
+  const me = (await owner('/api/auth/state')).body.user;
+  const conta = await owner('/api/users', { method: 'POST', body: { name: 'Contadora', login: 'conta', password: 'conta1234', role: 'admin' } });
+  const contaC = await enter(base, 'conta', 'conta1234');
+  const migraEntry = (await owner('/api/cash', { method: 'POST', body: { kind: 'saida', amount: 100, description: 'Aluguel Migra' } })).body;
+  assert.equal((await owner('/api/cash', { method: 'POST', body: { kind: 'saida', amount: 40, description: 'Sistema contábil', book: 'contabil' } })).status, 200);
+  assert.equal((await owner('/api/cash/settings', { method: 'PUT', body: { categories: [], allowedUserIds: [me.id], contabilUserIds: [conta.body.id] } })).status, 200);
+  assert.equal((await contaC('/api/auth/state')).body.user.cashAccess, true, 'vê a aba Caixa');
+  assert.equal((await contaC('/api/cash?period=all')).status, 403, 'Caixa Migra: não');
+  const mine = await contaC('/api/cash?period=all&book=contabil');
+  assert.equal(mine.status, 200);
+  assert.deepEqual(mine.body.entries.map((e) => e.description), ['Sistema contábil']);
+  assert.deepEqual(Object.keys(mine.body.books), ['contabil']);
+  assert.equal((await contaC('/api/cash', { method: 'POST', body: { kind: 'saida', amount: 1, description: 'x', book: 'migra' } })).status, 403, 'não lança no Caixa Migra');
+  assert.equal((await contaC(`/api/cash/${migraEntry.id}`, { method: 'PATCH', body: { amount: 1 } })).status, 403, 'não edita lançamento do Caixa Migra');
+  assert.equal((await contaC(`/api/cash/${migraEntry.id}`, { method: 'DELETE', body: { reason: 'x' } })).status, 403);
+  assert.equal((await contaC(`/api/cash/${migraEntry.id}/history`)).status, 403);
+  assert.equal((await contaC('/api/cash/export.csv?period=all')).status, 403);
+  assert.equal((await contaC('/api/cash/assistant')).status, 403, 'a Nina é do Caixa Migra');
+  assert.equal((await contaC('/api/cash/settings', { method: 'PUT', body: { categories: [], allowedUserIds: [], contabilUserIds: [] } })).status, 403, 'não muda quem vê');
+  assert.equal((await contaC('/api/cash', { method: 'POST', body: { kind: 'entrada', amount: 300, description: 'Honorário', book: 'contabil' } })).status, 200, 'lança no caixa dela');
+  assert.equal((await owner('/api/cash?period=all&book=contabil')).status, 403, 'Marcos fora da lista da Contábil também não vê');
+});

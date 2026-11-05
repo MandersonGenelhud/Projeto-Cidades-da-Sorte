@@ -66,9 +66,9 @@
         ${field('Validade da proposta (dias)', 'validDays', `type="number" value="${c.validDays}"`)}
       </form>
       <h3>Juros por número de parcelas (% sobre o saldo financiado)</h3>
-      <div id="finBands">${c.bands.map((b) => `<div class="row band"><span>até</span><input class="bUp" type="number" min="1" value="${b.upTo}" style="width:90px" /><span>parcelas →</span><input class="bPct" value="${b.interestPct}" style="width:90px" /><span>% de juros</span><button type="button" class="btn small danger bDel"></button></div>`).join('')}</div>
+      <div id="finBands">${c.bands.map((b) => `<div class="row band"><span>até</span><input class="bUp" type="number" min="1" value="${b.upTo}" style="width:90px" /><span>parcelas →</span><input class="bPct" value="${b.interestPct}" style="width:90px" /><span>% de juros</span><button type="button" class="btn small danger bDel">Remover</button></div>`).join('')}</div>
       <div class="row"><button type="button" class="btn small" id="bAdd">Faixa</button><button type="button" class="btn primary" id="finCfgSave">Salvar regras</button></div>`;
-    box.querySelector('#bAdd').onclick = () => box.querySelector('#finBands').insertAdjacentHTML('beforeend', '<div class="row band"><span>até</span><input class="bUp" type="number" min="1" style="width:90px" /><span>parcelas →</span><input class="bPct" value="0" style="width:90px" /><span>% de juros</span><button type="button" class="btn small danger bDel"></button></div>');
+    box.querySelector('#bAdd').onclick = () => box.querySelector('#finBands').insertAdjacentHTML('beforeend', '<div class="row band"><span>até</span><input class="bUp" type="number" min="1" style="width:90px" /><span>parcelas →</span><input class="bPct" value="0" style="width:90px" /><span>% de juros</span><button type="button" class="btn small danger bDel">Remover</button></div>');
     box.querySelector('#finBands').onclick = (e) => { if (e.target.classList.contains('bDel')) e.target.closest('.band').remove(); };
     box.querySelector('#finCfgSave').onclick = async () => {
       const f = box.querySelector('#finCfg');

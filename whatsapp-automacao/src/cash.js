@@ -20,14 +20,17 @@ export const DEFAULT_CATEGORIES = [
 export const SCOPES = ['empresa', 'pessoal', 'dizimo'];
 export const SCOPE_LABELS = { empresa: 'Empresa', pessoal: 'Pessoal', dizimo: 'Dízimo' };
 export const TITHE_PCT = 10;
+// Caixas separados: o da Migra (geral) e o da Migra Contábil Paraguay. Cada lançamento é de um caixa só
+// e cada caixa tem a sua lista de quem pode ver.
+export const BOOKS = { migra: 'Caixa Migra', contabil: 'Caixa Migra Contábil Paraguay' };
 const flat = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const AUTO_IN = 'Recebimento de clientes';
 const AUTO_COMMISSION = 'Comissões pagas';
 
 export class Cash {
   /** payments/sales/affiliates são só para ler o que já entrou e as comissões já pagas. */
-  constructor({ store, auth, payments = null, sales = null, affiliates = null }) {
-    Object.assign(this, { store, auth, payments, sales, affiliates });
+  constructor({ store, auth, payments = null, sales = null, affiliates = null, bookOfSale = () => 'migra' }) {
+    Object.assign(this, { store, auth, payments, sales, affiliates, bookOfSale });
     store.data.cash ||= [];
   }
 
@@ -44,11 +47,28 @@ export class Cash {
     return Array.isArray(c) && c.length ? c : DEFAULT_CATEGORIES;
   }
 
-  /** Quem pode ver: administrador ativo e, se a lista de liberados existir, só quem está nela. */
-  canAccess(user) {
+  /**
+   * Quem pode ver um caixa: administrador ativo e, se a lista daquele caixa existir, só quem está nela.
+   * Caixa Migra: lista "allowedUserIds". Caixa da Contábil: lista "contabilUserIds"; vazia = mesma regra do caixa Migra.
+   */
+  canAccess(user, book = 'migra') {
     if (!user || user.role !== 'admin' || user.active === false) return false;
-    const allowed = this.config.allowedUserIds;
-    return !Array.isArray(allowed) || !allowed.length || allowed.includes(user.id);
+    const list = (ids) => Array.isArray(ids) && ids.length ? ids : null;
+    const migraIds = list(this.config.allowedUserIds);
+    const ids = book === 'contabil' ? list(this.config.contabilUserIds) || migraIds : migraIds;
+    if (!BOOKS[book]) return false;
+    return !ids || ids.includes(user.id);
+  }
+
+  /** Caixas que a pessoa pode ver (para mostrar a aba e os botões de troca). */
+  booksFor(user) {
+    return Object.keys(BOOKS).filter((b) => this.canAccess(user, b));
+  }
+
+  #book(v) {
+    const x = String(v ?? '').trim() || 'migra';
+    if (!BOOKS[x]) throw err(400, 'Caixa inválido');
+    return x;
   }
 
   #scope(v) {
@@ -84,12 +104,13 @@ export class Cash {
       payee: clean(input.payee ?? base.payee, 120), // para quem foi (ou de quem veio)
       notes: clean(input.notes ?? base.notes, 400),
       scope: this.#scope(input.scope ?? base.scope),
+      book: this.#book(input.book ?? base.book),
     };
   }
 
   add(user, input) {
     const e = { id: crypto.randomBytes(6).toString('hex'), ...this.#clean({ account: user?.name, ...input }), createdBy: user?.name || '', createdAt: new Date().toISOString(), history: [] };
-    this.#log(e, user, `Lançamento criado: ${e.kind === 'saida' ? 'saída' : 'entrada'} de ${e.amount} ${e.currency} · ${e.category}`);
+    this.#log(e, user, `Lançamento criado: ${e.kind === 'saida' ? 'saída' : 'entrada'} de ${e.amount} ${e.currency} · ${e.category} · ${BOOKS[e.book]}`);
     this.list.push(e);
     this.store.save();
     return e;
@@ -137,10 +158,11 @@ export class Cash {
   /** Entradas e comissões que o sistema já sabe (não se digita de novo e não se edita aqui). */
   automatic() {
     const out = [];
+    const saleBook = new Map((this.sales?.list || []).map((x) => [x.id, this.bookOfSale(x) === 'contabil' ? 'contabil' : 'migra']));
     for (const p of this.payments?.list || []) {
       if (p.status !== 'paid' || !p.paidAt) continue;
       out.push({ id: `pay:${p.id}`, source: 'sistema', kind: 'entrada', date: p.paidAt.slice(0, 10), amount: round(p.amount), currency: 'BRL', category: AUTO_IN,
-        description: `${p.description || 'Pix'}${p.payerName ? ` · ${p.payerName}` : ''}`, method: 'Pix', account: '', payee: p.payerName || '', status: 'pago', notes: '', scope: 'empresa' });
+        description: `${p.description || 'Pix'}${p.payerName ? ` · ${p.payerName}` : ''}`, method: 'Pix', account: '', payee: p.payerName || '', status: 'pago', notes: '', scope: 'empresa', book: saleBook.get(p.saleId) || 'migra' });
     }
     for (const s of this.sales?.list || []) {
       // Vendas copiadas do sistema antigo: o caixa antigo vem pelas próprias telas de caixa dele (importadas à parte), para não contar duas vezes.
@@ -149,27 +171,28 @@ export class Cash {
         // A entrada confirmada por Pix já aparece como pagamento acima.
         if (x.status !== 'pago' || !x.paidAt || String(x.confirmedBy || '').startsWith('Sistema')) return;
         out.push({ id: `parc:${s.id}:${i}`, source: 'sistema', kind: 'entrada', date: x.paidAt, amount: round(x.value), currency: 'BRL', category: AUTO_IN,
-          description: `${s.number} · ${x.label} · ${s.client?.nome || ''}`, method: x.method || '', account: '', payee: s.client?.nome || '', status: 'pago', notes: '', scope: 'empresa' });
+          description: `${s.number} · ${x.label} · ${s.client?.nome || ''}`, method: x.method || '', account: '', payee: s.client?.nome || '', status: 'pago', notes: '', scope: 'empresa', book: saleBook.get(s.id) });
       });
       const c = s.commission;
       if (c?.status === 'paga' && c.paidAt && c.value > 0) {
         out.push({ id: `com:${s.id}`, source: 'sistema', kind: 'saida', date: c.paidAt, amount: round(c.value), currency: 'BRL', category: AUTO_COMMISSION,
-          description: `Comissão de ${s.sellerName || 'vendedor'} · ${s.number}`, method: '', account: '', payee: s.sellerName || '', status: 'pago', notes: '', scope: 'empresa' });
+          description: `Comissão de ${s.sellerName || 'vendedor'} · ${s.number}`, method: '', account: '', payee: s.sellerName || '', status: 'pago', notes: '', scope: 'empresa', book: saleBook.get(s.id) });
       }
     }
     for (const c of this.affiliates?.data?.commissions || []) {
       if (c.status !== 'paga' || !c.paidAt || !(c.amount > 0)) continue;
       out.push({ id: `aff:${c.id}`, source: 'sistema', kind: 'saida', date: c.paidAt.slice(0, 10), amount: round(c.amount), currency: c.currency || 'BRL', category: AUTO_COMMISSION,
-        description: `Comissão de parceiro · ${c.clientName || ''}`, method: '', account: '', payee: this.affiliates?.get?.(c.affId)?.name || '', status: 'pago', notes: '', scope: 'empresa' });
+        description: `Comissão de parceiro · ${c.clientName || ''}`, method: '', account: '', payee: this.affiliates?.get?.(c.affId)?.name || '', status: 'pago', notes: '', scope: 'empresa', book: saleBook.get(c.saleId) || 'migra' });
     }
     return out;
   }
 
   /** Lançamentos (manuais + automáticos) do período, do mais recente para o mais antigo. */
-  entries({ from = '', to = '', kind = '', category = '', q = '', status = '', scope = '' } = {}) {
+  entries({ from = '', to = '', kind = '', category = '', q = '', status = '', scope = '', book = 'migra' } = {}) {
     const term = flat(clean(q, 80));
-    const manual = this.list.filter((e) => !e.deleted).map((e) => ({ ...e, scope: e.scope || 'empresa', source: 'manual' }));
+    const manual = this.list.filter((e) => !e.deleted).map((e) => ({ ...e, scope: e.scope || 'empresa', book: e.book || 'migra', source: 'manual' }));
     return [...manual, ...this.automatic()]
+      .filter((e) => (e.book || 'migra') === book)
       .filter((e) => (!from || e.date >= from) && (!to || e.date <= to))
       .filter((e) => !kind || e.kind === kind)
       .filter((e) => !category || e.category === category)
