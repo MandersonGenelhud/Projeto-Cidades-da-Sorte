@@ -414,11 +414,21 @@
       </div>
       <div class="toolbar">
         <input id="leadSearch" placeholder="Buscar nome, telefone, @instagram, pacote" />
-        <select id="leadOwner"><option value="">Todos que eu vejo</option><option value="mine">Só os meus</option><option value="none">Sem responsável</option></select>
+        <select id="leadOwner" aria-label="Responsável"><option value="">Todos que eu vejo</option><option value="mine">Só os meus</option><option value="none">Sem responsável</option></select>
+        <select id="leadDue" aria-label="Retorno"><option value="">Qualquer retorno</option><option value="atrasado">Retorno atrasado</option><option value="hoje">Retorno até hoje</option><option value="semana">Retorno nesta semana</option><option value="sem">Sem retorno marcado</option></select>
+        <select id="leadTemp" aria-label="Temperatura"><option value="">Qualquer temperatura</option><option value="quente">Quente</option><option value="morno">Morno</option><option value="frio">Frio</option></select>
+        <select id="leadSource" aria-label="Origem"><option value="">Qualquer origem</option></select>
         <div class="seg" role="group" aria-label="Visualização">
           <button type="button" class="btn small" data-view="board" aria-pressed="true">Quadro</button>
           <button type="button" class="btn small" data-view="list" aria-pressed="false">Lista</button>
         </div>
+      </div>
+      <div class="views-bar">
+        <label for="leadViews">Visões</label>
+        <select id="leadViews" aria-label="Visões salvas"></select>
+        <button type="button" class="btn small" id="btnSaveView">Salvar esta visão</button>
+        <button type="button" class="btn small" id="btnDelView" hidden>Apagar visão</button>
+        <span class="muted" id="leadSummary"></span>
       </div>
       <div id="leadBoard" class="board"></div>
       <div id="leadList" class="panel" hidden><div class="table-wrap"><table id="leadTable"></table></div></div>
@@ -1709,5 +1719,6 @@
   <script src="projetos.js"></script>
   <script src="indicadores-admin.js"></script>
   <script src="contratos-quadros.js"></script>
+  <script src="nav-hubs.js"></script>
 </body>
 </html>

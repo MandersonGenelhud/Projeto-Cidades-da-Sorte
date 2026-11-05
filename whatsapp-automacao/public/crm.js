@@ -265,11 +265,94 @@ function renderLeads() {
   $('#leadList').hidden = crmState.view !== 'list';
 }
 
+// Filtros que não pesam no servidor: retorno, temperatura e origem.
+const SOURCE_NAME = { whatsapp: 'WhatsApp', instagram: 'Instagram', instagram_ads: 'Anúncio no Instagram', facebook: 'Facebook', quiz: 'Quiz', grupo: 'Grupo de WhatsApp', whatsapp_ads: 'Anúncio (WhatsApp)', manual: 'Cadastro manual', indicacao: 'Indicação', site: 'Site', evento: 'Evento' };
+function leadFilters() {
+  return { due: $('#leadDue').value, temp: $('#leadTemp').value, source: $('#leadSource').value };
+}
+function applyLeadFilters(list) {
+  const f = leadFilters();
+  return list.filter((l) => {
+    if (f.temp && l.qualification?.temperature !== f.temp) return false;
+    if (f.source && (l.source || '') !== f.source) return false;
+    if (f.due === 'sem') return !l.followUpAt;
+    if (f.due === 'atrasado') return l.due === 'atrasado';
+    if (f.due === 'hoje') return l.due === 'atrasado' || l.due === 'hoje';
+    if (f.due === 'semana') {
+      if (!l.due) return false;
+      const lim = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+      return l.due !== 'agendado' || String(l.followUpAt) <= lim;
+    }
+    return true;
+  });
+}
+let allLeads = [];
 loaders.leads = async () => {
   if (!crmState.stages.length) await loadCrmMeta();
-  leadsCache = await api(`/api/leads?${leadQuery()}`);
+  if (!$('#leadViews').options.length) renderViews('');
+  allLeads = await api(`/api/leads?${leadQuery()}`);
+  // Origem: só as que existem nos prospectos que a pessoa vê.
+  const sel = $('#leadSource');
+  const cur = sel.value;
+  const found = [...new Set(allLeads.map((l) => l.source || '').filter(Boolean))].sort();
+  sel.innerHTML = `<option value="">Qualquer origem</option>${found.map((x) => `<option value="${esc(x)}">${esc(SOURCE_NAME[x] || x)}</option>`).join('')}`;
+  if (cur && !found.includes(cur)) sel.insertAdjacentHTML('beforeend', `<option value="${esc(cur)}">${esc(SOURCE_NAME[cur] || cur)}</option>`);
+  sel.value = cur;
+  leadsCache = applyLeadFilters(allLeads);
+  const open = leadsCache.filter((l) => l.stage !== 'ganho' && l.stage !== 'perdido');
+  const value = open.reduce((s, l) => s + (Number(l.value) || 0), 0);
+  $('#leadSummary').textContent = `${leadsCache.length} prospecto(s)${value ? ` · ${money(value)} em negociação` : ''}`;
   renderLeads();
 };
+
+// Visões salvas: cada pessoa guarda os filtros que mais usa (neste aparelho).
+const VIEW_FIELDS = ['leadSearch', 'leadOwner', 'leadDue', 'leadTemp', 'leadSource'];
+const BUILTIN_VIEWS = [
+  { id: 'b:todos', name: 'Todos', f: {} },
+  { id: 'b:meus', name: 'Só os meus', f: { leadOwner: 'mine' } },
+  { id: 'b:atrasados', name: 'Retorno atrasado', f: { leadDue: 'atrasado' } },
+  { id: 'b:hoje', name: 'Retornos de hoje', f: { leadDue: 'hoje' } },
+  { id: 'b:quentes', name: 'Quentes', f: { leadTemp: 'quente' } },
+  { id: 'b:livres', name: 'Sem responsável', f: { leadOwner: 'none' } },
+];
+const viewsKey = () => `crmViews:${window.currentUser?.id || ''}`;
+function myViews() {
+  try { const v = JSON.parse(localStorage.getItem(viewsKey()) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+}
+function renderViews(selected = '') {
+  const mine = myViews();
+  $('#leadViews').innerHTML = `<option value="">Escolha uma visão</option><optgroup label="Prontas">${BUILTIN_VIEWS.map((v) => `<option value="${v.id}">${esc(v.name)}</option>`).join('')}</optgroup>${mine.length ? `<optgroup label="Minhas visões">${mine.map((v) => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join('')}</optgroup>` : ''}`;
+  $('#leadViews').value = selected;
+  $('#btnDelView').hidden = !selected.startsWith('u:');
+}
+$('#leadViews').addEventListener('change', () => {
+  const id = $('#leadViews').value;
+  const v = [...BUILTIN_VIEWS, ...myViews()].find((x) => x.id === id);
+  $('#btnDelView').hidden = !id.startsWith('u:');
+  if (!v) return;
+  for (const f of VIEW_FIELDS) $(`#${f}`).value = v.f[f] || '';
+  if (v.f.view && v.f.view !== crmState.view) $(`#tab-leads [data-view="${v.f.view}"]`)?.click();
+  loaders.leads();
+});
+$('#btnSaveView').addEventListener('click', () => {
+  const name = (prompt('Nome da visão (ex.: Quentes do Instagram):') || '').trim().slice(0, 40);
+  if (!name) return;
+  const f = Object.fromEntries(VIEW_FIELDS.map((k) => [k, $(`#${k}`).value]).filter(([, v]) => v));
+  f.view = crmState.view;
+  const list = myViews().filter((v) => v.name !== name);
+  const id = `u:${Date.now().toString(36)}`;
+  list.push({ id, name, f });
+  try { localStorage.setItem(viewsKey(), JSON.stringify(list.slice(-20))); } catch { return toast('Não foi possível salvar neste navegador', true); }
+  renderViews(id);
+  toast('Visão salva');
+});
+$('#btnDelView').addEventListener('click', () => {
+  const id = $('#leadViews').value;
+  if (!id.startsWith('u:') || !confirm('Apagar esta visão? Os prospectos não são apagados.')) return;
+  try { localStorage.setItem(viewsKey(), JSON.stringify(myViews().filter((v) => v.id !== id))); } catch { /* ok */ }
+  renderViews('');
+});
+for (const id of ['leadDue', 'leadTemp', 'leadSource']) $(`#${id}`).addEventListener('change', () => { $('#leadViews').value = ''; loaders.leads(); });
 
 let leadSearchTimer;
 $('#leadSearch').addEventListener('input', () => {

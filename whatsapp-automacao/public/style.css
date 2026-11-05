@@ -1147,3 +1147,32 @@ body.seller.office-admin [data-officeadmin] { display: flex !important; }
 .office-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
 .office-cmp td, .office-cmp th { white-space: nowrap; }
 @media (max-width: 800px) { .office-switch { max-width: 120px; font-size: 13px; } }
+
+/* ---- Menu enxuto: seções no menu lateral, telas como abas no topo ---- */
+.nav-find { width: 100%; margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .06); color: #fff; font-size: 13.5px; }
+.nav-find::placeholder { color: #a9c2b3; }
+.nav-find:focus { outline: 2px solid var(--lime, #7cc242); border-color: transparent; }
+.nav-results { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; flex: 1; }
+.nav-results button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; background: none; border: 0; color: #e3eee7; text-align: left; padding: 8px 10px; border-radius: 8px; cursor: pointer; font: inherit; }
+.nav-results button:hover, .nav-results button:focus-visible { background: rgba(255, 255, 255, .08); }
+.nav-results small { color: #a9c2b3; font-size: 12px; }
+.nav-empty { color: #a9c2b3; padding: 8px 10px; margin: 0; }
+nav.subnav { display: flex; flex-direction: row; flex: none; gap: 4px; overflow-x: auto; margin: -8px 0 20px; padding: 0 0 2px; border-bottom: 1px solid var(--border); scrollbar-width: thin; }
+nav.subnav button { display: none; flex: none; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 8px 8px 0 0; color: var(--muted); font-weight: 500; white-space: nowrap; background: none; box-shadow: none; }
+nav.subnav button.in-hub:not([hidden]) { display: flex; }
+body.seller.office-admin nav.subnav [data-officeadmin]:not(.in-hub) { display: none !important; }
+nav.subnav button:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+nav.subnav button.active { background: none; color: var(--text); box-shadow: inset 0 -3px 0 var(--green); }
+nav.subnav button.active .ico { color: var(--green); }
+nav.subnav button .ico { opacity: .8; }
+@media (max-width: 900px) {
+  nav.subnav { flex-direction: row; overflow-x: auto; margin: -4px 0 16px; }
+  nav.subnav button { padding: 10px 12px; }
+}
+
+/* Prospectos: visões salvas */
+.views-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -4px 0 14px; }
+.views-bar label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.views-bar select { width: auto; min-width: 190px; }
+.views-bar #leadSummary { margin-left: auto; font-size: 13px; }
+@media (max-width: 600px) { .views-bar #leadSummary { margin-left: 0; width: 100%; } .views-bar select { flex: 1; } }
