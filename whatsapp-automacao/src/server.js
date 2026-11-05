@@ -74,6 +74,7 @@ import { contractPdf } from './contract.js';
 import { parseJsonObject } from './crm-ai.js';
 import { collectHandoffs, digestMessage } from './digest.js';
 import { searchConversations } from './convsearch.js';
+import { ServiceCatalog, CATEGORIES as SERVICE_CATEGORIES } from './services.js';
 import { buildScreenMap, compareMap } from './legacy-map.js';
 import { Sectors, resolvePeople, isOwner } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
@@ -302,6 +303,15 @@ const documents = new Documents({ store });
 const tutorials = new Tutorials({ store });
 const cityGuide = new Cities({ store });
 const marketing = new Marketing({ store });
+// O resto da cópia do sistema antigo (catálogo de serviços e o que vier depois). Cada parte falha sozinha, sem derrubar a importação.
+function importExtras(cap) {
+  const out = {};
+  const step = (name, fn) => { try { out[name] = fn(); } catch (e) { out[name] = { erro: e.message }; store.addLog({ type: 'error', message: `Cópia (${name}): ${e.message}` }); } };
+  step('servicos', () => serviceCatalog.importCapture(cap));
+  for (const fn of extraImporters) step(fn.label, () => fn(cap));
+  return out;
+}
+const extraImporters = [];
 const cashHook = (cap) => (typeof cash === 'undefined' ? null : cash.importLegacy(cashRowsFromCapture(cap)));
 agent.liveInfo = () => live.promptInfo(`${publicBase()}/live`);
 const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
@@ -514,7 +524,10 @@ closing.onSigned = async (f) => {
 };
 
 // Orçamentos ORC-AAAA-NNNNN: PDF com a marca + mensagem no formato da equipe.
-const quotes = new Quotes({ store, dataDir: DATA_DIR, secret: auth.secret, matchPackage: (n) => crm.matchPackage(n) });
+// Catálogo de serviços (preço, prazo e comissão): o orçamento aceita os pacotes da base e qualquer serviço ativo daqui.
+const serviceCatalog = new ServiceCatalog({ store });
+const matchAnyPackage = (n) => crm.matchPackage(n) || serviceCatalog.match(n);
+const quotes = new Quotes({ store, dataDir: DATA_DIR, secret: auth.secret, matchPackage: matchAnyPackage });
 // Contratos e vendas (parcelas e comissões).
 const sales = new Sales({
   store,
@@ -562,7 +575,7 @@ async function sendQuote({ convKey, lead, items, adults, client, consultant, sta
 agent.sendQuote = async (conv, args, { dryRun } = {}) => {
   const items = Array.isArray(args.itens) && args.itens.length ? args.itens : [{ pacote: args.pacote, quantidade: args.pessoas || 1 }];
   if (dryRun || String(conv.key).startsWith('sim:')) {
-    const preview = new Quotes({ store: { settings: { ...store.settings, quotes: { ...store.settings.quotes } }, data: { quotes: [] }, save() {} }, dataDir: path.join(DATA_DIR, 'tmp'), secret: auth.secret, matchPackage: (n) => crm.matchPackage(n) });
+    const preview = new Quotes({ store: { settings: { ...store.settings, quotes: { ...store.settings.quotes } }, data: { quotes: [] }, save() {} }, dataDir: path.join(DATA_DIR, 'tmp'), secret: auth.secret, matchPackage: matchAnyPackage });
     try {
       const q = preview.create({ items, adults: args.adultos, client: args.nome || conv.name });
       return { ok: true, simulacao: true, enviado: preview.message(q), instrucao: 'O orçamento (PDF + resumo) já foi enviado logo acima. Comente em uma frase curta e conduza para garantir a reserva.' };
@@ -1327,7 +1340,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1754,6 +1767,7 @@ const SELLER_ROUTES = [
   ['POST', /^\/cities\/[a-f0-9]+\/send$/],
   ['*', /^\/tasks(\/[a-f0-9]+)?$/],
   ['GET', /^\/(contract-cards|alerts)$/],
+  ['GET', /^\/services$/],
   ['*', /^\/videocall\/me$/],
   ['POST', /^\/videocall\/[a-z0-9]+\/cancel$/],
 ];
@@ -1801,6 +1815,8 @@ app.use('/api', audit.middleware([
   { methods: ['PATCH', 'DELETE'], re: /^\/school\/students\/([a-f0-9]+)$/, entity: 'aluno', get: (m) => { const x = school.student(m[1]); return x && { ...x, accesses: undefined }; }, label: (m, o) => o.name || m[1] },
   { methods: ['POST'], re: /^\/school\/students$/, entity: 'aluno', label: (m, o) => o.name || '' },
   { methods: ['PUT'], re: /^\/finance\/config$/, entity: 'juros e regras', get: () => proposals.config, label: () => 'Financiamento de lotes' },
+  { methods: ['PATCH'], re: /^\/services\/([a-f0-9]+)$/, entity: 'serviço', get: (m) => { const x = serviceCatalog.get(m[1]); return x && { name: x.name, price: x.price, commissionPct: x.commissionPct, active: x.active }; }, label: (m, o) => o.name || m[1] },
+  { methods: ['POST'], re: /^\/services$/, entity: 'serviço', label: (m, o, b) => b?.name || 'novo serviço' },
   { methods: ['PATCH', 'DELETE'], re: /^\/users\/([a-z0-9]+)$/, entity: 'usuário', get: (m) => { const u = auth.get(m[1]); return u && { name: u.name, role: u.role, active: u.active !== false, manager: Boolean(u.manager), sectors: u.sectors || [], whatsapp: u.whatsapp || '' }; }, label: (m, o) => o.name || m[1] },
 ]));
 app.get('/api/audit', (req, res) => {
@@ -2929,6 +2945,10 @@ app.get('/api/customers/360', (req, res) => {
   if (!phone && !doc && !name) throw httpError(400, 'Informe telefone, documento ou nome');
   res.json(customer360.build({ phone: String(phone), doc: String(doc), name: String(name) }));
 });
+// ---- Catálogo de serviços ----
+app.get('/api/services', (req, res) => res.json({ categories: SERVICE_CATEGORIES, items: serviceCatalog.list({ q: String(req.query.q || ''), category: String(req.query.category || ''), active: req.user.role === 'admin' ? String(req.query.active ?? '') : 'true' }) }));
+app.post('/api/services', (req, res) => { needAdmin(req); res.json(serviceCatalog.add(req.user, req.body || {})); });
+app.patch('/api/services/:id', (req, res) => { needAdmin(req); res.json(serviceCatalog.update(req.user, req.params.id, req.body || {})); });
 // ---- Tarefas da equipe ----
 const tasks = new Tasks({ store, auth });
 const tk = (fn) => { try { return fn(); } catch (e) { throw httpError(/não encontrada/.test(e.message) ? 404 : 400, e.message); } };
@@ -3102,6 +3122,7 @@ app.post('/api/legacy/import', legacyUpload, (req, res) => {
   const r = legacy.import(cap, req.user);
   r.documents = documents.importCapture(cap);
   r.cash = cashHook(cap);
+  r.extras = importExtras(cap);
   audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'contratos antigos', label: `Importação: ${r.added} novo(s), ${r.updated} atualizado(s)` });
   res.json(r);
 });
@@ -3115,6 +3136,7 @@ app.post('/api/legacy/ingest/captura', ingestAuth, ingestCaptura, (req, res) => 
   const run = ingest.start(req.ingestRec, json);
   try { run.summary.cash = cashHook(json); } catch (e) { store.addLog({ type: 'error', message: `Caixa da cópia: ${e.message}` }); }
   try { run.summary.documents = documents.importCapture(json); } catch (e) { store.addLog({ type: 'error', message: `Documentos da cópia: ${e.message}` }); }
+  run.summary.extras = importExtras(json);
   store.addLog({ type: 'system', message: `Cópia do sistema antigo recebida: ${run.summary.added} contrato(s) novo(s), ${run.summary.newClients} cliente(s) novo(s)` });
   res.json({ run: run.id, summary: run.summary, expectedFiles: run.owners.length });
 });
@@ -3848,7 +3870,7 @@ agent.sendContract = contractFlow.sendContract;
 // Atalho "/contrato" digitado pelo consultor no WhatsApp dele, na conversa do cliente.
 const sellerCommands = makeSellerCommands({
   agent, llm, contractFlow,
-  packages: () => store.settings.crm?.packages || [],
+  packages: () => [...(store.settings.crm?.packages || []), ...serviceCatalog.activeNames()],
   say: async (convKey, text) => { await wa.send(convKey, { text, typing: false }); const c = agent.conversation(convKey, { create: false }); if (c) agent.remember(c, 'assistant', text); },
   tell: async (owner, text) => { if (owner?.whatsapp) await wa.send(owner.whatsapp, { text, typing: false }); },
   revoke: (jid, id) => wa.revoke(jid, id),
