@@ -54,6 +54,11 @@ test('administrador geral: só outro administrador geral concede ou remove; ning
   assert.equal((await anaCall('/api/withdrawals/abc123/pay', 'POST', {})).status, 403);
   assert.equal((await anaCall('/api/withdrawals', 'POST', { amount: 10, pixKey: 'x' })).status, 400, 'sem comissão liberada não há saque');
   assert.equal((await marcos('/api/commissions/overview')).status, 200);
+  // Suporte: vendedor abre e conversa no próprio chamado; resolver só o administrador.
+  const tk = await (await anaCall('/api/support', 'POST', { title: 'Erro', description: 'Detalhes' })).json();
+  assert.equal((await anaCall(`/api/support/${tk.id}/messages`, 'POST', { text: 'mais detalhes' })).status, 200);
+  assert.equal((await anaCall(`/api/support/${tk.id}/resolve`, 'POST', { solution: 'x' })).status, 403);
+  assert.equal((await marcos(`/api/support/${tk.id}/resolve`, 'POST', { solution: 'Feito' })).status, 200);
   const last = await fetch(`${base}/api/users/${me.id}`, { method: 'PATCH', headers: { ...J }, body: JSON.stringify({ role: 'seller' }) });
   assert.ok(last.status === 401 || last.status === 403, 'sem login não faz nada');
 });

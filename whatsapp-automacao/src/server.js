@@ -76,6 +76,7 @@ import { collectHandoffs, digestMessage } from './digest.js';
 import { searchConversations } from './convsearch.js';
 import { ServiceCatalog, CATEGORIES as SERVICE_CATEGORIES } from './services.js';
 import { Commissions } from './commissions.js';
+import { Support, SLA as SUPPORT_SLA } from './support.js';
 import { buildScreenMap, compareMap } from './legacy-map.js';
 import { Sectors, resolvePeople, isOwner } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
@@ -312,7 +313,7 @@ function importExtras(cap) {
   for (const fn of extraImporters) step(fn.label, () => fn(cap));
   return out;
 }
-const extraImporters = [Object.assign((cap) => commissions.importCapture(cap), { label: 'comissoes' })];
+const extraImporters = [Object.assign((cap) => commissions.importCapture(cap), { label: 'comissoes' }), Object.assign((cap) => support.importCapture(cap), { label: 'suporte' })];
 const cashHook = (cap) => (typeof cash === 'undefined' ? null : cash.importLegacy(cashRowsFromCapture(cap)));
 agent.liveInfo = () => live.promptInfo(`${publicBase()}/live`);
 const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
@@ -551,6 +552,16 @@ const commissions = new Commissions({
   },
 });
 sales.levelPct = (id) => commissions.levelPct(id);
+// Suporte interno (chamados com prazo de resposta e de solução).
+const support = new Support({
+  store,
+  notify: async (kind, payload) => {
+    if (kind === 'admins') return notifyAdmins(payload);
+    const u = kind === 'user' ? auth.get(payload.userId) : null;
+    if (u?.whatsapp && wa.status === 'connected') return wa.send(u.whatsapp, { text: payload.text, typing: false });
+    return null;
+  },
+});
 // Pix da entrada confirmado: a venda é lançada sozinha a partir do último orçamento do cliente.
 const salesOnPaid = (p) => {
   try {
@@ -1351,7 +1362,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1781,6 +1792,8 @@ const SELLER_ROUTES = [
   ['GET', /^\/services$/],
   ['GET', /^\/commissions\/me$/],
   ['POST', /^\/withdrawals$/],
+  ['GET', /^\/support(\/[a-f0-9]+)?$/],
+  ['POST', /^\/support(\/[a-f0-9]+\/messages)?$/],
   ['*', /^\/videocall\/me$/],
   ['POST', /^\/videocall\/[a-z0-9]+\/cancel$/],
 ];
@@ -2980,6 +2993,16 @@ app.post('/api/withdrawals/:id/:action', async (req, res) => {
   const w = await commissions.decide(req.user, req.params.id, req.params.action, req.body || {});
   audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'saque de comissão', label: `${w.sellerName} · R$ ${w.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} → ${w.status}` });
   res.json(w);
+});
+// ---- Suporte interno ----
+app.get('/api/support', (req, res) => res.json({ sla: SUPPORT_SLA, ...support.list(req.user, { status: String(req.query.status || 'abertos'), q: String(req.query.q || '') }) }));
+app.post('/api/support', async (req, res) => res.json(await support.open(req.user, req.body || {})));
+app.get('/api/support/:id', (req, res) => res.json(support.get(req.user, req.params.id)));
+app.post('/api/support/:id/messages', async (req, res) => res.json(await support.reply(req.user, req.params.id, req.body || {})));
+app.post('/api/support/:id/resolve', async (req, res) => {
+  const t = await support.resolve(req.user, req.params.id, req.body || {});
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'chamado de suporte', label: `${t.number} resolvido` });
+  res.json(t);
 });
 // ---- Tarefas da equipe ----
 const tasks = new Tasks({ store, auth });
