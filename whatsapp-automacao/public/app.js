@@ -1244,7 +1244,13 @@ $('#btnPendingReply').addEventListener('click', async () => {
   try {
     const r = await api('/api/pending/reply', { method: 'POST', body: { jids } });
     let msg = `${r.queued} cliente(s) na fila do agente`;
-    if (r.blocked) msg += `. ${r.blocked} ignorado(s): o agente está em modo de teste (só responde os números de teste)`;
+    if (r.blocked) {
+      const why = [];
+      if (r.reasons?.teste) why.push(`${r.reasons.teste} por o agente estar em modo de teste (só responde os números de teste)`);
+      if (r.reasons?.instagram24h) why.push(`${r.reasons.instagram24h} do Instagram com mais de 24 horas (regra do Instagram: não dá para responder)`);
+      if (r.reasons?.desconectado) why.push(`${r.reasons.desconectado} por o número do WhatsApp não estar conectado`);
+      msg += `. ${r.blocked} ignorado(s): ${why.join('; ') || 'motivo não identificado'}`;
+    }
     toast(msg, Boolean(r.blocked && !r.queued));
     loadPending();
   } catch (err) {

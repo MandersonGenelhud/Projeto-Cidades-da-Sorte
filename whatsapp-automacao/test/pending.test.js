@@ -68,7 +68,7 @@ test('responder pendentes respeita o modo de teste', () => {
   inbox.onIncoming({ jid: 'x@s.whatsapp.net', phone: '595981111111', name: 'Eu', text: 'oi' });
   inbox.onIncoming({ jid: 'y@s.whatsapp.net', phone: '595982222222', name: 'Cliente', text: 'oi' });
   const r = inbox.enqueue(['x@s.whatsapp.net', 'y@s.whatsapp.net']);
-  assert.deepEqual(r, { queued: 1, blocked: 1 });
+  assert.equal(r.queued, 1); assert.equal(r.blocked, 1); assert.equal(r.reasons.teste, 1);
   inbox.cancel();
 });
 
@@ -308,4 +308,23 @@ test('a pausa de "respondi pelo celular" termina sozinha depois de horas sem o d
   await inbox.agent.handleIncoming({ key: jid, phone: '595982222222', name: 'A', text: 'alguém aí?' }, send);
   assert.ok(wa.sent.length >= 1, '7 h depois: a IA retoma e responde');
   assert.equal(inbox.agent.conversation(jid).handoff, false);
+});
+
+test('WhatsApp e Instagram não se misturam: WhatsApp de 20 dias entra na fila; Instagram de 2 dias é barrado pela regra de 24h, com o motivo certo', () => {
+  const { inbox, store } = setup();
+  store.updateSettings({ agent: { pendingMaxDays: 30 } });
+  const day = 86_400_000;
+  inbox.items['595981111111@s.whatsapp.net'] = { jid: '595981111111@s.whatsapp.net', channel: 'whatsapp', phone: '595981111111', name: 'Ana', texts: ['oi'], at: Date.now() - 20 * day, source: 'histórico' };
+  inbox.items['ig:123'] = { jid: 'ig:123', channel: 'instagram', username: 'fulano', phone: null, name: 'Fulano', texts: ['oi'], at: Date.now() - 2 * day, source: 'histórico' };
+  const r = inbox.enqueue(['595981111111@s.whatsapp.net', 'ig:123']);
+  assert.equal(r.queued, 1);
+  assert.equal(r.reasons.instagram24h, 1);
+  assert.equal(r.reasons.teste, 0);
+});
+
+test('modo de teste: o motivo informado é "teste", não outro', () => {
+  const { inbox } = setup({ audience: 'test', testNumbers: ['595999999999'] });
+  inbox.items['595981111111@s.whatsapp.net'] = { jid: '595981111111@s.whatsapp.net', channel: 'whatsapp', phone: '595981111111', name: 'Ana', texts: ['oi'], at: Date.now() - 1000, source: 'recebida' };
+  const r = inbox.enqueue(['595981111111@s.whatsapp.net']);
+  assert.equal(r.queued, 0); assert.equal(r.reasons.teste, 1);
 });

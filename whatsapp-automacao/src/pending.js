@@ -199,20 +199,29 @@ export class PendingInbox {
     if (!this.agent.active) throw new Error('Falta a chave da IA: cole a chave na aba Agente IA e clique em Salvar.');
     const allowed = [];
     const blocked = [];
+    // Por que alguém ficou de fora (cada canal segue a sua regra: só o Instagram tem a janela de 24 horas).
+    const reasons = { teste: 0, instagram24h: 0, desconectado: 0 };
     const isConnected = (jid) => (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected');
     for (const jid of jids) {
       const p = this.items[jid];
       if (!p || this.queue.includes(jid)) continue;
       // O Instagram só permite responder até 24h depois da última mensagem do cliente.
       const igExpired = jid.startsWith('ig:') && Date.now() - p.at > 24 * 3600 * 1000;
-      if (isConnected(jid) && !igExpired && this.autoReply.agentAllowed({ phone: p.phone, username: p.username, channel: p.channel })) allowed.push(jid);
-      else blocked.push(jid);
+      const connected = isConnected(jid);
+      const permitted = this.autoReply.agentAllowed({ phone: p.phone, username: p.username, channel: p.channel });
+      if (connected && !igExpired && permitted) allowed.push(jid);
+      else {
+        blocked.push(jid);
+        if (igExpired) reasons.instagram24h += 1;
+        else if (!connected) reasons.desconectado += 1;
+        else reasons.teste += 1;
+      }
     }
-    if (!allowed.length && !blocked.length) return { queued: 0, blocked: 0 };
+    if (!allowed.length && !blocked.length) return { queued: 0, blocked: 0, reasons };
     this.queue.push(...allowed);
     this.#changed();
     if (!this.running) this.#run().catch((err) => this.store.addLog({ type: 'error', message: `Fila de pendentes: ${err.message}` }));
-    return { queued: allowed.length, blocked: blocked.length };
+    return { queued: allowed.length, blocked: blocked.length, reasons };
   }
 
   /**
