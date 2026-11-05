@@ -3441,7 +3441,15 @@ app.patch('/api/users/:id', (req, res) => {
     if (target.id === req.user.id) throw httpError(403, 'Peça ao administrador para mudar o seu próprio acesso');
     body = Object.fromEntries(Object.entries(body).filter(([k]) => ['name', 'whatsapp', 'active', 'receivesLeads', 'sectors', 'password'].includes(k)));
   }
+  // Virar (ou deixar de ser) administrador geral: só outro administrador geral faz, nunca em si mesmo; fica no registro de segurança e os demais são avisados.
+  const roleChange = body.role !== undefined && (body.role === 'admin') !== (target.role === 'admin');
+  if (roleChange && target.id === req.user.id) throw httpError(403, 'Você não pode mudar o seu próprio nível de acesso. Peça a outro administrador geral.');
   const user = auth.update(req.params.id, body);
+  if (roleChange) {
+    const made = user.role === 'admin';
+    securityEvent(made ? 'admin_geral_concedido' : 'admin_geral_removido', req.user, req, target.name);
+    notifyAdmins(`${made ? '🛡️' : '⚠️'} *${made ? 'Novo administrador geral' : 'Administrador geral removido'}*\n👤 ${target.name}\nFeito por: ${req.user.name}\n🕒 ${new Date().toLocaleString('pt-BR')}\n\nSe não foi combinado, troque as senhas e fale com o Marcos.`).catch(() => {});
+  }
   // A conexão do vendedor leva o nome dele.
   const line = lines.byOwner(user.id);
   if (line && line.label !== user.name) lines.update(line.id, { label: user.name });

@@ -634,6 +634,7 @@ loaders.team = async () => {
       ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? 'Pausar rodízio' : '▶Pôr no rodízio'}</button>
         <button class="btn small" data-act="affleads" title="Indicações de parceiros pagam comissão menor ao vendedor">${u.receivesAffiliateLeads ? 'Parar indicações' : 'Receber indicações'}</button>
         ${u.role !== 'admin' && window.currentUser?.role === 'admin' ? `<button class="btn small ${u.officeAdmin ? 'primary' : ''}" data-act="officeadmin" title="Administrador do escritório cuida da equipe e dos resultados só do escritório dele">${u.officeAdmin ? 'É admin do escritório' : 'Tornar admin do escritório'}</button><button class="btn small" data-act="office">Mudar de escritório</button>` : ''}
+        ${window.currentUser?.role === 'admin' && u.id !== window.currentUser.id ? `<button class="btn small ${u.role === 'admin' ? 'primary' : ''}" data-act="generaladmin" title="Administrador geral vê e gerencia os dois escritórios e todo o sistema">${u.role === 'admin' ? 'É administrador geral' : 'Tornar administrador geral'}</button>` : ''}
         ${u.role !== 'admin' ? `<button class="btn small ${u.manager ? 'primary' : ''}" data-act="manager" title="Gerente cadastra mapas, lotes, veículos e alunos (nunca exclui)">${u.manager ? 'É gerente' : 'Tornar gerente'}</button>` : ''}` : ''}
       <button class="btn small" data-act="edit">Editar</button>
       <button class="btn small" data-act="password">Senha</button>
@@ -691,6 +692,14 @@ $('#teamList').addEventListener('click', async (e) => {
     } else if (act === 'officeadmin') {
       const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
       await api(`/api/users/${id}`, { method: 'PATCH', body: { officeAdmin: !u?.officeAdmin } });
+    } else if (act === 'generaladmin') {
+      const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
+      const make = u?.role !== 'admin';
+      if (!confirm(make
+        ? `Tornar ${u?.name} ADMINISTRADOR GERAL? Ela(e) passa a ver e gerenciar os dois escritórios, o caixa, os contratos, a equipe e as configurações. Os outros administradores serão avisados no WhatsApp.`
+        : `Remover ${u?.name} de administrador geral? Passa a ser vendedor(a).`)) return;
+      await api(`/api/users/${id}`, { method: 'PATCH', body: { role: make ? 'admin' : 'seller' } });
+      toast(make ? 'Agora é administrador geral' : 'Agora é vendedor');
     } else if (act === 'office') {
       const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
       const to = u?.office === 'pr' ? 'py' : 'pr';

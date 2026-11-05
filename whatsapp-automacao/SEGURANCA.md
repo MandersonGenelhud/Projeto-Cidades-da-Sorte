@@ -118,3 +118,5 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Dependências atualizadas e verificadas, testes automáticos e revisão de cada mudança antes de publicar.
 
 | Busca nas conversas (`/api/search/conversations`) | Só administrador (`needAdmin`); respeita o escritório escolhido; ignora o simulador. Teste: `test/convsearch.test.js`. |
+
+| Administrador geral (`PATCH /api/users/:id` com `role`) | Só administrador geral concede ou remove; ninguém muda o próprio nível; o último administrador não sai; fica no registro de segurança e os demais administradores recebem aviso no WhatsApp. Teste: `test/general-admin-http.test.js`. |
