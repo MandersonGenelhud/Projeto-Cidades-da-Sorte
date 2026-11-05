@@ -33,7 +33,7 @@
     if (d.extras.retomarNovos) alerts.push(`${d.extras.retomarNovos} contato(s) para retomar`);
     if (d.extras.whatsapp !== 'connected') alerts.push('WhatsApp desconectado');
     ex.querySelector('#xd').innerHTML = `
-      <header class="xd-head"><div><small>${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</small><h1>Painel executivo</h1></div><button class="xd-btn" id="xdRefresh" type="button">Atualizar</button></header>
+      <header class="xd-head"><div><small>${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</small><h1>Painel</h1></div><button class="xd-btn" id="xdRefresh" type="button">Atualizar</button></header>
       ${alerts.length ? `<div class="xd-alerts">${alerts.map((a) => `<span>${icon('alert', 15)}${esc(a)}</span>`).join('')}</div>` : '<div class="xd-alerts ok"><span>Sem pendências no momento</span></div>'}
       <section class="xd-grid xd-kpis">
         ${kpi('wallet', 'Recebido no mês', brl(k.recebidoMes), `${d.months.at(-1).vendas} venda(s) no mês`, 'g')}
@@ -70,7 +70,24 @@
   async function load() {
     try { data = await api('/api/executive'); render(); } catch (e) { ex.querySelector('#xd').innerHTML = `<p class="xd-muted">${esc(e.message)}</p>`; }
   }
-  loaders.executive = () => { load(); clearInterval(load.t); load.t = setInterval(() => { if (ex.classList.contains('active')) load(); else clearInterval(load.t); }, 60000); };
+  loaders.executive = () => { load(); if (window.currentUser?.role === 'admin') loaders.dashboard?.().catch?.(() => {}); clearInterval(load.t); load.t = setInterval(() => { if (ex.classList.contains('active')) load(); else clearInterval(load.t); }, 60000); };
+
+  // O antigo "Painel" (números do atendimento automático) virou um bloco deste painel.
+  const dash = document.getElementById('tab-dashboard');
+  if (dash) {
+    dash.querySelector('h1')?.remove();
+    const box = document.createElement('details');
+    box.className = 'panel exec-robot';
+    box.id = 'execRobot';
+    box.setAttribute('data-admin', '');
+    try { box.open = localStorage.getItem('execRobotOpen') !== '0'; } catch { box.open = true; }
+    box.innerHTML = '<summary><b>Atendimento automático</b> <span class="hint">números de hoje, atividade recente e como começar</span></summary>';
+    while (dash.firstChild) box.appendChild(dash.firstChild);
+    dash.remove();
+    ex.appendChild(box);
+    box.addEventListener('toggle', () => { try { localStorage.setItem('execRobotOpen', box.open ? '1' : '0'); } catch { /* ok */ } });
+    window.tabRedirects = { ...window.tabRedirects, dashboard: () => { box.open = true; showTab('executive'); } };
+  }
 
   // ---------------- MÓDULOS (STANDBY) ----------------
   const md = document.createElement('section');

@@ -77,7 +77,10 @@ const lines = (text) => String(text || '').split(/[\n,;]+/).map((s) => s.trim())
 
 // ---------- Navegação ----------
 const loaders = {};
+// Telas que foram juntadas a outra: o endereço antigo leva para a nova (window.tabRedirects).
 function showTab(name) {
+  const redirect = window.tabRedirects?.[name];
+  if (redirect) return redirect();
   const btn = $(`nav button[data-tab="${name}"]`);
   if (!btn || (btn.hasAttribute('data-admin') && window.currentUser?.role !== 'admin' && !(btn.hasAttribute('data-officeadmin') && window.currentUser?.officeAdmin))) name = window.currentUser?.role === 'admin' ? 'sales' : 'leads';
   $$('nav button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));

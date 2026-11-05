@@ -1,11 +1,35 @@
 // "Contratos (quadros)": um quadro por contrato, com busca, filtros e prévia; e o sininho de avisos (vencimentos, renovações, assinaturas).
 (() => {
-  const host = document.querySelector('#tab-lots')?.parentElement;
-  if (!host) return;
-  const sec = document.createElement('section');
-  sec.id = 'tab-contractcards';
-  sec.className = 'tab';
-  host.appendChild(sec);
+  // Uma tela só de Contratos: "Quadros" (um cartão por contrato, novo e antigo) e "Lista" (vendas com parcelas e comissões).
+  const tab = document.querySelector('#tab-contracts');
+  if (!tab) return;
+  const head = tab.querySelector('.page-head');
+  head.querySelector('h1').textContent = 'Contratos';
+  const listBox = document.createElement('div');
+  listBox.id = 'contractsList';
+  while (head.nextSibling) listBox.appendChild(head.nextSibling);
+  const sec = document.createElement('div');
+  sec.id = 'contractsCards';
+  tab.append(sec, listBox);
+  const filters = head.querySelector('.row');
+  const seg = document.createElement('div');
+  seg.className = 'seg';
+  seg.setAttribute('role', 'group');
+  seg.setAttribute('aria-label', 'Visualização dos contratos');
+  seg.innerHTML = '<button type="button" class="btn small" data-cview="quadros">Quadros</button><button type="button" class="btn small" data-cview="lista">Lista e comissões</button>';
+  head.insertBefore(seg, filters);
+  let view = (() => { try { return localStorage.getItem('contractsView') === 'lista' ? 'lista' : 'quadros'; } catch { return 'quadros'; } })();
+  const listLoader = loaders.contracts;
+  function setView(v) {
+    view = v;
+    try { localStorage.setItem('contractsView', v); } catch { /* ok */ }
+    seg.querySelectorAll('[data-cview]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cview === v)));
+    sec.hidden = v !== 'quadros';
+    listBox.hidden = v !== 'lista';
+    filters.hidden = v !== 'lista';
+  }
+  seg.addEventListener('click', (e) => { const b = e.target.closest('[data-cview]'); if (b) { setView(b.dataset.cview); loaders.contracts(); } });
+  setView(view);
   const brl = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   const br = (d) => (d ? String(d).split('-').reverse().join('/') : '—');
   const ST = { em_atraso: ['Em atraso', '#d93025'], ativo: ['Em dia', '#1f8a5b'], quitado: ['Quitado', '#1a73e8'], cancelado: ['Cancelado', '#80868b'] };
@@ -28,8 +52,7 @@
     const qs = new URLSearchParams({ q: f.q, filter: f.filter, sort: f.sort, page: f.page, per: 24 });
     const r = await api(`/api/contract-cards?${qs}`); last = r;
     const pages = Math.max(1, Math.ceil(r.total / r.per));
-    sec.innerHTML = `<div class="page-head"><h1>Contratos (quadros)</h1></div>
-      <p class="hint">Um quadro para cada contrato, do sistema novo e do antigo. Busque pelo nome, número do contrato, CPF, telefone, serviço ou vendedor. Clique no quadro para ver a ficha completa do cliente.</p>
+    sec.innerHTML = `<p class="hint">Um quadro para cada contrato, do sistema novo e do antigo. Busque pelo nome, número do contrato, CPF, telefone, serviço ou vendedor. Clique no quadro para ver a ficha completa do cliente.</p>
       <div class="panel"><div class="row"><input id="ccQ" placeholder="Buscar nome, nº do contrato, CPF, telefone…" value="${esc(f.q)}" style="flex:1;min-width:220px" /><select id="ccS"><option value="recente" ${f.sort === 'recente' ? 'selected' : ''}>Mais recentes</option><option value="atraso" ${f.sort === 'atraso' ? 'selected' : ''}>Maior atraso</option><option value="valor" ${f.sort === 'valor' ? 'selected' : ''}>Maior valor</option><option value="renovacao" ${f.sort === 'renovacao' ? 'selected' : ''}>Renovação mais próxima</option><option value="nome" ${f.sort === 'nome' ? 'selected' : ''}>Nome (A a Z)</option></select></div>
         <div class="row" style="flex-wrap:wrap">${FIL.map(([k, v]) => `<button class="btn small ${f.filter === k ? 'primary' : ''}" data-a="fil" data-v="${k}">${v} <span class="hint">${k === '' ? r.counts.todos : (r.counts[k] ?? '')}</span></button>`).join('')}</div></div>
       <div class="grid2" style="grid-template-columns:repeat(auto-fill,minmax(310px,1fr))">${r.items.map(card).join('') || '<p class="muted">Nenhum contrato com esses filtros.</p>'}</div>
@@ -49,7 +72,10 @@
   let tm;
   sec.addEventListener('input', (e) => { if (e.target.id === 'ccQ') { f.q = e.target.value; f.page = 1; clearTimeout(tm); tm = setTimeout(() => load().then(() => { const i = sec.querySelector('#ccQ'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }).catch(() => {}), 350); } });
   sec.addEventListener('change', (e) => { if (e.target.id === 'ccS') { f.sort = e.target.value; load().catch(() => {}); } });
-  loaders.contractcards = () => load().catch((e) => toast(e.message, true));
+  loaders.contracts = () => (view === 'quadros' ? load().catch((e) => toast(e.message, true)) : listLoader?.());
+  // Endereço antigo (#contractcards e avisos do sininho) abre os quadros.
+  window.tabRedirects = { ...window.tabRedirects, contractcards: () => { setView('quadros'); showTab('contracts'); } };
+  loaders.contractcards = window.tabRedirects.contractcards;
 
   // ---------- Sininho de avisos ----------
   const menu = document.querySelector('.user-menu');

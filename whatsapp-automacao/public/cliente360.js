@@ -22,18 +22,29 @@
   async function open(n, p, d) {
     const r = await api(`/api/customers/360?name=${encodeURIComponent(n)}&phone=${encodeURIComponent(p)}&doc=${encodeURIComponent(d)}`);
     const m = r.money;
-    sec.querySelector('#c3Out').innerHTML = `<div class="panel"><h2>${esc(r.person.name)}</h2><div class="hint">${r.person.phone ? `+${esc(r.person.phone)} · ` : ''}${esc(r.person.doc)} ${esc(r.person.email)}</div>
+    const src = r.person.sources || {};
+    const field = (label, v, from) => `<div class="c3-field"><span class="hint">${label}</span><b>${v ? esc(v) : '<span class="muted">não informado</span>'}</b>${v && from ? `<small>veio de: ${esc(from)}</small>` : ''}</div>`;
+    sec.querySelector('#c3Out').innerHTML = `<div class="panel"><h2>${esc(r.person.name)}</h2>
+      <div class="c3-fields">${field('Nome', r.person.name, src.name)}${field('Telefone', r.person.phone ? `+${r.person.phone}` : '', src.phone)}${field('Documento', r.person.doc, src.doc)}${field('E-mail', r.person.email, src.email)}</div>
       <div class="grid2"><div class="card"><div class="hint">Vendido</div><b style="font-size:22px">${brl(m.sold)}</b></div><div class="card"><div class="hint">Recebido</div><b style="font-size:22px">${brl(m.received)}</b><div class="hint">${m.parcelsPaid} de ${m.parcelsTotal} parcelas</div></div><div class="card"><div class="hint">Em aberto</div><b style="font-size:22px">${brl(m.open)}</b></div><div class="card"><div class="hint">Em atraso</div><b style="font-size:22px;color:${m.overdue ? '#d93025' : 'inherit'}">${brl(m.overdue)}</b><div class="hint">${m.overdueParcels} parcela(s)</div></div></div></div>
       ${r.sales.map((s) => `<div class="panel"><h3>Contrato ${esc(s.number)} · ${brl(s.total)} <span class="chip">${esc(s.status)}</span>${s.legacy ? ' <span class="chip">sistema antigo</span>' : ''}</h3><div class="hint">${esc(s.seller)}</div><div class="table-wrap"><table><tbody>${s.parcels.map((p) => `<tr><td>${esc(p.label)}</td><td>${brl(p.value)}</td><td>${esc(br(p.due))}</td><td>${p.status === 'pago' ? `<span class="chip">Pago ${esc(br(p.paidAt))}</span>` : p.late ? '<span class="chip" style="color:#d93025">Atrasada</span>' : 'A vencer'}${p.claimed ? ' <span class="chip">vendedor avisou</span>' : ''}</td></tr>`).join('')}</tbody></table></div></div>`).join('') || '<div class="panel"><p class="muted">Sem contratos ligados a esta pessoa.</p></div>'}
       <div class="panel"><h3>Documentos</h3>${r.documents.map((d) => `<div>${esc(d.type.replace(/_/g, ' '))} ${d.number ? `nº ${esc(d.number)}` : ''} · ${esc(d.status)} · emitido ${esc(br(d.issuedAt))}${d.renewalAt ? ` · renovação ${esc(br(d.renewalAt))}` : ''}</div>`).join('') || '<p class="muted">Nenhum.</p>'}
         <h3>Orçamentos</h3>${r.quotes.map((q) => `<div>${esc(q.number)} · ${brl(q.total)} · válido até ${esc(br(q.validUntil))}</div>`).join('') || '<p class="muted">Nenhum.</p>'}
         <h3>No CRM</h3>${r.leads.map((l) => `<div>${esc(l.code)} · etapa ${esc(l.stage)}${l.owner ? ` · ${esc(l.owner)}` : ''}${l.interest ? ` · ${esc(l.interest)}` : ''}</div>`).join('') || '<p class="muted">Não está no CRM.</p>'}</div>
-      <div class="panel"><h3>Linha do tempo</h3>${r.timeline.map((e) => `<div class="row"><span class="hint" style="width:90px">${esc(br(e.date))}</span><span class="chip">${esc(e.kind)}</span><span>${esc(e.text)}</span></div>`).join('') || '<p class="muted">Sem eventos.</p>'}</div>
+      <div class="panel" id="c3Tl"><div class="conv-header"><h3>Linha do tempo</h3><div class="row c3-kinds">${['todos', ...new Set(r.timeline.map((e) => e.kind))].map((k) => `<button type="button" class="btn small" data-a="kind" data-k="${esc(k)}" aria-pressed="${k === 'todos'}">${esc(k === 'todos' ? 'Tudo' : k[0].toUpperCase() + k.slice(1))}</button>`).join('')}</div></div>
+        <ol class="c3-tl">${r.timeline.map((e) => `<li data-kind="${esc(e.kind)}"><span class="c3-date">${esc(br(e.date))}</span><div><span class="chip">${esc(e.kind)}</span> ${esc(e.text)}<small>Origem: ${esc(e.source || 'não informada')}${e.by ? ` · por ${esc(e.by)}` : ''}</small></div></li>`).join('') || '<li class="muted">Sem eventos.</li>'}</ol></div>
       ${r.conversations.map((c) => `<div class="panel"><h3>Últimas mensagens</h3>${c.messages.map((m) => `<div class="hint"><b>${m.role === 'user' ? 'Cliente' : 'Atendimento'}:</b> ${esc(m.content)}</div>`).join('')}</div>`).join('')}`;
     sec.querySelector('#c3Out').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   let tm;
   sec.addEventListener('input', (e) => { if (e.target.id === 'c3Q') { clearTimeout(tm); tm = setTimeout(() => search(e.target.value).catch((err) => toast(err.message, true)), 300); } });
+  // Filtro da linha do tempo por tipo (venda, pagamento, conversa…).
+  sec.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-a="kind"]'); if (!t) return;
+    const k = t.dataset.k;
+    sec.querySelectorAll('[data-a="kind"]').forEach((b) => b.setAttribute('aria-pressed', String(b === t)));
+    sec.querySelectorAll('.c3-tl li[data-kind]').forEach((li) => { li.hidden = k !== 'todos' && li.dataset.kind !== k; });
+  });
   sec.addEventListener('click', (e) => { const t = e.target.closest('[data-a="open"]'); if (t) open(t.dataset.n, t.dataset.p, t.dataset.d).catch((err) => toast(err.message, true)); });
   // Duplicados: cadastros repetidos de clientes (só junta com a sua confirmação).
   async function dups() {

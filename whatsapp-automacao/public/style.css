@@ -1176,3 +1176,18 @@ nav.subnav button .ico { opacity: .8; }
 .views-bar select { width: auto; min-width: 190px; }
 .views-bar #leadSummary { margin-left: auto; font-size: 13px; }
 @media (max-width: 600px) { .views-bar #leadSummary { margin-left: 0; width: 100%; } .views-bar select { flex: 1; } }
+
+/* Ficha 360: dados com origem e linha do tempo única */
+.c3-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 18px; margin: 4px 0 16px; }
+.c3-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.c3-field b { overflow-wrap: anywhere; }
+.c3-field small, .c3-tl small { color: var(--muted); font-size: 12px; display: block; }
+.c3-kinds { flex-wrap: wrap; gap: 4px; }
+.c3-kinds .btn[aria-pressed='true'] { background: var(--green-dark); border-color: var(--green-dark); color: #fff; }
+.c3-tl { list-style: none; margin: 8px 0 0; padding: 0 0 0 4px; border-left: 2px solid var(--border); }
+.c3-tl li { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 8px 0 8px 12px; position: relative; }
+.c3-tl li::before { content: ''; position: absolute; left: -6px; top: 14px; width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--panel, #fff); }
+.c3-date { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .c3-tl li { grid-template-columns: 1fr; gap: 2px; } }
+.exec-robot { margin-top: 18px; }
+.btn.primary .hint { color: inherit; opacity: .85; }

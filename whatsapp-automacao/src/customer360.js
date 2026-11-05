@@ -60,10 +60,31 @@ export class Customer360 {
     const ids = { phone, doc: doc || sales.find((s) => s.client?.doc)?.client.doc || '', name: name || sales[0]?.client?.nome || '' };
     const m2 = this.#matcher(ids);
     const legacy = this.legacyClients().filter((c) => m2(c));
-    const person = { name: ids.name || legacy[0]?.name || '', phone: digits(phone) || digits(legacy.find((c) => c.phone)?.phone) || digits(sales.find((s) => s.client?.phone)?.client.phone), doc: ids.doc || legacy.find((c) => c.doc)?.doc || '', email: legacy.find((c) => c.email)?.email || '' };
+    // Cada dado da pessoa guarda de onde veio (evidência): nunca "chuta" quem é a pessoa.
+    const saleRef = (s) => `contrato ${s.legacyNumber || s.number}${s.legacy ? ' (sistema antigo)' : ''}`;
+    const pick = (list) => list.find((x) => x[0]) || ['', ''];
+    const [pName, sName] = pick([[ids.name, name ? 'busca feita no painel' : sales[0] ? saleRef(sales[0]) : ''], [legacy[0]?.name, 'cadastro do sistema antigo']]);
+    const salePhone = sales.find((s) => s.client?.phone);
+    const [pPhone, sPhone] = pick([[digits(phone), 'busca feita no painel'], [digits(legacy.find((c) => c.phone)?.phone), 'cadastro do sistema antigo'], [digits(salePhone?.client.phone), salePhone ? saleRef(salePhone) : '']]);
+    const saleDoc = sales.find((s) => s.client?.doc);
+    const [pDoc, sDoc] = pick([[doc, 'busca feita no painel'], [ids.doc, saleDoc ? saleRef(saleDoc) : ''], [legacy.find((c) => c.doc)?.doc, 'cadastro do sistema antigo']]);
+    const [pEmail, sEmail] = pick([[legacy.find((c) => c.email)?.email, 'cadastro do sistema antigo']]);
+    const person = { name: pName || '', phone: pPhone || '', doc: pDoc || '', email: pEmail || '', sources: { name: pName ? sName : '', phone: pPhone ? sPhone : '', doc: pDoc ? sDoc : '', email: pEmail ? sEmail : '' } };
     const m3 = this.#matcher(person);
     const leads = this.leads().filter((l) => m3({ phone: l.phone, name: l.name }));
     const quotes = this.quotes().filter((q) => m3({ phone: q.phone, name: q.client }) || leads.some((l) => l.id === q.leadId));
+    // Origem real de cada dado: o primeiro registro que tem exatamente esse valor.
+    const holders = [
+      ...sales.map((s) => [saleRef(s), { name: s.client?.nome, phone: s.client?.phone, doc: s.client?.doc }]),
+      ...legacy.map((c) => ['cadastro do sistema antigo', c]),
+      ...leads.map((l) => [`Prospectos ${l.code || ''}`.trim(), { name: l.name, phone: l.phone }]),
+    ];
+    const same = { name: (a, b) => norm(a) === norm(b), phone: (a, b) => this.#same(a, b), doc: (a, b) => digits(a).length >= 6 && digits(a) === digits(b), email: (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase() };
+    for (const f of ['name', 'phone', 'doc', 'email']) {
+      if (!person[f]) continue;
+      const h = holders.find(([, o]) => o[f] && same[f](o[f], person[f]));
+      if (h) person.sources[f] = h[0];
+    }
     const docs = this.documents().filter((d) => m3({ name: d.clientName, phone: d.phone }) || (person.name && norm(d.dependentOf) === norm(person.name)));
     const convs = this.conversations().filter((c) => c.phone && this.#same(c.phone, person.phone));
     const contracts = this.legacyContracts().filter((r) => m3({ doc: r.doc, phone: r.phone, name: r.client }));
@@ -73,14 +94,31 @@ export class Customer360 {
     const sum = (l) => round(l.reduce((a, p) => a + p.value, 0));
     const money = { sold: round(sales.filter((s) => s.status !== 'cancelada').reduce((a, s) => a + s.total, 0)), received: sum(parcels.filter((p) => p.status === 'pago')), open: sum(parcels.filter((p) => p.status !== 'pago')), overdue: sum(parcels.filter((p) => p.status !== 'pago' && p.due && p.due < t)), overdueParcels: parcels.filter((p) => p.status !== 'pago' && p.due && p.due < t).length, parcelsTotal: parcels.length, parcelsPaid: parcels.filter((p) => p.status === 'pago').length };
 
+    // Linha do tempo única: tudo da pessoa em ordem de data, cada item com a origem e quem fez.
     const tl = [];
-    const ev = (date, kind, text) => { if (date) tl.push({ date: String(date), kind, text }); };
-    for (const s of sales) { ev(s.createdAt, 'venda', `Venda ${s.legacyNumber || s.number} lançada: R$ ${s.total.toLocaleString('pt-BR')}${s.status === 'cancelada' ? ' (cancelada)' : ''}`); for (const p of s.parcels) if (p.status === 'pago') ev(p.paidAt, 'pagamento', `${p.label} recebida: R$ ${p.value.toLocaleString('pt-BR')}${p.method ? ` (${p.method})` : ''}`); }
-    for (const q of quotes) ev(q.createdAt || q.issued, 'orçamento', `Orçamento ${q.number}: R$ ${q.plan.total.toLocaleString('pt-BR')} (válido até ${q.validUntil.split('-').reverse().join('/')})`);
-    for (const d of docs) { ev(d.issuedAt, 'documento', `${d.type.replace(/_/g, ' ')} emitido${d.number ? ` (nº ${d.number})` : ''}`); ev(d.deliveredAt, 'documento', 'Documento entregue'); }
-    for (const l of leads) { ev(l.createdAt, 'crm', `Entrou no CRM (${l.stage})`); for (const e of (l.timeline || []).slice(-30)) ev(e.at, 'crm', String(e.text || e.type || '').slice(0, 160)); }
-    for (const c of convs) { const m = c.messages || []; if (m.length) { ev(m[0].at, 'conversa', `Primeira mensagem: "${String(m[0].content || '').slice(0, 80)}"`); ev(m.at(-1).at, 'conversa', `Última mensagem: "${String(m.at(-1).content || '').slice(0, 80)}"`); } }
-    for (const l of this.collectionsLog()) if (l.ok && sales.some((s) => s.id === l.saleId)) ev(l.at, 'cobrança', 'Aviso de cobrança enviado');
+    const ev = (date, kind, text, source, by = '') => { if (date) tl.push({ date: String(date), kind, text, source, by: by || '' }); };
+    const brDate = (d) => String(d || '').slice(0, 10).split('-').reverse().join('/');
+    for (const s of sales) {
+      const src = s.legacy ? 'Sistema antigo' : 'Contratos e vendas';
+      ev(s.createdAt, 'venda', `Venda ${s.legacyNumber || s.number} lançada: R$ ${s.total.toLocaleString('pt-BR')}${s.status === 'cancelada' ? ' (cancelada)' : ''}`, src, s.sellerName);
+      for (const p of s.parcels) if (p.status === 'pago') ev(p.paidAt, 'pagamento', `${p.label} recebida: R$ ${p.value.toLocaleString('pt-BR')}${p.method ? ` (${p.method})` : ''}`, `${src}, contrato ${s.legacyNumber || s.number}`);
+    }
+    for (const r of contracts) ev(r.date, 'contrato', `Contrato ${r.number} no sistema antigo${r.status ? ` (${r.status})` : ''}${(r.files || []).length ? `, ${(r.files || []).length} arquivo(s)` : ''}`, 'Sistema antigo');
+    for (const q of quotes) ev(q.createdAt || q.issued, 'orçamento', `Orçamento ${q.number}: R$ ${q.plan.total.toLocaleString('pt-BR')} (válido até ${brDate(q.validUntil)})`, 'Orçamentos', q.sellerName || q.createdBy || '');
+    for (const d of docs) { ev(d.issuedAt, 'documento', `${d.type.replace(/_/g, ' ')} emitido${d.number ? ` (nº ${d.number})` : ''}`, 'Documentos'); ev(d.deliveredAt, 'documento', 'Documento entregue', 'Documentos'); }
+    for (const l of leads) {
+      ev(l.createdAt, 'crm', `Entrou no CRM (${l.stage})`, `Prospectos ${l.code || ''}`.trim());
+      for (const e of (l.timeline || []).slice(-30)) ev(e.at, 'crm', String(e.text || e.type || '').slice(0, 160), e.type === 'ia' ? 'IA, lendo a conversa' : `Prospectos ${l.code || ''}`.trim(), e.by === 'Sistema' ? '' : e.by);
+      // O que a IA apurou vem com a frase do cliente como prova.
+      const q = l.qualification;
+      if (q?.at && q.moneyEvidence) ev(q.at, 'evidência', `Sobre dinheiro: "${String(q.moneyEvidence).slice(0, 140)}"`, 'IA, pela frase do cliente na conversa');
+    }
+    for (const c of convs) {
+      const m = c.messages || [];
+      const ch = String(c.key || '').startsWith('ig:') ? 'Instagram' : 'WhatsApp';
+      if (m.length) { ev(m[0].at, 'conversa', `Primeira mensagem: "${String(m[0].content || '').slice(0, 80)}"`, ch); ev(m.at(-1).at, 'conversa', `Última mensagem: "${String(m.at(-1).content || '').slice(0, 80)}"`, ch); }
+    }
+    for (const l of this.collectionsLog()) if (l.ok && sales.some((s) => s.id === l.saleId)) ev(l.at, 'cobrança', 'Aviso de cobrança enviado', 'Cobrança (WhatsApp)');
     tl.sort((a, b) => b.date.localeCompare(a.date));
 
     return {
@@ -91,7 +129,7 @@ export class Customer360 {
       leads: leads.map((l) => ({ id: l.id, stage: l.stage, owner: l.ownerName || '', interest: l.interest || '', code: l.code })),
       contracts: contracts.map((r) => ({ number: r.number, value: r.value, status: r.status, date: r.date, files: (r.files || []).length })),
       conversations: convs.map((c) => ({ key: c.key, messages: (c.messages || []).slice(-12).map((m) => ({ role: m.role, content: String(m.content || '').slice(0, 300), at: m.at })) })),
-      timeline: tl.slice(0, 80),
+      timeline: tl.slice(0, 120),
     };
   }
 }

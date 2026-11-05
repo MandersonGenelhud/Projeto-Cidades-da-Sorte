@@ -70,3 +70,20 @@ test('duplicados: acha a mesma pessoa repetida por documento, telefone ou nome e
   assert.equal(legacy.clients.some((x) => x.id === 'b'), false);
   assert.equal(c.duplicates().length, 1);
 });
+
+test('ficha 360: cada dado da pessoa e cada item da linha do tempo diz de onde veio', () => {
+  const c = make();
+  const r = c.build({ doc: '055.206.419-43' });
+  assert.match(r.person.sources.doc, /contrato 2026-000215/, 'o documento está no contrato');
+  assert.equal(r.person.sources.phone, 'cadastro do sistema antigo', 'telefone veio do cadastro antigo');
+  assert.equal(r.person.sources.email, 'cadastro do sistema antigo');
+  assert.match(r.person.sources.name, /contrato 2026-000215/);
+  assert.ok(r.timeline.every((e) => e.source), 'nenhum item sem origem');
+  assert.ok(r.timeline.some((e) => e.kind === 'venda' && e.source === 'Sistema antigo' && e.by === 'Diego'));
+  assert.ok(r.timeline.some((e) => e.kind === 'conversa' && e.source === 'WhatsApp'));
+  assert.ok(r.timeline.some((e) => e.kind === 'cobrança' && /Cobrança/.test(e.source)));
+  // Dado sem origem conhecida fica vazio, não é inventado.
+  const s = c.build({ name: 'Outra Pessoa' });
+  assert.equal(s.person.email, '');
+  assert.equal(s.person.sources.email, '');
+});
