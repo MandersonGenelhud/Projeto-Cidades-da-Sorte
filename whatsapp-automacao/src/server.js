@@ -30,6 +30,7 @@ import { Learnings } from './learnings.js';
 import { ReceiptReader } from './receipts.js';
 import { OWNER_PAUSE } from './agent/agent.js';
 import { Migratech } from './migratech.js';
+import { Contabil } from './contabil.js';
 import { AppSignups, APPS as SIGNUP_APPS } from './app-signups.js';
 import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, BOOKS as CASH_BOOKS, toCsv as cashToCsv } from './cash.js';
 import { Nina } from './assistant.js';
@@ -1392,7 +1393,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js', '/contabil-painel.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -4336,8 +4337,9 @@ const cashBookOfSale = (sale) => {
   return names.length && names.every((n) => serviceCatalog.categoryOf(n) === 'contabil') ? 'contabil' : 'migra';
 };
 const migratech = new Migratech({ store });
+const contabil = new Contabil({ store });
 const appSignups = new AppSignups({ store });
-const cash = new Cash({ store, auth, payments, sales, affiliates, bookOfSale: cashBookOfSale, extraAutomatic: () => migratech.cashEntries() });
+const cash = new Cash({ store, auth, payments, sales, affiliates, bookOfSale: cashBookOfSale, extraAutomatic: () => [...migratech.cashEntries(), ...contabil.cashEntries()] });
 const nina = new Nina({
   store, auth, cash, llm,
   stt: new FallbackStt(new HttpStt({ url: process.env.STT_URL }), new GeminiStt({ getConfig: agentConfig })),
@@ -4536,6 +4538,51 @@ app.post('/api/migratech-withdrawals', (req, res) => {
   const e = cash.add(req.user, { kind: 'saida', amount: b.amount, currency: b.currency || 'BRL', date: b.date, description: String(b.description || '').trim() || `Saque do sócio ${b.partner || ''}`.trim(), category: 'Retirada de sócio', partner: b.partner, method: b.method, notes: b.notes, book: 'migratech' });
   securityEvent('caixa_lancamento', req.user, req, `Caixa Migratech Soluções · saque de sócio ${e.partner} · ${e.amount} ${e.currency}`);
   res.json(e);
+});
+
+// ---- Migra Contábil Paraguay: empresas clientes, obrigações do mês, documentos e honorários ----
+// Só quem vê o Caixa Migra Contábil Paraguay (são dados e dinheiro dos clientes do escritório).
+app.use('/api/contabil', (req, res, next) => {
+  if (!cash.canAccess(req.user, 'contabil')) return res.status(403).json({ error: 'O painel da Migra Contábil Paraguay é restrito a quem vê o caixa dela.' });
+  next();
+});
+app.get('/api/contabil', (req, res) => {
+  const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? String(req.query.month) : undefined;
+  res.json(contabil.overview(month));
+});
+const CT_ACTIONS = {
+  companies: { add: 'addCompany', update: 'updateCompany', label: 'empresa' },
+  obligations: { add: 'addObligation', update: 'updateObligation', label: 'obrigação' },
+  requests: { add: 'addRequest', update: 'updateRequest', label: 'documento pedido' },
+  tasks: { update: 'updateTask', label: 'obrigação do mês' },
+  fees: { update: 'updateFee', label: 'honorário' },
+};
+app.post('/api/contabil/:list', (req, res) => {
+  const a = CT_ACTIONS[req.params.list];
+  if (!a?.add) throw httpError(404, 'Rota não encontrada');
+  const x = contabil[a.add](req.user, req.body || {});
+  audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: `contábil ${a.label}`, label: x.name || x.title || '' });
+  res.json(x);
+});
+app.patch('/api/contabil/:list/:id', (req, res) => {
+  const a = CT_ACTIONS[req.params.list];
+  if (!a?.update) throw httpError(404, 'Rota não encontrada');
+  const x = contabil[a.update](req.user, req.params.id, req.body || {});
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: `contábil ${a.label}`, label: `${x.name || x.title || x.key || x.id}${req.body?.status ? ` → ${req.body.status}` : ''}` });
+  res.json(x);
+});
+app.delete('/api/contabil/:list/:id', (req, res) => {
+  const a = CT_ACTIONS[req.params.list];
+  if (!a) throw httpError(404, 'Rota não encontrada');
+  contabil.remove(req.user, req.params.list, req.params.id, req.body?.reason);
+  audit.record({ user: req.user, ip: clientIp(req), action: 'excluiu', entity: `contábil ${a.label}`, label: `${req.params.id} · ${req.body?.reason || ''}` });
+  res.json({ ok: true });
+});
+app.put('/api/contabil-ruc-days', (req, res) => {
+  if (!cash.canAccess(req.user, 'contabil')) throw httpError(403, 'Só quem vê o painel da Contábil.');
+  const days = contabil.setRucDays(req.body?.days || {});
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'contábil vencimentos por RUC', label: Object.entries(days).map(([d, v]) => `${d}→${v}`).join(' ') });
+  res.json(days);
 });
 
 // ---- Migra Devocional (e outros apps): quantos usuários se cadastraram ----

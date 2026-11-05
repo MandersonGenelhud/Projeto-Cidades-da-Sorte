@@ -1228,3 +1228,16 @@ button.xd-kpi.xd-link:focus-visible, .xd-alert:focus-visible, .xd-more:focus-vis
 .dv-axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 4px; }
 .dv-key { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .dv-key code { overflow-wrap: anywhere; padding: 6px 8px; background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 6px; }
+
+/* Painel da Migra Contábil Paraguay */
+#tab-contabil .page-head { justify-content: flex-start; gap: 14px; }
+.ct-link { font: inherit; text-align: left; cursor: pointer; color: inherit; }
+.ct-link:hover { transform: translateY(-2px); }
+.ct-link:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.ct-progress { margin: 4px 0 18px; }
+.ct-obls { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 12px; margin: 8px 0; }
+.ct-obls legend { font-size: 13px; font-weight: 600; padding: 0 4px; }
+.ct-ruc { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin: 8px 0 12px; }
+.ct-task-status { width: auto; font-size: 13px; padding: 4px 6px; }
+#tab-contabil .row > select, #tab-contabil .row input[type="month"], #tab-migratech .row > select { width: auto; flex: 0 1 auto; }
+#tab-contabil .row { align-items: center; flex-wrap: wrap; }

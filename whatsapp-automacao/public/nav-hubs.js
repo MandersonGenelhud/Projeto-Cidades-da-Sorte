@@ -11,6 +11,7 @@
     { id: 'conversas', label: 'Conversas', icon: 'conversations', tabs: ['conversations', 'lines'] },
     { id: 'vendas', label: 'Vendas e contratos', icon: 'contracts', tabs: ['sales', 'quotes', 'contracts', 'legacy', 'documents'] },
     { id: 'financeiro', label: 'Financeiro', icon: 'cash', tabs: ['collections', 'payments', 'cash', 'commissions'] },
+    { id: 'contabil', label: 'Migra Contábil Paraguay', icon: 'contabil', tabs: ['contabil'] },
     { id: 'servicos', label: 'Serviços e preços', icon: 'pricing', tabs: ['services', 'pricing'] },
     { id: 'parceiros', label: 'Indicadores e sócios', icon: 'affiliates', tabs: ['affiliates', 'share', 'projects'] },
     { id: 'marketing', label: 'Marketing', icon: 'marketing', tabs: ['marketing', 'campaigns', 'schedules', 'send', 'livepage'] },
