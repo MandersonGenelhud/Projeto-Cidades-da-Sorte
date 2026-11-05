@@ -116,3 +116,5 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Backup automático criptografado, com cópia fora e restauração testada.
 - Dados guardados só quando necessários (LGPD). Documentos de clientes nunca ficam com link público permanente.
 - Dependências atualizadas e verificadas, testes automáticos e revisão de cada mudança antes de publicar.
+
+| Busca nas conversas (`/api/search/conversations`) | Só administrador (`needAdmin`); respeita o escritório escolhido; ignora o simulador. Teste: `test/convsearch.test.js`. |

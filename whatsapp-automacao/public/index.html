@@ -1046,6 +1046,14 @@
         <p class="hint">Quem escreveu no Direct há mais de 24 horas (até 15 dias). A Meta não deixa o robô responder depois de 24 horas, então a IA já escreveu a resposta: confira, toque em <b>Copiar e abrir o Direct</b>, cole no Instagram e envie. Ela pede o WhatsApp do cliente para continuar o fechamento por lá.</p>
         <div id="igManualList"></div>
       </div>
+      <form class="row conv-filter" id="convSearchForm" hidden>
+        <input type="search" id="convSearchQ" placeholder="Buscar nas conversas de todos por palavra (ex.: cédula, Pix, terreno)" style="flex:1;min-width:220px" />
+        <select id="convSearchDays" aria-label="Período">
+          <option value="1">Hoje</option><option value="7">7 dias</option><option value="30">30 dias</option><option value="0" selected>Todo o período</option>
+        </select>
+        <button class="btn small primary" type="submit">Buscar</button>
+        <button class="btn small" type="button" id="convSearchClear">Limpar</button>
+      </form>
       <div class="row conv-filter" id="convFilter">
         <button type="button" class="btn small primary" data-channel="">Todas</button>
         <button type="button" class="btn small" data-channel="wa">WhatsApp</button>

@@ -72,6 +72,7 @@ import { Sales } from './sales.js';
 import { contractPdf } from './contract.js';
 import { parseJsonObject } from './crm-ai.js';
 import { collectHandoffs, digestMessage } from './digest.js';
+import { searchConversations } from './convsearch.js';
 import { Sectors, resolvePeople, isOwner } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
 import { Backups } from './backup.js';
@@ -2513,6 +2514,15 @@ app.get('/api/conversations', (req, res) => {
     const id = attendantOf(c, { ids, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) });
     return { ...base, attendantId: id, attendantName: names.get(id) || (id.startsWith('line:') ? id.slice(5) : 'IA conversando (ainda não direcionada)') };
   }));
+});
+// Busca por palavra em todas as conversas (só administrador; respeita o escritório escolhido no alto da tela).
+app.get('/api/search/conversations', (req, res) => {
+  needAdmin(req);
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) throw httpError(400, 'Digite pelo menos 2 letras');
+  const all = Object.values(store.data.conversations || {});
+  const r = searchConversations(all, { q, days: Math.min(3650, Math.max(0, Number(req.query.days) || 0)), canSee: (c) => inOffice(req, conversationOffice(c)) });
+  res.json({ ...r, items: r.items.map((i) => ({ ...i, channelLabel: convLabel(i.key) })) });
 });
 app.use('/api/conversations/:key', (req, _res, next) => {
   if (!canSeeConv(req.user, req.params.key)) throw httpError(403, 'Esta conversa é de outro vendedor');

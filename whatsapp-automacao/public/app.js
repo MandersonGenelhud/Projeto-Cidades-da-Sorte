@@ -1272,7 +1272,29 @@ $('#btnPendingCancel').addEventListener('click', async () => {
 let currentConv = null;
 let convChannel = '';
 let convAttendant = '';
+let convSearching = false;
+// Busca por palavra em todas as conversas (administrador): mostra onde a palavra aparece, com trecho, data e quem falou.
+$('#convSearchForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const q = $('#convSearchQ').value.trim();
+  if (q.length < 2) return toast('Digite pelo menos 2 letras', true);
+  try {
+    const r = await api(`/api/search/conversations?q=${encodeURIComponent(q)}&days=${$('#convSearchDays').value}`);
+    convSearching = true;
+    const when = (d) => (d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '');
+    $('#convList').innerHTML = `<p class="muted">${r.total} conversa(s) com "${esc(q)}"${r.total >= 100 ? ' (mostrando as 100 mais recentes)' : ''}.</p>` + (r.items.map((c) => `
+      <div class="conv-item" data-key="${esc(c.key)}">
+        <span class="chan">${String(c.key).startsWith('ig:') ? 'IG' : 'WA'}</span> <b>${esc(c.name || fmtPhone(c.phone) || (c.username ? '@' + c.username : c.key))}</b> <span class="chip small">${esc(c.channelLabel || '')}</span> <span class="badge pending">${c.matches}</span>
+        ${c.hits.map((h) => `<div class="last">${esc(when(h.at))} · ${h.role === 'user' ? 'Cliente' : 'Atendente'}: ${esc(h.snippet)}</div>`).join('')}
+      </div>`).join('') || '<p class="muted">Nada encontrado.</p>');
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+$('#convSearchClear').addEventListener('click', () => { convSearching = false; $('#convSearchQ').value = ''; loaders.conversations(); });
 loaders.conversations = async () => {
+  $('#convSearchForm').hidden = window.currentUser?.role !== 'admin';
+  if (convSearching) return;
   loadPending();
   if (window.currentUser?.role === 'admin') loadIgManual().catch(() => {});
   const all = await api('/api/conversations');
