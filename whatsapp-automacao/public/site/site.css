@@ -192,3 +192,5 @@ dialog::backdrop { background: rgba(10, 20, 14, .55); }
 .hero-logo { display: block; width: auto; height: clamp(84px, 14vw, 132px); max-width: 70%; object-fit: contain; object-position: left center; margin: 0 0 14px; }
 .brand-tile { display: grid; place-items: center; aspect-ratio: 16 / 10; background: radial-gradient(circle at 50% 45%, #0f3b29, var(--ink) 72%); }
 .brand-tile img { width: 62%; height: 78%; object-fit: contain; }
+.brand-tile.devo { background: #08152e; }
+.brand-tile.devo img { width: 88%; height: 88%; }
