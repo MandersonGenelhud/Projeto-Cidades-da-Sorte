@@ -123,4 +123,4 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 | Mapa das telas do sistema antigo (`POST /api/legacy/screen-map`) | Só administrador; devolve apenas nomes de telas, colunas e campos (nunca nomes, documentos ou valores de clientes). Testes: `test/legacy-map.test.js`, `test/legacy-noise.test.js`. |
 
-| Atalho `/contrato` no WhatsApp do consultor (`src/seller-commands.js`) | Só vale para mensagens enviadas pelo próprio aparelho do consultor (cliente nunca aciona); usa o mesmo fluxo do contrato automático; só aceita pacote da lista; erro nunca vai para o cliente; fica no registro de segurança. Teste: `test/seller-commands.test.js`. |
+| Atalhos no WhatsApp (`/contrato /orcamento /ficha /ia /pausa /lembrar /status /ajuda`; administração: `/resumo /saude`) (`src/seller-commands.js`) | Só vale para mensagens enviadas pelo próprio aparelho do consultor (cliente nunca aciona); usa o mesmo fluxo do contrato automático; só aceita pacote da lista; atalhos de administração só para usuário administrador; erro nunca vai para o cliente; fica no registro de segurança. Teste: `test/seller-commands.test.js`. |

@@ -1143,6 +1143,8 @@ wa.on('message', (msg) => {
   }
   // Conversa do dono consigo mesmo: só a Nina atende (chamada pelo nome ou por áudio). O resto é anotação dele, nunca vai para a atendente.
   if (msg.selfChat) {
+    // Atalhos de administração digitados na conversa "Você" (/resumo, /saude, /ajuda).
+    if (sellerCommands.wants(msg)) { sellerCommands.handle(msg, { self: true }).catch((err) => store.addLog({ type: 'error', message: `Atalho: ${err.message}` })); return; }
     if (!nina.userFor(msg)) store.addLog({ type: 'error', message: `Nina: recebi uma mensagem sua na conversa "Você", mas o número +${msg.phone} não é de um administrador com acesso ao Caixa (aba Equipe: WhatsApp do Marcos + Caixa liberado).` });
     else if (!nina.enabled) store.addLog({ type: 'error', message: 'Nina: recebi uma mensagem sua, mas a Nina está desligada (Caixa → ⚙️ → Nina).' });
     return;
@@ -3850,8 +3852,16 @@ const sellerCommands = makeSellerCommands({
   say: async (convKey, text) => { await wa.send(convKey, { text, typing: false }); const c = agent.conversation(convKey, { create: false }); if (c) agent.remember(c, 'assistant', text); },
   tell: async (owner, text) => { if (owner?.whatsapp) await wa.send(owner.whatsapp, { text, typing: false }); },
   revoke: (jid, id) => wa.revoke(jid, id),
-  ownerOf: (msg) => { const l = parseLineKey(msg.jid); const u = l ? auth.get(lines.get(l.id)?.ownerId) : null; return u || { name: 'Atendimento', whatsapp: store.settings.crm?.ownerPhone || '' }; },
-  audit: (text) => securityEvent('contrato_atalho', { name: 'Atalho /contrato' }, null, text),
+  // Quem digitou: o dono da linha (consultor) ou, no número principal, o administrador.
+  ownerOf: (msg) => { const l = parseLineKey(msg.jid); const u = l ? auth.get(lines.get(l.id)?.ownerId) : null; return u || { name: 'Administração', role: 'admin', whatsapp: store.settings.crm?.ownerPhone || msg.phone || '' }; },
+  sendQuote: (conv, args) => agent.sendQuote(conv, args),
+  sendForm: (conv, args) => agent.sendForm(conv, args),
+  setHandoff: (key, value, reason) => agent.setHandoff(key, value, reason),
+  addTask: (user, body) => tasks.add(user, body),
+  contractSummary: (phone) => contractCards.summarizeFor(phone),
+  digest: () => alerts.digestText(alerts.build({ user: { role: 'admin' } })),
+  health: () => { const h = healthReport(); return `*Saúde do sistema*\n${h.tips.map((t) => `${{ ok: '✅', warn: '⚠️', bad: '🔴' }[t.level] || '•'} ${t.text}`).join('\n')}`; },
+  audit: (text) => securityEvent('atalho_whatsapp', { name: 'Atalho no WhatsApp' }, null, text),
 });
 app.post('/api/quotes/:id/contract/sign-link', async (req, res) => {
   const q = quotes.list.find((x) => x.id === req.params.id);
