@@ -1434,7 +1434,7 @@ app.get('/r/:code', (req, res) => {
   if (!material) return res.redirect(to);
   // Material de campanha: página com título, texto e imagem para a miniatura do WhatsApp, e redireciona na hora.
   const base = String(store.settings.crm?.panelUrl || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
-  const img = material.image ? `${base}/m/img/${material.image}` : `${base}/img/migra-emblema-ouro.png`;
+  const img = material.image ? `${base}/m/img/${material.image}` : `${base}/img/grupo-migra-emblema.png`;
   const desc = String(material.text || '').replace(/\{link\}|\{nome\}/g, '').replace(/\s+/g, ' ').trim().slice(0, 180);
   res.set('Cache-Control', 'no-store').type('html').send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escAttr(material.title)}</title><meta property="og:type" content="website"><meta property="og:title" content="${escAttr(material.title)}"><meta property="og:description" content="${escAttr(desc)}"><meta property="og:image" content="${escAttr(img)}"><meta property="og:url" content="${escAttr(`${base}/r/${code}?m=${material.id}`)}"><meta name="twitter:card" content="summary_large_image">
@@ -1730,7 +1730,7 @@ const BRAND_LOGO = path.join(DATA_DIR, 'brand-logo');
 app.get('/api/brand', (_req, res) => res.json({ ...(store.settings.brand || {}), customLogo: fs.existsSync(BRAND_LOGO) }));
 app.get('/brand/logo', (_req, res) => {
   if (fs.existsSync(BRAND_LOGO)) return res.type(fs.readFileSync(`${BRAND_LOGO}.type`, 'utf8')).sendFile(BRAND_LOGO);
-  res.sendFile(path.join(ROOT, 'public', 'img', 'migra-logo-ouro.png'));
+  res.sendFile(path.join(ROOT, 'public', 'img', 'grupo-migra-logo.png'));
 });
 
 // ---- Login (administrador e vendedores) ----

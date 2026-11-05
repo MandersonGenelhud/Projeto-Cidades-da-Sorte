@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PdfCanvas, PAGE } from './pdfdoc.js';
 
-const LOGO = fileURLToPath(new URL('../public/img/migra-logo-escuro-ouro.jpg', import.meta.url));
+const LOGO = fileURLToPath(new URL('../public/img/grupo-migra-escuro.jpg', import.meta.url));
 const C = { green: '#0B2A1E', gold: '#D4AF37', ink: '#1d1d1f', gray: '#6b6b70', soft: '#F2F6F3', line: '#dfe5e1', red: '#b3261e' };
 const err = (status, message) => Object.assign(new Error(message), { status });
 const cents = (v) => Math.round(Number(v) * 100) / 100;
