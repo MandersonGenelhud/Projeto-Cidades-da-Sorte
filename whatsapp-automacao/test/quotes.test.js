@@ -109,3 +109,20 @@ test('memória da atendente: quem vai morar precisa da licença paraguaia (Ouro)
   assert.equal((once.settings.business.faq.match(/CNH brasileira serve/g) || []).length, 1, 'não repete');
   assert.ok(fsm && pathm);
 });
+
+test('memória da atendente: crise do Paraguai (nov/2026) com cautela, sem afirmar fatos que mudam e sem conselho de banco', async () => {
+  const { buildSystemPrompt } = await import('../src/agent/prompt.js');
+  const { Store } = await import('../src/store.js');
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  const p = buildSystemPrompt(store.settings);
+  assert.match(p, /Momento político e bancário do Paraguai/);
+  assert.match(p, /NÃO afirme quem é o presidente hoje/);
+  assert.match(p, /venha com planejamento e estratégia/);
+  store.settings.business.knowledge = 'Conhecimento antigo.';
+  delete store.settings.agent.crisisMemory2026;
+  store.flush();
+  const again = new Store(store.dataDir);
+  assert.match(again.settings.business.knowledge, /Momento político[\s\S]*Conhecimento antigo/);
+  assert.equal((new Store(store.dataDir).settings.business.knowledge.match(/Momento político e bancário/g) || []).length, 1, 'não repete');
+});

@@ -289,6 +289,15 @@ export class Store extends EventEmitter {
       crmS.lotsGabriel2026 = true;
       this.flush();
     }
+    // Nov/2026: como a atendente responde sobre a crise política e bancária do Paraguai (uma vez; depois o Marcos edita).
+    const bizK = this.data.settings.business;
+    if (bizK && /migra/i.test(bizK.name || '') && !this.data.settings.agent?.crisisMemory2026) {
+      const crise = '# Momento político e bancário do Paraguai (novembro de 2026): como responder\nQuando o cliente perguntar "e agora, com essa crise no Paraguai, ainda vale a pena?", responda com sinceridade e calma:\n- O que aconteceu, em linhas gerais: o Banco Central do Paraguai interveio no Ueno Bank, e o caso virou uma crise política, com pedido de afastamento do presidente e protestos. Pela Constituição, se o presidente sair, quem assume é o vice-presidente; se ele também não puder, segue a linha de sucessão prevista (presidente do Senado, depois o da Câmara dos Deputados) ou o Congresso decide.\n- A situação muda de um dia para o outro: NÃO afirme quem é o presidente hoje, nem datas, prisões, valores ou detalhes que você não tem certeza. Se o cliente quiser saber o fato do dia, diga para acompanhar as notícias oficiais.\n- A nossa visão (é o que a Migra pensa, não uma promessa): a estrutura que atrai brasileiros é de longo prazo e não depende de um governo: impostos baixos e simples (o "10-10-10": IVA de 10%, imposto de renda das empresas de 10% e imposto de renda das pessoas de até 10%), energia barata, lei de maquila e custo de vida acessível. Mesmo num cenário pessimista, para muita gente o Paraguai continua compensando.\n- Cenário otimista: o novo governo assume, o sistema bancário se acalma e a economia segue crescendo. Cenário pessimista: falta de dinheiro nos bancos por um tempo, protestos e órgãos públicos mais lentos (inclusive trâmites de migração e de abertura de empresas). Diga que os dois são possíveis e que a próxima semana mostra o rumo.\n- O conselho: venha com planejamento e estratégia. Não largue tudo no Brasil de forma desesperada; tenha uma reserva para os primeiros meses e conheça a realidade do local. A Migra existe justamente para planejar isso junto com o cliente.\n- Mentalidade: quem olha só para o problema encontra problema; quem olha para a solução encontra solução. As oportunidades continuam aqui.\n- Não fale mal de políticos ou partidos, não dê opinião sobre quem deve governar e não dê conselho sobre em qual banco deixar o dinheiro (para isso, o cliente consulta o banco ou um profissional de finanças).\n';
+      if (!String(bizK.knowledge || '').includes('Momento político e bancário do Paraguai')) bizK.knowledge = `${crise}\n${String(bizK.knowledge || '').trim()}`.trim();
+      this.data.settings.agent ||= {};
+      this.data.settings.agent.crisisMemory2026 = true;
+      this.flush();
+    }
     // Nov/2026: memória da atendente sobre CNH x licença paraguaia (quem vai morar precisa da licença: Ouro, não Prata).
     const biz = this.data.settings.business;
     if (biz && /migra/i.test(biz.name || '') && !this.data.settings.agent?.cnhMemory2026) {
