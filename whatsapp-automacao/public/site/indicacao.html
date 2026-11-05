@@ -46,6 +46,8 @@
     siteChrome('parceiros');
     if (matchMedia('(max-width: 860px)').matches) $('#heroGrid').style.gridTemplateColumns = '1fr';
     const ref = new URLSearchParams(location.search).get('ref') || '';
+    // Link de grupo: depois do pré-cadastro a pessoa entra no grupo do WhatsApp (assim a indicação fica registrada).
+    const group = new URLSearchParams(location.search).get('g') || '';
     api(`/api/public/ref?ref=${encodeURIComponent(ref)}`).then((r) => {
       if (r.name) $('#who').textContent = r.kind === 'consultor' ? `Atendimento com ${r.name}, consultor Migra` : `Indicação de ${r.name}`;
       $('#interest').innerHTML = r.services.map((s) => `<option>${esc(s)}</option>`).join('');
@@ -60,12 +62,18 @@
         const body = Object.fromEntries(new FormData(e.target));
         body.consent = e.target.consent.checked;
         body.ref = ref;
+        if (group) body.group = group;
         const r = await api('/api/public/precadastro', { method: 'POST', body });
         $('#pre').hidden = true;
         $('#done').hidden = false;
         $('#doneCode').textContent = r.code;
         $('#doneText').textContent = r.seller ? `Obrigado! ${r.seller}, da equipe Migra, vai chamar você no WhatsApp em breve.` : 'Obrigado! Um consultor da Migra vai chamar você no WhatsApp em breve.';
-        if (r.whatsappUrl) { $('#doneWa').href = r.whatsappUrl; $('#doneWa').hidden = false; }
+        if (r.groupUrl) {
+          $('#doneText').textContent = `Obrigado! Agora é só entrar no grupo "${r.groupLabel}". Abrindo o grupo...`;
+          $('#doneWa').textContent = 'Entrar no grupo do WhatsApp';
+          $('#doneWa').href = r.groupUrl; $('#doneWa').hidden = false;
+          setTimeout(() => { location.href = r.groupUrl; }, 1200);
+        } else if (r.whatsappUrl) { $('#doneWa').href = r.whatsappUrl; $('#doneWa').hidden = false; }
       } catch (err) {
         $('#preErr').textContent = err.message;
       } finally {

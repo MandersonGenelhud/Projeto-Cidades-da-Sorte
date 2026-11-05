@@ -23,7 +23,14 @@ test('mapa das telas: agrupa por tipo de endereço e não leva valores de client
 test('comparação: reconhece o tema, diz o que temos e o que falta', () => {
   const r = compareMap(buildScreenMap(cap));
   const servicos = r.rows.find((x) => x.path === '/servicos');
-  assert.equal(servicos.status, 'falta');
-  assert.match(servicos.note, /catálogo de serviços/);
+  assert.equal(servicos.status, 'tem');
+  assert.match(servicos.ours, /catálogo com preço, prazo e comissão/);
   assert.equal(r.rows.find((x) => x.path === '/contratos/:id').theme, 'Contratos');
+});
+
+test('comparação: endereços em inglês do sistema antigo (contracts, processes, withdrawals) são reconhecidos', () => {
+  const cap2 = { pages: ['/contracts/9216d553-058a-4f1e-929e-8e74308026f6', '/processes/9216d553-058a-4f1e-929e-8e74308026f6', '/withdrawals', '/support', '/expenses'].map((u) => ({ url: `https://velho.com${u}`, title: 'MigraParaguai — Assessoria Migratória Premium', tables: [], fields: [] })) };
+  const r = compareMap(buildScreenMap(cap2));
+  assert.equal(r.byStatus.conferir, undefined, 'nenhuma tela fica sem correspondência');
+  assert.deepEqual(r.rows.map((x) => x.theme).sort(), ['Caixa e despesas', 'Contratos', 'Processos', 'Saques de comissão', 'Suporte']);
 });

@@ -79,6 +79,7 @@ import { Commissions } from './commissions.js';
 import { Support, SLA as SUPPORT_SLA } from './support.js';
 import { ContractTemplates, importLessons, importTeamContacts } from './legacy-extras.js';
 import { PartnerProjects } from './partner-projects.js';
+import { AffiliateExtras } from './affiliate-extras.js';
 import { buildScreenMap, compareMap } from './legacy-map.js';
 import { Sectors, resolvePeople, isOwner } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
@@ -382,7 +383,13 @@ const affiliates = new Affiliates({
   notifyAffiliate: async (phone, text) => {
     if (wa.status === 'connected') await wa.send(phone, { text, typing: false });
   },
+});// Escritório virtual, parte 2: saque em 24h, cessão de indicação, grupos rastreáveis e materiais de campanha.
+const affExtras = new AffiliateExtras({
+  store, affiliates, crm, dataDir: DATA_DIR,
+  notifyAffiliate: async (phone, text) => { if (phone && wa.status === 'connected') await wa.send(phone, { text, typing: false }); },
+  notifyAdmins: (text) => notifyAdmins(text),
 });
+
 // Aprendizados: cada venda confirmada vira sugestão para o Marcos aprovar (entra no atendimento só depois).
 const learnings = new Learnings({ store, llm });
 agent.learnings = () => learnings.approvedText();
@@ -1382,7 +1389,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1405,13 +1412,34 @@ app.get('/imoveis/fotos/:name', (req, res) => {
   res.set('Cache-Control', 'public, max-age=86400').sendFile(file);
 });
 // Link de indicação: grava quem indicou (o primeiro vale) e leva para o site.
+const LINK_BOT = /whatsapp|facebookexternalhit|facebot|twitterbot|telegrambot|slackbot|linkedinbot|discordbot|bot\b|crawler|spider|preview/i;
+const escAttr = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 app.get('/r/:code', (req, res) => {
-  const { cookies, affiliate, seller } = affiliates.recordClick(req, req.params.code);
+  // O robô que monta a miniatura do link (WhatsApp, Instagram) não conta como clique.
+  const bot = LINK_BOT.test(String(req.get('user-agent') || ''));
+  const { cookies, affiliate, seller } = bot ? { cookies: [], affiliate: affiliates.byCode(req.params.code), seller: affiliates.sellerByCode(req.params.code) } : affiliates.recordClick(req, req.params.code);
   if (cookies.length) res.set('Set-Cookie', cookies);
   // Sem destino, o link leva ao pré-cadastro (é ele que garante a comissão de quem indicou).
   const code = affiliate?.code || seller?.refCode || '';
-  const to = String(req.query.to || (code ? `/indicacao?ref=${code}` : '/imoveis'));
-  res.redirect(to.startsWith('/') && !to.startsWith('//') ? to : '/imoveis');
+  const material = req.query.m ? affExtras.material(String(req.query.m)) : null;
+  const group = affExtras.group(req.query.g || material?.group);
+  let to = String(req.query.to || material?.to || (code ? `/indicacao?ref=${code}` : '/imoveis'));
+  if (!(to.startsWith('/') && !to.startsWith('//'))) to = '/imoveis';
+  // Link de grupo: a pessoa faz o pré-cadastro antes e só então entra no grupo (assim sabemos o número de quem entrou).
+  if (group && code) to = `/indicacao?ref=${encodeURIComponent(code)}&g=${encodeURIComponent(group.key)}`;
+  if (!material) return res.redirect(to);
+  // Material de campanha: página com título, texto e imagem para a miniatura do WhatsApp, e redireciona na hora.
+  const base = String(store.settings.crm?.panelUrl || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const img = material.image ? `${base}/m/img/${material.image}` : `${base}/img/migra-emblema.png`;
+  const desc = String(material.text || '').replace(/\{link\}|\{nome\}/g, '').replace(/\s+/g, ' ').trim().slice(0, 180);
+  res.set('Cache-Control', 'no-store').type('html').send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escAttr(material.title)}</title><meta property="og:type" content="website"><meta property="og:title" content="${escAttr(material.title)}"><meta property="og:description" content="${escAttr(desc)}"><meta property="og:image" content="${escAttr(img)}"><meta property="og:url" content="${escAttr(`${base}/r/${code}?m=${material.id}`)}"><meta name="twitter:card" content="summary_large_image">
+<meta http-equiv="refresh" content="0;url=${escAttr(to)}"></head><body><p><a href="${escAttr(to)}">Continuar</a></p><script>location.replace(${JSON.stringify(to)})</script></body></html>`);
+});
+app.get('/m/img/:name', (req, res) => {
+  const f = affExtras.imagePath(req.params.name);
+  if (!f) return res.sendStatus(404);
+  res.set('Cache-Control', 'public, max-age=86400').sendFile(f);
 });
 // Página do pré-cadastro: quem indicou (só o primeiro nome) e os serviços que dá para escolher.
 app.get('/api/public/ref', (req, res) => {
@@ -1456,7 +1484,9 @@ app.post('/api/public/precadastro', async (req, res) => {
   notify('crm', { id: lead.id });
   const main = mainWhatsapp();
   const text = `Olá! Acabei de fazer o pré-cadastro (código ${lead.code}). Meu nome é ${lead.name} e tenho interesse em: ${service.label}.`;
-  res.json({ ok: true, code: lead.code, seller: owner ? first(owner.name) : '', whatsappUrl: main ? `https://wa.me/${main}?text=${encodeURIComponent(text)}` : '' });
+  const grp = affExtras.group(b.group);
+  if (grp) (lead.timeline ||= []).push({ at: new Date().toISOString(), by: 'Sistema', type: 'nota', text: `👥 Entrou no grupo "${grp.label}" pelo link${affiliate ? ` de ${affiliate.name}` : ''}` });
+  res.json({ ok: true, code: lead.code, seller: owner ? first(owner.name) : '', whatsappUrl: main ? `https://wa.me/${main}?text=${encodeURIComponent(text)}` : '', groupUrl: grp?.url || '', groupLabel: grp?.label || '' });
 });
 const mainWhatsapp = () => wa.getState().me?.phone || '';
 app.get('/api/public/catalog', (_req, res) => {
@@ -1645,6 +1675,25 @@ app.patch('/api/affiliate/me', (req, res) => {
   res.json(affiliates.publicAffiliate(affiliates.update(a.id, { email, password, country, pixKey, cpf, bank, account, holder, doc })));
 });
 
+// Escritório virtual: saldo e saque, pedidos de troca de indicação, grupos e materiais de campanha.
+const baseUrl = (req) => String(store.settings.crm?.panelUrl || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+app.get('/api/affiliate/extras', (req, res) => {
+  const a = affiliateOnly(req);
+  const base = baseUrl(req);
+  res.json({
+    balance: affExtras.balance(a),
+    transfers: affExtras.transfersFor(a),
+    groups: affExtras.config.groups.map((g) => ({ label: g.label, link: `${base}/r/${a.code}?g=${g.key}` })),
+    materials: affExtras.materials().map((m) => affExtras.forAffiliate(m, { base, code: a.code, name: a.name })),
+  });
+});
+app.post('/api/affiliate/payout', async (req, res) => res.json(await affExtras.requestPayout(affiliateOnly(req), { currency: ['BRL', 'USD', 'PYG'].includes(req.body?.currency) ? req.body.currency : 'BRL' })));
+app.post('/api/affiliate/transfers/:id/:action', async (req, res) => {
+  const a = affiliateOnly(req);
+  if (!['ceder', 'manter'].includes(req.params.action)) throw httpError(400, 'Ação inválida');
+  res.json(await affExtras.respond(a, req.params.id, req.params.action === 'ceder'));
+});
+app.post('/api/affiliate/cede', async (req, res) => res.json(await affExtras.cede(affiliateOnly(req), req.body || {})));
 // Recibo para o cliente (link assinado, sem login).
 app.get('/recibo/:id', (req, res) => {
   const p = payments.get(req.params.id);
@@ -3420,6 +3469,32 @@ app.post('/api/learnings', (req, res) => res.json(learnings.add(req.body?.text, 
 app.post('/api/learnings/:id/approve', (req, res) => res.json(learnings.approve(req.params.id, req.user.name, req.body?.text)));
 app.post('/api/learnings/:id/reject', (req, res) => res.json(learnings.reject(req.params.id, req.user.name)));
 app.delete('/api/learnings/:id', (req, res) => { learnings.remove(req.params.id); res.json({ ok: true }); });
+// Administração: saques, trocas de indicação, grupos e materiais.
+const materialUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 6_000_000 } }).single('image');
+app.get('/api/affiliates-payouts', (req, res) => { needAdmin(req); res.json(affExtras.payouts()); });
+app.post('/api/affiliates-payouts/:id/:action', async (req, res) => {
+  const p = req.params.action === 'pay' ? await affExtras.payPayout(req.user, req.params.id, req.body || {}) : req.params.action === 'reject' ? await affExtras.rejectPayout(req.user, req.params.id, req.body || {}) : null;
+  if (!p) throw httpError(400, 'Ação inválida');
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'saque de indicador', label: `${p.affName} · ${p.currency} ${p.amount} → ${p.status}` });
+  res.json(p);
+});
+app.get('/api/affiliates-transfers', (req, res) => { needAdmin(req); res.json(affExtras.transfers()); });
+app.post('/api/affiliates-transfers', async (req, res) => {
+  needAdmin(req);
+  const t = await affExtras.requestTransfer(req.user, req.body || {});
+  audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: 'troca de indicação', label: `${t.leadName}: pedido de troca de indicador` });
+  res.json(t);
+});
+app.post('/api/affiliates-transfers/:id/decide', async (req, res) => {
+  const t = await affExtras.decide(req.user, req.params.id, req.body?.accept === true, req.body?.note || '');
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'troca de indicação', label: `${t.leadName}: ${t.status} (diretoria)` });
+  res.json(t);
+});
+app.get('/api/affiliates-groups', (req, res) => { needAdmin(req); res.json(affExtras.config.groups); });
+app.put('/api/affiliates-groups', (req, res) => res.json(affExtras.setGroups(req.user, Array.isArray(req.body?.groups) ? req.body.groups : [])));
+app.get('/api/affiliates-materials', (req, res) => { needAdmin(req); res.json({ items: affExtras.materials({ all: true }) }); });
+app.post('/api/affiliates-materials', materialUpload, (req, res) => res.json(affExtras.saveMaterial(req.user, null, req.body || {}, req.file || null)));
+app.patch('/api/affiliates-materials/:id', materialUpload, (req, res) => res.json(affExtras.saveMaterial(req.user, req.params.id, req.body || {}, req.file || null)));
 app.get('/api/affiliates', (_req, res) => res.json(affiliates.adminList()));
 app.get('/api/affiliates-meta', (_req, res) => res.json({ categories: affiliates.categories(), services: affiliates.services }));
 app.patch('/api/affiliates/:id', (req, res) => res.json(affiliates.publicAffiliate(affiliates.update(req.params.id, req.body))));

@@ -52,6 +52,42 @@
     </div>
 
     <div class="box">
+      <h2>Como a sua comissão funciona</h2>
+      <p class="small"><b>Quem indica primeiro, ganha.</b> Quando a pessoa faz o pré-cadastro pelo seu link, ela fica registrada como indicação sua <b>para sempre</b>: se ela comprar hoje, daqui a meses ou anos, qualquer serviço da Migra (migração, imóveis, terrenos, veículos), a comissão é sua.</p>
+      <p class="small">Por isso, peça sempre que a pessoa faça o pré-cadastro pelo seu link (ou entre no grupo pelo seu link de grupo, que já passa pelo pré-cadastro). Só conversar não registra a indicação.</p>
+      <p class="small">Se um dia a pessoa indicada preferir que outra pessoa receba a comissão, você recebe um aviso aqui e decide se cede ou mantém. Nada muda sem você saber.</p>
+    </div>
+
+    <div class="box form">
+      <h2>Saque da comissão</h2>
+      <div id="payBox"></div>
+    </div>
+
+    <div class="box">
+      <h2>Materiais de campanha</h2>
+      <p class="muted small">Posts, stories e mensagens prontos, já com o seu link. Baixe a imagem, copie o texto e publique. No WhatsApp, o link aparece com a imagem em miniatura.</p>
+      <div id="camp" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px"></div>
+    </div>
+
+    <div class="box" id="groupsBox" hidden>
+      <h2>Links de grupos do WhatsApp</h2>
+      <p class="muted small">Quem entra pelo seu link de grupo faz o pré-cadastro antes. Assim sabemos o número de quem entrou e a indicação fica sua.</p>
+      <div id="groups" class="form"></div>
+    </div>
+
+    <div class="box form">
+      <h2>Pedidos de troca de indicação</h2>
+      <div id="transfers"></div>
+      <details><summary class="small">Ceder uma indicação para outra pessoa</summary>
+        <p class="muted small">Use só se o cliente pedir que a comissão fique com outro indicador. Depois de ceder, não dá para desfazer.</p>
+        <label>Cliente<select id="cedeLead"></select></label>
+        <label>Código do novo indicador<input id="cedeTo" placeholder="ex.: ana482" /></label>
+        <label>Motivo<input id="cedeWhy" /></label>
+        <button class="btn small" id="btnCede">Ceder indicação</button>
+      </details>
+    </div>
+
+    <div class="box">
       <h2>Suas indicações</h2>
       <p class="muted small">Pessoas que entraram pelo seu link ou com o seu código. Por privacidade, mostramos só o nome, o serviço, quem da Migra está atendendo e a situação.</p>
       <div class="table-wrap"><table id="leads"></table></div>
@@ -113,7 +149,45 @@
       const f = $('#profile');
       for (const k of ['country', 'pixKey', 'cpf', 'bank', 'account', 'holder', 'doc', 'email']) f[k].value = me.me[k] || (k === 'country' ? 'BR' : '');
       showPay();
+      $('#cedeLead').innerHTML = me.leads.filter((l) => l.code).map((l) => `<option value="${esc(l.code)}">${esc(l.name)} (${esc(l.category)})</option>`).join('');
+      loadExtras();
     }
+    async function loadExtras() {
+      let x;
+      try { x = await api('/api/affiliate/extras'); } catch { return; }
+      const b = x.balance;
+      const av = Object.entries(b.available); const wt = Object.entries(b.waiting);
+      $('#payBox').innerHTML = `<p class="small">Disponível para saque: ${av.length ? av.map(([c, v]) => `<b>${brl(v, c)}</b> <button class="btn small primary" data-pay="${c}">Sacar</button>`).join(' ') : '<b>nada no momento</b>'}</p>
+        ${wt.length ? `<p class="muted small">Em prazo de segurança (${b.holdDays} dias depois da venda): ${wt.map(([c, v]) => brl(v, c)).join(' + ')}</p>` : ''}
+        <p class="muted small">O pagamento cai na sua conta em até ${b.payoutHours} horas depois do pedido. Confira seus dados de recebimento em "Meus dados".</p>
+        ${b.requests.length ? `<div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Valor</th><th>Situação</th></tr></thead><tbody>${b.requests.map((r) => `<tr><td>${fmt(r.createdAt)}</td><td>${brl(r.amount, r.currency)}</td><td>${{ pedido: 'Aguardando pagamento', pago: `Pago em ${fmt(r.paidAt)}`, recusado: `Não pago: ${esc(r.reason || '')}` }[r.status] || esc(r.status)}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+      $('#camp').innerHTML = x.materials.map((m) => `<div style="border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;gap:8px">
+        ${m.image ? `<img src="${esc(m.image)}" alt="" style="width:100%;border-radius:8px;aspect-ratio:1/1;object-fit:cover" />` : ''}
+        <b>${esc(m.title)}</b><span class="pill">${esc(m.channelLabel)}</span>
+        <textarea rows="4" readonly>${esc(m.text)}</textarea>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn small" data-copytext="${esc(m.id)}">Copiar texto</button>
+          ${m.image ? `<a class="btn small" href="${esc(m.image)}" download>Baixar imagem</a>` : ''}
+          <a class="btn small wa" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(m.text)}">WhatsApp</a>
+        </div></div>`).join('') || '<p class="muted small">A Migra ainda não publicou materiais. Use os links acima.</p>';
+      $('#camp').dataset.items = JSON.stringify(x.materials);
+      $('#groupsBox').hidden = !x.groups.length;
+      $('#groups').innerHTML = x.groups.map((g) => `<label>${esc(g.label)}<span class="copy"><input readonly value="${esc(g.link)}" /><button class="btn small" data-copyval>Copiar</button></span></label>`).join('');
+      $('#transfers').innerHTML = x.transfers.length ? x.transfers.map((t) => `<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px">
+        <b>${esc(t.leadName)}</b>: ${t.mine ? `pedido para passar a indicação para ${esc(t.to)}` : `indicação vindo de ${esc(t.from)}`}${t.reason ? ` <span class="muted small">(${esc(t.reason)})</span>` : ''}
+        <div class="small">${{ aguardando: `Aguardando sua resposta até ${fmt(t.deadline)}`, cedida: 'Cedida', mantida: 'Mantida' }[t.status] || esc(t.status)}</div>
+        ${t.mine && t.status === 'aguardando' ? `<button class="btn small" data-tr="${esc(t.id)}" data-act="ceder">Ceder</button> <button class="btn small primary" data-tr="${esc(t.id)}" data-act="manter">Manter comigo</button>` : ''}</div>`).join('') : '<p class="muted small">Nenhum pedido de troca.</p>';
+    }
+    document.addEventListener('click', async (e) => {
+      const t = e.target;
+      try {
+        if (t.dataset.pay) { if (!confirm(`Pedir o saque de ${t.dataset.pay}?`)) return; await api('/api/affiliate/payout', { method: 'POST', body: { currency: t.dataset.pay } }); alert('Pedido enviado! O pagamento cai em até 24 horas.'); load(); }
+        else if (t.dataset.copytext) { const m = JSON.parse($('#camp').dataset.items).find((x) => x.id === t.dataset.copytext); await navigator.clipboard.writeText(m.text); t.textContent = 'Copiado'; }
+        else if (t.hasAttribute('data-copyval')) { await navigator.clipboard.writeText(t.previousElementSibling.value); t.textContent = 'Copiado'; }
+        else if (t.dataset.tr) { if (t.dataset.act === 'ceder' && !confirm('Ceder esta indicação? A comissão deste cliente passa para a outra pessoa e não dá para desfazer.')) return; await api(`/api/affiliate/transfers/${t.dataset.tr}/${t.dataset.act}`, { method: 'POST' }); loadExtras(); }
+        else if (t.id === 'btnCede') { if (!confirm('Ceder esta indicação? Não dá para desfazer.')) return; await api('/api/affiliate/cede', { method: 'POST', body: { lead: $('#cedeLead').value, toCode: $('#cedeTo').value, reason: $('#cedeWhy').value } }); alert('Indicação cedida.'); load(); }
+      } catch (err) { alert(err.message); }
+    });
     const showPay = () => {
       const py = $('#country').value === 'PY';
       $$('[data-br]').forEach((el) => (el.hidden = py));

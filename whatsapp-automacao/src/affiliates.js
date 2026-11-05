@@ -413,6 +413,7 @@ export class Affiliates {
       .filter((l) => l.affiliateId === a.id)
       .sort((x, y) => String(y.affiliateAt).localeCompare(String(x.affiliateAt)))
       .map((l) => ({
+        code: l.code || '',
         name: l.name || 'Cliente',
         since: l.affiliateAt,
         category: l.service || catLabel(l.commissionCategory || l.category || 'migracao'),
