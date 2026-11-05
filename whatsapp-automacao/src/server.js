@@ -197,7 +197,16 @@ try { agent.repairEchoPauses(); } catch (err) { console.error('Conserto das paus
 const campaigns = new CampaignRunner({ store, wa, notify });
 const autoReply = new AutoReply({ store, wa, notify, agent });
 const scheduler = new Scheduler({ store, wa, campaigns, notify });
-const pending = new PendingInbox({ store, agent, wa, autoReply, notify });
+const pending = new PendingInbox({
+  store, agent, wa, autoReply, notify,
+  // Nome de cada número na fila: o principal, o Instagram ou o WhatsApp de cada vendedor.
+  senderLabel: (k) => {
+    if (k === 'principal') return 'Número principal';
+    if (k === 'instagram') return 'Instagram';
+    const l = lines.get(k.replace(/^linha:/, ''));
+    return l ? (l.label || auth.get(l.ownerId)?.name || 'WhatsApp de vendedor') : 'WhatsApp de vendedor';
+  },
+});
 const auth = new Auth({ store, dataDir: DATA_DIR });
 const crm = new Crm({ store, auth, notify });
 const crmAi = new CrmAi({ store, llm, crm });

@@ -1241,3 +1241,4 @@ button.xd-kpi.xd-link:focus-visible, .xd-alert:focus-visible, .xd-more:focus-vis
 .ct-task-status { width: auto; font-size: 13px; padding: 4px 6px; }
 #tab-contabil .row > select, #tab-contabil .row input[type="month"], #tab-migratech .row > select { width: auto; flex: 0 1 auto; }
 #tab-contabil .row { align-items: center; flex-wrap: wrap; }
+.pend-senders { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }

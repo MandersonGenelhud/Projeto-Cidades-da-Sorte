@@ -351,6 +351,9 @@ test('limite por NÚMERO: cada WhatsApp (principal e de cada vendedor) tem o seu
   const to = wa.sent.map((s) => s.to).sort();
   assert.deepEqual(to, ['595981000001@s.whatsapp.net', 'l:franciely:595981000003@s.whatsapp.net'], 'o número principal e o da Franciely responderam um cada');
   assert.equal(inbox.status().senders, 1, 'só falta o principal (que já usou a vaga dele)');
+  const by = Object.fromEntries(inbox.status().bySender.map((b) => [b.key, b]));
+  assert.equal(by['linha:franciely'].sentLastHour, 1, 'o painel mostra quantas cada número respondeu');
+  assert.equal(by.principal.waiting, 2, 'e quantos esperam em cada número (a pausada e a que falta)');
   inbox.cancel();
   await waitFor(() => !inbox.running);
 });

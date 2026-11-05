@@ -84,7 +84,8 @@ export function extractStalled(messages, { now = Date.now(), maxDays = 15, minHo
 }
 
 export class PendingInbox {
-  constructor({ store, agent, wa, autoReply, notify, delay = [45, 90], careful = true, now = () => new Date() }) {
+  constructor({ store, agent, wa, autoReply, notify, delay = [45, 90], careful = true, now = () => new Date(), senderLabel = (k) => k }) {
+    this.senderLabel = senderLabel; // nome de cada número no painel (ex.: WhatsApp da Franciely)
     this.store = store;
     this.agent = agent;
     this.wa = wa;
@@ -126,7 +127,17 @@ export class PendingInbox {
     const nowMs = this.now().getTime();
     const sentLastHour = this.sentAt.filter((t) => nowMs - t < 3_600_000).length;
     const senders = new Set(this.queue.map(senderOf)).size || 1;
+    // Quantos esperam e quantos já foram respondidos na última hora, em cada número.
+    const by = {};
+    for (const it of this.list()) { const k = senderOf(it.jid); (by[k] ||= { waiting: 0, queued: 0, sentLastHour: 0 }).waiting += 1; if (it.queued) by[k].queued += 1; }
+    for (const [k, list] of Object.entries(this.sentBy)) { const n = list.filter((t) => nowMs - t < 3_600_000).length; if (n) (by[k] ||= { waiting: 0, queued: 0, sentLastHour: 0 }).sentLastHour = n; }
+    const bySender = Object.entries(by).map(([key, v]) => {
+      let label = key;
+      try { label = this.senderLabel(key) || key; } catch { /* sem nome: mostra a chave */ }
+      return { key, label, ...v };
+    }).sort((a, b) => b.waiting - a.waiting);
     return {
+      bySender,
       count: this.list().length, queue: this.queue.length, running: this.running, waiting: this.waiting, perHour, from, to,
       lastError: this.lastError || null, sentLastHour, lastSentAt: this.lastSentAt || null, lastProgressAt: this.lastProgressAt || null,
       senders, etaMin: this.careful && this.queue.length ? Math.ceil((this.queue.length / (perHour * senders)) * 60) : null,
