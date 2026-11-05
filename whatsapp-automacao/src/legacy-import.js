@@ -122,6 +122,36 @@ export function parcelsFromTables(tables = []) {
 }
 
 
+/** Respostas JSON de um endereço do sistema antigo (ex.: "/api/contracts"), todas as páginas. */
+const apiRows = (captura, endpoint) => {
+  const out = [];
+  for (const a of captura?.api || []) {
+    let path; try { path = new URL(a.url, 'http://x').pathname; } catch { continue; }
+    if (path.replace(/\/+$/, '') !== endpoint) continue;
+    const j = a.json;
+    if (Array.isArray(j?.data)) out.push(...j.data);
+    else if (Array.isArray(j?.rows)) out.push(...j.rows);
+    else if (Array.isArray(j)) out.push(...j);
+  }
+  return out;
+};
+const STATUS_PT = { draft: 'rascunho', sent: 'enviado', viewed: 'visualizado', pending_signature: 'aguardando assinatura', signed: 'assinado', cancelled: 'cancelado' };
+
+/** Contratos, andamento e clientes lidos direto das listas do sistema antigo (mais completo que ler as telas). */
+export function knownApiRecords(captura) {
+  const raws = [];
+  for (const c of apiRows(captura, '/api/contracts')) {
+    if (!c || !c.contract_number) continue;
+    raws.push({ Contrato: c.contract_number, Cliente: c.customer?.full_name, CPF: c.customer?.cpf, Telefone: c.customer?.phone, 'E-mail': c.customer?.email,
+      Valor: c.final_value ?? c.total_value, Data: c.signed_at || c.created_at, Status: STATUS_PT[c.status] || c.status, Serviço: c.service?.name || c.title, Parcelas: c.installments, Vendedor: c.seller?.full_name });
+  }
+  for (const p of apiRows(captura, '/api/processes')) {
+    if (!p || !p.contract_number) continue;
+    raws.push({ Contrato: p.contract_number, Cliente: p.customer_name, CPF: p.customer_cpf, Valor: p.total_value, Pago: p.paid_amount, 'Próximo prazo': p.next_deadline, Status: p.board_status_name || p.status, Serviço: p.service_name });
+  }
+  return raws;
+}
+
 const CPF_RE = /\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/;
 /** A tela "Cobrança / Vencimentos" do sistema antigo: uma linha por parcela EM ABERTO, com o número do contrato. */
 export const isCobrancaTable = (t) => { const h = (t.headers || []).map(norm); return h.some((x) => /^contrato/.test(x)) && h.some((x) => /^venc/.test(x)) && h.some((x) => /^parcela/.test(x)) && h.some((x) => /^valor/.test(x)); };
@@ -145,6 +175,16 @@ export function openInstallments(captura) {
       const g = out.get(number); g.client ||= client; g.doc ||= doc;
       g.parcels.push({ label, due, value, paid: false, paidAt: '', status: iSt >= 0 ? String(r[iSt] ?? '').trim() : '' });
     }
+  }
+  // A lista de cobrança do sistema antigo, completa (todas as parcelas em aberto, uma linha por parcela).
+  for (const r of apiRows(captura, '/api/financial/collections')) {
+    const number = String(r?.contract_number ?? '').trim(); const due = parseDate(r?.due_date); const value = parseMoney(r?.amount);
+    if (!number || !due || value === null || !(value > 0)) continue;
+    const label = String(r.label || `Parcela ${r.installment_number || ''}`).trim().slice(0, 80) || 'Parcela';
+    const k = `${number}|${due}|${value}|${label}`;
+    if (seen.has(k)) continue; seen.add(k);
+    if (!out.has(number)) out.set(number, { number, client: String(r.customer_name || '').slice(0, 160), doc: String(r.cpf || ''), parcels: [] });
+    out.get(number).parcels.push({ label, due, value, paid: false, paidAt: '', status: r.status === 'overdue' ? 'Vencida' : 'Pendente' });
   }
   for (const g of out.values()) g.parcels.sort((a, b) => a.due.localeCompare(b.due));
   return out;
@@ -182,6 +222,7 @@ export function cashRowsFromCapture(captura) {
 export function extractRecords(captura) {
   const out = [];
   const push = (raw, source) => { const r = normalizeRecord(raw, { source }); if (r) out.push(r); };
+  for (const raw of knownApiRecords(captura)) push(raw, 'sistema antigo (lista)');
   for (const a of captura?.api || []) for (const o of objectsIn(a.json)) push(flat(o), a.url);
   for (const p of captura?.pages || []) {
     for (const t of p.tables || []) {
@@ -289,6 +330,25 @@ export function auditCapture(captura, { contracts = [], clients = [] } = {}) {
       if (m && n2(m[1]) >= 2) bump(entityOf(m[2]), n2(m[1]));
     }
   }
+  // Números exatos das listas do sistema antigo (campo "count") contra o que a captura trouxe de cada uma.
+  const gotApi = {};
+  const lists = { clientes: '/api/customers', contratos: '/api/contracts', processos: '/api/processes', documentos: '/api/documents', orcamentos: '/api/proposals', leads: '/api/leads' };
+  for (const [ent, endpoint] of Object.entries(lists)) {
+    const groups = new Map();
+    for (const a of captura?.api || []) {
+      let u; try { u = new URL(a.url, 'http://x'); } catch { continue; }
+      if (u.pathname.replace(/\/+$/, '') !== endpoint || !Array.isArray(a.json?.data)) continue;
+      const key = u.searchParams.get('lane') || '-';
+      const g = groups.get(key) || { total: 0, ids: new Set(), anon: 0 };
+      g.total = Math.max(g.total, Number(a.json.count ?? a.json.total ?? 0) || 0);
+      for (const x of a.json.data) { if (x && x.id !== undefined) g.ids.add(x.id); else g.anon += 1; }
+      groups.set(key, g);
+    }
+    if (!groups.size) continue;
+    let exp = 0; let have = 0;
+    for (const g of groups.values()) { have += g.ids.size + g.anon; exp += Math.max(g.total, g.ids.size + g.anon); }
+    expected[ent] = exp; gotApi[ent] = have;
+  }
   // O que foi copiado: linhas de tabela das páginas de cada assunto.
   const rows = {};
   for (const p of pages) {
@@ -299,6 +359,7 @@ export function auditCapture(captura, { contracts = [], clients = [] } = {}) {
   }
   const got = { contratos: contracts.length, clientes: clients.length };
   for (const [ent, set] of Object.entries(rows)) got[ent] = Math.max(got[ent] || 0, set.size);
+  for (const [ent, n] of Object.entries(gotApi)) got[ent] = Math.max(got[ent] || 0, n);
   const items = Object.keys({ ...expected, ...got }).map((ent) => {
     const esperado = expected[ent] ?? null; const copiado = got[ent] ?? 0;
     return { entity: ent, esperado, copiado, status: esperado === null ? 'sem referência' : copiado >= esperado * 0.98 ? 'ok' : 'faltam', faltam: esperado === null ? null : Math.max(0, esperado - copiado) };
@@ -331,6 +392,7 @@ export function extractClients(captura, contracts = []) {
     }
     return c;
   };
+  for (const c of apiRows(captura, '/api/customers')) add({ name: String(c?.full_name || '').slice(0, 120), doc: String(c?.cpf || '').slice(0, 40), phone: String(c?.phone || c?.whatsapp || '').slice(0, 40), email: String(c?.email || '').slice(0, 120), extra: { ...(c?.city_origin ? { Cidade: c.city_origin } : {}), ...(c?.birth_date ? { Nascimento: String(c.birth_date).slice(0, 10) } : {}) } });
   for (const a of captura?.api || []) for (const o of objectsIn(a.json)) add(row(flat(o)));
   for (const p of captura?.pages || []) {
     for (const t of p.tables || []) {

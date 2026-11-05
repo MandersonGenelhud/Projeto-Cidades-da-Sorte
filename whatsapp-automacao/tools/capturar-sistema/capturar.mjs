@@ -160,6 +160,44 @@ async function salvarModelo(page, pasta, url, lista) {
 const semHash = (u) => u.split('#')[0];
 const padrao = (u) => { try { const x = new URL(u); return x.pathname.replace(/\/\d+(?=\/|$)/g, '/{n}').replace(/[0-9a-f]{8,}/gi, '{id}'); } catch { return u; } };
 
+/**
+ * Listas que o sistema mostra aos poucos (ex.: "200 de 5462"): pede as páginas seguintes da MESMA lista (só leitura, GET),
+ * até acabar ou parar de vir coisa nova. `get(url)` devolve o JSON ou null.
+ */
+export async function varrerPaginas(get, api, { maxPaginas = 80 } = {}) {
+  const grupos = new Map();
+  const vistos = new Set(api.map((a) => a.url));
+  for (const a of api) {
+    const j = a.json;
+    if (!j || !Array.isArray(j.data)) continue;
+    let u; try { u = new URL(a.url); } catch { continue; }
+    if (/\/[0-9a-f]{8}-[0-9a-f-]{20,}|\/[0-9a-f]{24,}/i.test(u.pathname)) continue;
+    const key = `${u.origin}${u.pathname}?${[...u.searchParams].filter(([k]) => k !== 'page').sort().map(([k, v]) => `${k}=${v}`).join('&')}`;
+    const g = grupos.get(key) || { u, total: 0, page: 0, ids: new Set(), have: 0 };
+    g.total = Math.max(g.total, Number(j.count ?? j.total ?? 0) || 0);
+    g.page = Math.max(g.page, Number(u.searchParams.get('page') || 1));
+    for (const x of j.data) { const id = x && typeof x === 'object' ? x.id : undefined; if (id === undefined || !g.ids.has(id)) { g.have += 1; if (id !== undefined) g.ids.add(id); } }
+    grupos.set(key, g);
+  }
+  const novos = [];
+  for (const g of grupos.values()) {
+    for (let i = 0; i < maxPaginas && g.have < g.total; i++) {
+      g.page += 1;
+      const u = new URL(g.u); u.searchParams.set('page', String(g.page));
+      if (vistos.has(u.href)) continue;
+      const j = await get(u.href).catch(() => null);
+      if (!j || !Array.isArray(j.data) || !j.data.length) break;
+      const fresh = j.data.filter((x) => !(x && typeof x === 'object' && x.id !== undefined && g.ids.has(x.id)));
+      if (!fresh.length) break; // a lista ignorou o número da página: nada novo
+      for (const x of fresh) if (x && typeof x === 'object' && x.id !== undefined) g.ids.add(x.id);
+      g.have += fresh.length;
+      novos.push({ url: u.href, json: j }); vistos.add(u.href);
+    }
+  }
+  api.push(...novos);
+  return novos.length;
+}
+
 export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espera = 900, tudo = false, log = console.log } = {}) {
   fs.mkdirSync(path.join(pasta, 'pdfs'), { recursive: true });
   const origem = new URL(inicio).origin;
@@ -315,6 +353,11 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
       }
     } catch { /* arquivo que não baixou */ }
   }
+  // Listas paginadas (ex.: orçamentos "200 de 5462"): busca as páginas que faltam.
+  try {
+    const extra = await varrerPaginas(async (u) => { const r = await context.request.get(u, { timeout: 60000 }); return r.ok() ? r.json() : null; }, api);
+    if (extra) log(`  ${extra} página(s) extras de listas lidas.`);
+  } catch { /* segue com o que já tem */ }
   const captura = { feitoEm: new Date().toISOString(), origem, falhas, pages: paginas.map(({ links, ...p }) => { const lista = [...new Set([...p.pdfs, ...p.arquivos])].map((u) => baixados.get(u)).filter(Boolean); return { ...p, pdfs: lista.filter((x) => x.kind === 'pdf').map((x) => x.name), arquivos: lista }; }), api };
   fs.writeFileSync(path.join(pasta, 'captura.json'), JSON.stringify(captura));
   try { fs.writeFileSync(path.join(pasta, 'rotas-api.txt'), [...rotas].sort().join('\n')); } catch { /* sem lista de rotas */ }
