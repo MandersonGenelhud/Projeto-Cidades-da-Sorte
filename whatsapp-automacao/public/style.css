@@ -1217,3 +1217,14 @@ button.xd-kpi.xd-link:hover { transform: translateY(-2px); }
 button.xd-kpi.xd-link:focus-visible, .xd-alert:focus-visible, .xd-more:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 .xd-more { float: right; background: none; border: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--green-dark); cursor: pointer; padding: 2px 6px; border-radius: 6px; }
 .xd-more:hover { text-decoration: underline; }
+
+/* Migratech e Migra Devocional */
+.mt-logo { height: 50px; width: auto; border-radius: 10px; background: #0c2418; padding: 4px; object-fit: contain; }
+#tab-migratech .page-head, #tab-devocional .page-head { justify-content: flex-start; gap: 14px; }
+.mt-tabs { flex-wrap: wrap; margin: 0 0 16px; }
+.dv-bars { display: flex; align-items: flex-end; gap: 3px; height: 140px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.dv-col { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+.dv-col i { display: block; width: 100%; background: var(--green); border-radius: 4px 4px 0 0; min-height: 0; }
+.dv-axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.dv-key { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.dv-key code { overflow-wrap: anywhere; padding: 6px 8px; background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 6px; }

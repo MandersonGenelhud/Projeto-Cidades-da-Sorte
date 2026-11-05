@@ -21,7 +21,7 @@ test('menu enxuto: toda tela do painel está em uma seção, sem repetir, e o sc
   const scripts = fs.readdirSync(path.join(ROOT, 'public')).filter((f) => f.endsWith('.js')).map((f) => read(`public/${f}`)).join('\n');
   for (const t of tabs) assert.ok(html.includes(`id="tab-${t}"`) || scripts.includes(`'tab-${t}'`) || scripts.includes(`section('${t}'`), `a tela ${t} existe`);
   assert.ok(html.indexOf('nav-hubs.js') > html.indexOf('app.js'), 'carrega depois do app.js');
-  assert.match(read('src/server.js'), /'\/nav-hubs\.js'\]\)/, 'arquivo do painel só abre com login');
+  assert.match(read('src/server.js'), /PANEL_FILES = new Set\(\[[^\]]*'\/nav-hubs\.js'[^\]]*'\/empresas-apps\.js'/, 'arquivos do painel só abrem com login');
   // A regra de quem vê cada tela é a mesma do showTab.
   assert.match(js, /data-admin'\) && u\.role !== 'admin' && !\(b\.hasAttribute\('data-officeadmin'\) && u\.officeAdmin\)/);
 });

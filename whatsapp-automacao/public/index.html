@@ -67,6 +67,8 @@
       <div class="nav-group">Outras empresas</div>
       <button data-tab="motors">Migra Motors</button>
       <button data-tab="school" data-staff hidden>Migra School</button>
+      <button data-tab="migratech" data-admin>Migratech Soluções</button>
+      <button data-tab="devocional" data-admin>Migra Devocional</button>
       <button data-tab="audit" data-admin>Auditoria (quem mexeu)</button>
       <button data-tab="affiliates" data-admin>Indicadores</button>
       <button data-tab="share">Divulgar e indicar</button>
@@ -568,6 +570,7 @@
         <label>O que foi <input name="description" placeholder="ex.: aluguel do escritório, anúncio no Instagram, certidões" required /></label>
         <div class="grid2 tight">
           <label>Para que despesa (categoria) <select name="category"></select></label>
+          <label id="cashPartnerField" hidden>Qual sócio sacou <select name="partner"></select></label>
           <label>Forma de pagamento <select name="method"></select></label>
           <label>Quem pagou / de qual conta <input name="account" placeholder="ex.: Marcos, empresa, cartão da Migra" /></label>
           <label>Para quem foi (ou de quem veio) <input name="payee" placeholder="fornecedor, pessoa ou empresa" /></label>
@@ -594,6 +597,8 @@
           <div id="cashViewers"></div>
           <p class="hint"><b>Caixa Migra Contábil Paraguay:</b> quem pode ver. Sem ninguém marcado, vale a mesma lista do Caixa Migra. Marque para limitar (por exemplo, só quem cuida da contabilidade).</p>
           <div id="cashViewersContabil"></div>
+          <p class="hint"><b>Caixa Migratech Soluções</b> (e a tela da Migratech): quem pode ver. Sem ninguém marcado, vale a mesma lista do Caixa Migra.</p>
+          <div id="cashViewersMigratech"></div>
           <button class="btn primary">Salvar</button>
         </form>
         <form class="form" id="formNina">
@@ -1720,6 +1725,7 @@
   <script src="projetos.js"></script>
   <script src="indicadores-admin.js"></script>
   <script src="contratos-quadros.js"></script>
+  <script src="empresas-apps.js"></script>
   <script src="nav-hubs.js"></script>
 </body>
 </html>

@@ -1970,7 +1970,7 @@ loaders.cash = async () => {
   // Troca entre o Caixa Migra e o Caixa Migra Contábil Paraguay (só aparece para quem vê os dois).
   const books = Object.entries(d.books || {});
   $('#cashBooks').hidden = books.length < 2;
-  $('#cashBooks').innerHTML = books.map(([id, label]) => `<button type="button" class="btn small" data-book="${esc(id)}" aria-pressed="${id === d.book}">${esc(id === 'migra' ? 'Migra' : 'Migra Contábil Paraguay')}</button>`).join('');
+  $('#cashBooks').innerHTML = books.map(([id, label]) => `<button type="button" class="btn small" data-book="${esc(id)}" aria-pressed="${id === d.book}">${esc(label.replace(/^Caixa /, ''))}</button>`).join('');
   $('#cashTitle').textContent = d.books?.[d.book] || 'Caixa';
   $('#cashScope').hidden = d.book !== 'migra';
   $('#formCash').scope.closest('label').hidden = d.book !== 'migra';
@@ -2013,6 +2013,11 @@ loaders.cash = async () => {
   cf.categories.value = (settingsCache?.cash?.categories?.length ? settingsCache.cash.categories : d.categories).join('\n');
   loadNina().catch(() => {});
   $('#cashViewers').innerHTML = d.admins.map((a) => `<label class="check"><input type="checkbox" data-viewer="${esc(a.id)}" ${d.allowedUserIds.includes(a.id) ? 'checked' : ''} ${a.id === d.me.id ? '' : ''} /> ${esc(a.name)}${a.id === d.me.id ? ' (você)' : ''}</label>`).join('');
+  $('#cashViewersMigratech').innerHTML = d.admins.map((a) => `<label class="check"><input type="checkbox" data-viewer-migratech="${esc(a.id)}" ${(d.migratechUserIds || []).includes(a.id) ? 'checked' : ''} /> ${esc(a.name)}${a.id === d.me.id ? ' (você)' : ''}</label>`).join('');
+  // Saques dos sócios do período (categoria "Retirada de sócio").
+  const pt = Object.entries(d.partnerTotals || {}).filter(([, v]) => Object.keys(v).length);
+  if (pt.length) $('#cashKpis').insertAdjacentHTML('beforeend', `<div class="panel"><h2>Saques dos sócios no período</h2>${pt.map(([p, v]) => `<div class="cash-row"><span style="min-width:160px">${esc(p)}</span><b>${Object.entries(v).map(([c, x]) => cashMoney(x, c)).join(' · ')}</b></div>`).join('')}</div>`);
+  f.partner.innerHTML = (d.partners || []).map((p) => `<option>${esc(p)}</option>`).join('');
   $('#cashViewersContabil').innerHTML = d.admins.map((a) => `<label class="check"><input type="checkbox" data-viewer-contabil="${esc(a.id)}" ${(d.contabilUserIds || []).includes(a.id) ? 'checked' : ''} /> ${esc(a.name)}${a.id === d.me.id ? ' (você)' : ''}</label>`).join('');
   $('#cashConfig').hidden = !d.books?.migra;
 };
@@ -2044,15 +2049,24 @@ function openCashForm(e = null) {
   f.status.value = e?.status || 'pago';
   f.dueDate.value = e?.dueDate || '';
   f.notes.value = e?.notes || '';
+  if (e?.partner) f.partner.value = e.partner;
+  syncPartnerField();
   f.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
-$('#btnCashNew').addEventListener('click', () => openCashForm());
+function syncPartnerField() {
+  const f = $('#formCash');
+  $('#cashPartnerField').hidden = !(f.kind.value === 'saida' && f.category.value === 'Retirada de sócio');
+}
+$('#formCash').kind.addEventListener('change', syncPartnerField);
+$('#formCash').category.addEventListener('change', syncPartnerField);
+$('#btnCashNew').addEventListener('click', () => { openCashForm(); syncPartnerField(); });
 $('#btnCashCancel').addEventListener('click', () => { $('#formCash').hidden = true; });
 $('#formCash').addEventListener('submit', withBusy($('#formCash'), async (ev) => {
   const f = ev.target;
   const body = Object.fromEntries(new FormData(f));
   if (!cashState.editing) body.book = cashState.book; // lançamento novo vai para o caixa que está aberto
   if (cashState.book !== 'migra') body.scope = 'empresa';
+  if ($('#cashPartnerField').hidden) delete body.partner;
   await api(cashState.editing ? `/api/cash/${cashState.editing}` : '/api/cash', { method: cashState.editing ? 'PATCH' : 'POST', body });
   f.hidden = true;
   toast('Lançamento salvo');
@@ -2085,6 +2099,7 @@ $('#formCashConfig').addEventListener('submit', withBusy($('#formCashConfig'), a
     categories: f.categories.value.split('\n').map((x) => x.trim()).filter(Boolean),
     allowedUserIds: $$('#cashViewers [data-viewer]').filter((i) => i.checked).map((i) => i.dataset.viewer),
     contabilUserIds: $$('#cashViewersContabil [data-viewer-contabil]').filter((i) => i.checked).map((i) => i.dataset.viewerContabil),
+    migratechUserIds: $$('#cashViewersMigratech [data-viewer-migratech]').filter((i) => i.checked).map((i) => i.dataset.viewerMigratech),
   } });
   toast('Configurações do caixa salvas');
   settingsCache = await api('/api/settings').catch(() => settingsCache);

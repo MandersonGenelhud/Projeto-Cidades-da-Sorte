@@ -170,13 +170,13 @@ test('caixa da Contábil: cada caixa tem quem pode ver; a lista da Contábil vaz
   const store = tempStore();
   const cash = new Cash({ store, auth: null });
   const marcos = { id: 'm', role: 'admin' }; const conta = { id: 'c', role: 'admin' }; const seller = { id: 's', role: 'seller' };
-  assert.deepEqual(cash.booksFor(marcos), ['migra', 'contabil'], 'sem listas: todos os administradores veem os dois');
+  assert.deepEqual(cash.booksFor(marcos), ['migra', 'contabil', 'migratech'], 'sem listas: todos os administradores veem todos');
   assert.deepEqual(cash.booksFor(seller), [], 'vendedor nunca');
   store.settings.cash = { allowedUserIds: ['m'], contabilUserIds: [] };
   assert.deepEqual(cash.booksFor(conta), [], 'lista da Contábil vazia = mesma regra do Caixa Migra');
   store.settings.cash = { allowedUserIds: ['m'], contabilUserIds: ['c'] };
   assert.deepEqual(cash.booksFor(conta), ['contabil'], 'quem cuida da contabilidade vê só o caixa dela');
-  assert.deepEqual(cash.booksFor(marcos), ['migra'], 'e a Contábil limitada não aparece para quem não está na lista dela');
+  assert.deepEqual(cash.booksFor(marcos), ['migra', 'migratech'], 'e a Contábil limitada não aparece para quem não está na lista dela');
   assert.equal(cash.canAccess(conta), false, 'sem dizer o caixa, vale o Caixa Migra (a Nina usa este)');
 });
 

@@ -16,7 +16,7 @@
     { id: 'marketing', label: 'Marketing', icon: 'marketing', tabs: ['marketing', 'campaigns', 'schedules', 'send', 'livepage'] },
     { id: 'ia', label: 'Atendimento automático', icon: 'agent', tabs: ['agent', 'test', 'connection', 'rules'] },
     { id: 'imoveis', label: 'Imóveis e site', icon: 'realty', tabs: ['realty', 'lots', 'finance', 'site'] },
-    { id: 'empresas', label: 'Outras empresas', icon: 'motors', tabs: ['motors', 'school'] },
+    { id: 'empresas', label: 'Outras empresas', icon: 'motors', tabs: ['motors', 'school', 'migratech', 'devocional'] },
     { id: 'equipe', label: 'Equipe', icon: 'team', tabs: ['team', 'attendants', 'ranking', 'resumes', 'video', 'recordings'] },
     { id: 'ajuda', label: 'Ajuda e treinamento', icon: 'tutorials', tabs: ['tutorials', 'support', 'cities'] },
     { id: 'sistema', label: 'Sistema', icon: 'settings', tabs: ['settings', 'offices', 'modules', 'audit', 'logs'] },

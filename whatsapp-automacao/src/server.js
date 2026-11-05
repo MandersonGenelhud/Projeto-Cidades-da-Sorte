@@ -29,6 +29,8 @@ import { makeSellerCommands } from './seller-commands.js';
 import { Learnings } from './learnings.js';
 import { ReceiptReader } from './receipts.js';
 import { OWNER_PAUSE } from './agent/agent.js';
+import { Migratech } from './migratech.js';
+import { AppSignups, APPS as SIGNUP_APPS } from './app-signups.js';
 import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, BOOKS as CASH_BOOKS, toCsv as cashToCsv } from './cash.js';
 import { Nina } from './assistant.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
@@ -1390,7 +1392,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1871,10 +1873,26 @@ const SELLER_ROUTES = [
   ['*', /^\/videocall\/me$/],
   ['POST', /^\/videocall\/[a-z0-9]+\/cancel$/],
 ];
+const integrationHits = new Map();
+app.post('/api/integrations/:app/users', (req, res) => {
+  const ip = clientIp(req); const now = Date.now();
+  const h = integrationHits.get(ip) || { n: 0, reset: now + 60_000 };
+  if (now > h.reset) { h.n = 0; h.reset = now + 60_000; }
+  h.n += 1; integrationHits.set(ip, h);
+  if (h.n > 120) return res.status(429).json({ error: 'Muitos pedidos: espere um minuto' });
+  const key = String(req.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (!appSignups.checkKey(req.params.app, key)) {
+    if (h.n <= 3) securityEvent('app_chave_invalida', null, req, `${req.params.app}: tentativa com chave errada`);
+    return res.status(401).json({ error: 'Chave inválida' });
+  }
+  res.json(appSignups.ingest(req.params.app, req.body || {}));
+});
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth/') || req.path.startsWith('/public/') || req.path.startsWith('/affiliate/')) return next();
   // O envio automático da cópia usa uma chave temporária própria (conferida na própria rota), não a sessão do painel.
   if (req.path.startsWith('/legacy/ingest/')) return next();
+  // Aplicativos da Migra (Migra Devocional) mandam cadastros com a chave própria (conferida na rota).
+  if (req.path.startsWith('/integrations/')) return next();
   const user = auth.fromRequest(req);
   if (!user) return res.status(401).json({ error: auth.needsSetup ? 'Crie o administrador para começar' : 'Entre com seu login', login: true });
   req.user = user;
@@ -4311,7 +4329,9 @@ const cashBookOfSale = (sale) => {
   const names = (sale?.items || []).map((i) => i.name).filter(Boolean);
   return names.length && names.every((n) => serviceCatalog.categoryOf(n) === 'contabil') ? 'contabil' : 'migra';
 };
-const cash = new Cash({ store, auth, payments, sales, affiliates, bookOfSale: cashBookOfSale });
+const migratech = new Migratech({ store });
+const appSignups = new AppSignups({ store });
+const cash = new Cash({ store, auth, payments, sales, affiliates, bookOfSale: cashBookOfSale, extraAutomatic: () => migratech.cashEntries() });
 const nina = new Nina({
   store, auth, cash, llm,
   stt: new FallbackStt(new HttpStt({ url: process.env.STT_URL }), new GeminiStt({ getConfig: agentConfig })),
@@ -4365,6 +4385,9 @@ app.get('/api/cash', (req, res) => {
     from, to, count: entries.length, book,
     books: Object.fromEntries(cash.booksFor(req.user).map((b) => [b, CASH_BOOKS[b]])),
     contabilUserIds: store.settings.cash?.contabilUserIds || [],
+    migratechUserIds: store.settings.cash?.migratechUserIds || [],
+    partners: cash.partners,
+    partnerTotals: cash.partnerTotals(entries),
     entries: entries.slice(0, 500),
     summary: cash.summary(entries),
     categories: cash.categories,
@@ -4458,13 +4481,75 @@ app.put('/api/cash/settings', (req, res) => {
   if (!cash.canAccess(req.user, 'migra')) throw httpError(403, 'Só quem vê o Caixa Migra muda as categorias e quem vê os caixas.');
   if (allowed.length && !allowed.includes(req.user.id)) throw httpError(400, 'Você não pode se tirar da lista de quem vê o caixa.');
   const contabilIds = (Array.isArray(req.body?.contabilUserIds) ? req.body.contabilUserIds : store.settings.cash?.contabilUserIds || []).filter((id) => adminIds.has(id));
-  store.updateSettings({ cash: { categories, allowedUserIds: allowed, contabilUserIds: contabilIds } });
+  const migratechIds = (Array.isArray(req.body?.migratechUserIds) ? req.body.migratechUserIds : store.settings.cash?.migratechUserIds || []).filter((id) => adminIds.has(id));
+  store.updateSettings({ cash: { categories, allowedUserIds: allowed, contabilUserIds: contabilIds, migratechUserIds: migratechIds } });
   store.settings.cash.allowedUserIds = allowed; // updateSettings junta listas por substituição; garante o valor exato
   store.settings.cash.contabilUserIds = contabilIds;
+  store.settings.cash.migratechUserIds = migratechIds;
   store.save();
-  securityEvent('caixa_acesso', req.user, req, `Caixa Migra: ${allowed.length ? `${allowed.length} administrador(es)` : 'todos os administradores'} · Caixa Contábil: ${contabilIds.length ? `${contabilIds.length} administrador(es)` : 'mesma regra do Caixa Migra'}`);
+  securityEvent('caixa_acesso', req.user, req, `Caixa Migra: ${allowed.length ? `${allowed.length} administrador(es)` : 'todos os administradores'} · Caixa Contábil: ${contabilIds.length ? `${contabilIds.length} administrador(es)` : 'mesma regra do Caixa Migra'} · Caixa Migratech: ${migratechIds.length ? `${migratechIds.length} administrador(es)` : 'mesma regra do Caixa Migra'}`);
   res.json({ ok: true });
 });
+// ---- Migratech Soluções: só quem vê o Caixa Migratech (é tudo dinheiro e clientes dessa empresa) ----
+app.use('/api/migratech', (req, res, next) => {
+  if (!cash.canAccess(req.user, 'migratech')) return res.status(403).json({ error: 'A Migratech é restrita a quem vê o Caixa Migratech Soluções.' });
+  next();
+});
+app.get('/api/migratech', (req, res) => {
+  const range = cashRange(String(req.query.period || 'month'));
+  const entries = cash.entries({ ...range, book: 'migratech' });
+  res.json({ ...migratech.overview(), cash: cash.summary(entries), partners: cash.partners, partnerTotals: cash.partnerTotals(entries), period: range });
+});
+const MT_LISTS = { clients: ['addClient', 'updateClient', 'cliente'], contracts: ['addContract', 'updateContract', 'contrato'], services: ['addService', 'updateService', 'serviço'] };
+app.post('/api/migratech/:list', (req, res) => {
+  const m = MT_LISTS[req.params.list];
+  if (!m) throw httpError(404, 'Rota não encontrada');
+  const x = migratech[m[0]](req.user, req.body || {});
+  audit.record({ user: req.user, ip: clientIp(req), action: 'criou', entity: `migratech ${m[2]}`, label: x.name || x.title || x.description });
+  res.json(x);
+});
+app.patch('/api/migratech/:list/:id', (req, res) => {
+  const m = MT_LISTS[req.params.list];
+  if (!m) throw httpError(404, 'Rota não encontrada');
+  const x = migratech[m[1]](req.user, req.params.id, req.body || {});
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: `migratech ${m[2]}`, label: x.name || x.title || x.description });
+  res.json(x);
+});
+app.delete('/api/migratech/:list/:id', (req, res) => {
+  const m = MT_LISTS[req.params.list];
+  if (!m) throw httpError(404, 'Rota não encontrada');
+  migratech.remove(req.user, req.params.list, req.params.id, req.body?.reason);
+  audit.record({ user: req.user, ip: clientIp(req), action: 'excluiu', entity: `migratech ${m[2]}`, label: `${req.params.id} · ${req.body?.reason || ''}` });
+  res.json({ ok: true });
+});
+// Saque de sócio (Marcos ou Manderson): vira uma saída no Caixa Migratech, categoria "Retirada de sócio".
+app.post('/api/migratech-withdrawals', (req, res) => {
+  if (!cash.canAccess(req.user, 'migratech')) throw httpError(403, 'Só quem vê o Caixa Migratech Soluções.');
+  const b = req.body || {};
+  if (!String(b.partner || '').trim()) throw httpError(400, `Diga qual sócio fez o saque (${cash.partners.join(' ou ')})`);
+  const e = cash.add(req.user, { kind: 'saida', amount: b.amount, currency: b.currency || 'BRL', date: b.date, description: String(b.description || '').trim() || `Saque do sócio ${b.partner || ''}`.trim(), category: 'Retirada de sócio', partner: b.partner, method: b.method, notes: b.notes, book: 'migratech' });
+  securityEvent('caixa_lancamento', req.user, req, `Caixa Migratech Soluções · saque de sócio ${e.partner} · ${e.amount} ${e.currency}`);
+  res.json(e);
+});
+
+// ---- Migra Devocional (e outros apps): quantos usuários se cadastraram ----
+app.get('/api/app-signups/:app', (req, res) => {
+  needAdmin(req);
+  res.json(appSignups.stats(req.params.app));
+});
+app.post('/api/app-signups/:app/key', (req, res) => {
+  needAdmin(req);
+  const key = appSignups.newKey(req.params.app, req.user);
+  securityEvent('app_chave_criada', req.user, req, `${SIGNUP_APPS[req.params.app]}: chave nova (a anterior deixou de valer)`);
+  res.json({ key, note: 'Copie agora: esta chave não aparece de novo. Cole nas configurações do aplicativo, nunca em conversas.' });
+});
+app.delete('/api/app-signups/:app/key', (req, res) => {
+  needAdmin(req);
+  appSignups.revokeKey(req.params.app);
+  securityEvent('app_chave_revogada', req.user, req, `${SIGNUP_APPS[req.params.app] || req.params.app}: chave desligada`);
+  res.json({ ok: true });
+});
+
 app.put('/api/sales/settings', (req, res) => {
   if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
   const pct = Number(req.body?.commissionPct);

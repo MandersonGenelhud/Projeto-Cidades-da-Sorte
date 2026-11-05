@@ -22,15 +22,20 @@ export const SCOPE_LABELS = { empresa: 'Empresa', pessoal: 'Pessoal', dizimo: 'D
 export const TITHE_PCT = 10;
 // Caixas separados: o da Migra (geral) e o da Migra Contábil Paraguay. Cada lançamento é de um caixa só
 // e cada caixa tem a sua lista de quem pode ver.
-export const BOOKS = { migra: 'Caixa Migra', contabil: 'Caixa Migra Contábil Paraguay' };
+export const BOOKS = { migra: 'Caixa Migra', contabil: 'Caixa Migra Contábil Paraguay', migratech: 'Caixa Migratech Soluções' };
+// Lista de quem pode ver cada caixa (configurações do caixa). Vazia nos caixas novos = mesma regra do Caixa Migra.
+const BOOK_LIST = { migra: 'allowedUserIds', contabil: 'contabilUserIds', migratech: 'migratechUserIds' };
+// Sócios que fazem saque (categoria "Retirada de sócio").
+export const DEFAULT_PARTNERS = ['Marcos', 'Manderson'];
+const PARTNER_CATEGORY = 'Retirada de sócio';
 const flat = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const AUTO_IN = 'Recebimento de clientes';
 const AUTO_COMMISSION = 'Comissões pagas';
 
 export class Cash {
   /** payments/sales/affiliates são só para ler o que já entrou e as comissões já pagas. */
-  constructor({ store, auth, payments = null, sales = null, affiliates = null, bookOfSale = () => 'migra' }) {
-    Object.assign(this, { store, auth, payments, sales, affiliates, bookOfSale });
+  constructor({ store, auth, payments = null, sales = null, affiliates = null, bookOfSale = () => 'migra', extraAutomatic = () => [] }) {
+    Object.assign(this, { store, auth, payments, sales, affiliates, bookOfSale, extraAutomatic });
     store.data.cash ||= [];
   }
 
@@ -54,15 +59,20 @@ export class Cash {
   canAccess(user, book = 'migra') {
     if (!user || user.role !== 'admin' || user.active === false) return false;
     const list = (ids) => Array.isArray(ids) && ids.length ? ids : null;
-    const migraIds = list(this.config.allowedUserIds);
-    const ids = book === 'contabil' ? list(this.config.contabilUserIds) || migraIds : migraIds;
     if (!BOOKS[book]) return false;
+    const migraIds = list(this.config.allowedUserIds);
+    const ids = book === 'migra' ? migraIds : list(this.config[BOOK_LIST[book]]) || migraIds;
     return !ids || ids.includes(user.id);
   }
 
   /** Caixas que a pessoa pode ver (para mostrar a aba e os botões de troca). */
   booksFor(user) {
     return Object.keys(BOOKS).filter((b) => this.canAccess(user, b));
+  }
+
+  get partners() {
+    const p = this.config.partners;
+    return Array.isArray(p) && p.length ? p : DEFAULT_PARTNERS;
   }
 
   #book(v) {
@@ -76,6 +86,28 @@ export class Cash {
     if (!x) return 'empresa';
     if (!SCOPES.includes(x)) throw err(400, 'Escolha: empresa, pessoal ou dízimo');
     return x;
+  }
+
+  /** Saque de sócio: diz qual sócio (Marcos ou Manderson). Sem nome fica em branco (lançamentos antigos e a Nina); nome fora da lista é recusado. */
+  #partner(input, base, kind) {
+    const category = clean(input.category ?? base.category, 80);
+    if (kind !== 'saida' || category !== PARTNER_CATEGORY) return '';
+    const name = clean(input.partner ?? base.partner, 60);
+    if (!name) return '';
+    const hit = this.partners.find((p) => flat(p) === flat(name));
+    if (!hit) throw err(400, `Diga qual sócio fez o saque (${this.partners.join(' ou ')})`);
+    return hit;
+  }
+
+  /** Quanto cada sócio sacou no período, por moeda (só o que já foi pago). */
+  partnerTotals(entries) {
+    const out = Object.fromEntries(this.partners.map((p) => [p, {}]));
+    for (const e of entries) {
+      if (e.kind !== 'saida' || e.category !== PARTNER_CATEGORY || e.status === 'a_pagar' || !e.partner) continue;
+      const t = (out[e.partner] ||= {});
+      t[e.currency] = round((t[e.currency] || 0) + e.amount);
+    }
+    return out;
   }
 
   #log(e, user, text) {
@@ -105,6 +137,7 @@ export class Cash {
       notes: clean(input.notes ?? base.notes, 400),
       scope: this.#scope(input.scope ?? base.scope),
       book: this.#book(input.book ?? base.book),
+      partner: this.#partner(input, base, kind),
     };
   }
 
@@ -191,7 +224,7 @@ export class Cash {
   entries({ from = '', to = '', kind = '', category = '', q = '', status = '', scope = '', book = 'migra' } = {}) {
     const term = flat(clean(q, 80));
     const manual = this.list.filter((e) => !e.deleted).map((e) => ({ ...e, scope: e.scope || 'empresa', book: e.book || 'migra', source: 'manual' }));
-    return [...manual, ...this.automatic()]
+    return [...manual, ...this.automatic(), ...this.extraAutomatic()]
       .filter((e) => (e.book || 'migra') === book)
       .filter((e) => (!from || e.date >= from) && (!to || e.date <= to))
       .filter((e) => !kind || e.kind === kind)
@@ -257,11 +290,11 @@ export function toCsv(entries) {
     if (/^[=+\-@\t\r]/.test(x)) x = `'${x}`; // evita fórmula maliciosa ao abrir no Excel
     return /[";\n\r]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x;
   };
-  const head = ['Data', 'Tipo', 'Escopo', 'Categoria', 'Descrição', 'Valor', 'Moeda', 'Situação', 'Vencimento', 'Forma', 'Quem pagou', 'Para quem / de quem', 'Observações', 'Origem'];
+  const head = ['Data', 'Tipo', 'Escopo', 'Categoria', 'Descrição', 'Valor', 'Moeda', 'Situação', 'Vencimento', 'Forma', 'Quem pagou', 'Para quem / de quem', 'Observações', 'Origem', 'Sócio'];
   const rows = [...entries].sort((a, b) => a.date.localeCompare(b.date)).map((e) => [
     e.date.split('-').reverse().join('/'), e.kind === 'entrada' ? 'Entrada' : 'Saída', SCOPE_LABELS[e.scope] || 'Empresa', e.category, e.description,
     String(e.amount).replace('.', ','), e.currency, e.status === 'a_pagar' ? (e.kind === 'saida' ? 'A pagar' : 'A receber') : 'Pago',
-    e.dueDate ? e.dueDate.split('-').reverse().join('/') : '', e.method, e.account, e.payee, e.notes, e.source === 'sistema' ? 'Automático' : e.via === 'nina' ? 'Nina' : 'Manual',
+    e.dueDate ? e.dueDate.split('-').reverse().join('/') : '', e.method, e.account, e.payee, e.notes, e.source === 'sistema' ? 'Automático' : e.via === 'nina' ? 'Nina' : 'Manual', e.partner || '',
   ]);
   return `\ufeff${[head, ...rows].map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`;
 }
