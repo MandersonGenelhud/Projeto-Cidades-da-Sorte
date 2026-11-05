@@ -7,7 +7,7 @@ Nenhum sistema é impossível de invadir. O objetivo é tornar a invasão muito 
 | Proteção | Como funciona |
 | --- | --- |
 | Senhas | Guardadas só como hash scrypt com sal, nunca em texto. |
-| Verificação em duas etapas (2FA) | **Obrigatória para todos.** No primeiro acesso, o sistema só deixa configurar o app autenticador (código de 6 números, padrão TOTP/RFC 6238). |
+| Verificação em duas etapas (2FA) | **Obrigatória para todos.** No primeiro acesso, o sistema só deixa configurar o app autenticador (código de 6 números, padrão TOTP/RFC 6238). **Aparelho confiável:** depois de digitar o código, marcando "Lembrar este aparelho", aquele navegador não pede o código por 30 dias (a senha continua sendo pedida sempre). A marca é assinada, só vale para a mesma pessoa, só é enviada para /api/auth e deixa de valer com "Sair de todos os aparelhos", "Derrubar todos os acessos", troca de senha ou ao ligar/desligar as duas etapas. Teste: `test/trusted-device.test.js`. |
 | Cadastro de vendedor | A pessoa se cadastra pelo link, mas só entra depois que o administrador libera na aba Equipe. O pedido avisa os administradores no WhatsApp. Senha com no mínimo 8 caracteres, com letras e números. |
 | Portal dos parceiros | Senha com no mínimo 8 caracteres, com letras e números. O parceiro vê só o nome, o serviço e a situação das indicações dele, nunca o telefone do cliente. Os dados de recebimento (Pix ou conta no Paraguai) aparecem só para o administrador. |
 | Pré-cadastro público | No máximo 8 envios por hora do mesmo IP. Exige autorização de contato (LGPD). Indicar a si mesmo não gera comissão, e vale o primeiro indicador. |

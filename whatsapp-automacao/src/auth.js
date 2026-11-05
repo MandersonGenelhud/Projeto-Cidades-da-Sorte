@@ -7,6 +7,10 @@ import { normalizePhone, uid } from './utils.js';
 
 const COOKIE = 'zapauto_sessao';
 const SESSION_DAYS = 7; // depois disso, entra de novo
+// Aparelho confiável: depois de digitar o código das duas etapas, este aparelho não pede o código por 30 dias
+// (a senha continua sendo pedida). "Sair de todos os aparelhos" e "Derrubar todos os acessos" cancelam.
+const TRUST_DAYS = 30;
+const TRUST_COOKIE = 'mh_trust';
 
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -122,6 +126,7 @@ export class Auth {
       if (String(patch.password).length < 6) throw Object.assign(new Error('A senha precisa ter pelo menos 6 caracteres'), { status: 400 });
       u.passwordHash = hashPassword(patch.password);
       u.sessionVersion = (u.sessionVersion || 0) + 1; // senha nova derruba os outros acessos
+      u.trustVersion = (u.trustVersion || 0) + 1; // e esquece os aparelhos confiáveis
     }
     this.store.save();
     return publicUser(u);
@@ -157,6 +162,33 @@ export class Auth {
     return `${COOKIE}=${value}.${this.#sign(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}${secure ? '; Secure' : ''}`;
   }
 
+  /** Cookie assinado que marca este aparelho como confiável para este usuário (30 dias). */
+  trustCookie(user, { secure = false } = {}) {
+    const exp = Date.now() + TRUST_DAYS * 86_400_000;
+    const value = `${user.id}.${user.trustVersion || 0}.${exp}`;
+    return `${TRUST_COOKIE}=${value}.${this.#sign(`trust:${value}`)}; Path=/api/auth; HttpOnly; SameSite=Strict; Max-Age=${TRUST_DAYS * 86400}${secure ? '; Secure' : ''}`;
+  }
+
+  /** Este aparelho foi marcado como confiável por este usuário e a marca ainda vale? */
+  trustedDevice(req, user) {
+    if (!user) return false;
+    const raw = String(req.headers.cookie || '').split(';').map((c) => c.trim()).find((c) => c.startsWith(`${TRUST_COOKIE}=`));
+    if (!raw) return false;
+    const [id, ver, exp, sig] = raw.slice(TRUST_COOKIE.length + 1).split('.');
+    if (!id || ver === undefined || !exp || !sig || id !== user.id) return false;
+    const expected = this.#sign(`trust:${id}.${ver}.${exp}`);
+    if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return false;
+    return Number(exp) > Date.now() && Number(ver) === (user.trustVersion || 0);
+  }
+
+  /** Esquece todos os aparelhos confiáveis desta pessoa (volta a pedir o código em todos). */
+  forgetDevices(id) {
+    const u = this.get(id);
+    if (!u) return;
+    u.trustVersion = (u.trustVersion || 0) + 1;
+    this.store.save();
+  }
+
   clearCookie() {
     return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
   }
@@ -166,12 +198,13 @@ export class Auth {
     const u = this.get(id);
     if (!u) return;
     u.sessionVersion = (u.sessionVersion || 0) + 1;
+    u.trustVersion = (u.trustVersion || 0) + 1;
     this.store.save();
   }
 
   /** Derruba todo mundo (invasão): todos precisam entrar de novo. */
   revokeAll() {
-    for (const u of this.users) u.sessionVersion = (u.sessionVersion || 0) + 1;
+    for (const u of this.users) { u.sessionVersion = (u.sessionVersion || 0) + 1; u.trustVersion = (u.trustVersion || 0) + 1; }
     this.store.save();
   }
 

@@ -9,6 +9,7 @@
   <link rel="icon" href="img/migra-emblema.png" />
   <link rel="stylesheet" href="style.css" />
   <style>
+    .remember { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; } .remember input { width: auto; margin-top: 2px; }
     body { display: grid; place-items: center; min-height: 100vh; padding: 16px; }
     .login { width: min(400px, 100%); background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 0 28px 28px; display: grid; gap: 14px; overflow: hidden; }
     .login .hero { margin: 0 -28px; padding: 22px 28px; background: var(--sidebar); text-align: center; }
@@ -36,6 +37,7 @@
     <label id="loginWrap">Login <input name="login" autocomplete="username" required placeholder="ex.: marcos" /></label>
     <label id="passWrap">Senha <input name="password" type="password" autocomplete="current-password" required minlength="6" /></label>
     <label id="codeWrap" hidden>Código do app autenticador (6 números) <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" /></label>
+    <label class="remember" id="rememberWrap" hidden><input type="checkbox" name="remember" checked /> Lembrar este aparelho por 30 dias (não pede o código aqui; a senha continua)</label>
     <label id="setupCodeWrap" hidden>Código de instalação (aparece no fim da instalação da VPS) <input name="setupCode" autocomplete="off" /></label>
     <label id="waWrap" hidden>Seu WhatsApp com DDD <input name="whatsapp" placeholder="+55 45 99999-0000 ou +595 981 123456" /></label>
     <div id="setupBox" hidden></div>
@@ -110,6 +112,7 @@
       e.preventDefault();
       $('err').textContent = '';
       const body = Object.fromEntries(new FormData(form));
+      body.remember = Boolean(form.remember?.checked);
       try {
         if (mode === 'twofa') {
           await post('/api/security/2fa/enable', { code: body.code });
@@ -126,6 +129,7 @@
         if (data.needs2fa) {
           // Já tem o app autenticador: pede o código.
           $('codeWrap').hidden = false;
+          $('rememberWrap').hidden = false;
           form.code.required = true;
           form.code.focus();
           $('intro').textContent = 'Digite o código de 6 números que aparece agora no seu app autenticador.';

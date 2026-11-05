@@ -1792,8 +1792,9 @@ app.post('/api/auth/login', async (req, res) => {
     }
     throw httpError(401, 'Login ou senha incorretos');
   }
-  // Verificação em duas etapas: pede o código do app autenticador.
-  if (user.totpEnabled && !verifyTotp(user.totpSecret, req.body.code)) {
+  // Verificação em duas etapas: pede o código do app autenticador (menos em aparelho confiável, até 30 dias).
+  const trusted = user.totpEnabled && auth.trustedDevice(req, user);
+  if (user.totpEnabled && !trusted && !verifyTotp(user.totpSecret, req.body.code)) {
     if (req.body.code) {
       loginGuard.fail({ login, ip });
       securityEvent('codigo_errado', user, req);
@@ -1802,7 +1803,7 @@ app.post('/api/auth/login', async (req, res) => {
     return res.json({ needs2fa: true });
   }
   loginGuard.success({ login });
-  securityEvent('entrou', user, req);
+  securityEvent(trusted ? 'entrou_aparelho_confiavel' : 'entrou', user, req);
   // Aparelho/endereço novo: avisa os administradores no WhatsApp.
   user.knownIps ||= [];
   if (!user.knownIps.includes(ip)) {
@@ -1818,7 +1819,10 @@ app.post('/api/auth/login', async (req, res) => {
   }
   store.save();
   // Duas etapas obrigatórias: quem ainda não ligou entra só para configurar o app autenticador.
-  res.set('Set-Cookie', auth.sessionCookie(user, { secure: req.secure })).json({ ...publicUser(user), setup2fa: require2fa() && !user.totpEnabled });
+  const cookies = [auth.sessionCookie(user, { secure: req.secure })];
+  // Digitou o código e pediu para lembrar: este aparelho fica confiável por 30 dias.
+  if (user.totpEnabled && !trusted && req.body.remember !== false) cookies.push(auth.trustCookie(user, { secure: req.secure }));
+  res.set('Set-Cookie', cookies).json({ ...publicUser(user), setup2fa: require2fa() && !user.totpEnabled });
 });
 app.post('/api/auth/logout', (_req, res) => {
   res.set('Set-Cookie', auth.clearCookie()).json({ ok: true });
@@ -2018,6 +2022,7 @@ app.post('/api/security/2fa/enable', (req, res) => {
   u.totpEnabled = true;
   delete u.totpPending;
   u.sessionVersion = (u.sessionVersion || 0) + 1; // outros aparelhos precisam entrar de novo, já com o código
+  u.trustVersion = (u.trustVersion || 0) + 1;
   store.save();
   securityEvent('2fa_ligada', u, req);
   res.set('Set-Cookie', auth.sessionCookie(u, { secure: req.secure })).json({ ok: true });
@@ -2027,6 +2032,7 @@ app.post('/api/security/2fa/disable', (req, res) => {
   if (!auth.login(u.login, req.body.password) || !verifyTotp(u.totpSecret, req.body.code)) throw httpError(400, 'Senha ou código incorretos');
   u.totpEnabled = false;
   delete u.totpSecret;
+  u.trustVersion = (u.trustVersion || 0) + 1;
   store.save();
   securityEvent('2fa_desligada', u, req);
   notifyAdmins(`⚠️ ${u.name} desligou a verificação em duas etapas do painel.`).catch(() => {});
