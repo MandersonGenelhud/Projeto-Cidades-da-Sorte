@@ -90,3 +90,22 @@ test('orçamento: Assessoria Prime (R$ 2.750 e R$ 1.560), desconto de 1 a 15% e 
   assert.equal(q.plan.total, 2337.5);
   assert.match(quotes.message(q), /Desconto de 15%/);
 });
+
+test('memória da atendente: quem vai morar precisa da licença paraguaia (Ouro), mesmo achando que a CNH basta', async () => {
+  const { buildSystemPrompt } = await import('../src/agent/prompt.js');
+  const fsm = await import('node:fs');
+  const pathm = await import('node:path');
+  const { Store } = await import('../src/store.js');
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  assert.match(buildSystemPrompt(store.settings), /CNH brasileira serve para dirigir/);
+  // Sistema que já estava rodando (FAQ sem essa memória): recebe uma vez só ao reiniciar.
+  store.settings.business.faq = 'Pergunta antiga? Resposta antiga.';
+  delete store.settings.agent.cnhMemory2026;
+  store.flush();
+  const again = new Store(store.dataDir);
+  assert.match(again.settings.business.faq, /Pergunta antiga\?[\s\S]*CNH brasileira serve/);
+  const once = new Store(store.dataDir);
+  assert.equal((once.settings.business.faq.match(/CNH brasileira serve/g) || []).length, 1, 'não repete');
+  assert.ok(fsm && pathm);
+});

@@ -289,6 +289,15 @@ export class Store extends EventEmitter {
       crmS.lotsGabriel2026 = true;
       this.flush();
     }
+    // Nov/2026: memória da atendente sobre CNH x licença paraguaia (quem vai morar precisa da licença: Ouro, não Prata).
+    const biz = this.data.settings.business;
+    if (biz && /migra/i.test(biz.name || '') && !this.data.settings.agent?.cnhMemory2026) {
+      const cnh = 'Minha CNH brasileira serve para dirigir no Paraguai? Muitos clientes acham que a CNH brasileira basta e por isso escolhem o Prata. Para quem vai MORAR no Paraguai, a licença de condução paraguaia é necessária: o pacote certo é o Ouro, que já inclui a licença (carro ou moto). Quando o cliente disser que vai residir e escolher o Prata por causa da CNH, explique isso com calma e recomende o Ouro. Não invente prazos, multas ou regras de trânsito que não estão aqui.';
+      if (!String(biz.faq || '').includes('CNH brasileira serve')) biz.faq = `${String(biz.faq || '').trim()}\n${cnh}`.trim();
+      this.data.settings.agent ||= {};
+      this.data.settings.agent.cnhMemory2026 = true;
+      this.flush();
+    }
     // Nov/2026: as duas Assessorias Prime entram na lista de pacotes do orçamento (uma vez; depois vale o que o Marcos editar).
     if (crmS && !crmS.primePackages2026) {
       crmS.packages ||= [];
