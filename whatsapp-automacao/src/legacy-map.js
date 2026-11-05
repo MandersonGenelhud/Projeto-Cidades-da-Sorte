@@ -64,7 +64,7 @@ export const OUR_FEATURES = [
   { re: /service|servico|catalogo/, theme: 'Serviços', ours: 'Serviços (catálogo com preço, prazo e comissão)', status: 'tem', note: '' },
   { re: /cobranca|collection|vencimento|inadimpl|atras/, theme: 'Cobrança', ours: 'Cobrança e previsão (com aprovação)', status: 'tem', note: '' },
   { re: /financ|receber|debito|pagamento/, theme: 'Financeiro', ours: 'Vendas, Cobrança e previsão', status: 'parcial', note: 'Falta débito (acréscimo/multa) e histórico por contrato em uma tela' },
-  { re: /contabil|accounting/, theme: 'Contabilidade', ours: 'Caixa (só administradores)', status: 'parcial', note: 'Falta caixa da contabilidade separado (Migra Contabilidade)' },
+  { re: /contabil|accounting/, theme: 'Contabilidade', ours: 'Caixa (só administradores)', status: 'parcial', note: 'Falta caixa da contabilidade separado (Migra Contábil Paraguay)' },
   { re: /caixa|expense|despesa/, theme: 'Caixa e despesas', ours: 'Caixa (só administradores)', status: 'tem', note: '' },
   { re: /report|relatorio|projecao/, theme: 'Relatórios', ours: 'Painel executivo e Previsão', status: 'parcial', note: 'Falta exportar CSV por período e relatório de desativados' },
   { re: /sales.?audit|audit|auditoria|log/, theme: 'Auditoria', ours: 'Auditoria (quem mexeu)', status: 'parcial', note: 'Falta filtro por tipo e exportar CSV' },
