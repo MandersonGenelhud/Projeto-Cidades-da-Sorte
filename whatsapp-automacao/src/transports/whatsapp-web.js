@@ -407,6 +407,13 @@ export class WhatsAppClient extends EventEmitter {
   }
 
   /** `typingMs` define quanto tempo aparece "digitando…" (senão, calcula pelo tamanho do texto). */
+  /** Apaga para todos uma mensagem que o próprio número enviou (usado para sumir com o comando "/contrato"). */
+  async revoke(to, id) {
+    this.#ensureConnected();
+    const jid = await this.resolveJid(to);
+    await this.sock.sendMessage(jid, { delete: { remoteJid: jid, fromMe: true, id } });
+  }
+
   async send(to, { text = '', media = null, typing = true, typingMs } = {}) {
     this.#ensureConnected();
     const jid = await this.resolveJid(to);

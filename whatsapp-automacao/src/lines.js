@@ -179,6 +179,11 @@ export class LineManager extends EventEmitter {
     return { ...result, jid: key };
   }
 
+  async revoke(key, id) {
+    const { client, jid } = this.#client(key);
+    await client.revoke?.(jid, id);
+  }
+
   async downloadAudio(msg) {
     return this.clients.get(msg.line)?.downloadAudio(msg) ?? null;
   }

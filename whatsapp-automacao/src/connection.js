@@ -67,6 +67,13 @@ export class ConnectionManager extends EventEmitter {
   }
 
   /** Envia pelo canal da conversa e avisa quem estiver ouvindo (ex.: lista de conversas sem resposta). */
+  /** Apaga para todos uma mensagem enviada por nós (só WhatsApp). */
+  async revoke(to, id) {
+    if (String(to).startsWith(LINE_PREFIX)) return this.lines?.revoke(to, id);
+    if (String(to).startsWith(IG_PREFIX)) return undefined;
+    return this.current?.revoke?.(to, id);
+  }
+
   async send(to, payload) {
     if (String(to).startsWith(LINE_PREFIX)) {
       if (!this.lines) throw new Error('Números da equipe não configurados');

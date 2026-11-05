@@ -25,6 +25,7 @@ import { buildRanking, currentMonth } from './ranking.js';
 import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
 import { makeContractFlow, contractReady } from './autocontract.js';
+import { makeSellerCommands } from './seller-commands.js';
 import { Learnings } from './learnings.js';
 import { ReceiptReader } from './receipts.js';
 import { OWNER_PAUSE } from './agent/agent.js';
@@ -1099,6 +1100,11 @@ wa.on('instagramStatus', (state) => {
   if (state.error) console.log(`⚠️  Instagram: ${state.error}`);
 });
 wa.on('ownerMessage', (msg) => {
+  // Atalho do consultor na conversa do cliente ("/contrato"): gera o contrato e não pausa a IA.
+  if (!msg.isGroup && sellerCommands.wants(msg)) {
+    sellerCommands.handle(msg).catch((err) => store.addLog({ type: 'error', message: `Atalho /contrato: ${err.message}` }));
+    return;
+  }
   pending.resolve(msg.jid);
   agent.ownerReplied({ key: msg.jid, phone: msg.phone, text: msg.text });
 });
@@ -3837,6 +3843,16 @@ const contractFlow = makeContractFlow({
 });
 const sendContractTo = contractFlow.sendContractTo;
 agent.sendContract = contractFlow.sendContract;
+// Atalho "/contrato" digitado pelo consultor no WhatsApp dele, na conversa do cliente.
+const sellerCommands = makeSellerCommands({
+  agent, llm, contractFlow,
+  packages: () => store.settings.crm?.packages || [],
+  say: async (convKey, text) => { await wa.send(convKey, { text, typing: false }); const c = agent.conversation(convKey, { create: false }); if (c) agent.remember(c, 'assistant', text); },
+  tell: async (owner, text) => { if (owner?.whatsapp) await wa.send(owner.whatsapp, { text, typing: false }); },
+  revoke: (jid, id) => wa.revoke(jid, id),
+  ownerOf: (msg) => { const l = parseLineKey(msg.jid); const u = l ? auth.get(lines.get(l.id)?.ownerId) : null; return u || { name: 'Atendimento', whatsapp: store.settings.crm?.ownerPhone || '' }; },
+  audit: (text) => securityEvent('contrato_atalho', { name: 'Atalho /contrato' }, null, text),
+});
 app.post('/api/quotes/:id/contract/sign-link', async (req, res) => {
   const q = quotes.list.find((x) => x.id === req.params.id);
   if (!q || !canSeeQuote(req.user, q)) throw httpError(404, 'Orçamento não encontrado');

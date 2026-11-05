@@ -122,3 +122,5 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 | Administrador geral (`PATCH /api/users/:id` com `role`) | Só administrador geral concede ou remove; ninguém muda o próprio nível; o último administrador não sai; fica no registro de segurança e os demais administradores recebem aviso no WhatsApp. Teste: `test/general-admin-http.test.js`. |
 
 | Mapa das telas do sistema antigo (`POST /api/legacy/screen-map`) | Só administrador; devolve apenas nomes de telas, colunas e campos (nunca nomes, documentos ou valores de clientes). Testes: `test/legacy-map.test.js`, `test/legacy-noise.test.js`. |
+
+| Atalho `/contrato` no WhatsApp do consultor (`src/seller-commands.js`) | Só vale para mensagens enviadas pelo próprio aparelho do consultor (cliente nunca aciona); usa o mesmo fluxo do contrato automático; só aceita pacote da lista; erro nunca vai para o cliente; fica no registro de segurança. Teste: `test/seller-commands.test.js`. |
