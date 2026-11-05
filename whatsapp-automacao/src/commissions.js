@@ -8,13 +8,23 @@ const cents = (v) => Math.round(Number(v || 0) * 100) / 100;
 const clip = (v, n) => String(v ?? '').replace(/\u0000/g, '').trim().slice(0, n);
 const month = (d = new Date()) => d.toISOString().slice(0, 7);
 
-// Níveis do sistema antigo (Bronze 2%, Esmeralda 3%, Safira 3,5%, Diamond 5%), por vendas no mês.
+// Jornada do Consultor Migra: cada nível conta a história de quem ajuda famílias a recomeçar no Paraguai.
+// Raiz (começa a criar raízes), Ponte (liga as pessoas ao novo país, como a Ponte da Amizade),
+// Horizonte (abre caminhos e cresce), Legado (deixa marca na Migra; porta de entrada para o plano de projetos).
+// Os percentuais e as metas do mês vieram do sistema antigo e o administrador ajusta no painel.
 export const DEFAULT_LEVELS = [
-  { id: 'bronze', label: 'Bronze', pct: 2, goal: 0, color: '#b45309' },
-  { id: 'esmeralda', label: 'Esmeralda', pct: 3, goal: 50000, color: '#059669' },
-  { id: 'safira', label: 'Safira', pct: 3.5, goal: 200000, color: '#2563eb' },
-  { id: 'diamond', label: 'Diamond', pct: 5, goal: 500000, color: '#7c3aed' },
+  { id: 'raiz', label: 'Raiz', pct: 2, goal: 0, color: '#7a8f3a', tagline: 'Criando raízes na Migra' },
+  { id: 'ponte', label: 'Ponte', pct: 3, goal: 50000, color: '#2f7d8c', tagline: 'Ligando famílias ao Paraguai' },
+  { id: 'horizonte', label: 'Horizonte', pct: 3.5, goal: 200000, color: '#c08a1e', tagline: 'Abrindo novos caminhos' },
+  { id: 'legado', label: 'Legado', pct: 5, goal: 500000, color: '#8a6d1f', tagline: 'Construindo o futuro da Migra' },
 ];
+// Nomes do sistema antigo (pedras) → jornada Migra, mantendo percentual e meta.
+const RENAME = { bronze: 'raiz', esmeralda: 'ponte', safira: 'horizonte', diamond: 'legado', diamante: 'legado' };
+const migraLevel = (p) => {
+  const to = RENAME[String(p.id || '').toLowerCase()] || RENAME[String(p.label || '').toLowerCase()];
+  const d = to && DEFAULT_LEVELS.find((x) => x.id === to);
+  return d ? { ...p, id: d.id, label: d.label, color: d.color, tagline: d.tagline } : p;
+};
 
 export class Commissions {
   constructor({ store, sales, auth, notify = async () => {}, now = () => new Date() }) {
@@ -22,7 +32,7 @@ export class Commissions {
     store.data.withdrawals ||= [];
   }
 
-  get config() { const c = this.store.settings.commissionLevels || {}; return { enabled: Boolean(c.enabled), plans: (c.plans?.length ? c.plans : DEFAULT_LEVELS).map((p) => ({ ...p })) }; }
+  get config() { const c = this.store.settings.commissionLevels || {}; return { enabled: Boolean(c.enabled), plans: (c.plans?.length ? c.plans : DEFAULT_LEVELS).map((p) => migraLevel({ ...p })) }; }
   get withdrawals() { return this.store.data.withdrawals; }
 
   setLevels(user, { enabled, plans } = {}) {
@@ -36,7 +46,7 @@ export class Commissions {
         if (!clip(p.label, 30)) throw err(400, 'Dê um nome a cada nível');
         if (!(pct >= 0 && pct <= 100)) throw err(400, `Comissão inválida no nível ${p.label}`);
         if (!(goal >= 0)) throw err(400, `Meta inválida no nível ${p.label}`);
-        return { id: clip(p.id, 20) || `n${i + 1}`, label: clip(p.label, 30), pct, goal, color: /^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : '#64748b' };
+        return { id: clip(p.id, 20) || `n${i + 1}`, label: clip(p.label, 30), pct, goal, color: /^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : '#64748b', tagline: clip(p.tagline, 60) || DEFAULT_LEVELS.find((d) => d.id === p.id)?.tagline || '' };
       }).sort((a, b) => a.goal - b.goal);
     }
     this.store.settings.commissionLevels = next;
@@ -155,7 +165,7 @@ export class Commissions {
     let levels = 0; let legacy = 0;
     const lp = of('/api/seller-level-plans')[0]?.data?.plans;
     if (Array.isArray(lp) && lp.length && !this.store.settings.commissionLevels?.plans?.length) {
-      this.store.settings.commissionLevels = { enabled: false, plans: lp.filter((p) => p.is_active !== false).map((p) => ({ id: clip(p.id, 20), label: clip(p.label, 30), pct: Number(p.commission_rate) || 0, goal: Number(p.goal_amount) || 0, color: /^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : '#64748b' })).sort((a, b) => a.goal - b.goal) };
+      this.store.settings.commissionLevels = { enabled: false, plans: lp.filter((p) => p.is_active !== false).map((p) => migraLevel({ id: clip(p.id, 20), label: clip(p.label, 30), pct: Number(p.commission_rate) || 0, goal: Number(p.goal_amount) || 0, color: /^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : '#64748b' })).sort((a, b) => a.goal - b.goal) };
       levels = lp.length;
     }
     const wd = of('/api/withdrawals')[0];

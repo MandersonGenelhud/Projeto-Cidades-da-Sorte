@@ -18,7 +18,7 @@
     const b = me.balance;
     let html = `<div class="page-head"><h1>Comissões e saques</h1></div>
       <div class="panel"><h2>Você neste mês</h2>
-        <p>Nível: ${lvl(me.level)} ${me.levelsOn ? '' : '<span class="hint">(os níveis estão desligados: vale a comissão definida pelo administrador)</span>'}</p>
+        <p>Sua jornada na Migra: ${lvl(me.level)}${me.level.tagline ? ` <span class="hint">${esc(me.level.tagline)}</span>` : ''} ${me.levelsOn ? '' : '<span class="hint">(os níveis estão desligados: vale a comissão definida pelo administrador)</span>'}</p>
         <p>Vendas no mês: <b>${brl(me.sold)}</b>${me.next ? ` · faltam <b>${brl(me.next.missing)}</b> para ${lvl(me.next)}` : ' · você está no nível mais alto'}</p>
         <div class="cards">
           <div class="card"><small>Comissão total (em aberto)</small><b>${brl(b.total)}</b></div>
@@ -34,7 +34,7 @@
       </div>`;
     if (admin) {
       const o = await api('/api/commissions/overview');
-      html += `<div class="panel"><h2>Níveis de comissão (meta de vendas do mês)</h2>
+      html += `<div class="panel"><h2>Jornada do Consultor Migra (meta de vendas do mês)</h2><p class="hint">Raiz, Ponte, Horizonte e Legado: cada nível conta a trajetória de quem ajuda famílias a recomeçar no Paraguai. Legado é a porta de entrada para o futuro plano de projetos.</p>
         <label class="check"><input type="checkbox" id="cmOn" ${o.config.enabled ? 'checked' : ''} /> Usar os níveis para calcular a comissão das vendas novas (a comissão definida para a pessoa na Equipe continua valendo mais)</label>
         <div class="table-wrap"><table><thead><tr><th>Nível</th><th>Comissão %</th><th>Meta no mês (R$)</th></tr></thead><tbody>${o.config.plans.map((p, i) => `<tr data-i="${i}" data-id="${esc(p.id)}" data-color="${esc(p.color)}"><td><input data-k="label" value="${esc(p.label)}" /></td><td><input data-k="pct" inputmode="decimal" value="${p.pct}" /></td><td><input data-k="goal" inputmode="decimal" value="${p.goal}" /></td></tr>`).join('')}</tbody></table></div>
         <button class="btn primary" data-a="levels">Salvar níveis</button> <button class="btn" data-a="recalc" title="Aplica o nível final do mês às vendas deste mês ainda não pagas">Recalcular comissões deste mês pelo nível</button></div>

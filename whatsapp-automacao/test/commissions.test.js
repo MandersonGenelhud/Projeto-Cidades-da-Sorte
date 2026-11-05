@@ -25,7 +25,7 @@ test('nível do mês: pela soma das vendas, com quanto falta para o próximo; li
   const { c, ana, admin, sale, sales } = setup();
   sale(60000);
   const l = c.levelOf(ana.id);
-  assert.equal(l.level.label, 'Esmeralda'); assert.equal(l.next.label, 'Safira'); assert.equal(l.next.missing, 140000);
+  assert.equal(l.level.label, 'Ponte'); assert.equal(l.next.label, 'Horizonte'); assert.equal(l.next.missing, 140000);
   assert.equal(sales.commissionPct(ana.id), 0, 'desligado: vale o padrão do painel');
   c.setLevels(admin, { enabled: true });
   assert.equal(sales.commissionPct(ana.id), 3, 'ligado: vale o nível');
@@ -79,6 +79,14 @@ test('recalcular o mês aplica o nível às vendas não pagas e sem comissão ma
   ] });
   assert.deepEqual(r, { levels: 2, legacySellers: 1 });
   assert.equal(fresh.c.config.plans[1].pct, 5);
+  assert.deepEqual(fresh.c.config.plans.map((p) => p.label), ['Raiz', 'Legado'], 'nomes do sistema antigo viram a jornada Migra, com o mesmo percentual');
   assert.equal(fresh.store.data.legacyWithdrawals.sellers[0].withdrawn, 500);
   assert.equal(store.settings.commissionLevels.enabled, true);
+});
+
+test('jornada Migra: níveis já salvos com nomes de pedras aparecem como Raiz, Ponte, Horizonte e Legado', () => {
+  const { c, store } = setup();
+  store.settings.commissionLevels = { enabled: true, plans: [{ id: 'bronze', label: 'Bronze', pct: 2, goal: 0 }, { id: 'safira', label: 'Safira', pct: 4, goal: 100 }] };
+  assert.deepEqual(c.config.plans.map((p) => [p.label, p.pct]), [['Raiz', 2], ['Horizonte', 4]]);
+  assert.ok(!JSON.stringify(c.config).match(/Bronze|Esmeralda|Safira|Diamond/));
 });
