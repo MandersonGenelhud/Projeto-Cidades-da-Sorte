@@ -78,6 +78,7 @@ import { ServiceCatalog, CATEGORIES as SERVICE_CATEGORIES } from './services.js'
 import { Commissions } from './commissions.js';
 import { Support, SLA as SUPPORT_SLA } from './support.js';
 import { ContractTemplates, importLessons, importTeamContacts } from './legacy-extras.js';
+import { PartnerProjects } from './partner-projects.js';
 import { buildScreenMap, compareMap } from './legacy-map.js';
 import { Sectors, resolvePeople, isOwner } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
@@ -558,6 +559,17 @@ const commissions = new Commissions({
   },
 });
 sales.levelPct = (id) => commissions.levelPct(id);
+// Migra Sócios de Projeto: plano de carreira com participação no lucro dos projetos que o consultor trouxer.
+const partnerProjects = new PartnerProjects({
+  store, auth, sales,
+  levels: (id, m) => commissions.levelOf(id, m),
+  notify: async (kind, payload) => {
+    if (kind === 'admins') return notifyAdmins(payload);
+    const u = kind === 'owner' ? auth.get(payload.userId) : null;
+    if (u?.whatsapp && wa.status === 'connected') return wa.send(u.whatsapp, { text: payload.text, typing: false });
+    return null;
+  },
+});
 // Modelos de contrato do sistema antigo (Migra Paraguai, Migra Med, Migra Brasil, RUC).
 const contractTemplates = new ContractTemplates({ store });
 // Suporte interno (chamados com prazo de resposta e de solução).
@@ -1370,7 +1382,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -1802,6 +1814,9 @@ const SELLER_ROUTES = [
   ['POST', /^\/withdrawals$/],
   ['GET', /^\/support(\/[a-f0-9]+)?$/],
   ['GET', /^\/team-contacts$/],
+  ['GET', /^\/projects(\/[a-f0-9]+)?$/],
+  ['POST', /^\/projects$/],
+  ['PATCH', /^\/projects\/[a-f0-9]+$/],
   ['POST', /^\/support(\/[a-f0-9]+\/messages)?$/],
   ['*', /^\/videocall\/me$/],
   ['POST', /^\/videocall\/[a-z0-9]+\/cancel$/],
@@ -3014,6 +3029,26 @@ app.post('/api/contract-templates/:key/render', (req, res) => {
   res.json(r);
 });
 app.get('/api/team-contacts', (_req, res) => res.json({ items: (store.data.teamContacts || []).filter((c) => c.active !== false) }));
+// ---- Projetos e Sócios ----
+app.get('/api/projects', (req, res) => res.json(partnerProjects.list(req.user)));
+app.put('/api/projects/config', (req, res) => {
+  const c = partnerProjects.setConfig(req.user, req.body || {});
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'regras de Projetos e Sócios', label: `${c.enabled ? 'aberto' : 'fechado'} · meta R$ ${c.minSales} · ${c.minMonths} meses · piloto ${c.pilotSharePct}% · teto ${c.maxSharePct}% · ${c.vestingYears} anos` });
+  res.json(c);
+});
+app.post('/api/projects/invite/:userId', (req, res) => {
+  const r = partnerProjects.setInvite(req.user, req.params.userId, req.body?.invited !== false);
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'Projetos e Sócios', label: `${r.name}: convite ${r.invited ? 'dado' : 'retirado'}` });
+  res.json(r);
+});
+app.post('/api/projects', async (req, res) => res.json(await partnerProjects.submit(req.user, req.body || {})));
+app.get('/api/projects/:id', (req, res) => res.json(partnerProjects.get(req.user, req.params.id)));
+app.patch('/api/projects/:id', (req, res) => res.json(partnerProjects.edit(req.user, req.params.id, req.body || {})));
+const projAudit = (req, p, text) => audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'projeto de sócio', label: `${p.title} (${p.ownerName}): ${text}` });
+app.post('/api/projects/:id/decide', async (req, res) => { const p = await partnerProjects.decide(req.user, req.params.id, String(req.body?.action || ''), req.body || {}); projAudit(req, p, p.history.at(-1).text); res.json(p); });
+app.post('/api/projects/:id/goals', (req, res) => res.json(partnerProjects.setGoals(req.user, req.params.id, req.body?.goals || [])));
+app.post('/api/projects/:id/results', (req, res) => { const p = partnerProjects.addResult(req.user, req.params.id, req.body || {}); projAudit(req, p, p.history.at(-1).text); res.json(p); });
+app.post('/api/projects/:id/payments', async (req, res) => { const p = await partnerProjects.addPayment(req.user, req.params.id, req.body || {}); projAudit(req, p, p.history.at(-1).text); res.json(p); });
 // ---- Suporte interno ----
 app.get('/api/support', (req, res) => res.json({ sla: SUPPORT_SLA, ...support.list(req.user, { status: String(req.query.status || 'abertos'), q: String(req.query.q || '') }) }));
 app.post('/api/support', async (req, res) => res.json(await support.open(req.user, req.body || {})));

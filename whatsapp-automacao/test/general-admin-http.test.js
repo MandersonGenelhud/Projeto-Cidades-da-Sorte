@@ -59,6 +59,12 @@ test('administrador geral: só outro administrador geral concede ou remove; ning
   assert.equal((await anaCall(`/api/support/${tk.id}/messages`, 'POST', { text: 'mais detalhes' })).status, 200);
   assert.equal((await anaCall(`/api/support/${tk.id}/resolve`, 'POST', { solution: 'x' })).status, 403);
   assert.equal((await marcos(`/api/support/${tk.id}/resolve`, 'POST', { solution: 'Feito' })).status, 200);
+  // Projetos e Sócios: vendedor consulta e envia ideia (se liberado); regras, convite e decisões só a diretoria.
+  assert.equal((await anaCall('/api/projects')).status, 200);
+  assert.equal((await anaCall('/api/projects/config', 'PUT', { enabled: true })).status, 403);
+  assert.equal((await anaCall(`/api/projects/invite/${ana.id}`, 'POST', {})).status, 403, 'ninguém se convida');
+  assert.equal((await anaCall('/api/projects', 'POST', { title: 'X', problem: 'Y', plan: 'Z' })).status, 400, 'plano fechado');
+  assert.equal((await anaCall('/api/projects/abc123/decide', 'POST', { action: 'piloto' })).status, 403);
   const last = await fetch(`${base}/api/users/${me.id}`, { method: 'PATCH', headers: { ...J }, body: JSON.stringify({ role: 'seller' }) });
   assert.ok(last.status === 401 || last.status === 403, 'sem login não faz nada');
 });

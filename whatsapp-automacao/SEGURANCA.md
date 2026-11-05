@@ -132,3 +132,5 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 | Suporte interno (`/api/support`) | Cada pessoa vê só os próprios chamados (o administrador vê todos); resolver só administrador, com a solução registrada e na Auditoria. Testes: `test/support.test.js`, `test/general-admin-http.test.js`. |
 
 | Modelos de contrato, aulas e contatos da equipe da cópia (`/api/contract-templates`, `/api/team-contacts`) | Modelos só administrador (gerar contrato fica na Auditoria; o texto aparece escapado); leads importados entram na Retomada só para conferência, sem envio automático; quem já virou cliente não entra; "perdido" no sistema antigo fica retido. Teste: `test/legacy-extras.test.js`. |
+
+| Projetos e Sócios (`/api/projects`) | Consultor vê só os próprios projetos e só envia ideia quando liberado (meta, tempo de casa e nível, ou convite); regras, convite, decisões, resultados e pagamentos só a diretoria, tudo na Auditoria; pagamento nunca passa do valor devido; aviso de que a participação depende de contrato próprio. Testes: `test/partner-projects.test.js`, `test/general-admin-http.test.js`. |
