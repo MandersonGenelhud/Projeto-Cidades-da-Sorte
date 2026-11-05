@@ -90,3 +90,9 @@ test('conserto: conversas pausadas por engano (resposta da IA gravada duas vezes
   assert.equal(store.data.conversations.real.handoff, true, 'quando o Marcos respondeu de verdade, continua pausada');
   assert.equal(agent.repairEchoPauses(), 0, 'rodar de novo não muda nada');
 });
+
+test('atalho no plural também vale (/contratos, /orçamentos)', () => {
+  assert.equal(parseCommand('/contratos').cmd, 'contrato');
+  assert.equal(parseCommand('/orçamentos 2 pessoas').cmd, 'orcamento');
+  assert.equal(parseCommand('/lembrete amanhã 10h ligar').cmd, 'lembrar');
+});

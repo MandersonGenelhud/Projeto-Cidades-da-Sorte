@@ -14,7 +14,7 @@ export const COMMANDS = {
   resumo: { admin: true, help: '/resumo (administrador): vencidos, vencimentos e avisos do dia' },
   saude: { admin: true, help: '/saude (administrador): como está o WhatsApp, a IA e a fila' },
 };
-const ALIAS = { orçamento: 'orcamento', saúde: 'saude', contract: 'contrato' };
+const ALIAS = { orçamento: 'orcamento', orcamentos: 'orcamento', 'orçamentos': 'orcamento', saúde: 'saude', contract: 'contrato', contratos: 'contrato', fichas: 'ficha', lembrete: 'lembrar' };
 
 /** "/contrato cédula 2 pessoas" → { cmd: 'contrato', rest: 'cédula 2 pessoas' }. Texto comum ou comando desconhecido → null. */
 export function parseCommand(text) {
