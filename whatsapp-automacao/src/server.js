@@ -1729,6 +1729,8 @@ app.post('/api/public/termo/:id/assinar', async (req, res) => res.json(await clo
 const BRAND_LOGO = path.join(DATA_DIR, 'brand-logo');
 app.get('/api/brand', (_req, res) => res.json({ ...(store.settings.brand || {}), customLogo: fs.existsSync(BRAND_LOGO) }));
 app.get('/brand/logo', (_req, res) => {
+  // Sempre confere com o servidor: quando a logo muda, aparece na hora (sem precisar de Ctrl + F5).
+  res.set('Cache-Control', 'no-cache');
   if (fs.existsSync(BRAND_LOGO)) return res.type(fs.readFileSync(`${BRAND_LOGO}.type`, 'utf8')).sendFile(BRAND_LOGO);
   res.sendFile(path.join(ROOT, 'public', 'img', 'grupo-migra-logo.png'));
 });

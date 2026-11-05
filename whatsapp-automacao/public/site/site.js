@@ -26,7 +26,7 @@ function siteChrome(active) {
   fetch('/api/public/site').then((r) => r.json()).then((c) => { const a = document.querySelector('.site-head .logo'); if (a && c.home) a.href = '/'; }).catch(() => {});
   document.body.insertAdjacentHTML('afterbegin', `
     <header class="site-head"><div class="wrap">
-      <a class="logo" href="/marcas"><img src="/brand/logo" alt="Migra Paraguai" /></a>
+      <a class="logo" href="/marcas"><img src="/brand/logo?v=grupo2" alt="Migra Paraguai" /></a>
       <nav class="site-nav">
         <a href="/migra" class="${active === 'migra' ? 'on' : ''}">Migração</a>
         <a href="/imoveis" class="${active === 'imoveis' ? 'on' : ''}">Imóveis</a>
