@@ -345,7 +345,7 @@ export class PendingInbox {
         const jid = chosen;
         const sender = senderOf(jid);
         const p = this.items[jid];
-        const startedAt = Date.now();
+        const startedAt = this.now().getTime(); // mesmo relógio do limite por hora (e dos testes)
         let answered = false;
         let skip = false;
         const conv = this.agent.conversation(jid, { create: false });
@@ -417,7 +417,7 @@ export class PendingInbox {
         }
         this.#changed();
         if (this.queue.length && !this.careful) await this.#wait(randomBetween(this.delay[0], this.delay[1]) * 1000);
-        else if (this.queue.length) await this.#wait(1500); // pausa curta entre clientes de números diferentes
+        else if (this.queue.length) await this.#wait(Math.min(1500, this.delay[1] * 1000)); // pausa curta entre clientes de números diferentes (sem intervalo configurado, sem pausa)
         fails = 0;
         } catch (err) {
           // Um cliente com problema não pode parar a fila inteira: registra o motivo, pula este e segue.

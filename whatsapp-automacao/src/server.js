@@ -35,6 +35,7 @@ import { AppSignups, APPS as SIGNUP_APPS } from './app-signups.js';
 import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, BOOKS as CASH_BOOKS, toCsv as cashToCsv } from './cash.js';
 import { Nina } from './assistant.js';
 import { Maria, PROFILES as MARIA_PROFILES } from './maria.js';
+import { makeOutbound } from './maria-outbound.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
@@ -4441,8 +4442,12 @@ const mariaKnowledge = () => {
   const pk = (store.settings.crm?.packages || []).filter((p) => p?.name).map((p) => `- ${p.name}${p.price ? `: R$ ${Number(p.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} por pessoa (tabela)` : ''}`);
   return `${companyBrief(store.settings)}${pk.length ? `\n## Pacotes (tabela)\n${pk.join('\n')}\n` : ''}`;
 };
+// Envio da ficha e do contrato ao cliente, pedido pela Maria (sai do WhatsApp do vendedor ou do principal, nunca do número interno dela).
+const mariaOutbound = makeOutbound({
+  publicBase, store, quotes: () => quotes.list, samePhone, lines, lineKey, wa, agent, crm, closing, contractFlow, fichaMessage,
+});
 const maria = new Maria({
-  store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, knowledge: mariaKnowledge,
+  store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
   stt: nina.stt, tts: nina.tts,
   send: (jid, payload) => wa.send(jid, payload),
   downloadAudio: (m) => wa.downloadAudio(m),
