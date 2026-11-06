@@ -26,10 +26,11 @@ export function makeOutbound(deps) {
     const conv = agent.conversation(key);
     conv.phone ||= phone;
     if (nome) conv.name ||= nome;
-    const lead = crm.findForConversation({ key, phone }) || crm.ensureFromConversation({ key, phone, name: nome, channel: 'whatsapp' });
-    if (lead && viewer.role !== 'admin' && !lead.ownerId) crm.assign(user, lead.id, user.id);
+    // Só CRIA o cadastro quando o cliente é novo; um cadastro que já existe não é alterado (nem nome, nem dono).
+    const existing = crm.findForConversation({ key, phone });
+    const lead = existing || crm.ensureFromConversation({ key, phone, name: nome, channel: 'whatsapp' });
+    if (lead && !existing && viewer.role !== 'admin') crm.assign(user, lead.id, user.id);
     if (lead && !crm.canSee(viewer, lead)) throw new Error('Este cliente é de outro vendedor. Fale com o administrador.');
-    if (lead && nome && (!lead.name || /^@|^\+?\d+$/.test(lead.name))) lead.name = nome;
     return { key, via, conv, lead };
   }
 

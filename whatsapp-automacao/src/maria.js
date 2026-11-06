@@ -14,6 +14,7 @@
 // - O caixa mostrado é só o da empresa: gastos pessoais e dízimo nunca aparecem aqui.
 import { samePhone, normalizePhone } from './utils.js';
 import { parseJsonObject } from './crm-ai.js';
+import { detectChange, OBJECT_LABEL } from './assistant-guard.js';
 import { speakable } from './voice.js';
 
 /**
@@ -177,6 +178,7 @@ export class Maria {
     this.context = new Map(); // telefone → { saleIds, at } (para "manda o contrato dele")
     this.chats = new Map(); // telefone → conversa recente { turns, at } (memória curta, só na memória do servidor)
     this.greeted = new Map(); // telefone → dia em que já recebeu o bom dia
+    this.blockedSeen = new Map(); // quem+pedido → quando o Marcos foi avisado (não repete o aviso em 10 minutos)
     this.confirms = new Map(); // telefone de quem pediu → envio ao cliente esperando o "sim" { payload, until }
     this.sends = []; // envios feitos ao cliente { at, uid, phone, what } (limites e repetição)
     this.drafts = new Map(); // telefone → contrato em preparo { data, at }
@@ -262,6 +264,9 @@ export class Maria {
       // Ana (assistente pessoal): só quando a mensagem começa com "Ana," e a pessoa tem a Ana liberada. Dados 100% da própria pessoa.
       const claim = this.ana?.claims(text, user);
       if (claim) {
+        // Trava: a Ana também não exclui nem altera nada da empresa; o Marcos é avisado.
+        const blockedAna = await this.#guard(user, msg, claim.rest, 'ana');
+        if (blockedAna) { await this.#say(msg, { text: blockedAna, voice: this.ana.voice, style: this.ana.voiceStyle }, spoke); return true; }
         const r = await this.ana.process(user, claim.rest, { phone: msg.phone });
         await this.#say(msg, typeof r === 'string' ? { text: r, voice: this.ana.voice, style: this.ana.voiceStyle } : { ...r, voice: this.ana.voice, style: this.ana.voiceStyle }, spoke);
         return true;
@@ -270,6 +275,9 @@ export class Maria {
       // Trava de segurança: só age quando chamada pelo nome. Sem o nome, nem responde, nem consulta nada, nem registra.
       const wake = this.stripWake(text);
       if (!wake.had) return true;
+      // Trava: a Maria só cria e envia. Pedido de EXCLUIR ou ALTERAR algo que já existe não é feito; o Marcos é avisado de quem pediu.
+      const blocked = await this.#guard(user, msg, wake.rest, 'maria');
+      if (blocked) { await this.#say(msg, blocked, spoke); return true; }
       let reply = await this.process(user, wake.rest, { phone: msg.phone });
       reply = this.#greetOnce(user, msg.phone, reply);
       await this.#say(msg, reply, spoke);
@@ -278,6 +286,71 @@ export class Maria {
       await this.#say(msg, 'Tive um probleminha para consultar agora. Pode mandar de novo, por favor?', false).catch(() => {});
     }
     return true;
+  }
+
+  /** Aviso ao Marcos (o dono) pelo número da Maria; sem WhatsApp dele no cadastro, direto no número. */
+  async notifyOwner(text) {
+    const ph = normalizePhone(this.marcosPhone());
+    if (!ph) return false;
+    const u = this.auth.users.find((x) => x.active !== false && x.whatsapp && samePhone(x.whatsapp, ph));
+    if (u) return this.notifyUser(u.id, text);
+    await this.send(`${ph}@s.whatsapp.net`, { text, typing: false });
+    return true;
+  }
+
+  /** O alvo do pedido: nome do cliente, número do contrato/orçamento ou telefone citados (ou o cliente em foco, se disse "dele"). */
+  #targetOf(text, phone) {
+    const ref = String(text).match(/\b(?:VD|ORC|CT)-\d{4}-\d{3,5}\b/i)?.[0]?.toUpperCase() || '';
+    const ph = String(text).replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, ' ').match(/(?:\+?\d{2}\s?)?\(?\d{2}\)?\s?9?\d{4}[-\s]?\d{4}\b/);
+    const tel = ph ? normalizePhone(ph[0]) || '' : '';
+    const nm = String(text).replace(/\b(?:VD|ORC|CT)-\d{4}-\d{3,5}\b/gi, ' ').match(/(?:cliente|cadastro|contrato|venda|or[cç]amento|lead|prospecto|ficha|conversa)\s+(?:d[aeo]s?\s+)?(?:cliente\s+)?([A-ZÀ-Ú][\p{L}'.-]+(?:\s+(?:d[aeo]s?\s+)?[A-ZÀ-Ú][\p{L}'.-]+){0,4})/u);
+    let name = nm ? nm[1].trim() : '';
+    let fromFocus = false;
+    if (!name && !ref && !tel && PRONOUN.test(fold(text))) { const f = this.#focusFor(phone); if (f?.nome) { name = f.nome; fromFocus = true; } }
+    return { name, ref, tel, fromFocus };
+  }
+
+  /**
+   * Pedido de excluir/alterar: NADA é feito. O Marcos recebe quem pediu (nome, perfil e número), o que pediu e qual cliente era o alvo.
+   * Devolve a resposta para quem pediu, ou null se o pedido não é desse tipo.
+   */
+  async #guard(user, msg, text, scope) {
+    const ch = detectChange(text, scope);
+    if (!ch) return null;
+    const first = String(user.name || '').split(' ')[0];
+    const assistant = scope === 'ana' ? 'Ana' : this.name;
+    const target = this.#targetOf(text, msg.phone);
+    const objectLabel = OBJECT_LABEL[ch.object] || 'um dado';
+    const alvo = [target.name && `*${target.name}*${target.fromFocus ? ' (o último cliente que ele citou)' : ''}`, target.ref && `(${target.ref})`, target.tel && `+${target.tel}`].filter(Boolean).join(' ');
+    const what = `${ch.kind === 'excluir' ? 'excluir' : 'alterar'} ${objectLabel}${alvo ? ` de ${alvo}` : ''}`;
+    this.audit(`BLOQUEADO · ${user.name} pediu à ${assistant} para ${ch.kind} ${ch.object}${target.name ? ` de ${target.name}` : ''}${target.ref ? ` (${target.ref})` : ''}`);
+    // O próprio Marcos: nada de aviso (ele já sabe), mas a regra vale para todos.
+    if (samePhone(msg.phone, this.marcosPhone())) {
+      return `${first}, por segurança eu não excluo nem altero nada no sistema por aqui, nem a pedido seu. Isso fica no painel. O que eu faço é criar (cadastro, orçamento, contrato), consultar e enviar.`;
+    }
+    const key = `${msg.phone}|${fold(text)}`;
+    const seen = this.blockedSeen.get(key);
+    let told = false;
+    if (seen && Date.now() - seen < 10 * 60_000) {
+      told = true; // já avisou há pouco: não enche o Marcos de mensagens repetidas
+    } else {
+      this.blockedSeen.set(key, Date.now());
+      const when = this.now();
+      const stamp = `${String(when.getDate()).padStart(2, '0')}/${String(when.getMonth() + 1).padStart(2, '0')}/${when.getFullYear()} ${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
+      const note = [
+        `⚠️ *Pedido de ${ch.kind === 'excluir' ? 'EXCLUSÃO' : 'ALTERAÇÃO'} feito pela ${assistant}*`,
+        `👤 Quem pediu: *${user.name}* (${this.profileOf(user) === 'full' ? 'acesso completo' : this.profileOf(user) === 'basic' ? 'contratos e clientes' : 'vendedor'}) · ${Maria.fmtPhone(msg.phone)}`,
+        `📌 O que pediu: ${what}`,
+        `💬 Mensagem: "${String(text).replace(/\s+/g, ' ').trim().slice(0, 240)}"`,
+        `🕒 ${stamp}`,
+        '',
+        'Eu não fiz nada: a Maria e a Ana só criam e enviam, nunca excluem nem alteram. Se for para fazer, a decisão é sua, pelo painel.',
+      ].join('\n');
+      told = await this.notifyOwner(note).catch((e) => { this.log({ type: 'error', message: `Maria (aviso de bloqueio): ${e.message}` }); return false; });
+    }
+    return told
+      ? `${first}, eu não excluo nem altero nada no sistema: só crio (cadastro novo, orçamento, contrato) e envio. Avisei o Marcos do seu pedido (${what.replace(/\*/g, '')}), para ele decidir.`
+      : `${first}, eu não excluo nem altero nada no sistema, e não consegui avisar o Marcos agora. Fale diretamente com ele sobre esse pedido (${what.replace(/\*/g, '')}).`;
   }
 
   /** Número que não é da equipe: aviso fixo (não passa pela IA) com o contato do Marcos; no máximo a cada 6 horas. */
@@ -418,7 +491,7 @@ export class Maria {
     const ex = ['• "Maria, cadastre o cliente Ana Souza, 45 98888-7777" e depois "Maria, orce o pacote Ouro para 2 pessoas para a Ana"', '• "Maria, envie a ficha de dados para o cliente Ana Souza, 45 98888-7777" (ela pede a sua confirmação antes de enviar)', '• "Maria, gere o contrato da Ana Souza, CPF 123..., pacote Ouro para 2 pessoas" (sem os dados, ela manda o link da ficha)', '• "Maria, relatório dos contratos de hoje" (ou da semana, do mês passado, de outubro, do ano passado)', '• "Maria, me manda o contrato da Ana"', '• "Maria, o contrato do João está em dia?"', '• "Maria, qual o telefone da cliente Maria Souza?"'];
     if (profile !== 'basic') ex.push('• "Maria, como está o faturamento do mês?"', '• "Maria, tem parcelas em atraso?"');
     if (profile === 'full') ex.push('• "Maria, como está o caixa este mês?"', '• "Maria, me dá o resumo de hoje"', '• "Maria, como está o sistema? Tem cadastro duplicado?"');
-    return `Sou a ${this.name}, assessora virtual da Migra. Pode escrever ou mandar áudio, sempre começando pelo meu nome. ${this.#helpLine(profile)}\n\nExemplos:\n${ex.join('\n')}\n\nPor enquanto eu só consulto: não altero nada.`;
+    return `Sou a ${this.name}, assessora virtual da Migra. Pode escrever ou mandar áudio, sempre começando pelo meu nome. ${this.#helpLine(profile)}\n\nExemplos:\n${ex.join('\n')}\n\nEu só crio (cadastro novo, orçamento, contrato), consulto e envio: não excluo nem altero nada. Se alguém pedir, o Marcos é avisado.`;
   }
 
   #saleLine(s) {
@@ -565,10 +638,10 @@ export class Maria {
     let r;
     try { r = c.registerLead({ user, viewer, nome: d.nome || '', telefone: d.telefone || '', interesse: d.pacote || '', pessoas: d.pessoas || 1 }); } catch (e) { return `${first}, não consegui cadastrar: ${e.message}`; }
     this.drafts.delete(phone);
-    c.audit(`${user.name} cadastrou o cliente ${d.nome || '(sem nome)'} pela Maria${r.created ? '' : ' (já existia, atualizado)'}`);
+    c.audit(`${user.name} cadastrou o cliente ${d.nome || '(sem nome)'} pela Maria${r.created ? '' : ' (já existia: nada foi alterado)'}`);
     const who = `*${d.nome || r.lead.name || 'Cliente'}*${d.telefone ? ` (${Maria.fmtPhone(d.telefone)})` : ''}`;
     return {
-      text: `✅ ${r.created ? 'Cadastrei' : 'Esse cliente já estava cadastrado; atualizei'} ${who} no CRM, no seu nome, ${first}.\n\nQuando quiser, é só pedir o orçamento: "${this.name}, orce o pacote Ouro para 2 pessoas para ${(d.nome || 'ele').split(' ')[0]}".`,
+      text: `✅ ${r.created ? `Cadastrei ${who} no CRM, no seu nome` : `${who} já estava cadastrado, então não mudei nada (eu não altero cadastros)`}, ${first}.\n\nQuando quiser, é só pedir o orçamento: "${this.name}, orce o pacote Ouro para 2 pessoas para ${(d.nome || 'ele').split(' ')[0]}".`,
       spoken: `Pronto, ${first}! Cadastrei o cliente no sistema, no seu nome.`,
     };
   }

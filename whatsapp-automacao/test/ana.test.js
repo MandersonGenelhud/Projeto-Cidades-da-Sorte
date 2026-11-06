@@ -69,7 +69,7 @@ test('compromissos de 1 e 2 anos; passado, data que falta e horário que já pas
   assert.equal(personal.agenda(ids.marcos.id, '2028-11-06', '2028-11-06').length, 1);
   assert.match(r[0].text, /daqui a 2 anos/);
   assert.match((await say(M, 'Ana, me lembre de pagar o IPTU dia 02/11/2026'))[0].text, /já passou/);
-  assert.match((await say(M, 'Ana, me lembre de comprar pão'))[0].text, /para quando\?/);
+  assert.match((await say(M, 'Ana, me lembre de ligar para o banco'))[0].text, /para quando\?/);
   assert.match((await say(M, 'Ana, me lembre de ligar hoje às 8h'))[0].text, /já passou/);
 });
 

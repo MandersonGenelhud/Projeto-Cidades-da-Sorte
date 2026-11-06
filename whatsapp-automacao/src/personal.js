@@ -1,7 +1,8 @@
 // Agenda e financeiro PESSOAL de cada pessoa (a assistente pessoal "Ana"). Fica separado da empresa: não entra no Caixa Migra,
 // em relatório, painel nem na Maria. Cada pessoa só tem acesso à própria caixa (userId); não existe função que leia a de outra.
 import crypto from 'node:crypto';
-import { addDays, addMonths, isoOf, fold1 } from './ana-dates.js';
+import { addDays, addMonths, isoOf, fromIso, fold1 } from './ana-dates.js';
+import { STORES, storeOf } from './shopping.js';
 
 export const CATEGORIES = ['Alimentação', 'Restaurantes e lanches', 'Mercado', 'Transporte e combustível', 'Moradia e contas', 'Saúde', 'Educação', 'Família e filhos', 'Lazer', 'Compras', 'Assinaturas', 'Parcelas e dívidas', 'Dízimo e ofertas', 'Investimentos', 'Salário e rendas', 'Outros'];
 const HINTS = [
@@ -57,7 +58,9 @@ export class Personal {
   #box(userId) {
     if (!userId) throw err('Pessoa não identificada');
     const all = (this.store.data.personal ||= {});
-    return (all[userId] ||= { items: [], entries: [], budgets: {}, settings: {}, last: null });
+    const b = (all[userId] ||= { items: [], entries: [], budgets: {}, settings: {}, last: null });
+    b.shopping ||= []; b.goals ||= []; b.series ||= {}; b.storeMap ||= {};
+    return b;
   }
 
   settings(userId) { return this.#box(userId).settings; }
@@ -161,9 +164,9 @@ export class Personal {
   }
 
   /** Registra o que acabou de ser criado, para "desfazer". */
-  remember(userId, label, { items = [], entries = [] } = {}) {
+  remember(userId, label, { items = [], entries = [], shopping = [] } = {}) {
     const box = this.#box(userId);
-    box.last = { label, items: items.map((i) => i.id), entries: entries.map((e) => e.id) };
+    box.last = { label, items: items.map((i) => i.id), entries: entries.map((e) => e.id), shopping: shopping.map((i) => i.id) };
     this.store.save();
   }
 
@@ -173,6 +176,10 @@ export class Personal {
     if (!last) return null;
     for (const id of last.items || []) { const it = box.items.find((i) => i.id === id); if (it) it.cancelled = true; }
     for (const id of last.entries || []) { const e = box.entries.find((x) => x.id === id); if (e) e.deleted = true; }
+    for (const id of last.shoppingDone || []) { const i = box.shopping.find((x) => x.id === id); if (i) { i.done = false; i.doneAt = null; } }
+    for (const id of last.shoppingCancelled || []) { const i = box.shopping.find((x) => x.id === id); if (i) i.cancelled = false; }
+    for (const id of last.shopping || []) { const i = box.shopping.find((x) => x.id === id); if (i) i.cancelled = true; }
+    if (last.goalContribution) { const g = box.goals.find((x) => x.id === last.goalContribution.id); if (g) { g.saved = round(g.saved - last.goalContribution.amount); g.contributions.pop(); } }
     for (const r of last.reverts || []) {
       if (r.entryId) { const e = box.entries.find((x) => x.id === r.entryId); if (e) { e.status = r.status; e.date = r.date; } }
       if (r.itemId) { const it = box.items.find((x) => x.id === r.itemId); if (it) it.doneAt = null; }
@@ -234,6 +241,224 @@ export class Personal {
     }
     const rows = Object.entries(box.budgets).filter(([k]) => k !== 'total').map(([category, limit]) => ({ category, limit, spent: spent[category] || 0, pct: Math.round(((spent[category] || 0) / limit) * 100) }));
     return { rows: rows.sort((a, b) => b.pct - a.pct), total: box.budgets.total ? { limit: box.budgets.total, spent: totalSpent, pct: Math.round((totalSpent / box.budgets.total) * 100) } : null, spentNoBudget: totalSpent };
+  }
+
+  // ---------- lista de compras (por tipo de loja) ----------
+  /** Guarda a preferência da pessoa ("o martelo é da casa de ferramentas"), usada nas próximas vezes. */
+  learnStore(userId, item, store) {
+    const box = this.#box(userId);
+    const k = fold1(item).replace(/[^a-z0-9 -]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (k && STORES.includes(store)) { box.storeMap[k] = store; this.store.save(); }
+  }
+
+  /** A pessoa já ensinou em que loja esse item se compra? */
+  knowsStore(userId, item) {
+    const k = fold1(item).replace(/[^a-z0-9 -]/g, ' ').replace(/\s+/g, ' ').trim();
+    return Object.keys(this.#box(userId).storeMap).some((x) => k.includes(x));
+  }
+
+  /** Acrescenta um item. O tipo de loja vem do que a pessoa disse, do que ela já ensinou ou das palavras conhecidas. Repetido em aberto não duplica. */
+  addShopping(userId, { text, qty = '', store = '', targetDate = null } = {}) {
+    const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (!t) throw err('Diga o que precisa comprar');
+    const box = this.#box(userId);
+    const where = STORES.includes(store) ? store : storeOf(t, box.storeMap);
+    const dup = box.shopping.find((i) => !i.done && !i.cancelled && fold1(i.text) === fold1(t) && i.store === where);
+    if (dup) return { item: dup, duplicate: true };
+    const it = { id: newId(), text: t, qty: String(qty || '').slice(0, 30), store: where, targetDate, done: false, doneAt: null, cancelled: false, addedAt: this.now().toISOString() };
+    box.shopping.push(it);
+    return { item: it, duplicate: false };
+  }
+
+  /** Itens em aberto, agrupados por loja (ou só de uma). */
+  shoppingList(userId, { store = '' } = {}) {
+    const open = this.#box(userId).shopping.filter((i) => !i.done && !i.cancelled && (!store || i.store === store));
+    const groups = {};
+    for (const i of open) (groups[i.store] ||= []).push(i);
+    return STORES.filter((st) => groups[st]).map((st) => ({ store: st, items: groups[st] }));
+  }
+
+  #matchShopping(box, term, store) {
+    const n = fold1(term);
+    return box.shopping.filter((i) => !i.done && !i.cancelled && (!store || i.store === store)
+      && (!n || fold1(i.text).includes(n) || n.includes(fold1(i.text)) || n.split(/\s+/).filter((w) => w.length > 3).some((w) => fold1(i.text).includes(w.replace(/(es|s)$/, '')))));
+  }
+
+  /** "Comprei o martelo" / "comprei tudo do mercado": marca como comprado. */
+  buy(userId, term, { store = '', all = false } = {}) {
+    const box = this.#box(userId);
+    const hits = all ? box.shopping.filter((i) => !i.done && !i.cancelled && (!store || i.store === store)) : this.#matchShopping(box, term, store);
+    for (const i of hits) { i.done = true; i.doneAt = this.now().toISOString(); }
+    if (hits.length) { box.last = { label: 'compras', shoppingDone: hits.map((i) => i.id) }; this.store.save(); }
+    return hits;
+  }
+
+  /** Tira da lista (apaga só da lista da PRÓPRIA pessoa). */
+  dropShopping(userId, term, { store = '' } = {}) {
+    const box = this.#box(userId);
+    const hits = this.#matchShopping(box, term, store);
+    for (const i of hits) i.cancelled = true;
+    if (hits.length) { box.last = { label: 'lista', shoppingCancelled: hits.map((i) => i.id) }; this.store.save(); }
+    return hits;
+  }
+
+  /** Muda um item de loja e aprende para as próximas vezes. */
+  moveShopping(userId, term, store) {
+    const box = this.#box(userId);
+    const hits = this.#matchShopping(box, term, '');
+    for (const i of hits) i.store = store;
+    for (const i of hits) this.learnStore(userId, i.text, store);
+    if (hits.length) this.store.save();
+    return hits;
+  }
+
+  // ---------- contas e lembretes que se repetem ----------
+  /**
+   * Repetição mensal, semanal, anual ou diária. As próximas ocorrências já ficam criadas (e a Ana renova sozinha): com valor, cada uma é uma
+   * conta "a pagar" com aviso de vencimento; sem valor, é só um lembrete.
+   */
+  recurring(userId, { title, freq, firstDate, time = '', amount = null, currency = 'BRL', category = '', day = null } = {}) {
+    if (!['mensal', 'semanal', 'anual', 'diaria'].includes(freq)) throw err('Repetição inválida');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(firstDate))) throw err('Data inválida');
+    const box = this.#box(userId);
+    const seriesId = newId();
+    box.series[seriesId] = { title: String(title).slice(0, 160), freq, time, amount: amount ? round(amount) : null, currency, category, last: null, active: true, day: freq === 'mensal' && day >= 1 && day <= 31 ? Math.floor(day) : null };
+    const made = this.#extend(userId, seriesId, firstDate);
+    this.store.save();
+    return { seriesId, ...made };
+  }
+
+  /** A k-ésima ocorrência. Mensal "todo dia 31": nos meses curtos cai no último dia, mas volta ao 31 depois (sem "escorregar"). */
+  #occurrence(sr, k) {
+    if (sr.freq === 'mensal' && sr.day) {
+      const m = addMonths(`${sr.first.slice(0, 8)}01`, k);
+      const last = new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0).getDate();
+      return `${m.slice(0, 8)}${String(Math.min(sr.day, last)).padStart(2, '0')}`;
+    }
+    return this.#step(sr.freq, sr.first, k);
+  }
+
+  #step(freq, date, n) {
+    return freq === 'mensal' ? addMonths(date, n) : freq === 'anual' ? addMonths(date, n * 12) : freq === 'semanal' ? addDays(date, n * 7) : addDays(date, n);
+  }
+
+  #extend(userId, seriesId, startDate = null) {
+    const box = this.#box(userId);
+    const sr = box.series[seriesId];
+    if (!sr?.active) return { items: [], entries: [] };
+    if (startDate) { sr.first = startDate; sr.n = 0; }
+    const horizon = { mensal: 370, semanal: 190, anual: 365 * 4 + 10, diaria: 60 }[sr.freq];
+    const limit = addDays(this.today(), horizon);
+    const items = []; const entries = [];
+    let guard = 0;
+    for (;;) {
+      const date = this.#occurrence(sr, sr.n); // sempre a partir da primeira data: dia 31 não "escorrega" para 28
+      if (date > limit || guard++ > 400) break;
+      if (sr.amount) {
+        const e = this.addEntry(userId, { kind: 'saida', amount: sr.amount, currency: sr.currency, category: sr.category || categoryOf(sr.title), description: sr.title, date, status: 'a_pagar', dueDate: date, seriesId, installment: '' });
+        entries.push(e);
+        items.push(this.addItem(userId, { kind: 'conta', title: `${sr.title} · ${money(sr.amount, sr.currency)}`, date, time: '', amount: sr.amount, currency: sr.currency, seriesId, entryId: e.id }));
+      } else {
+        items.push(this.addItem(userId, { kind: 'lembrete', title: sr.title, date, time: sr.time, remindMin: 0, seriesId }));
+      }
+      sr.last = date;
+      sr.n += 1;
+    }
+    return { items, entries };
+  }
+
+  /** Mantém as repetições com ocorrências à frente (chamada uma vez por dia). */
+  renewSeries(userId) {
+    const box = this.#box(userId);
+    let added = 0;
+    for (const id of Object.keys(box.series)) { const r = this.#extend(userId, id); added += r.items.length; }
+    if (added) this.store.save();
+    return added;
+  }
+
+  /** Cancela uma repetição inteira (as próximas ocorrências e as contas em aberto dela). */
+  cancelSeries(userId, seriesId) {
+    const box = this.#box(userId);
+    const sr = box.series[seriesId];
+    if (!sr) return 0;
+    sr.active = false;
+    const t = this.today();
+    let n = 0;
+    for (const i of box.items) if (i.seriesId === seriesId && !i.cancelled && i.date >= t) { i.cancelled = true; n++; }
+    for (const e of box.entries) if (e.seriesId === seriesId && e.status === 'a_pagar' && (e.dueDate || e.date) >= t) e.deleted = true;
+    this.store.save();
+    return n;
+  }
+
+  /** O item da série mais próximo que combina com o texto. */
+  findSeriesItem(userId, term) {
+    const box = this.#box(userId);
+    const hit = this.#findItem(box, term).filter((i) => i.seriesId && box.series[i.seriesId]?.freq && box.series[i.seriesId].active)[0];
+    return hit ? { item: hit, series: box.series[hit.seriesId] } : null;
+  }
+
+  // ---------- metas (juntar dinheiro para algo) ----------
+  addGoal(userId, { name, target, deadline = null, currency = 'BRL' } = {}) {
+    const n = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (!n) throw err('Diga o nome da meta');
+    if (!(round(target) > 0)) throw err('O valor da meta precisa ser maior que zero');
+    const g = { id: newId(), name: n, target: round(target), currency, deadline, saved: 0, contributions: [], cancelled: false, createdAt: this.now().toISOString() };
+    this.#box(userId).goals.push(g);
+    this.store.save();
+    return g;
+  }
+
+  goals(userId) { return this.#box(userId).goals.filter((g) => !g.cancelled); }
+
+  /** Guarda dinheiro numa meta (a única, ou a que combina com o nome). */
+  contribute(userId, term, amount) {
+    const v = round(amount);
+    if (!(v > 0)) throw err('O valor precisa ser maior que zero');
+    const list = this.goals(userId);
+    const n = fold1(term);
+    const g = (n && list.find((x) => fold1(x.name).includes(n) || n.includes(fold1(x.name)))) || (list.length === 1 ? list[0] : null);
+    if (!g) return { goal: null, options: list };
+    g.saved = round(g.saved + v);
+    g.contributions.push({ at: this.now().toISOString(), amount: v });
+    this.#box(userId).last = { label: 'meta', goalContribution: { id: g.id, amount: v } };
+    this.store.save();
+    return { goal: g };
+  }
+
+  /** Andamento de cada meta: quanto falta e quanto guardar por mês até o prazo. */
+  goalStatus(g) {
+    const left = Math.max(0, round(g.target - g.saved));
+    const pct = Math.min(100, Math.round((g.saved / g.target) * 100));
+    let monthly = null; let months = null;
+    if (g.deadline && left > 0) {
+      const t = fromIso(this.today()); const d = fromIso(g.deadline);
+      months = Math.max(1, (d.getFullYear() - t.getFullYear()) * 12 + (d.getMonth() - t.getMonth()) + (d.getDate() >= t.getDate() ? 1 : 0));
+      monthly = round(left / months);
+    }
+    return { left, pct, monthly, months, late: Boolean(g.deadline && g.deadline < this.today() && left > 0) };
+  }
+
+  // ---------- comparação e projeção ----------
+  /** Categorias que mais mudaram em relação ao período anterior (só diferenças que importam). */
+  compare(userId, from, to, prevFrom, prevTo) {
+    const a = this.summary(userId, from, to).spending.filter((x) => x.currency === 'BRL');
+    const b = Object.fromEntries(this.summary(userId, prevFrom, prevTo).spending.filter((x) => x.currency === 'BRL').map((x) => [x.category, x.total]));
+    return a.map((x) => ({ category: x.category, now: x.total, before: b[x.category] || 0, diff: round(x.total - (b[x.category] || 0)), pct: b[x.category] ? Math.round(((x.total - b[x.category]) / b[x.category]) * 100) : null }))
+      .filter((x) => x.before > 0 && Math.abs(x.diff) >= 50 && Math.abs(x.pct) >= 20).sort((p, q) => Math.abs(q.diff) - Math.abs(p.diff)).slice(0, 3);
+  }
+
+  /** Como o mês deve fechar se o ritmo continuar: já gasto + contas que ainda vencem + média diária dos gastos variáveis. */
+  forecast(userId, monthFrom, monthTo) {
+    const today = this.today();
+    const rows = this.entries(userId, { from: monthFrom, to: monthTo, kind: 'saida' }).filter((e) => e.currency === 'BRL');
+    const paid = rows.filter((e) => e.status !== 'a_pagar');
+    const spent = round(paid.reduce((x, e) => x + e.amount, 0));
+    const bills = round(rows.filter((e) => e.status === 'a_pagar' && (e.dueDate || e.date) >= today).reduce((x, e) => x + e.amount, 0));
+    const variable = paid.filter((e) => !e.seriesId).reduce((x, e) => x + e.amount, 0);
+    const elapsed = Math.max(1, Math.round((fromIso(today) - fromIso(monthFrom)) / 86_400_000) + 1);
+    const remaining = Math.max(0, Math.round((fromIso(monthTo) - fromIso(today)) / 86_400_000));
+    const projectedVariable = round((variable / elapsed) * remaining);
+    return { spent, bills, projectedVariable, projected: round(spent + bills + projectedVariable), elapsed, remaining };
   }
 
   // ---------- exportar ----------

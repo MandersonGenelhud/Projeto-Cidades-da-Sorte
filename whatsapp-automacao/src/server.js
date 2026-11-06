@@ -4436,11 +4436,8 @@ const mariaContracts = {
     const key = phone ? mariaOutbound.route(user, phone).key : null;
     let lead = phone ? crm.findForConversation({ key, phone }) : null;
     if (lead) {
+      // Cadastro que já existe NÃO é alterado pela Maria (nem nome, nem interesse, nem dono): só informa.
       if (!crm.canSee(viewer, lead)) throw new Error('esse cliente já é de outro vendedor. Fale com o administrador.');
-      if (nome && (!lead.name || /^@|^\+?\d+$/.test(lead.name))) lead.name = nome;
-      const pkg = interesse ? crm.matchPackage(interesse) : null;
-      if (pkg && !lead.interest) lead.interest = pkg.name || interesse;
-      store.save();
       return { lead, created: false };
     }
     const pkg = interesse ? crm.matchPackage(interesse) : null;
