@@ -99,7 +99,7 @@ import { LLMClient } from './agent/llm.js';
 import { createCalendar, toDateStr } from './agent/calendar.js';
 import { Agent, STRESS_TESTS } from './agent/agent.js';
 import { backlogOpening } from './agent/greeting.js';
-import { buildSystemPrompt } from './agent/prompt.js';
+import { buildSystemPrompt, companyBrief } from './agent/prompt.js';
 import { PRESETS, presetSettings } from './agent/presets.js';
 import { csvToContacts, normalizePhone, randomBetween, renderTemplate, samePhone, sleep, uid } from './utils.js';
 
@@ -4436,8 +4436,13 @@ closing.onManualFilled = async (f) => {
   const nome = f.data.nome || 'O cliente';
   await wa.send(u.whatsapp, { text: `📝 ${nome} preencheu a ficha de dados. Quando quiser o contrato, é só pedir: "Maria, gere o contrato de ${nome}".`, typing: false }).catch(() => {});
 };
+// O que a secretária sabe da empresa: a mesma base do atendimento (sem as regras de venda), os pacotes com preço de tabela e quem é da empresa.
+const mariaKnowledge = () => {
+  const pk = (store.settings.crm?.packages || []).filter((p) => p?.name).map((p) => `- ${p.name}${p.price ? `: R$ ${Number(p.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} por pessoa (tabela)` : ''}`);
+  return `${companyBrief(store.settings)}${pk.length ? `\n## Pacotes (tabela)\n${pk.join('\n')}\n` : ''}`;
+};
 const maria = new Maria({
-  store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts,
+  store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, knowledge: mariaKnowledge,
   stt: nina.stt, tts: nina.tts,
   send: (jid, payload) => wa.send(jid, payload),
   downloadAudio: (m) => wa.downloadAudio(m),

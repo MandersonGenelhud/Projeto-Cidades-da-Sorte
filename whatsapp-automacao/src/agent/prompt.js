@@ -117,3 +117,18 @@ ${agent.instructions || ''}
 # Base do negócio
 ${section('Sobre', business.description)}${section('Serviços', business.services)}${section('Preços', business.prices)}${section('Horários de funcionamento', business.hours)}${section('Endereço', business.address)}${section('Perguntas frequentes', business.faq)}${section('Políticas', business.policies)}${section('Regras de agendamento', business.schedulingRules)}${section('Conhecimento adicional', business.knowledge)}`.replace(/\n{3,}/g, '\n\n');
 }
+
+/** Tudo o que a empresa sabe de si mesma (sem as regras de venda a clientes): é o que a secretária interna (Maria) usa para tirar dúvidas da equipe. */
+export function companyBrief(settings, { now = new Date() } = {}) {
+  const b = settings.business || {};
+  const today = toDateStr(now);
+  const offerValid = String(b.offer || '').trim() && (!b.offerUntil || b.offerUntil >= today);
+  return [
+    section('Sobre', b.description), section('Serviços', b.services), section('Preços', b.prices),
+    section('Horários de funcionamento', b.hours), section('Endereço', b.address), section('Perguntas frequentes', b.faq),
+    section('Políticas', b.policies), section('Regras de agendamento', b.schedulingRules),
+    section('História da empresa', b.story), section('Prova social confirmada', b.socialProof),
+    offerValid ? section('Condição especial em vigor', b.offer) : '', section('Reserva / sinal', b.reservation),
+    section('Dados pedidos para formalizar a negociação', b.contractData), section('Conhecimento adicional', b.knowledge),
+  ].join('').replace(/\n{3,}/g, '\n\n');
+}
