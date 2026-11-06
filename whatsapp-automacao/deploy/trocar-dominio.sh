@@ -9,6 +9,8 @@ cd /opt/migra/app/whatsapp-automacao
 printf '%s {\n\treverse_proxy zapauto:3000\n}\n' "$NOVO" > Caddyfile
 if grep -q '^PUBLIC_URL=' .env; then sed -i "s#^PUBLIC_URL=.*#PUBLIC_URL=https://$NOVO#" .env; else echo "PUBLIC_URL=https://$NOVO" >> .env; fi
 docker compose up -d
-sleep 3
+# O Caddy só relê o Caddyfile ao reiniciar: sem isso ele fica com o endereço antigo e não pede o certificado do novo.
+docker compose restart caddy
+sleep 25
 docker compose logs --tail 8 caddy
 echo "Pronto. Abra https://$NOVO (o HTTPS pode levar 1 a 2 minutos). Lembre de colar o novo endereço do webhook na Meta."

@@ -30,6 +30,8 @@ done
 NOVO="${NOVO:+$NOVO,}$DOM=$OFF,www.$DOM=$OFF"
 if grep -q '^SITE_HOSTS=' .env; then sed -i "s#^SITE_HOSTS=.*#SITE_HOSTS=$NOVO#" .env; else echo "SITE_HOSTS=$NOVO" >> .env; fi
 docker compose up -d
-sleep 3
+# O Caddy só relê o Caddyfile ao reiniciar: sem isso ele fica com o endereço antigo e não pede o certificado do novo.
+docker compose restart caddy
+sleep 25
 docker compose logs --tail 8 caddy
 echo "Pronto. Abra https://$DOM (o HTTPS pode levar 1 a 2 minutos depois que o DNS estiver certo). Escritório deste site: $OFF."

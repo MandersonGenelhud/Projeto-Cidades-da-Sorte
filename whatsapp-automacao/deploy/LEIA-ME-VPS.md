@@ -33,6 +33,7 @@ Depois que `app.migraparaguai.tech` passar a funcionar (`nslookup app.migraparag
 ```
 bash /opt/migra/app/whatsapp-automacao/deploy/trocar-dominio.sh app.migraparaguai.tech
 ```
+Os scripts reiniciam o Caddy sozinhos; o certificado do endereço novo sai em cerca de 1 minuto. Se o navegador mostrar ERR_SSL_PROTOCOL_ERROR, rode `cd /opt/migra/app/whatsapp-automacao && docker compose restart caddy` e espere 1 minuto.
 Se o Instagram já estiver ligado, cole o novo endereço do webhook na Meta.
 
 ## 4. Trazer os dados do computador (contratos, vendas, WhatsApp)
