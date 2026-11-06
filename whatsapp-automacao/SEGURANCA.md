@@ -188,3 +188,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - A Maria lê do pedido todos os pacotes com quantidade ("5 Ouro, 1 Estudantil e 1 Inicial") e o desconto, e monta UM orçamento/contrato com tudo (`src/maria-items.js`). Só entram pacotes que existem na tabela, de 1 a 50 por pacote; "infantil" vale como Pacote Estudantil.
 - Desconto: o mesmo limite do orçamento do sistema, de 0 a 15%, em número inteiro. Acima disso (ou fracionado) ela recusa, não cria nada e diz que só o Marcos autoriza; o texto da pessoa nunca eleva o limite.
 - Orçamento antigo do mesmo cliente só é reaproveitado se tiver exatamente os mesmos pacotes, quantidades e desconto; senão sai um novo. A Maria continua só criando e enviando (nada de alterar orçamento existente). Testes: `test/maria-pacotes.test.js`.
+
+## Maria: perfil "parceiro" (cliente e vendedor externo)
+
+- Para quem fala com a Maria sem ser da equipe (parceiro que também é cliente), existe o perfil **parceiro**, definido por pessoa em Maria > perfis. Ele age como vendedor (cadastrar cliente, orçar, gerar contrato, enviar ficha ou contrato, e só vê o que ele mesmo cadastrou), mas **não** acessa faturamento, comissões, parcelas em atraso, caixa, resumo do dia, saúde do sistema, duplicados nem o portfólio.
+- No bate-papo, o parceiro recebe só a base pública da empresa e a tabela de pacotes: sem regras internas da direção (cortesia, descontos), sem lista da equipe, sem dados ao vivo do grupo. Ele nunca é administrador. Testes: `test/maria-parceiro.test.js`.

@@ -4457,8 +4457,10 @@ closing.onManualFilled = async (f) => {
   await maria.notifyUser(f.requesterId, text).catch((e) => store.addLog({ type: 'error', message: `Maria (aviso de ficha): ${e.message}` }));
 };
 // O que a secretária sabe da empresa: a mesma base do atendimento (sem as regras de venda), os pacotes com preço de tabela e quem é da empresa.
-const mariaKnowledge = () => {
+const mariaKnowledge = ({ publicOnly = false } = {}) => {
   const pk = (store.settings.crm?.packages || []).filter((p) => p?.name).map((p) => `- ${p.name}${p.price ? `: R$ ${Number(p.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} por pessoa (tabela)` : ''}`);
+  // Parceiro externo: só a base pública da empresa e a tabela de pacotes (nada de regras internas, equipe nem dados ao vivo).
+  if (publicOnly) return `# BASE DA EMPRESA (conhecimento cadastrado)\n${companyBrief(store.settings)}${pk.length ? `\n## Pacotes (tabela)\n${pk.join('\n')}\n` : ''}`;
   // Texto fixo do grupo (o que opera e o que está em desenvolvimento) + dados ao vivo do sistema + visão geral do Migra Hub.
   const live = groupLiveBrief({ realty, finance: proposals.config, motors, catalog: serviceCatalog, crm: store.settings.crm, auth });
   // Primeiro o que é ao vivo e curto (dados do grupo e o sistema), depois a base grande: nada importante fica no fim, onde seria cortado.
