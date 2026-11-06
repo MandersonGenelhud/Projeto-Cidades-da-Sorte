@@ -4493,7 +4493,7 @@ app.put('/api/maria', (req, res) => {
     if (!MARIA_PROFILES[p]) throw httpError(400, 'Perfil inválido');
     profiles[id] = p;
   }
-  store.updateSettings({ maria: { enabled: b.enabled === undefined ? cur.enabled !== false : Boolean(b.enabled), name: cur.name || 'Maria', lineId, voiceReply: b.voiceReply === undefined ? cur.voiceReply !== false : Boolean(b.voiceReply), profiles } });
+  store.updateSettings({ maria: { enabled: b.enabled === undefined ? cur.enabled !== false : Boolean(b.enabled), name: cur.name || 'Maria', lineId, voiceReply: b.voiceReply === undefined ? cur.voiceReply !== false : Boolean(b.voiceReply), wakeWords: cur.wakeWords || ['atendente'], profiles } });
   securityEvent('maria_ajustes', req.user, req, `Maria ${store.settings.maria.enabled ? 'ligada' : 'desligada'} · perfis: ${Object.entries(profiles).map(([id, p]) => `${auth.get(id)?.name || id}=${p}`).join(', ') || 'padrão'}`);
   res.json({ ok: true });
 });

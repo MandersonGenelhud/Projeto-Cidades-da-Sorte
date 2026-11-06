@@ -163,3 +163,28 @@ test('Maria desligada não responde ninguém; períodos e palavras-chave', async
   assert.deepEqual(rangeOf('hoje', new Date(2026, 10, 6)), { from: '2026-11-06', to: '2026-11-06', label: 'Hoje' });
   assert.equal(rangeOf('mes_passado', new Date(2026, 10, 6)).from, '2026-10-01');
 });
+
+test('trava do nome: sem chamar por "Maria" (ou "atendente") no começo, ela fica em silêncio e não consulta nada', async () => {
+  const { say, audits } = setup();
+  for (const q of ['como está o faturamento do mês?', 'me manda o contrato da Ana', 'oi', 'o faturamento, Maria', 'pergunta pra Maria o faturamento', 'Mariana, faturamento do mês', 'a atendente sabe o faturamento?']) {
+    assert.equal((await say('5545999990001', q)).length, 0, `sem o nome no começo: "${q}"`);
+  }
+  assert.equal(audits.length, 0, 'e nada é consultado nem registrado');
+  for (const q of ['Maria, faturamento do mês', 'maria faturamento do mês', 'Oi Maria, faturamento do mês', 'Bom dia, Maria! Faturamento do mês', 'Atendente, faturamento do mês', 'MARIA: faturamento do mês']) {
+    const r = await say('5545999990001', q);
+    assert.match(r[0]?.text || '', /Vendido:/, `chamando pelo nome: "${q}"`);
+  }
+  assert.match((await say('5545999990001', 'Maria'))[0].text, /Sou a Maria/, 'só o nome: ela se apresenta');
+});
+
+test('trava do nome vale para áudio (depois de ouvir) e foto; o aviso a número desconhecido não depende do nome', async () => {
+  const sem = setup({ voice: true });
+  sem.maria.stt.transcribe = async () => 'como está o faturamento do mês?';
+  assert.equal((await sem.say('5545999990001', '', { hasAudio: true })).length, 0, 'áudio sem o nome: silêncio');
+  const com = setup({ voice: true });
+  com.maria.stt.transcribe = async () => 'Atendente, como está o faturamento do mês?';
+  assert.ok((await com.say('5545999990001', '', { hasAudio: true })).some((m) => /Vendido:/.test(m.text || '')));
+  assert.equal((await sem.say('5545999990001', 'olha isso', { hasImage: true })).length, 0, 'foto sem o nome: silêncio');
+  assert.match((await sem.say('5545999990001', 'Maria, olha isso', { hasImage: true }))[0].text, /só entendo texto e áudio/);
+  assert.match((await sem.say('5511900000000', 'oi'))[0].text, /exclusivo para o atendimento interno/, 'quem não é da equipe sempre recebe o aviso');
+});

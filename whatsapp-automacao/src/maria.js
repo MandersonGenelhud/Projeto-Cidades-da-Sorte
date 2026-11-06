@@ -8,6 +8,7 @@
 //     full  = tudo, só leitura (Marcos, Manderson e quem for liberado, como o Eliezer)
 //     basic = contratos e clientes (ex.: Silvane)
 //     own   = só os próprios contratos, valores e clientes (vendedores)
+// - Trava do nome: ela só age quando a mensagem COMEÇA chamando por "Maria" (ou "atendente"). Sem o nome, fica em silêncio (vale para texto e para áudio, depois de ouvir).
 // - Nesta etapa a Maria só LÊ. Nenhuma alteração é feita por mensagem.
 // - O texto recebido é só dado: a IA apenas classifica o que foi pedido; as respostas vêm do sistema.
 // - O caixa mostrado é só o da empresa: gastos pessoais e dízimo nunca aparecem aqui.
@@ -113,6 +114,21 @@ export class Maria {
     return fold(this.lineName(msg.line)) === fold(this.name);
   }
 
+  /** Palavras que a chamam: o nome dela e "atendente" (configurável em maria.wakeWords). */
+  get wakeWords() {
+    const extra = Array.isArray(this.config.wakeWords) && this.config.wakeWords.length ? this.config.wakeWords : ['atendente'];
+    return [this.name, ...extra].map((w) => fold(w).replace(/[^a-z0-9]/g, '')).filter(Boolean);
+  }
+
+  /** "Maria, faça isso" → { had: true, rest: 'faça isso' }. O nome só vale no COMEÇO da mensagem (com "oi", "bom dia"... antes). */
+  stripWake(text) {
+    const flat = String(text || '');
+    const words = this.wakeWords.map((w) => w.replace(/[^a-z0-9]/g, ''));
+    const re = new RegExp(`^\\s*(?:(?:ei|oi|ol[aá]|e a[ií]|fala|bom dia|boa tarde|boa noite)[\\s,!.]+)?(?:${words.join('|')})(?![\\p{L}\\p{N}])[\\s,:;.!?-]*`, 'iu');
+    const m = flat.match(re);
+    return m ? { had: true, rest: flat.slice(m[0].length).trim() } : { had: false, rest: flat.trim() };
+  }
+
   personFor(msg) {
     if (!msg?.phone) return null;
     return this.auth.users.find((u) => u.active !== false && u.whatsapp && samePhone(u.whatsapp, msg.phone)) || null;
@@ -144,14 +160,21 @@ export class Maria {
     let text = String(msg.text || '');
     const spoke = Boolean(msg.hasAudio);
     try {
-      if (msg.hasImage) { await this.#say(msg, `Oi, ${user.name.split(' ')[0]}! Por enquanto eu só entendo texto e áudio. Me diga o que precisa e eu consulto o sistema.`, false); return true; }
+      if (msg.hasImage) {
+        if (!this.stripWake(msg.text).had) return true; // foto sem chamar pelo nome: ela não se mete
+        await this.#say(msg, `Oi, ${user.name.split(' ')[0]}! Por enquanto eu só entendo texto e áudio. Me diga o que precisa e eu consulto o sistema.`, false);
+        return true;
+      }
       if (spoke) {
         if (!this.stt?.ready) { await this.#say(msg, 'Ainda não consigo ouvir áudios agora (o serviço de voz não está ligado). Escreva por texto, por favor.', false); return true; }
         const audio = await this.downloadAudio(msg);
         if (!audio) throw new Error('não consegui baixar o áudio');
         text = await this.stt.transcribe(audio, 'audio/ogg');
       }
-      const reply = await this.process(user, text, { phone: msg.phone });
+      // Trava de segurança: só age quando chamada pelo nome. Sem o nome, nem responde, nem consulta nada, nem registra.
+      const wake = this.stripWake(text);
+      if (!wake.had) return true;
+      const reply = await this.process(user, wake.rest, { phone: msg.phone });
       await this.#say(msg, reply, spoke);
     } catch (e) {
       this.log({ type: 'error', message: `Maria: ${e.message}` });
@@ -244,7 +267,7 @@ export class Maria {
     const ex = ['• "Maria, me manda o contrato da Ana"', '• "Maria, o contrato do João está em dia?"', '• "Maria, qual o telefone da cliente Maria Souza?"'];
     if (profile !== 'basic') ex.push('• "Maria, como está o faturamento do mês?"', '• "Maria, tem parcelas em atraso?"');
     if (profile === 'full') ex.push('• "Maria, como está o caixa este mês?"', '• "Maria, me dá o resumo de hoje"', '• "Maria, como está o sistema? Tem cadastro duplicado?"');
-    return `Sou a ${this.name}, assessora virtual da Migra. Pode escrever ou mandar áudio. ${this.#helpLine(profile)}\n\nExemplos:\n${ex.join('\n')}\n\nPor enquanto eu só consulto: não altero nada.`;
+    return `Sou a ${this.name}, assessora virtual da Migra. Pode escrever ou mandar áudio, sempre começando pelo meu nome. ${this.#helpLine(profile)}\n\nExemplos:\n${ex.join('\n')}\n\nPor enquanto eu só consulto: não altero nada.`;
   }
 
   #saleLine(s) {
@@ -269,10 +292,10 @@ export class Maria {
     let list = [];
     if (it.termo) list = this.sales.listFor(viewer, { q: it.termo, status: '' });
     else if (it.enviar && ctx && Date.now() - ctx.at < CONTEXT_MS) list = ctx.saleIds.map((id) => this.sales.get(id)).filter((s) => s && this.sales.canSee(viewer, s)).map((s) => this.sales.view(s));
-    if (!it.termo && !list.length) return 'De qual cliente é o contrato? Me diga o nome, o telefone ou o número do contrato (por exemplo: "o contrato da Ana Souza").';
+    if (!it.termo && !list.length) return `De qual cliente é o contrato? Me diga o nome, o telefone ou o número do contrato, chamando por mim (por exemplo: "${this.name}, o contrato da Ana Souza").`;
     if (!list.length) return `Não encontrei contrato para "${it.termo}". Confira o nome ou me passe o telefone.${profile === 'own' ? ' (Eu só mostro os contratos que você cadastrou.)' : ''}`;
     this.context.set(phone, { saleIds: list.slice(0, 5).map((s) => s.id), at: Date.now() });
-    if (list.length > 1) return `Achei ${list.length} contratos${it.termo ? ` para "${it.termo}"` : ''}. Qual deles?\n${list.slice(0, 5).map((s) => this.#saleLine(s)).join('\n')}${list.length > 5 ? `\n…e mais ${list.length - 5}.` : ''}\nMe diga o número (ex.: "o ${list[0].number}").`;
+    if (list.length > 1) return `Achei ${list.length} contratos${it.termo ? ` para "${it.termo}"` : ''}. Qual deles?\n${list.slice(0, 5).map((s) => this.#saleLine(s)).join('\n')}${list.length > 5 ? `\n…e mais ${list.length - 5}.` : ''}\nMe diga o número, começando pelo meu nome (ex.: "${this.name}, o ${list[0].number}").`;
     const s = list[0];
     const detail = this.#saleDetail(s);
     if (!it.enviar) return `${detail}\n\nQuer que eu envie o PDF do contrato? É só pedir.`;
@@ -282,7 +305,7 @@ export class Maria {
   }
 
   async #client(viewer, profile, it) {
-    if (!it.termo) return 'De qual cliente? Me diga o nome ou o telefone.';
+    if (!it.termo) return `De qual cliente? Me diga o nome ou o telefone, chamando por mim (ex.: "${this.name}, o telefone da Ana Souza").`;
     if (profile === 'own') {
       const list = this.sales.listFor(viewer, { q: it.termo });
       if (!list.length) return `Não achei "${it.termo}" entre os seus clientes.`;
