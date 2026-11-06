@@ -58,6 +58,7 @@ import { Alerts } from './alerts.js';
 import { Documents, TYPES as DOC_TYPES } from './documents.js';
 import { Usage, DEFAULT_PRICING, cleanPricing, priceModel, historyReport } from './usage.js';
 import { OFFICE_IDS, normOffice, officeOfUser, sees, officeList } from './offices.js';
+import { crossSiteBlocked } from './csrf.js';
 import { siteGuard, siteHostsFrom, siteOfficeMap, hostOf } from './site-host.js';
 import { mergeContent, sanitizeContent, renderHome, renderPremium } from './site-content.js';
 import { buildExecutive, periods as execPeriods, dayStr } from './executive.js';
@@ -1337,8 +1338,16 @@ app.use((req, res, next) => {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
     'Cross-Origin-Opener-Policy': 'same-origin',
+    // Sem scripts nem formulários de fora; ninguém coloca o sistema dentro de outra página.
+    'Content-Security-Policy': "base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'self'",
   });
   if (req.secure) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  next();
+});
+// Pedido que muda dados, com sessão aberta, vindo de OUTRO site: recusado (defesa extra além do SameSite do cookie).
+app.use((req, res, next) => {
+  let pub = ''; try { pub = process.env.PUBLIC_URL ? new URL(process.env.PUBLIC_URL).host : ''; } catch { /* endereço inválido: só vale o próprio host */ }
+  if (crossSiteBlocked(req, { cookieName: auth.cookieName, allowedHosts: [pub, ...SITE_HOSTS] })) return res.status(403).json({ error: 'Pedido de outro site bloqueado.' });
   next();
 });
 // Guarda o corpo bruto para validar a assinatura do webhook da Meta.

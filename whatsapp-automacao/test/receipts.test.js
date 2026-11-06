@@ -5,8 +5,10 @@ import { ReceiptReader } from '../src/receipts.js';
 import { Payments } from '../src/payments.js';
 import { tempStore } from './helpers.js';
 
-const NOW = new Date('2026-11-04T15:00:00Z');
-const GOOD = { comprovante: true, valor: 125, moeda: 'BRL', data: '2026-11-04', situacao: 'concluido', pagador: 'Ana Souza', recebedor: 'MIGRA SOLUCOES LTDA', chave_ou_documento_recebedor: '***.123.456/****', id_transacao: 'E10573521202611041500ABCDEF12345', banco: 'Nubank', parece_adulterado: false };
+// A cobrança nasce com a data de hoje; o teste usa o relógio de verdade (data fixa quebrava com o passar dos dias).
+const NOW = new Date();
+const TODAY = NOW.toISOString().slice(0, 10);
+const GOOD = { comprovante: true, valor: 125, moeda: 'BRL', data: TODAY, situacao: 'concluido', pagador: 'Ana Souza', recebedor: 'MIGRA SOLUCOES LTDA', chave_ou_documento_recebedor: '***.123.456/****', id_transacao: 'E10573521202611041500ABCDEF12345', banco: 'Nubank', parece_adulterado: false };
 
 async function setup(read = GOOD, { config = {} } = {}) {
   const store = tempStore();

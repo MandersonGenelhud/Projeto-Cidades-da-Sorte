@@ -155,6 +155,8 @@ export class Auth {
     return crypto.createHmac('sha256', this.secret).update(value).digest('base64url');
   }
 
+  get cookieName() { return COOKIE; }
+
   /** secure: só manda o cookie por HTTPS (na VPS). */
   sessionCookie(user, { secure = false } = {}) {
     const exp = Date.now() + SESSION_DAYS * 86_400_000;

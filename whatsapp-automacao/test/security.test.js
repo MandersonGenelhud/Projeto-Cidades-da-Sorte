@@ -5,6 +5,7 @@ import { base32Encode, totpCode, verifyTotp, LoginGuard } from '../src/security.
 import { Auth } from '../src/auth.js';
 import { Backups, decrypt, encrypt } from '../src/backup.js';
 import { tempStore } from './helpers.js';
+import { crossSiteBlocked } from '../src/csrf.js';
 
 test('TOTP: confere com o vetor oficial da RFC 6238 e aceita só o código da janela', () => {
   const secret = base32Encode(Buffer.from('12345678901234567890'));
@@ -79,4 +80,18 @@ test('cadastro do vendedor fica aguardando: não entra até o administrador libe
   auth.update(v.id, { active: true });
   assert.equal(auth.login('silvane', 'Silvane2026').id, v.id);
   assert.equal(auth.get(v.id).pending, undefined);
+});
+
+test('pedido de outro site que muda dados com a sessão aberta é bloqueado; o próprio sistema, leitura e webhooks passam', () => {
+  const o = { cookieName: 'zapauto_sessao', allowedHosts: ['app.migraparaguay.com'] };
+  const req = (method, headers) => ({ method, headers: { host: 'app.migraparaguay.com', cookie: 'zapauto_sessao=abc', ...headers } });
+  assert.equal(crossSiteBlocked(req('POST', { origin: 'https://site-do-golpista.com' }), o), true, 'outro site');
+  assert.equal(crossSiteBlocked(req('DELETE', { origin: 'null' }), o), true, 'origem oculta');
+  assert.equal(crossSiteBlocked(req('POST', { referer: 'https://golpe.com/pagina' }), o), true, 'só referer de fora');
+  assert.equal(crossSiteBlocked(req('PUT', { 'sec-fetch-site': 'cross-site' }), o), true, 'navegador diz que é de fora');
+  assert.equal(crossSiteBlocked(req('POST', { origin: 'https://app.migraparaguay.com' }), o), false, 'o próprio painel');
+  assert.equal(crossSiteBlocked(req('POST', { origin: 'https://187-41-108-131.sslip.io', host: '187-41-108-131.sslip.io' }), o), false, 'endereço antigo do mesmo sistema');
+  assert.equal(crossSiteBlocked(req('GET', { origin: 'https://golpe.com' }), o), false, 'leitura não muda nada');
+  assert.equal(crossSiteBlocked({ method: 'POST', headers: { host: 'app.migraparaguay.com', origin: 'https://graph.facebook.com' } }, o), false, 'sem sessão (webhook, chave de integração)');
+  assert.equal(crossSiteBlocked(req('POST', {}), o), false, 'ferramenta sem Origin (script do computador)');
 });

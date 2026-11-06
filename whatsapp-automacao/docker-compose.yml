@@ -3,6 +3,8 @@ services:
   zapauto:
     build: .
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"] # o programa nunca ganha mais poder do que começou
+    cap_drop: ["ALL"] # roda como usuário comum e sem nenhum poder especial do sistema
     env_file: .env
     environment:
       HOST: 0.0.0.0
@@ -24,6 +26,7 @@ services:
   voz:
     build: ./deploy/voz
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
     environment:
       WHISPER_MODEL: small
     volumes:
@@ -35,6 +38,7 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
     ports:
       - "80:80"
       - "443:443"
