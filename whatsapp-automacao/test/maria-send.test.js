@@ -143,7 +143,8 @@ test('sendForm: sai pelo número principal (administrador) ou pelo do vendedor, 
   assert.match(a.sent.at(-1).text, /Oi, Ana! Preencha: https:\/\/painel\.migra\.com\/ficha\//);
   assert.equal(a.memory.length, 1, 'a atendente lembra do que foi enviado');
   assert.equal(a.closing.list.at(-1).convKey, '5545988887777@s.whatsapp.net', 'a ficha segue o fluxo normal (conversa real do cliente)');
-  assert.equal(a.closing.list.at(-1).noAuto, undefined);
+  assert.equal(a.closing.list.at(-1).noAuto, true, 'sem Pix nem termo automáticos: o vendedor decide');
+  assert.equal(a.closing.list.at(-1).requesterId, a.marcos.id, 'e quem pediu é avisado quando o cliente preencher');
   const b = outSetup({ sellerLine: true });
   const r2 = await b.out.sendForm({ user: b.ana, viewer: b.ana, phone: '5545988887777', nome: 'Ana Souza' });
   assert.equal(r2.via, 'o seu WhatsApp');

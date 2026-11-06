@@ -35,7 +35,7 @@ import { AppSignups, APPS as SIGNUP_APPS } from './app-signups.js';
 import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, BOOKS as CASH_BOOKS, toCsv as cashToCsv } from './cash.js';
 import { Nina } from './assistant.js';
 import { Maria, PROFILES as MARIA_PROFILES } from './maria.js';
-import { makeOutbound } from './maria-outbound.js';
+import { makeOutbound, findRecentQuote, filledNotice } from './maria-outbound.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
@@ -4391,14 +4391,12 @@ const mariaContracts = {
   ready: contractReady,
   // Orçamento recente (30 dias) do mesmo cliente que ainda não foi assinado: reaproveita em vez de criar outro.
   findQuote: (viewer, { nome = '', phone = '' }) => {
-    const n = String(nome).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-    const ph = normalizePhone(phone) || '';
     const since = Date.now() - 30 * 86_400_000;
-    return quotes.list.filter((q) => canSeeQuote(viewer, q) && q.contract?.status !== 'assinado' && Date.parse(q.createdAt) >= since
-      && ((n && String(q.client).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() === n) || (ph && q.phone && samePhone(q.phone, ph)))).at(-1) || null;
+    const open = quotes.list.filter((q) => canSeeQuote(viewer, q) && q.contract?.status !== 'assinado' && Date.parse(q.createdAt) >= since);
+    return findRecentQuote(open, { nome, phone, samePhone, normalizePhone });
   },
-  createQuote: ({ pacote, pessoas, adultos, nome, telefone, user }) => quotes.create({
-    items: [{ pacote, quantidade: pessoas }], adults: adultos, client: nome, phone: normalizePhone(telefone) || '',
+  createQuote: ({ pacote, pessoas, adultos, nome, telefone, user, leadId = null }) => quotes.create({
+    items: [{ pacote, quantidade: pessoas }], adults: adultos, client: nome, phone: normalizePhone(telefone) || '', leadId,
     consultant: String(user.name || '').split(' ')[0], createdBy: { id: user.id, name: user.name },
   }),
   clientFor: (q, { nome = '', telefone = '', dados = {} }) => {
@@ -4413,10 +4411,10 @@ const mariaContracts = {
     return { url: r.url, ct, buffer: fs.readFileSync(contractFile(q)), name: `Contrato ${ct}.pdf` };
   },
   // Ficha de dados sem conversa de cliente: quem pediu encaminha o link (ou preenche). Não dispara Pix nem mensagem ao cliente.
-  formLink: (q, { nome = '', telefone = '', dados = {}, user }) => {
+  formLink: (q, { nome = '', telefone = '', dados = {}, user, lead = null }) => {
     let f = q.mariaFormId ? closing.list.find((x) => x.id === q.mariaFormId) : null;
     if (!f || f.term?.status === 'assinado') {
-      f = closing.createForm({ convKey: null, lead: null, servico: q.items.map((r) => `${r.name} × ${r.qty}`).join(', '), adultos: q.plan?.adults });
+      f = closing.createForm({ convKey: lead?.conversationKey || null, lead, servico: q.items.map((r) => `${r.name} × ${r.qty}`).join(', '), adultos: q.plan?.adults });
       q.mariaFormId = f.id;
     }
     f.noAuto = true;
@@ -4427,15 +4425,35 @@ const mariaContracts = {
     store.save();
     return { url: closing.formUrl(f), filled: f.status === 'preenchida' };
   },
-  summary: (q) => ({ number: q.number, items: q.items.map((r) => `${r.name}${r.qty > 1 ? ` × ${r.qty}` : ''}`).join(', '), total: q.plan.total, entry: q.plan.entry, parcels: q.plan.parcels?.length || 0 }),
+  summary: (q) => ({ number: q.number, items: q.items.map((r) => `${r.name}${r.qty > 1 ? ` × ${r.qty}` : ''}`).join(', '), total: q.plan.total, entry: q.plan.entry, parcels: q.plan.parcels?.length || 0, url: quoteLink(q) }),
+  quoteFile: (q) => (fs.existsSync(quotes.file(q)) ? { buffer: fs.readFileSync(quotes.file(q)), name: `${q.number}.pdf` } : null),
+  // Cadastro do cliente no CRM, como o vendedor faz na tela: fica no nome de quem pediu; cliente de outro vendedor é recusado.
+  registerLead: ({ user, viewer, nome = '', telefone = '', interesse = '', pessoas = 1 }) => {
+    const phone = normalizePhone(telefone) || null;
+    if (telefone && !phone) throw new Error('o telefone não parece correto. Me passe com DDD (ex.: 45 98888-7777).');
+    const key = phone ? mariaOutbound.route(user, phone).key : null;
+    let lead = phone ? crm.findForConversation({ key, phone }) : null;
+    if (lead) {
+      if (!crm.canSee(viewer, lead)) throw new Error('esse cliente já é de outro vendedor. Fale com o administrador.');
+      if (nome && (!lead.name || /^@|^\+?\d+$/.test(lead.name))) lead.name = nome;
+      const pkg = interesse ? crm.matchPackage(interesse) : null;
+      if (pkg && !lead.interest) lead.interest = pkg.name || interesse;
+      store.save();
+      return { lead, created: false };
+    }
+    const pkg = interesse ? crm.matchPackage(interesse) : null;
+    const view = crm.create(viewer, { name: nome, phone, interest: pkg?.name || interesse || '', people: pessoas, source: 'maria', ownerId: user.id, conversationKey: key });
+    return { lead: crm.byId(view.id), created: true };
+  },
   audit: (text) => securityEvent('maria_contrato', { name: 'Maria' }, null, text),
 };
-// O cliente preencheu a ficha pedida pela Maria: avisa quem pediu (nada vai para o cliente).
+// O cliente preencheu a ficha pedida pela Maria: avisa quem pediu (o vendedor), pelo número da Maria, com a prévia do orçamento.
 closing.onManualFilled = async (f) => {
-  const u = auth.get(f.requesterId);
-  if (!u?.whatsapp) return;
-  const nome = f.data.nome || 'O cliente';
-  await wa.send(u.whatsapp, { text: `📝 ${nome} preencheu a ficha de dados. Quando quiser o contrato, é só pedir: "Maria, gere o contrato de ${nome}".`, typing: false }).catch(() => {});
+  const lead = f.leadId ? crm.byId(f.leadId) : null;
+  const q = (f.quoteId && quotes.list.find((x) => x.id === f.quoteId))
+    || quotes.list.filter((x) => (lead && x.leadId === lead.id) || (x.phone && f.data.whatsapp && samePhone(x.phone, normalizePhone(f.data.whatsapp) || ''))).at(-1);
+  const text = filledNotice({ nome: f.data.nome || 'O cliente', quote: q, requesterName: auth.get(f.requesterId)?.name, mariaName: maria.name });
+  await maria.notifyUser(f.requesterId, text).catch((e) => store.addLog({ type: 'error', message: `Maria (aviso de ficha): ${e.message}` }));
 };
 // O que a secretária sabe da empresa: a mesma base do atendimento (sem as regras de venda), os pacotes com preço de tabela e quem é da empresa.
 const mariaKnowledge = () => {
@@ -4445,9 +4463,16 @@ const mariaKnowledge = () => {
 // Envio da ficha e do contrato ao cliente, pedido pela Maria (sai do WhatsApp do vendedor ou do principal, nunca do número interno dela).
 const mariaOutbound = makeOutbound({
   publicBase, store, quotes: () => quotes.list, samePhone, lines, lineKey, wa, agent, crm, closing, contractFlow, fichaMessage,
+  contractFile: (q) => {
+    const signed = q.contract?.status === 'assinado' && fs.existsSync(signedFile(q));
+    const file = signed ? signedFile(q) : contractFile(q);
+    return fs.existsSync(file) ? { buffer: fs.readFileSync(file), name: `Contrato CT-${q.number.replace(/^ORC-/, '')}${signed ? ' assinado' : ''}.pdf` } : null;
+  },
 });
 const maria = new Maria({
   store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
+  lineIdByName: (name) => lines.list().find((l) => String(l.agentName || '').trim().toLowerCase() === String(name).trim().toLowerCase())?.id || '',
+  isConnected: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected'),
   stt: nina.stt, tts: nina.tts,
   send: (jid, payload) => wa.send(jid, payload),
   downloadAudio: (m) => wa.downloadAudio(m),
