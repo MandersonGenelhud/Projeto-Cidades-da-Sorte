@@ -54,6 +54,11 @@ const SEND_CONFIRM_MS = 10 * 60_000; // a confirmação de envio ao cliente vale
 const SEND_LIMIT_HOUR = 10; // envios ao cliente por pessoa por hora
 const SEND_LIMIT_DAY = 40; // envios ao cliente da equipe toda por dia
 const SEND_DUP_MS = 10 * 60_000; // o mesmo envio ao mesmo número não repete em 10 minutos
+const FOCUS_MS = 30 * 60_000; // o "cliente em foco" (o último que a pessoa citou) vale por 30 minutos
+// Quando a pessoa fala "dele", "para ele", "esse cliente"... sem dizer o nome, vale o cliente em foco. Sempre com aviso do nome na resposta.
+const PRONOUN = /\b(dele|dela|desse cliente|dessa cliente|esse cliente|essa cliente|este cliente|esta cliente|mesmo cliente|o mesmo|a mesma|pra ele|pra ela|para ele|para ela)\b/;
+// Começar um assunto novo do zero (esquece o cliente em foco, rascunhos e confirmações pendentes).
+const RESET = /^(novo assunto|outro assunto|mudando de assunto|mudar de assunto|outro cliente|esquece (isso|o cliente|tudo)|deixa (pra la|isso pra la)|cancela tudo|comecar de novo|recomecar|zera)\b/;
 const DRAFT_MS = 15 * 60_000; // o contrato em preparo (dados que ela ainda espera) vale por 15 minutos
 const FIELD_LABEL = { nome: 'nome completo', cpf: 'CPF', nacionalidade: 'nacionalidade', estadoCivil: 'estado civil', rua: 'rua', numero: 'número da casa', cidade: 'cidade', uf: 'estado (UF)' };
 
@@ -119,6 +124,8 @@ export function periodFrom(text, fallback = 'mes', now = new Date()) {
 }
 
 /** Tira do termo as palavras de período ("hoje", "da semana", "de outubro"): sobra só o nome do cliente, se houver. */
+/** "cliente Carlos Lima" / "da cliente Ana" → só o nome: a palavra "cliente" não entra na busca. */
+export const bareName = (t) => String(t || '').replace(/^\s*(?:(?:o|a|do|da)\s+)?clientes?\s+(?:(?:d[aeo]s?)\s+)?/i, '').trim();
 export const stripPeriod = (t) => {
   const stop = '(?:de|da|do|das|dos|em|na|no|os|as|o|a|ultimos?|desta|deste|nesta|neste|esta|este|fechados?|fechadas?|fechamos|fechei|realizados?|contratos?|quantos|quais)';
   return fold(t).replace(PERIOD_WORDS, ' ').replace(/\s+/g, ' ').trim()
@@ -140,7 +147,7 @@ export function quickIntent(text) {
     return { acao: 'enviar_cliente', o_que: /\bcontrato\b/.test(n) && !/\b(ficha|formulario)\b/.test(n) ? 'contrato' : 'ficha' };
   }
   if (/\b(gere|gera|gerar|crie|cria|criar|faca|faz|fazer|monte|monta|prepare|prepara|emita|emite)\b[^.?!]*\b(contrato|ficha)\b/.test(n) || /\b(link|formulario) d[ae] (ficha|dados|cadastro)\b/.test(n) || /\bficha (de dados )?(pra|para|do|da|desse|dessa)\b/.test(n)) return { acao: 'gerar_contrato' };
-  const termoContrato = stripPeriod(termOf(/(?:contrato|contratos|via)\s+(?:d[aeo]s?\b|do cliente|da cliente)?\s*([a-z0-9][a-z0-9 .@-]{2,})$/));
+  const termoContrato = bareName(stripPeriod(termOf(/(?:contrato|contratos|via)\s+(?:d[aeo]s?\b|do cliente|da cliente)?\s*([a-z0-9][a-z0-9 .@-]{2,})$/)));
   const pediuEnvio = /\b(manda|mande|envia|envie|segunda via|2a via|2 via|pdf|me passa)\b/.test(n);
   if (/\b(contratos?|fechamos|fechei|fechados|fechadas|vendas fechadas)\b/.test(n) && !termoContrato && (!pediuEnvio || /\bcontratos\b/.test(n)) && !/\b(segunda via|2a via|2 via)\b/.test(n)) {
     return { acao: 'relatorio_contratos', periodo: periodFrom(n, 'mes') };
@@ -165,6 +172,8 @@ export class Maria {
    */
   constructor({ store, auth, sales, customers, collections, cash, contracts = null, outbound = null, knowledge = () => '', lineIdByName = () => '', isConnected = () => true, llm = null, stt = null, tts = null, send, downloadAudio = async () => null, contractFile = () => null, digest = () => '', health = () => '', lineName = () => '', marcosPhone = () => '', audit = () => {}, log = () => {}, now = () => new Date() }) {
     Object.assign(this, { store, auth, sales, customers, collections, cash, contracts, outbound, knowledge, lineIdByName, isConnected, llm, stt, tts, send, downloadAudio, contractFile, digest, health, lineName, marcosPhone, audit, log, now });
+    this.focus = new Map(); // telefone → { nome, telefone, at }: o cliente de que a pessoa está falando agora
+    this.focusUsed = new Map(); // telefone → nome (quando o cliente veio do foco, a resposta avisa)
     this.context = new Map(); // telefone → { saleIds, at } (para "manda o contrato dele")
     this.chats = new Map(); // telefone → conversa recente { turns, at } (memória curta, só na memória do servidor)
     this.greeted = new Map(); // telefone → dia em que já recebeu o bom dia
@@ -299,7 +308,7 @@ export class Maria {
         ] });
         const j = parseJsonObject(reply?.content);
         if (j && [...ACTIONS, 'conversa'].includes(j.acao)) {
-          const termo = stripPeriod(String(j.termo || '').replace(/[\n\r]/g, ' ').slice(0, 60));
+          const termo = bareName(stripPeriod(String(j.termo || '').replace(/[\n\r]/g, ' ').slice(0, 60)));
           // O período dito com todas as letras (ex.: "de outubro", "semana passada") vale mais que o chute da IA.
           const periodo = periodFrom(text, /^(hoje|ontem|semana|mes|mes_passado|ano|tudo)$/.test(j.periodo) ? j.periodo : 'mes');
           return { acao: j.acao, termo, enviar: j.enviar === true, periodo, o_que: j.o_que === 'contrato' ? 'contrato' : j.o_que === 'ficha' ? 'ficha' : '' };
@@ -317,6 +326,12 @@ export class Maria {
     const t = String(text || '').trim();
     if (!t) return `Oi, ${first}! Sou a ${this.name}, a assessora virtual da Migra. Me pergunte, por exemplo: "como está o faturamento do mês?" ou "me manda o contrato da Ana".`;
     const profile = this.profileOf(user);
+    // "Novo assunto": esquece o cliente em foco, rascunhos e envios esperando confirmação (nada fica "pendurado" de outro assunto).
+    this.focusUsed.delete(phone);
+    if (RESET.test(fold(t))) {
+      for (const m of [this.focus, this.drafts, this.context, this.confirms, this.chats]) m.delete(phone);
+      return `Tudo bem, ${first}! Zerei o assunto anterior. Pode me dizer o que precisa agora.`;
+    }
     // Envio ao cliente esperando confirmação: só um "sim" claro envia; "não" cancela; qualquer outra coisa segue como pedido novo.
     const pend = this.confirms.get(phone);
     if (pend && pend.until > Date.now()) {
@@ -328,9 +343,20 @@ export class Maria {
     this.audit(`${user.name} (${profile}) pediu: ${it.acao}${it.termo ? ` · ${it.termo}` : ''}`);
     // Contrato em preparo (ela pediu um dado): a próxima mensagem, se não for outro assunto, continua o mesmo contrato.
     const draft = this.drafts.get(phone);
-    if (draft && Date.now() - draft.at < DRAFT_MS && (!it.acao || ['conversa', 'contrato', 'cliente'].includes(it.acao) || it.acao === ({ enviar: 'enviar_cliente', orcar: 'orcar', cadastrar: 'cadastrar_cliente' }[draft.data.mode] || 'gerar_contrato'))) {
-      it.acao = { enviar: 'enviar_cliente', orcar: 'orcar', cadastrar: 'cadastrar_cliente' }[draft.data.mode] || 'gerar_contrato';
+    const draftAct = draft ? { enviar: 'enviar_cliente', orcar: 'orcar', cadastrar: 'cadastrar_cliente' }[draft.data.mode] || 'gerar_contrato' : '';
+    // Só continua o rascunho quando a mensagem é RESPOSTA do que ela perguntou (ou o mesmo tipo de pedido). Pergunta, outro cliente
+    // ou outro assunto seguem o próprio caminho, sem herdar nada do rascunho.
+    // Se ela está esperando o NOME do cliente, "o cliente Carlos Lima" é a resposta (e não uma consulta nova).
+    const waitingName = Boolean(draft && !draft.data.nome);
+    const vague = !it.acao || it.acao === 'conversa' || ((it.acao === 'contrato' || it.acao === 'cliente') && (!it.termo || waitingName));
+    if (draft && Date.now() - draft.at < DRAFT_MS && ((vague && this.#looksLikeAnswer(t, waitingName)) || it.acao === draftAct)) {
+      it.acao = draftAct;
       if (draft.data.mode === 'enviar') it.o_que ||= draft.data.what;
+    }
+    // "o contrato dele" / "os dados desse cliente": vale o cliente em foco (e a resposta avisa qual).
+    if ((it.acao === 'contrato' || it.acao === 'cliente') && !it.termo && PRONOUN.test(fold(t))) {
+      const f = this.#focusFor(phone);
+      if (f) { it.termo = f.nome || f.telefone; this.focusUsed.set(phone, f.nome || Maria.fmtPhone(f.telefone)); }
     }
     // "Os contratos de hoje" sem cliente e sem pedir o arquivo é um relatório, não uma busca.
     if (it.acao === 'contrato' && !it.termo && !it.enviar) { it.acao = 'relatorio_contratos'; it.periodo = periodFrom(t, 'mes'); }
@@ -341,7 +367,7 @@ export class Maria {
     }
     const viewer = this.#viewer(user, profile);
     const out = await this.#answer(it, user, viewer, profile, t, phone);
-    return this.#warm(it.acao, first, out);
+    return this.#withFocusNote(phone, this.#warm(it.acao, first, out));
   }
 
   /** Respostas de consulta ganham uma abertura com o nome da pessoa, como uma secretária faria. */
@@ -412,6 +438,7 @@ export class Maria {
     if (!it.termo && !list.length) return `De qual cliente é o contrato? Me diga o nome, o telefone ou o número do contrato, chamando por mim (por exemplo: "${this.name}, o contrato da Ana Souza").`;
     if (!list.length) return `Não encontrei contrato para "${it.termo}". Confira o nome ou me passe o telefone.${profile === 'own' ? ' (Eu só mostro os contratos que você cadastrou.)' : ''}`;
     this.context.set(phone, { saleIds: list.slice(0, 5).map((s) => s.id), at: Date.now() });
+    if (list.length === 1) this.#setFocus(phone, { nome: list[0].client?.nome, telefone: list[0].client?.phone });
     if (list.length > 1) return `Achei ${list.length} contratos${it.termo ? ` para "${it.termo}"` : ''}. Qual deles?\n${list.slice(0, 5).map((s) => this.#saleLine(s)).join('\n')}${list.length > 5 ? `\n…e mais ${list.length - 5}.` : ''}\nMe diga o número, começando pelo meu nome (ex.: "${this.name}, o ${list[0].number}").`;
     const s = list[0];
     const detail = this.#saleDetail(s);
@@ -435,9 +462,8 @@ export class Maria {
     const first = String(user.name || '').split(' ')[0];
     if (!o) return 'O envio direto ao cliente não está ligado neste servidor.';
     if (!o.ready()) return `${first}, o sistema ainda não tem endereço na internet, então o cliente não conseguiria abrir o link. Fale com o administrador.`;
-    const prev = this.drafts.get(phone);
-    const base = prev && Date.now() - prev.at < DRAFT_MS && prev.data.mode === 'enviar' ? prev.data : {};
-    const got = await this.#extractContract(text);
+    const got = await this.#extractContract(text, phone);
+    const base = this.#draftBase(phone, 'enviar', got, { phoneConflicts: false }); // corrigir o número digitado errado é normal
     const d = { ...base, mode: 'enviar' };
     for (const k of ['nome', 'telefone', 'pacote', 'pessoas', 'adultos']) if (got[k]) d[k] = got[k];
     const what = it.o_que || base.what || 'ficha';
@@ -520,9 +546,8 @@ export class Maria {
     const c = this.contracts;
     const first = String(user.name || '').split(' ')[0];
     if (!c?.registerLead) return 'O cadastro de clientes não está ligado neste servidor.';
-    const prev = this.drafts.get(phone);
-    const base = prev && Date.now() - prev.at < DRAFT_MS && prev.data.mode === 'cadastrar' ? prev.data : {};
-    const got = await this.#extractContract(text);
+    const got = await this.#extractContract(text, phone);
+    const base = this.#draftBase(phone, 'cadastrar', got);
     const d = { ...base, mode: 'cadastrar' };
     for (const k of ['nome', 'telefone', 'pacote', 'pessoas']) if (got[k]) d[k] = got[k];
     if (!d.nome && !d.telefone) {
@@ -548,9 +573,8 @@ export class Maria {
     const c = this.contracts;
     const first = String(user.name || '').split(' ')[0];
     if (!c?.registerLead) return 'O orçamento pela Maria não está ligado neste servidor.';
-    const prev = this.drafts.get(phone);
-    const base = prev && Date.now() - prev.at < DRAFT_MS && prev.data.mode === 'orcar' ? prev.data : {};
-    const got = await this.#extractContract(text);
+    const got = await this.#extractContract(text, phone);
+    const base = this.#draftBase(phone, 'orcar', got);
     const d = { ...base, mode: 'orcar' };
     for (const k of ['nome', 'telefone', 'pacote', 'pessoas', 'adultos']) if (got[k]) d[k] = got[k];
     if (!d.nome) {
@@ -622,8 +646,81 @@ ${CONTRACT_BRIEF}`;
     return out;
   }
 
+  /** Mesma pessoa? ("Ana" e "Ana Souza" sim; "Ana Souza" e "Ana Paula Dias" não). Sem nome de um dos lados, não há conflito. */
+  static sameClient(a, b) {
+    const x = fold(a); const y = fold(b);
+    if (!x || !y) return true;
+    if (x === y || x.includes(y) || y.includes(x)) return true;
+    const xt = x.split(/\s+/); const yt = y.split(/\s+/);
+    return xt[0] === yt[0] && (xt.length === 1 || yt.length === 1);
+  }
+
+  /**
+   * Rascunho que continua: só do MESMO assunto, dentro do prazo e do MESMO cliente. Se a pessoa citou outro cliente (nome ou telefone),
+   * o rascunho antigo é descartado: dados de um cliente (CPF, telefone, pacote) nunca passam para outro.
+   */
+  #draftBase(phone, mode, got, { phoneConflicts = true } = {}) {
+    const prev = this.drafts.get(phone);
+    if (!prev || Date.now() - prev.at >= DRAFT_MS) return {};
+    if ((prev.data.mode || '') !== (mode || '')) return {};
+    const nameClash = Boolean(got.nome && prev.data.nome && !Maria.sameClient(got.nome, prev.data.nome));
+    const a = normalizePhone(got.telefone); const b = normalizePhone(prev.data.telefone);
+    const phoneClash = phoneConflicts && Boolean(a && b && a !== b) && (!got.nome || nameClash);
+    if (nameClash || phoneClash) { this.drafts.delete(phone); return {}; }
+    return prev.data;
+  }
+
+  #focusFor(phone) {
+    const f = this.focus.get(phone);
+    return f && Date.now() - f.at < FOCUS_MS ? f : null;
+  }
+
+  /** Guarda o cliente de que a pessoa está falando. Outro cliente = foco novo (sem herdar nada do anterior). */
+  #setFocus(phone, { nome = '', telefone = '' } = {}) {
+    if (!nome && !telefone) return;
+    const prev = this.#focusFor(phone);
+    const same = prev && Maria.sameClient(prev.nome, nome);
+    if (prev && !same) this.context.delete(phone);
+    this.focus.set(phone, { nome: nome || (same ? prev.nome : ''), telefone: telefone || (same ? prev.telefone : ''), at: Date.now() });
+  }
+
+  /** Sem nome nem telefone na frase, mas com "dele/para ele/esse cliente": usa o cliente em foco (e a resposta avisa qual). */
+  #applyFocus(phone, text, got) {
+    if (!got.nome && !got.telefone && PRONOUN.test(fold(text))) {
+      const f = this.#focusFor(phone);
+      if (f) {
+        got.nome = f.nome;
+        if (f.telefone) got.telefone = f.telefone;
+        this.focusUsed.set(phone, f.nome || Maria.fmtPhone(f.telefone));
+      }
+    } else {
+      this.#setFocus(phone, got);
+    }
+    return got;
+  }
+
+  /** Quando o cliente veio do foco, a resposta começa dizendo qual é (a pessoa corrige na hora se for outro). */
+  #withFocusNote(phone, out) {
+    const who = this.focusUsed.get(phone);
+    if (!who) return out;
+    this.focusUsed.delete(phone);
+    const note = `↪ Entendi que é do cliente *${who}* (o último que você citou). Se for outro, me diga o nome.`;
+    if (typeof out === 'string') return `${note}\n\n${out}`;
+    return { ...out, text: `${note}\n\n${out.text}` };
+  }
+
+  /** A mensagem parece a RESPOSTA de algo que ela perguntou (e não uma pergunta ou outro assunto)? */
+  #looksLikeAnswer(text, waitingName = false) {
+    const t = String(text || '');
+    if (t.includes('?')) return false;
+    const n = fold(t);
+    if (waitingName) return n.split(/\s+/).filter(Boolean).length <= 10; // ela perguntou o nome: uma frase curta sem pergunta é a resposta
+    const names = this.contracts?.packages?.() || [];
+    return /\d{4}[-\s]?\d{4}/.test(n) || /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(n) || /\b\d{1,2}\s*(pessoas?|adultos?)\b/.test(n) || names.some((x) => n.includes(fold(x))) || n.split(/\s+/).filter(Boolean).length <= 5;
+  }
+
   /** O que a pessoa disse sobre o cliente e o pacote (a IA só separa os campos; o texto é dado, nunca ordem). */
-  async #extractContract(text) {
+  async #extractContract(text, who = '') {
     const c = this.contracts;
     const out = { nome: '', telefone: '', pacote: '', pessoas: 0, adultos: 0, dados: {} };
     const cpf = text.match(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/);
@@ -661,6 +758,7 @@ ${CONTRACT_BRIEF}`;
         this.log({ type: 'error', message: `Maria (extrair contrato): ${e.message}` });
       }
     }
+    if (who) this.#applyFocus(who, text, out);
     return out;
   }
 
@@ -672,13 +770,12 @@ ${CONTRACT_BRIEF}`;
     const c = this.contracts;
     if (!c) return 'A geração de contratos não está ligada neste servidor.';
     const first = String(user.name || '').split(' ')[0];
-    const prev = this.drafts.get(phone);
-    const base = prev && Date.now() - prev.at < DRAFT_MS && !prev.data.mode ? prev.data : {};
-    const got = await this.#extractContract(text);
+    const got = await this.#extractContract(text, phone);
+    const base = this.#draftBase(phone, '', got);
     const d = { ...base };
     for (const k of ['nome', 'telefone', 'pacote', 'pessoas', 'adultos']) if (got[k]) d[k] = got[k];
     d.dados = { ...(base.dados || {}), ...got.dados };
-    if (d.nome && !d.dados.nome && d.nome.split(' ').length > 1) d.dados.nome = d.nome;
+    if (d.nome && d.nome.split(' ').length > 1 && (!d.dados.nome || !Maria.sameClient(d.dados.nome, d.nome))) d.dados.nome = d.nome;
     if (!d.nome) {
       this.drafts.set(phone, { data: d, at: Date.now() });
       return `${first}, para gerar o contrato preciso saber *o nome do cliente*. Me diga, por exemplo: "${this.name}, gere o contrato da Ana Souza, pacote Ouro para 2 pessoas". Se não tiver os dados dele, eu mando o link da ficha para você ou ele preencher.`;
