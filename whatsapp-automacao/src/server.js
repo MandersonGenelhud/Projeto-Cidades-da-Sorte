@@ -35,6 +35,8 @@ import { AppSignups, APPS as SIGNUP_APPS } from './app-signups.js';
 import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, BOOKS as CASH_BOOKS, toCsv as cashToCsv } from './cash.js';
 import { Nina } from './assistant.js';
 import { Maria, PROFILES as MARIA_PROFILES } from './maria.js';
+import { Ana } from './ana.js';
+import { Personal } from './personal.js';
 import { makeOutbound, findRecentQuote, filledNotice } from './maria-outbound.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
 import { Payments } from './payments.js';
@@ -4469,8 +4471,16 @@ const mariaOutbound = makeOutbound({
     return fs.existsSync(file) ? { buffer: fs.readFileSync(file), name: `Contrato CT-${q.number.replace(/^ORC-/, '')}${signed ? ' assinado' : ''}.pdf` } : null;
   },
 });
+// Ana: assistente pessoal (agenda e financeiro pessoal de cada administrador). Os dados ficam em store.data.personal, por pessoa.
+const personal = new Personal({ store });
+const ana = new Ana({
+  store, auth, personal, llm,
+  notify: (userId, text) => maria.notifyUser(userId, text),
+  audit: (text) => securityEvent('ana_whatsapp', { name: 'Ana' }, null, text),
+  log: (l) => store.addLog(l),
+});
 const maria = new Maria({
-  store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
+  ana, store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
   lineIdByName: (name) => lines.list().find((l) => String(l.agentName || '').trim().toLowerCase() === String(name).trim().toLowerCase())?.id || '',
   isConnected: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected'),
   stt: nina.stt, tts: nina.tts,
@@ -4562,6 +4572,23 @@ app.get('/api/cash/export.csv', (req, res) => {
 });
 // Nina lança no Caixa Migra: as telas dela exigem acesso a esse caixa.
 app.use('/api/cash/assistant', (req, _res, next) => { cashBook(req, 'migra'); next(); });
+// Ana (assistente pessoal): quem pode usar e o horário do resumo da manhã. NUNCA devolve agenda nem financeiro de ninguém.
+app.get('/api/ana', (req, res) => {
+  needAdmin(req);
+  const c = store.settings.ana || {};
+  res.json({ enabled: ana.enabled, briefingTime: c.briefingTime || '04:30', users: Array.isArray(c.users) ? c.users : [], people: auth.users.filter((u) => u.active !== false).map((u) => ({ id: u.id, name: u.name, role: u.role, whatsapp: Boolean(u.whatsapp), allowed: ana.allowed(u) })) });
+});
+app.put('/api/ana', (req, res) => {
+  needAdmin(req);
+  const b = req.body || {};
+  const cur = store.settings.ana || {};
+  const time = b.briefingTime === undefined ? cur.briefingTime || '04:30' : String(b.briefingTime);
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw httpError(400, 'Horário inválido (use HH:MM)');
+  const users = b.users === undefined ? cur.users || [] : (Array.isArray(b.users) ? b.users : []).filter((id) => auth.get(id));
+  store.updateSettings({ ana: { enabled: b.enabled === undefined ? cur.enabled !== false : Boolean(b.enabled), users, briefingTime: time, voice: cur.voice || 'Aoede' } });
+  securityEvent('ana_ajustes', req.user, req, `Ana ${store.settings.ana.enabled ? 'ligada' : 'desligada'} · resumo às ${time} · ${users.length ? `${users.length} pessoa(s) escolhida(s)` : 'todos os administradores'}`);
+  res.json({ ok: true });
+});
 // Maria (assessora interna no WhatsApp): quem pode o quê. Só administrador.
 const mariaPeople = () => auth.users.filter((u) => u.active !== false).map((u) => ({ id: u.id, name: u.name, role: u.role, whatsapp: u.whatsapp || '', profile: maria.profileOf(u), fixed: u.role === 'admin' }));
 app.get('/api/maria', (req, res) => {
@@ -5019,6 +5046,8 @@ if (process.env.NODE_ENV !== 'test') {
   setInterval(() => { const h = new Date().getHours(); if (wa.status === 'connected' && h >= 8 && h < 19) tasks.remind((phone, text) => wa.send(phone, { text, typing: false })).catch(() => {}); }, 10 * 60_000).unref();
   // Cobrança aprovada: manda uma mensagem por vez, respeitando limite, horário e intervalo.
   setInterval(() => collections.tick().catch((e) => store.addLog({ type: 'error', message: `Cobrança: ${e.message}` })), 20_000).unref();
+  // Ana: resumo da manhã (04:30) e lembretes pessoais na hora marcada.
+  setInterval(() => ana.tick().catch((e) => store.addLog({ type: 'error', message: `Ana: ${e.message}` })), 60_000).unref();
 
   const shutdown = async () => {
     scheduler.stop();

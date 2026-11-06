@@ -170,8 +170,8 @@ export class Maria {
    * lineName(id) devolve o nome da atendente cadastrado no número (para achar o número da Maria).
    * contracts: { packages, fields, required, ready, findQuote, createQuote, clientFor, prepare, formLink, summary, audit } (gerar contrato).
    */
-  constructor({ store, auth, sales, customers, collections, cash, contracts = null, outbound = null, knowledge = () => '', lineIdByName = () => '', isConnected = () => true, llm = null, stt = null, tts = null, send, downloadAudio = async () => null, contractFile = () => null, digest = () => '', health = () => '', lineName = () => '', marcosPhone = () => '', audit = () => {}, log = () => {}, now = () => new Date() }) {
-    Object.assign(this, { store, auth, sales, customers, collections, cash, contracts, outbound, knowledge, lineIdByName, isConnected, llm, stt, tts, send, downloadAudio, contractFile, digest, health, lineName, marcosPhone, audit, log, now });
+  constructor({ store, auth, sales, customers, collections, cash, contracts = null, outbound = null, ana = null, knowledge = () => '', lineIdByName = () => '', isConnected = () => true, llm = null, stt = null, tts = null, send, downloadAudio = async () => null, contractFile = () => null, digest = () => '', health = () => '', lineName = () => '', marcosPhone = () => '', audit = () => {}, log = () => {}, now = () => new Date() }) {
+    Object.assign(this, { store, auth, sales, customers, collections, cash, contracts, outbound, ana, knowledge, lineIdByName, isConnected, llm, stt, tts, send, downloadAudio, contractFile, digest, health, lineName, marcosPhone, audit, log, now });
     this.focus = new Map(); // telefone → { nome, telefone, at }: o cliente de que a pessoa está falando agora
     this.focusUsed = new Map(); // telefone → nome (quando o cliente veio do foco, a resposta avisa)
     this.context = new Map(); // telefone → { saleIds, at } (para "manda o contrato dele")
@@ -242,7 +242,7 @@ export class Maria {
   async handle(msg) {
     if (msg.fromMe || msg.isGroup || msg.channel === 'instagram') return true; // nunca responde grupo nem o próprio aparelho
     const user = this.personFor(msg);
-    if (!this.enabled) return true;
+    if (!this.enabled && !this.ana?.enabled) return true;
     if (!user) return this.#unknown(msg);
     const profile = this.profileOf(user);
     let text = String(msg.text || '');
@@ -259,6 +259,14 @@ export class Maria {
         if (!audio) throw new Error('não consegui baixar o áudio');
         text = await this.stt.transcribe(audio, 'audio/ogg');
       }
+      // Ana (assistente pessoal): só quando a mensagem começa com "Ana," e a pessoa tem a Ana liberada. Dados 100% da própria pessoa.
+      const claim = this.ana?.claims(text, user);
+      if (claim) {
+        const r = await this.ana.process(user, claim.rest, { phone: msg.phone });
+        await this.#say(msg, typeof r === 'string' ? { text: r, voice: this.ana.voice, style: this.ana.voiceStyle } : { ...r, voice: this.ana.voice, style: this.ana.voiceStyle }, spoke);
+        return true;
+      }
+      if (!this.enabled) return true;
       // Trava de segurança: só age quando chamada pelo nome. Sem o nome, nem responde, nem consulta nada, nem registra.
       const wake = this.stripWake(text);
       if (!wake.had) return true;
@@ -285,11 +293,11 @@ export class Maria {
   }
 
   async #say(msg, answer, asVoice) {
-    const { text, file = null, spoken: short = '' } = typeof answer === 'string' ? { text: answer } : answer;
+    const { text, file = null, spoken: short = '', voice = '', style = '' } = typeof answer === 'string' ? { text: answer } : answer;
     if (asVoice && this.tts?.ready && this.config.voiceReply !== false) {
       try {
         const spoken = speakable(short || text).replace(/[^\p{L}\p{N}\s.,!?;:-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 700);
-        const { buffer, mimetype } = await this.tts.speak(spoken, this.config.voice || 'Leda', this.config.voiceStyle || 'alegre, cordial e educada, com um sorriso na voz, falando em português do Brasil de forma natural e formal, como uma assessora que adora ajudar');
+        const { buffer, mimetype } = await this.tts.speak(spoken, voice || this.config.voice || 'Leda', style || this.config.voiceStyle || 'alegre, cordial e educada, com um sorriso na voz, falando em português do Brasil de forma natural e formal, como uma assessora que adora ajudar');
         await this.send(msg.jid, { text: '', media: { buffer, mimetype, ptt: true }, typing: false });
       } catch (e) {
         this.log({ type: 'error', message: `Maria (voz): ${e.message}` });
