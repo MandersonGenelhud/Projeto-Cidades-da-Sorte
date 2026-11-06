@@ -119,10 +119,26 @@ test('memória da atendente: crise do Paraguai (nov/2026) com cautela, sem afirm
   assert.match(p, /Momento político e bancário do Paraguai/);
   assert.match(p, /NÃO afirme quem é o presidente hoje/);
   assert.match(p, /venha com planejamento e estratégia/);
+  assert.match(p, /Ueno Bank, que é uma fintech/);
+  assert.match(p, /Continental, Familiar e Itaú/);
+  assert.match(p, /nunca afirme que alguém é culpado/);
+  assert.doesNotMatch(p, /falta de dinheiro nos bancos/);
   store.settings.business.knowledge = 'Conhecimento antigo.';
-  delete store.settings.agent.crisisMemory2026;
+  delete store.settings.agent.crisisMemory2026b;
   store.flush();
   const again = new Store(store.dataDir);
   assert.match(again.settings.business.knowledge, /Momento político[\s\S]*Conhecimento antigo/);
   assert.equal((new Store(store.dataDir).settings.business.knowledge.match(/Momento político e bancário/g) || []).length, 1, 'não repete');
+  // Quem já tinha a versão 1 no painel recebe a 2 no lugar dela (sem duplicar e sem perder o resto do conhecimento).
+  const v1 = '# Momento político e bancário do Paraguai (novembro de 2026): como responder\n- texto antigo: falta de dinheiro nos bancos\n';
+  const s2 = tempStore();
+  s2.updateSettings(presetSettings('migra-paraguai'));
+  s2.settings.business.knowledge = `${v1}\n# Outro assunto\nConteúdo que precisa ficar.`;
+  delete s2.settings.agent.crisisMemory2026b;
+  s2.flush();
+  const up = new Store(s2.dataDir).settings.business.knowledge;
+  assert.match(up, /Ueno Bank, que é uma fintech/);
+  assert.doesNotMatch(up, /texto antigo/);
+  assert.match(up, /# Outro assunto\nConteúdo que precisa ficar\./);
+  assert.equal((up.match(/Momento político e bancário/g) || []).length, 1);
 });

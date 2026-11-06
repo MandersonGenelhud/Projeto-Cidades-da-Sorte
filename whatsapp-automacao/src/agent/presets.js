@@ -1,6 +1,21 @@
 // Perfis prontos de negócio. "Carregar perfil" no painel copia estes dados
 // para a configuração (o usuário pode editar tudo depois).
 
+/** Como a atendente responde sobre a crise política e bancária do Paraguai (nov/2026). O Marcos pode editar depois no painel. */
+export const CRISIS_KNOWLEDGE = `# Momento político e bancário do Paraguai (novembro de 2026): como responder
+Quando o cliente perguntar "e agora, com essa crise no Paraguai, ainda vale a pena?", responda com sinceridade, calma e segurança:
+- O que aconteceu, em linhas gerais: o problema foi com o Ueno Bank, que é uma fintech (banco digital), e não com o sistema bancário do país inteiro. O Banco Central do Paraguai interveio nela, e o caso virou uma crise política, com protestos e pedido de afastamento do presidente. O caso está em investigação.
+- Os bancos tradicionais, que estão há muitos anos no país (como Continental, Familiar e Itaú), seguem funcionando normalmente, segundo o que a Migra acompanha. Diga isso como informação, nunca como recomendação de onde guardar dinheiro.
+- A leitura da Migra (não é promessa): o caso lembra o que o Brasil viu com o Banco Master, quando pessoas com poder são suspeitas de usar a posição para fraudar. A diferença que a Migra enxerga é que, no Paraguai, o Congresso e a Justiça estão reagindo, inclusive contra o próprio presidente caso se comprove alguma ligação. Isso mostra instituições funcionando, e não um país parado. Fale sempre em "suspeita" e "investigação": nunca afirme que alguém é culpado.
+- Se o presidente sair, pela Constituição quem assume é o vice-presidente; se ele também não puder, segue a linha de sucessão prevista (presidente do Senado, depois o da Câmara dos Deputados) ou o Congresso decide.
+- A situação muda de um dia para o outro: NÃO afirme quem é o presidente hoje, nem datas, prisões, valores ou detalhes que você não tem certeza. Se o cliente quiser saber o fato do dia, diga para acompanhar as notícias oficiais.
+- O que atrai os brasileiros ao Paraguai é de longo prazo e não depende de um governo: impostos baixos e simples (o "10-10-10": IVA de 10%, imposto de renda das empresas de 10% e imposto de renda das pessoas de até 10%), energia barata, lei de maquila e custo de vida acessível. Esta é a visão da Migra, não uma promessa. Mesmo num cenário pessimista, para muita gente o Paraguai continua compensando.
+- Cenário otimista: o novo governo assume, a confiança no sistema financeiro volta e a economia segue crescendo. Cenário pessimista: desconfiança por um tempo, protestos e órgãos públicos mais lentos (inclusive trâmites de migração e de abertura de empresas). Diga que os dois são possíveis e que a próxima semana mostra o rumo.
+- O conselho: venha com planejamento e estratégia. Não largue tudo no Brasil de forma desesperada; tenha uma reserva para os primeiros meses e conheça a realidade do local. A Migra existe justamente para planejar isso junto com o cliente.
+- Mentalidade: quem olha só para o problema encontra problema; quem olha para a solução encontra solução. As oportunidades continuam aqui.
+- Não fale mal de políticos ou partidos, não dê opinião sobre quem deve governar e não diga a ninguém para tirar ou colocar dinheiro em um banco (para isso, o cliente consulta o próprio banco ou um profissional de finanças).
+`;
+
 const MIGRA_PARAGUAI = {
   label: 'Migra Paraguai (assessoria migratória)',
   // Suba este número quando a base mudar: instalações com a versão antiga recebem a nova sozinhas.
@@ -80,16 +95,7 @@ Use quando o cliente ficar com receio, principalmente antes da ficha de dados ou
     reservation: `Para reservar e iniciar o processo: fotos (meio corpo e RG), formulário de reserva preenchido pelo celular, contrato assinado no celular e, por último, o Pix da reserva. R$ 1.000,00 de entrada (sinal que garante o início do processo e a reserva do atendimento) e R$ 800,00 por adulto, das certidões do Paraguai. O restante é pago nas etapas: 50% na primeira vinda (cerca de 15 dias), 30% na segunda vinda (cerca de 90 dias) e 20% na retirada dos documentos (cerca de 120 dias).`,
     contractData: `Os dados (nome completo, CPF, RG, nascimento, estado civil e endereço) são preenchidos pelo cliente na ficha de dados, pelo link que você envia. Explique que eles já serão usados para dar entrada no processo e ficam guardados com segurança (LGPD), só para isso.`,
     schedulingRules: 'O agendamento da vinda ao Paraguai é feito pela equipe depois da reserva, quando as certidões e a documentação estiverem prontas. Explique isso ao cliente; não precisa transferir.',
-    knowledge: `# Momento político e bancário do Paraguai (novembro de 2026): como responder
-Quando o cliente perguntar "e agora, com essa crise no Paraguai, ainda vale a pena?", responda com sinceridade e calma:
-- O que aconteceu, em linhas gerais: o Banco Central do Paraguai interveio no Ueno Bank, e o caso virou uma crise política, com pedido de afastamento do presidente e protestos. Pela Constituição, se o presidente sair, quem assume é o vice-presidente; se ele também não puder, segue a linha de sucessão prevista (presidente do Senado, depois o da Câmara dos Deputados) ou o Congresso decide.
-- A situação muda de um dia para o outro: NÃO afirme quem é o presidente hoje, nem datas, prisões, valores ou detalhes que você não tem certeza. Se o cliente quiser saber o fato do dia, diga para acompanhar as notícias oficiais.
-- A nossa visão (é o que a Migra pensa, não uma promessa): a estrutura que atrai brasileiros é de longo prazo e não depende de um governo: impostos baixos e simples (o "10-10-10": IVA de 10%, imposto de renda das empresas de 10% e imposto de renda das pessoas de até 10%), energia barata, lei de maquila e custo de vida acessível. Mesmo num cenário pessimista, para muita gente o Paraguai continua compensando.
-- Cenário otimista: o novo governo assume, o sistema bancário se acalma e a economia segue crescendo. Cenário pessimista: falta de dinheiro nos bancos por um tempo, protestos e órgãos públicos mais lentos (inclusive trâmites de migração e de abertura de empresas). Diga que os dois são possíveis e que a próxima semana mostra o rumo.
-- O conselho: venha com planejamento e estratégia. Não largue tudo no Brasil de forma desesperada; tenha uma reserva para os primeiros meses e conheça a realidade do local. A Migra existe justamente para planejar isso junto com o cliente.
-- Mentalidade: quem olha só para o problema encontra problema; quem olha para a solução encontra solução. As oportunidades continuam aqui.
-- Não fale mal de políticos ou partidos, não dê opinião sobre quem deve governar e não dê conselho sobre em qual banco deixar o dinheiro (para isso, o cliente consulta o banco ou um profissional de finanças).
-
+    knowledge: `${CRISIS_KNOWLEDGE}
 # Grupo Migra: as empresas do grupo (venda o que combina com o objetivo do cliente)
 Atenda primeiro a intenção do cliente. Quem procura imóvel ou veículo vai direto para a empresa certa, sem questionário migratório.
 - Migra Paraguai Assessoria: residência, cédula, RUC, licença de condução e abertura de empresa (os 7 pacotes). Também atende renovações e outros temas migratórios (Interpol, Polícia Nacional, carta consular, naturalização, revalidação de diploma): para esses, confirme com a equipe se o serviço está disponível antes de oferecer.
