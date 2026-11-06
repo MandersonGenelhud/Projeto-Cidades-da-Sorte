@@ -34,6 +34,7 @@ import { Contabil } from './contabil.js';
 import { AppSignups, APPS as SIGNUP_APPS } from './app-signups.js';
 import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LABELS as CASH_SCOPE_LABELS, BOOKS as CASH_BOOKS, toCsv as cashToCsv } from './cash.js';
 import { Nina } from './assistant.js';
+import { Maria, PROFILES as MARIA_PROFILES } from './maria.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
@@ -1178,6 +1179,7 @@ wa.on('instagramStatus', (state) => {
   if (state.error) console.log(`⚠️  Instagram: ${state.error}`);
 });
 wa.on('ownerMessage', (msg) => {
+  if (maria.isLine(msg)) return; // o número da Maria é só da equipe
   // Atalho do consultor na conversa do cliente ("/contrato"): gera o contrato e não pausa a IA.
   if (!msg.isGroup && sellerCommands.wants(msg)) {
     sellerCommands.handle(msg).catch((err) => store.addLog({ type: 'error', message: `Atalho /contrato: ${err.message}` }));
@@ -1186,7 +1188,7 @@ wa.on('ownerMessage', (msg) => {
   pending.resolve(msg.jid);
   agent.ownerReplied({ key: msg.jid, phone: msg.phone, text: msg.text });
 });
-wa.on('history', (msgs) => pending.ingestHistory(msgs));
+wa.on('history', (msgs) => pending.ingestHistory(msgs.filter((m) => !maria.isLine(m)))); // o número da Maria nunca vira fila de clientes
 // A cada 5 minutos, responde quem ficou esperando (agente fora do ar, erro da IA, mensagem perdida).
 setInterval(() => pending.autoAnswer(), 5 * 60_000).unref();
 setInterval(() => pending.ensureRunning(), 60_000).unref();
@@ -1214,6 +1216,11 @@ lines.on('status', (state) => {
   notify('lineStatus', { id: line.id });
 });
 wa.on('message', (msg) => {
+  // Maria (assessora interna): tudo que chega no número dela é só dela; a atendente de clientes nunca responde ali.
+  if (maria.isLine(msg)) {
+    maria.handle(msg).catch((err) => store.addLog({ type: 'error', message: `Maria: ${err.message}` }));
+    return;
+  }
   // Nina (secretária do Marcos): mensagem de administrador liberado que a chama (ou áudio) vai só para ela.
   if (nina.wants(msg)) {
     nina.handle(msg).catch((err) => store.addLog({ type: 'error', message: `Nina: ${err.message}` }));
@@ -4375,6 +4382,27 @@ const nina = new Nina({
   audit: (text) => securityEvent('caixa_nina', 'Nina', null, text),
   log: (l) => store.addLog(l),
 });
+// Contrato em PDF de uma venda: o assinado se existir, senão o gerado (nunca cria nada novo aqui).
+const maria = new Maria({
+  store, auth, sales, customers: customer360, collections, cash, llm,
+  stt: nina.stt, tts: nina.tts,
+  send: (jid, payload) => wa.send(jid, payload),
+  downloadAudio: (m) => wa.downloadAudio(m),
+  contractFile: (sale) => {
+    const q = sale && quotes.list.find((x) => x.id === sale.quoteId);
+    if (!q) return null;
+    const signed = q.contract?.status === 'assinado' && fs.existsSync(signedFile(q));
+    const file = signed ? signedFile(q) : contractFile(q);
+    if (!fs.existsSync(file)) return null;
+    return { buffer: fs.readFileSync(file), name: `Contrato ${q.number.replace(/^ORC-/, 'CT-')}${signed ? ' assinado' : ''}.pdf`, signed };
+  },
+  digest: () => alerts.digestText(alerts.build({ user: { role: 'admin' } })),
+  health: () => { const h = healthReport(); return `*Saúde do sistema*\n${h.tips.map((t) => `${{ ok: '✅', warn: '⚠️', bad: '🔴' }[t.level] || '•'} ${t.text}`).join('\n')}`; },
+  lineName: (id) => lines.get(id)?.agentName || '',
+  marcosPhone: () => marcosPhone(),
+  audit: (text) => securityEvent('maria_whatsapp', { name: 'Maria' }, null, text),
+  log: (l) => store.addLog(l),
+});
 const receipts = new ReceiptReader({
   store, payments, llm,
   download: (m) => wa.downloadAudio(m),
@@ -4446,6 +4474,29 @@ app.get('/api/cash/export.csv', (req, res) => {
 });
 // Nina lança no Caixa Migra: as telas dela exigem acesso a esse caixa.
 app.use('/api/cash/assistant', (req, _res, next) => { cashBook(req, 'migra'); next(); });
+// Maria (assessora interna no WhatsApp): quem pode o quê. Só administrador.
+const mariaPeople = () => auth.users.filter((u) => u.active !== false).map((u) => ({ id: u.id, name: u.name, role: u.role, whatsapp: u.whatsapp || '', profile: maria.profileOf(u), fixed: u.role === 'admin' }));
+app.get('/api/maria', (req, res) => {
+  needAdmin(req);
+  res.json({ enabled: maria.enabled, name: maria.name, lineId: store.settings.maria?.lineId || '', voiceReply: store.settings.maria?.voiceReply !== false, profiles: MARIA_PROFILES, people: mariaPeople(), lines: lines.list().map((l) => ({ id: l.id, label: l.label, agentName: l.agentName || '', phone: l.phone || '' })), sttReady: nina.stt?.ready || false, ttsReady: nina.tts?.ready || false });
+});
+app.put('/api/maria', (req, res) => {
+  needAdmin(req);
+  const b = req.body || {};
+  const cur = store.settings.maria || {};
+  const lineId = b.lineId === undefined ? cur.lineId || '' : String(b.lineId || '');
+  if (lineId && !lines.list().some((l) => l.id === lineId)) throw httpError(400, 'Número não encontrado em Conexões');
+  const profiles = { ...(cur.profiles || {}) };
+  for (const [id, p] of Object.entries(b.profiles || {})) {
+    const u = auth.get(id);
+    if (!u || u.role === 'admin') continue; // administrador sempre vê tudo; id inventado é ignorado
+    if (!MARIA_PROFILES[p]) throw httpError(400, 'Perfil inválido');
+    profiles[id] = p;
+  }
+  store.updateSettings({ maria: { enabled: b.enabled === undefined ? cur.enabled !== false : Boolean(b.enabled), name: cur.name || 'Maria', lineId, voiceReply: b.voiceReply === undefined ? cur.voiceReply !== false : Boolean(b.voiceReply), profiles } });
+  securityEvent('maria_ajustes', req.user, req, `Maria ${store.settings.maria.enabled ? 'ligada' : 'desligada'} · perfis: ${Object.entries(profiles).map(([id, p]) => `${auth.get(id)?.name || id}=${p}`).join(', ') || 'padrão'}`);
+  res.json({ ok: true });
+});
 // Nina: ajustes e estado da voz (só quem vê o caixa).
 app.get('/api/cash/assistant', (_req, res) => res.json({
   ...store.settings.assistant,

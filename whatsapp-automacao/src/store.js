@@ -145,6 +145,8 @@ const DEFAULT_DATA = {
     cash: { categories: [], allowedUserIds: [] },
     // Nina: secretária financeira por WhatsApp (texto e áudio). lineId = número só dela (vazio = o número principal, chamando "Nina").
     assistant: { enabled: true, wakeWord: 'nina', voiceReply: true, voice: 'Laomedeia', voiceStyle: '', lineId: '' },
+    // Maria: assessora interna da equipe (número exclusivo). lineId vazio = o número cujo nome de atendente é "Maria". profiles: id do usuário → full | basic | own (vazio = padrão pelo cargo).
+    maria: { enabled: true, name: 'Maria', lineId: '', voiceReply: true, profiles: {} },
     // Fechamento: ficha de dados → Pix → termo da reserva assinado no celular.
     closing: {
       enabled: true,
