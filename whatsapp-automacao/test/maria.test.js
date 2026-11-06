@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Auth } from '../src/auth.js';
 import { Sales } from '../src/sales.js';
 import { Cash } from '../src/cash.js';
-import { Maria, quickIntent, rangeOf } from '../src/maria.js';
+import { Maria, quickIntent, rangeOf, periodFrom } from '../src/maria.js';
 import { paymentPlan } from '../src/payplan.js';
 import { tempStore } from './helpers.js';
 
@@ -187,4 +187,66 @@ test('trava do nome vale para áudio (depois de ouvir) e foto; o aviso a número
   assert.equal((await sem.say('5545999990001', 'olha isso', { hasImage: true })).length, 0, 'foto sem o nome: silêncio');
   assert.match((await sem.say('5545999990001', 'Maria, olha isso', { hasImage: true }))[0].text, /só entendo texto e áudio/);
   assert.match((await sem.say('5511900000000', 'oi'))[0].text, /exclusivo para o atendimento interno/, 'quem não é da equipe sempre recebe o aviso');
+});
+
+test('relatório de contratos por período: quantos fechados, quantos pagaram e quantos não, sem pedir contrato específico', async () => {
+  const { say, sales, auth, ids } = setup();
+  const admin = auth.get(ids.marcos.id);
+  sales.setParcel(admin, ids.vAna.id, 0); // a Ana recebeu a entrada; a Bia ainda não
+  const r = (await say('5545999990001', 'Maria, relatório dos contratos de hoje'))[0].text;
+  assert.match(r, /Relatório de contratos — Hoje/);
+  assert.match(r, /fechados: \*2\*, somando \*R\$ 25\.994,00\*/);
+  assert.match(r, /Já quitados: 0/);
+  assert.match(r, /Com pagamento em andamento: 1/);
+  assert.match(r, /Ainda sem nenhum pagamento: 1/);
+  assert.match(r, /Com a entrada paga: 1 de 2/);
+  assert.match(r, /Por vendedor/, 'o administrador vê a divisão por vendedor');
+  assert.match(r, /Cliente da Ana[\s\S]*Cliente da Bia|Cliente da Bia[\s\S]*Cliente da Ana/);
+  assert.doesNotMatch(r, /qual contrato|De qual cliente/i);
+  // Variações de pedido chegam no mesmo relatório.
+  for (const q of ['Maria, quais os contratos de hoje?', 'Maria, quantos contratos fechamos hoje?', 'Maria, me passa os contratos desta semana', 'Maria, os contratos deste mês', 'Maria, contratos', 'Atendente, resumo dos contratos fechados']) {
+    assert.match((await say('5545999990001', q))[0].text, /Relatório de contratos/, q);
+  }
+  // Outros períodos: sem contrato = diz isso com educação.
+  for (const q of ['Maria, contratos de ontem', 'Maria, contratos do ano passado', 'Maria, contratos do mês passado', 'Maria, contratos de janeiro de 2020']) {
+    assert.match((await say('5545999990001', q))[0].text, /Nenhum contrato fechado/, q);
+  }
+});
+
+test('relatório respeita o perfil: vendedor só os dele; Silvane vê contratos mas sem divisão por vendedor; quitado aparece como quitado', async () => {
+  const { say, sales, auth, ids } = setup();
+  const own = (await say('5545999990004', 'Maria, relatório dos contratos de hoje'))[0].text;
+  assert.match(own, /Seus contratos fechados: \*1\*/);
+  assert.match(own, /Cliente da Ana/);
+  assert.doesNotMatch(own, /Cliente da Bia/);
+  const basic = (await say('5545999990003', 'Maria, relatório dos contratos de hoje'))[0].text;
+  assert.match(basic, /fechados: \*2\*/);
+  assert.doesNotMatch(basic, /Por vendedor/);
+  const admin = auth.get(ids.marcos.id);
+  const sale = sales.get(ids.vAna.id);
+  sale.parcels.forEach((_, i) => sales.setParcel(admin, sale.id, i));
+  assert.match((await say('5545999990001', 'Maria, contratos de hoje'))[0].text, /Já quitados: 1[\s\S]*✅ quitado/);
+});
+
+test('relatório em áudio: responde em voz com um resumo curto e manda o relatório completo por escrito', async () => {
+  const { say, maria } = setup({ voice: true });
+  maria.stt.transcribe = async () => 'Maria, me faz um relatório dos contratos de hoje';
+  const r = await say('5545999990001', '', { hasAudio: true });
+  assert.ok(r.some((m) => m.media?.ptt), 'voz');
+  const txt = r.find((m) => /Relatório de contratos/.test(m.text || ''));
+  assert.ok(txt && txt.text.length > 300, 'e o texto completo');
+});
+
+test('períodos: ontem, semana passada, últimos N dias, mês pelo nome, ano passado', () => {
+  const now = new Date(2026, 10, 6); // 6/11/2026 (sexta)
+  assert.deepEqual(rangeOf('ontem', now), { from: '2026-11-05', to: '2026-11-05', label: 'Ontem' });
+  assert.deepEqual(rangeOf('semana_passada', now), { from: '2026-10-26', to: '2026-11-01', label: 'Semana passada' });
+  assert.equal(rangeOf('ultimos:15', now).from, '2026-10-23');
+  assert.deepEqual(rangeOf('m:2026-10', now), { from: '2026-10-01', to: '2026-10-31', label: 'Outubro de 2026' });
+  assert.deepEqual(rangeOf('ano_passado', now), { from: '2025-01-01', to: '2025-12-31', label: 'Ano de 2025' });
+  assert.equal(periodFrom('contratos de outubro', 'mes', now), 'm:2026-10');
+  assert.equal(periodFrom('contratos de dezembro', 'mes', now), 'm:2025-12', 'mês que ainda não chegou = o do ano passado');
+  assert.equal(periodFrom('em março de 2024', 'mes', now), 'm:2024-03');
+  assert.equal(periodFrom('últimos 30 dias', 'mes', now), 'ultimos:30');
+  assert.equal(periodFrom('sem pista', null, now), null);
 });
