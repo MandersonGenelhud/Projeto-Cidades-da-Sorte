@@ -26,7 +26,7 @@ export function financeLines(cfg) {
  * Texto com os dados atuais. Providers: realty (Realty), finance (config do financiamento), motors (Motors), catalog (ServiceCatalog),
  * crm (settings.crm), auth (usuários). Tudo opcional: o que faltar simplesmente não aparece.
  */
-export function groupLiveBrief({ realty = null, finance = null, motors = null, catalog = null, crm = null, auth = null } = {}) {
+export function groupLiveBrief({ realty = null, finance = null, motors = null, catalog = null, crm = null, auth = null, now = () => new Date() } = {}) {
   const out = ['# DADOS ATUAIS DO GRUPO MIGRA (direto do sistema, sem dado de cliente)'];
 
   if (realty) {
@@ -79,6 +79,16 @@ export function groupLiveBrief({ realty = null, finance = null, motors = null, c
     }
   }
 
+  // Oferta do aplicativo de idiomas que a atendente de IA pode usar como última carta (configurada pelo Marcos no painel).
+  const ao = crm?.appOffer;
+  const d = now();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (ao && ao.enabled !== false && ao.validUntil && ao.validUntil >= today && Number(ao.regularPrice) > 0) {
+    const pct = Math.min(90, Math.max(1, Number(ao.discountPct) || 50));
+    const promo = Math.floor(Number(ao.regularPrice) * (100 - pct)) / 100;
+    out.push('', '## Oferta do aplicativo de idiomas (a atendente de IA usa como última carta)', `Vigente até ${ao.validUntil.split('-').reverse().join('/')}: ${Math.max(1, Number(ao.months) || 6)} meses com ${pct}% de desconto (de ${money(ao.regularPrice)} ${ao.period || 'por mês'} por ${money(promo)}), para quem fechar a reserva. É diferente da cortesia de 1 ano, que é decisão exclusiva do Marcos.`);
+  }
+
   const sectors = crm?.sectors ? Object.values(crm.sectors) : [];
   const spec = Array.isArray(crm?.specialists) ? crm.specialists.filter((x) => x?.name) : [];
   if (sectors.length || spec.length) {
@@ -103,3 +113,7 @@ export const HUB_OVERVIEW = `# MIGRA HUB (o sistema interno da equipe): o que ex
 - Imobiliária (imóveis, loteamentos com mapa de lotes, financiamento próprio de lotes, propostas), Motors (veículos e simulação de financiamento), School (alunos), Contábil (empresas clientes, obrigações, honorários), Migratech (clientes, contratos, serviços), Migra Devocional (cadastros do aplicativo).
 - Documentos, tarefas e lembretes da equipe, suporte interno, marketing (leitura), auditoria e segurança (2FA obrigatória, registro de acessos, backup cifrado).
 - Assistentes no WhatsApp: Maria (secretária da empresa: consulta contratos, clientes e relatórios; cria cadastro novo, orçamento e contrato; envia ficha e contrato ao cliente com confirmação), Ana (assistente pessoal de cada administrador: agenda, lembretes, financeiro pessoal e lista de compras, separado da empresa) e Nina (caixa da empresa por texto e áudio). A Maria e a Ana só criam e enviam: nunca excluem nem alteram nada; se alguém pedir, o Marcos é avisado.`;
+
+/** Decisões da direção que só a equipe deve saber (a Maria NÃO as repassa ao cliente como promessa). */
+export const STAFF_RULES = `# REGRAS INTERNAS DA DIREÇÃO (só para a equipe: nunca prometa isto a um cliente por conta própria)
+- Cortesia da Migra School: quando o cliente ainda hesita em fechar, o Marcos costuma dar 1 ano de Migra School como cortesia, para ajudar na decisão, mostrando que o curso o acompanha no dia a dia no Paraguai (mercado, escola dos filhos, trabalho, trânsito, compra e venda, câmbio). A decisão é SÓ do Marcos: o vendedor deve pedir autorização a ele antes de oferecer; não ofereça nem confirme a cortesia por conta própria.`;

@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { DEFAULT_PRESET, CRISIS_KNOWLEDGE, GROUP_KNOWLEDGE, GROUP_BLOCK_V1, MIGRATECH_KNOWLEDGE, presetSettings, presetUpgrade } from './agent/presets.js';
+import { DEFAULT_PRESET, CRISIS_KNOWLEDGE, GROUP_KNOWLEDGE, GROUP_BLOCK_V1, GROUP_BLOCK_V2, MIGRATECH_KNOWLEDGE, SCHOOL_KNOWLEDGE, presetSettings, presetUpgrade } from './agent/presets.js';
 
 const PRESET = presetSettings(DEFAULT_PRESET);
 
@@ -340,6 +340,23 @@ export class Store extends EventEmitter {
       if (!cur.includes('# Migra Tech:')) bizT.knowledge = `${cur.trim()}\n\n${MIGRATECH_KNOWLEDGE}`.trim();
       this.data.settings.agent ||= {};
       this.data.settings.agent.techMemory2026 = true;
+      this.flush();
+    }
+    // Nov/2026: preço e finalidade da Migra School. O bloco do grupo é trocado só se não foi editado; o bloco da School entra uma vez.
+    const bizS = this.data.settings.business;
+    if (bizS && /migra/i.test(bizS.name || '') && !this.data.settings.agent?.schoolMemory2026) {
+      let cur = String(bizS.knowledge || '');
+      const i = cur.indexOf('# Grupo Migra: visão completa');
+      if (i >= 0) {
+        const j = cur.indexOf('\n# ', i + 5);
+        const block = cur.slice(i, j >= 0 ? j : undefined);
+        const norm = (x) => String(x).replace(/\s+/g, ' ').trim();
+        if (norm(block) === norm(GROUP_BLOCK_V2)) cur = `${cur.slice(0, i)}${GROUP_KNOWLEDGE}${j >= 0 ? `\n${cur.slice(j)}` : ''}`;
+      }
+      if (!cur.includes('# Migra School: preço')) cur = `${cur.trim()}\n\n${SCHOOL_KNOWLEDGE}`;
+      bizS.knowledge = cur.trim();
+      this.data.settings.agent ||= {};
+      this.data.settings.agent.schoolMemory2026 = true;
       this.flush();
     }
     // Nov/2026: memória da atendente sobre CNH x licença paraguaia (quem vai morar precisa da licença: Ouro, não Prata).

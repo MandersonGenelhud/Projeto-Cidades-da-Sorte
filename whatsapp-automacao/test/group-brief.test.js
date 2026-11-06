@@ -61,7 +61,7 @@ test('planos de financiamento de lotes: sem juros definidos ela avisa para NÃO 
 
 test('o texto fixo do grupo traz tudo que você descreveu, separando o que opera do que está em desenvolvimento, sem inventar preço', () => {
   const g = GROUP_KNOWLEDGE;
-  for (const t of [/Em operação hoje/, /Em desenvolvimento \(ainda sem preço nem data\)/, /Migra Paraguai Assessoria/, /Migra Imobiliária/, /Financiamento próprio de lotes/, /Migra Contábil Paraguay/, /RUC/, /networking e a experiência do Marcos/,
+  for (const t of [/Em operação hoje/, /Em desenvolvimento \(ainda sem preço nem data, exceto a Migra School, que tem preço de tabela\)/, /Migra Paraguai Assessoria/, /Migra Imobiliária/, /Financiamento próprio de lotes/, /Migra Contábil Paraguay/, /RUC/, /networking e a experiência do Marcos/,
     /Migra Motors \(também chamada de Migra Veículos\)/, /importação de veículos do exterior/, /levar o veículo do Paraguai para o Brasil/, /Migra School/, /inglês \(a partir do espanhol e a partir do português\)/, /situações do cotidiano/, /Migra Exchange/, /câmbio de moedas/, /criptomoedas/]) assert.match(g, t);
   assert.match(g, /não dê recomendação de investimento nem prometa ganho/);
   assert.match(g, /Não prometa ganhos financeiros, economia de impostos nem prazos/);

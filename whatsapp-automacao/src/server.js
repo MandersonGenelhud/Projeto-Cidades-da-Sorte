@@ -39,7 +39,7 @@ import { Ana } from './ana.js';
 import { Personal } from './personal.js';
 import { Portfolio } from './portfolio.js';
 import { makeOutbound, findRecentQuote, filledNotice } from './maria-outbound.js';
-import { groupLiveBrief, HUB_OVERVIEW } from './group-brief.js';
+import { groupLiveBrief, HUB_OVERVIEW, STAFF_RULES } from './group-brief.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
@@ -4463,7 +4463,7 @@ const mariaKnowledge = () => {
   const live = groupLiveBrief({ realty, finance: proposals.config, motors, catalog: serviceCatalog, crm: store.settings.crm, auth });
   // Primeiro o que é ao vivo e curto (dados do grupo e o sistema), depois a base grande: nada importante fica no fim, onde seria cortado.
   const news = portfolio.asText();
-  return `${live}${news ? `\n\n${news}` : ''}\n\n${HUB_OVERVIEW}\n\n# BASE DA EMPRESA (conhecimento cadastrado)\n${companyBrief(store.settings)}${pk.length ? `\n## Pacotes (tabela)\n${pk.join('\n')}\n` : ''}`;
+  return `${live}${news ? `\n\n${news}` : ''}\n\n${STAFF_RULES}\n\n${HUB_OVERVIEW}\n\n# BASE DA EMPRESA (conhecimento cadastrado)\n${companyBrief(store.settings)}${pk.length ? `\n## Pacotes (tabela)\n${pk.join('\n')}\n` : ''}`;
 };
 // Envio da ficha e do contrato ao cliente, pedido pela Maria (sai do WhatsApp do vendedor ou do principal, nunca do número interno dela).
 const mariaOutbound = makeOutbound({
