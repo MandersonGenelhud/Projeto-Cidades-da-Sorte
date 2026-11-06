@@ -182,3 +182,9 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Ao coach vão só dados de venda do prospecto (etapa, interesse, retorno, últimos registros); nunca CPF, endereço ou documentos. O texto da pessoa é tratado como pedido, não como ordem.
 - O roteiro proíbe inventar preço, prazo, desconto ou promessa; a cortesia de 1 ano da Migra School segue só com o Marcos.
 - Testes: `test/maria-vendas.test.js`.
+
+## Maria: vários pacotes e desconto no mesmo pedido
+
+- A Maria lê do pedido todos os pacotes com quantidade ("5 Ouro, 1 Estudantil e 1 Inicial") e o desconto, e monta UM orçamento/contrato com tudo (`src/maria-items.js`). Só entram pacotes que existem na tabela, de 1 a 50 por pacote; "infantil" vale como Pacote Estudantil.
+- Desconto: o mesmo limite do orçamento do sistema, de 0 a 15%, em número inteiro. Acima disso (ou fracionado) ela recusa, não cria nada e diz que só o Marcos autoriza; o texto da pessoa nunca eleva o limite.
+- Orçamento antigo do mesmo cliente só é reaproveitado se tiver exatamente os mesmos pacotes, quantidades e desconto; senão sai um novo. A Maria continua só criando e enviando (nada de alterar orçamento existente). Testes: `test/maria-pacotes.test.js`.

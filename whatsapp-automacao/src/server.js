@@ -624,8 +624,8 @@ const salesOnPaid = (p) => {
   }
 };
 const quoteLink = (q) => (publicBase() ? `${publicBase()}/orcamento/${q.id}?t=${quotes.token(q.id)}` : '');
-async function sendQuote({ convKey, lead, items, adults, client, consultant, start }) {
-  const q = quotes.create({ items, adults, ...(/^\d{4}-\d{2}-\d{2}$/.test(String(start || '')) ? { start } : {}), client: client || lead?.name || '', phone: lead?.phone || '', consultant, leadId: lead?.id || null, convKey });
+async function sendQuote({ convKey, lead, items, adults, client, consultant, start, discountPct = 0 }) {
+  const q = quotes.create({ items, adults, discountPct, ...(/^\d{4}-\d{2}-\d{2}$/.test(String(start || '')) ? { start } : {}), client: client || lead?.name || '', phone: lead?.phone || '', consultant, leadId: lead?.id || null, convKey });
   const text = quotes.message(q, quoteLink(q));
   if (convKey) {
     const ig = String(convKey).startsWith('ig:');
@@ -4399,8 +4399,8 @@ const mariaContracts = {
     const open = quotes.list.filter((q) => canSeeQuote(viewer, q) && q.contract?.status !== 'assinado' && Date.parse(q.createdAt) >= since);
     return findRecentQuote(open, { nome, phone, samePhone, normalizePhone });
   },
-  createQuote: ({ pacote, pessoas, adultos, nome, telefone, user, leadId = null }) => quotes.create({
-    items: [{ pacote, quantidade: pessoas }], adults: adultos, client: nome, phone: normalizePhone(telefone) || '', leadId,
+  createQuote: ({ pacote, pessoas, adultos, itens = null, desconto = 0, nome, telefone, user, leadId = null }) => quotes.create({
+    items: Array.isArray(itens) && itens.length ? itens : [{ pacote, quantidade: pessoas }], adults: adultos, discountPct: desconto, client: nome, phone: normalizePhone(telefone) || '', leadId,
     consultant: String(user.name || '').split(' ')[0], createdBy: { id: user.id, name: user.name },
   }),
   clientFor: (q, { nome = '', telefone = '', dados = {} }) => {
@@ -4429,7 +4429,7 @@ const mariaContracts = {
     store.save();
     return { url: closing.formUrl(f), filled: f.status === 'preenchida' };
   },
-  summary: (q) => ({ number: q.number, items: q.items.map((r) => `${r.name}${r.qty > 1 ? ` × ${r.qty}` : ''}`).join(', '), total: q.plan.total, entry: q.plan.entry, parcels: q.plan.parcels?.length || 0, url: quoteLink(q) }),
+  summary: (q) => ({ number: q.number, items: q.items.map((r) => `${r.name}${r.qty > 1 ? ` × ${r.qty}` : ''}`).join(', '), discountPct: q.plan.discountPct || 0, subtotal: q.plan.subtotal ?? q.plan.total, total: q.plan.total, entry: q.plan.entry, parcels: q.plan.parcels?.length || 0, url: quoteLink(q) }),
   quoteFile: (q) => (fs.existsSync(quotes.file(q)) ? { buffer: fs.readFileSync(quotes.file(q)), name: `${q.number}.pdf` } : null),
   // Cadastro do cliente no CRM, como o vendedor faz na tela: fica no nome de quem pediu; cliente de outro vendedor é recusado.
   registerLead: ({ user, viewer, nome = '', telefone = '', interesse = '', pessoas = 1 }) => {

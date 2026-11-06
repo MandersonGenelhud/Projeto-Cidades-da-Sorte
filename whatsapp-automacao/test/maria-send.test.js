@@ -80,7 +80,7 @@ test('contrato ao cliente: sem orçamento pede o pacote; com o pacote confirma e
   const ask = await say('5545999990001', 'Maria, envie o contrato para o cliente Carlos Lima, 45 97777-6666');
   assert.match(ask[0].text, /Qual é o \*pacote\*/);
   const conf = await say('5545999990001', 'Maria, pacote Ouro para 2 pessoas');
-  assert.match(conf[0].text, /o contrato\* \(Pacote Ouro × 2\)/);
+  assert.match(conf[0].text, /o contrato\* \(2 × Pacote Ouro\)/);
   assert.match(conf[0].text, /Carlos Lima/);
   await say('5545999990001', 'Maria, sim');
   assert.deepEqual(calls.map((c) => [c.kind, c.phone, c.pacote, c.pessoas]), [['contrato', '5545977776666', 'Pacote Ouro', 2]]);

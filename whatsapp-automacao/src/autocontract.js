@@ -38,6 +38,12 @@ export function makeContractFlow(deps) {
     const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
       || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
     let quote = quotes().filter((q) => q.convKey === conv.key || (lead && q.leadId === lead.id) || (conv.phone && q.phone && samePhone(q.phone, conv.phone))).at(-1) || null;
+    // Pedido da equipe com pacotes e desconto definidos: só reaproveita o orçamento aberto se for EXATAMENTE esse; senão faz outro.
+    if (quote && quote.contract?.status !== 'assinado' && Array.isArray(args.itens) && args.itens.length && 'desconto' in args) {
+      const f = (x) => String(x || '').toLowerCase();
+      const same = quote.items.length === args.itens.length && args.itens.every((w) => quote.items.some((i) => f(i.name) === f(w.pacote) && i.qty === Number(w.quantidade))) && Number(quote.plan?.discountPct || 0) === Number(args.desconto || 0);
+      if (!same) quote = null;
+    }
     if (quote?.contract?.status === 'assinado') {
       return { ok: true, jaAssinado: true, instrucao: `O contrato ${ct(quote)} deste cliente já foi assinado e a via assinada já foi enviada para ele. Diga isso e siga com o próximo passo (Pix ou documentos).` };
     }
@@ -48,7 +54,7 @@ export function makeContractFlow(deps) {
       const parsed = parseLineKey(conv.key);
       const owner = parsed ? auth.get(lines.get(parsed.id)?.ownerId) : (lead?.ownerId ? auth.get(lead.ownerId) : null);
       try {
-        quote = await makeQuote({ convKey: conv.key, lead, items, adults: args.adultos, client: args.nome, consultant: owner?.name?.split(' ')[0] });
+        quote = await makeQuote({ convKey: conv.key, lead, items, adults: args.adultos, discountPct: args.desconto || 0, client: args.nome, consultant: owner?.name?.split(' ')[0] });
       } catch (e) {
         return { erro: e.message };
       }

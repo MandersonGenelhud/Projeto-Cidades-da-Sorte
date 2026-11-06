@@ -64,10 +64,10 @@ export function makeOutbound(deps) {
      * Manda o contrato: com orçamento e dados completos, o link de assinatura; senão a ficha (e o contrato sai sozinho quando ele preencher).
      * Sem orçamento, o fluxo cria um com o pacote informado e manda o orçamento em PDF antes (como a atendente faz).
      */
-    async sendContract({ user, viewer, phone, nome, pacote, pessoas, adultos }) {
+    async sendContract({ user, viewer, phone, nome, pacote, pessoas, adultos, itens = null, desconto = 0 }) {
       if (!publicBase()) throw new Error('O sistema ainda não tem endereço na internet, então o cliente não conseguiria abrir o link.');
       const { key, via, conv, lead } = prepare({ user, viewer, phone, nome });
-      const r = await contractFlow.sendContract(conv, { pacote, pessoas, adultos, nome });
+      const r = await contractFlow.sendContract(conv, { pacote, pessoas, adultos, nome, itens, desconto });
       if (r.erro) throw new Error(r.erro);
       if (r.jaAssinado) return { kind: 'ja_assinado', via };
       if (r.precisaDados) {
