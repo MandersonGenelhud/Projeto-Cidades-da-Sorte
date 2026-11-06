@@ -14,7 +14,7 @@ const CHANGE = /\b(altere|altera|alterar|mude|muda|mudar|corrija|corrige|corrigi
 // O que é "da empresa" (nunca pode ser excluído/alterado por elas). Para a Ana só vale o que é da empresa: a agenda e as finanças pessoais
 // da própria pessoa (cancelar um compromisso, "desfaz") continuam funcionando.
 const COMPANY = ['cliente', 'clientes', 'cadastro', 'cadastros', 'contrato', 'contratos', 'venda', 'vendas', 'orcamento', 'orcamentos', 'lead', 'leads', 'prospecto', 'prospectos', 'usuario', 'usuarios', 'vendedor', 'vendedores', 'comissao', 'comissoes', 'documento', 'documentos', 'conversa', 'conversas', 'ficha', 'fichas', 'saque', 'saques', 'imovel', 'imoveis', 'veiculo', 'veiculos'];
-const MARIA_ONLY = ['lancamento', 'lancamentos', 'caixa', 'pagamento', 'pagamentos', 'boleto', 'recibo', 'telefone', 'cpf', 'rg', 'endereco', 'email', 'valor', 'preco', 'pacote', 'parcela', 'parcelas', 'cobranca', 'cobrancas', 'nome do cliente'];
+const MARIA_ONLY = ['lancamento', 'lancamentos', 'caixa', 'pagamento', 'pagamentos', 'boleto', 'recibo', 'telefone', 'cpf', 'rg', 'endereco', 'email', 'valor', 'preco', 'pacote', 'parcela', 'parcelas', 'cobranca', 'cobrancas', 'nome do cliente', 'portfolio'];
 const objRe = (list) => new RegExp(`\\b(${list.join('|')})\\b`);
 const OBJ_ANA = objRe(COMPANY);
 const OBJ_MARIA = objRe([...COMPANY, ...MARIA_ONLY]);
@@ -38,4 +38,4 @@ export function detectChange(text, scope = 'maria') {
   return { kind: del ? 'excluir' : 'alterar', object: SINGULAR[m[1]] || m[1].replace(/s$/, '') };
 }
 
-export const OBJECT_LABEL = { cliente: 'o cliente', cadastro: 'o cadastro', contrato: 'o contrato', venda: 'a venda', orcamento: 'o orçamento', lead: 'o prospecto', prospecto: 'o prospecto', usuario: 'o usuário', vendedor: 'o vendedor', comissao: 'a comissão', documento: 'o documento', conversa: 'a conversa', ficha: 'a ficha', saque: 'o saque', imovel: 'o imóvel', veiculo: 'o veículo', lancamento: 'o lançamento', caixa: 'o caixa', pagamento: 'o pagamento', boleto: 'o boleto', recibo: 'o recibo', telefone: 'o telefone', cpf: 'o CPF', rg: 'o RG', endereco: 'o endereço', email: 'o e-mail', valor: 'o valor', preco: 'o preço', pacote: 'o pacote', parcela: 'a parcela', cobranca: 'a cobrança' };
+export const OBJECT_LABEL = { cliente: 'o cliente', cadastro: 'o cadastro', contrato: 'o contrato', venda: 'a venda', orcamento: 'o orçamento', lead: 'o prospecto', prospecto: 'o prospecto', usuario: 'o usuário', vendedor: 'o vendedor', comissao: 'a comissão', documento: 'o documento', conversa: 'a conversa', ficha: 'a ficha', saque: 'o saque', imovel: 'o imóvel', veiculo: 'o veículo', lancamento: 'o lançamento', caixa: 'o caixa', pagamento: 'o pagamento', boleto: 'o boleto', recibo: 'o recibo', telefone: 'o telefone', cpf: 'o CPF', rg: 'o RG', endereco: 'o endereço', email: 'o e-mail', valor: 'o valor', preco: 'o preço', pacote: 'o pacote', parcela: 'a parcela', cobranca: 'a cobrança', portfolio: 'o portfólio' };

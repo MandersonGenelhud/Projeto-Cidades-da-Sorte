@@ -41,6 +41,14 @@ Atenda primeiro a intenção do cliente e leve-o para a empresa certa do grupo. 
 - Migra School (em lançamento): escola de idiomas por aplicativo, pensada para brasileiros que vão morar ou trabalhar no Paraguai: espanhol para o dia a dia e também inglês (a partir do espanhol e a partir do português), com variedade de situações do cotidiano de quem vai viver em outro país. Para quem fecha com a Migra, o valor é bem acessível. Ainda não há preço nem data cadastrados: apresente a ideia, registre o interesse e a equipe passa os detalhes. Não invente valor, prazo nem conteúdo.
 - Migra Exchange: câmbio de moedas para brasileiros que vão ao Paraguai, para facilitar essa troca e, mais adiante, ativos em criptomoedas. Ainda não está disponível: não informe cotação, taxa, limite, prazo nem rendimento. A Migra não é banco nem corretora; sobre criptomoedas, não dê recomendação de investimento nem prometa ganho. Registre o interesse e a equipe avisa quando lançar.`;
 
+/** O núcleo de inovação e tecnologia do grupo (portfólio, o que já saiu, o que está em estruturação). Usado pela atendente e pela Maria. */
+export const MIGRATECH_KNOWLEDGE = `# Migra Tech: o núcleo de inovação e tecnologia do Grupo Migra
+A Migra Tech é o núcleo de inovação e tecnologia do grupo. Cria soluções de tecnologia, de mercado e de negócio e a automação de atendimento, para os empresários que vão do Brasil para o Paraguai e também para empresas de todo o Paraguai. O núcleo ainda está em estruturação, com novidades chegando. O grupo busca ter soluções para todas as áreas, e isso dá confiança; mesmo assim, só fale do portfólio quando fizer sentido na conversa, sem empurrar produto.
+- Já saíram do núcleo: o aplicativo de idiomas (Migra School; confirme com a equipe as condições e o preço antes de oferecer), o aplicativo Migra Devocional (devocional diário, disponível) e a automação de atendimento pelo WhatsApp e pelas redes sociais (atendente de inteligência artificial).
+- Saindo agora: contabilidade online para novas empresas, empresários, pequenos e grandes negócios, a um custo acessível (pela Migra Contábil Paraguay).
+- Em estruturação, ainda sem data nem preço: atendimento por chamada de voz (a Maria e a atendente também atenderão ligações, consultando o sistema da empresa por comando de voz) e assistentes de IA treináveis por área (vendas, atendimento, consultoria empresarial etc.), usando a base de conhecimento de cada negócio, para atendentes, clientes, vendedores e donos, apoiando as vendas e o controle do dono com os dados reais do sistema.
+Regras: não invente preço, prazo, data de lançamento nem funcionalidade que não esteja descrita aqui. Hoje o atendimento por ligação de voz AINDA NÃO existe: se perguntarem, diga que está em estruturação. Não prometa resultado de vendas nem exatidão absoluta: as respostas vêm dos dados do sistema e podem ser conferidas; a decisão é sempre da pessoa.`;
+
 const MIGRA_PARAGUAI = {
   label: 'Migra Paraguai (assessoria migratória)',
   // Suba este número quando a base mudar: instalações com a versão antiga recebem a nova sozinhas.
@@ -122,6 +130,8 @@ Use quando o cliente ficar com receio, principalmente antes da ficha de dados ou
     schedulingRules: 'O agendamento da vinda ao Paraguai é feito pela equipe depois da reserva, quando as certidões e a documentação estiverem prontas. Explique isso ao cliente; não precisa transferir.',
     knowledge: `${CRISIS_KNOWLEDGE}
 ${GROUP_KNOWLEDGE}
+
+${MIGRATECH_KNOWLEDGE}
 
 # Moradia: a Migra acompanha a mudança inteira
 Todo mundo que vem para o Paraguai vai precisar morar em algum lugar. Durante a conversa (sem atrapalhar o fechamento), pergunte com naturalidade: "E aí no Paraguai, você pensa em alugar no começo ou já comprar um terreno e construir a sua casa?".

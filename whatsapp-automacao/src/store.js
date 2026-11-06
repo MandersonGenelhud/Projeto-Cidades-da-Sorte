@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { DEFAULT_PRESET, CRISIS_KNOWLEDGE, GROUP_KNOWLEDGE, GROUP_BLOCK_V1, presetSettings, presetUpgrade } from './agent/presets.js';
+import { DEFAULT_PRESET, CRISIS_KNOWLEDGE, GROUP_KNOWLEDGE, GROUP_BLOCK_V1, MIGRATECH_KNOWLEDGE, presetSettings, presetUpgrade } from './agent/presets.js';
 
 const PRESET = presetSettings(DEFAULT_PRESET);
 
@@ -331,6 +331,15 @@ export class Store extends EventEmitter {
       }
       this.data.settings.agent ||= {};
       this.data.settings.agent.groupMemory2026 = true;
+      this.flush();
+    }
+    // Nov/2026: Migra Tech (núcleo de inovação e tecnologia). Entra como bloco próprio, uma vez; edições do Marcos não são tocadas.
+    const bizT = this.data.settings.business;
+    if (bizT && /migra/i.test(bizT.name || '') && !this.data.settings.agent?.techMemory2026) {
+      const cur = String(bizT.knowledge || '');
+      if (!cur.includes('# Migra Tech:')) bizT.knowledge = `${cur.trim()}\n\n${MIGRATECH_KNOWLEDGE}`.trim();
+      this.data.settings.agent ||= {};
+      this.data.settings.agent.techMemory2026 = true;
       this.flush();
     }
     // Nov/2026: memória da atendente sobre CNH x licença paraguaia (quem vai morar precisa da licença: Ouro, não Prata).

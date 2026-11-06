@@ -37,6 +37,7 @@ import { Nina } from './assistant.js';
 import { Maria, PROFILES as MARIA_PROFILES } from './maria.js';
 import { Ana } from './ana.js';
 import { Personal } from './personal.js';
+import { Portfolio } from './portfolio.js';
 import { makeOutbound, findRecentQuote, filledNotice } from './maria-outbound.js';
 import { groupLiveBrief, HUB_OVERVIEW } from './group-brief.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
@@ -4461,7 +4462,8 @@ const mariaKnowledge = () => {
   // Texto fixo do grupo (o que opera e o que está em desenvolvimento) + dados ao vivo do sistema + visão geral do Migra Hub.
   const live = groupLiveBrief({ realty, finance: proposals.config, motors, catalog: serviceCatalog, crm: store.settings.crm, auth });
   // Primeiro o que é ao vivo e curto (dados do grupo e o sistema), depois a base grande: nada importante fica no fim, onde seria cortado.
-  return `${live}\n\n${HUB_OVERVIEW}\n\n# BASE DA EMPRESA (conhecimento cadastrado)\n${companyBrief(store.settings)}${pk.length ? `\n## Pacotes (tabela)\n${pk.join('\n')}\n` : ''}`;
+  const news = portfolio.asText();
+  return `${live}${news ? `\n\n${news}` : ''}\n\n${HUB_OVERVIEW}\n\n# BASE DA EMPRESA (conhecimento cadastrado)\n${companyBrief(store.settings)}${pk.length ? `\n## Pacotes (tabela)\n${pk.join('\n')}\n` : ''}`;
 };
 // Envio da ficha e do contrato ao cliente, pedido pela Maria (sai do WhatsApp do vendedor ou do principal, nunca do número interno dela).
 const mariaOutbound = makeOutbound({
@@ -4474,6 +4476,7 @@ const mariaOutbound = makeOutbound({
 });
 // Ana: assistente pessoal (agenda e financeiro pessoal de cada administrador). Os dados ficam em store.data.personal, por pessoa.
 const personal = new Personal({ store });
+const portfolio = new Portfolio({ store });
 const ana = new Ana({
   store, auth, personal, llm,
   notify: (userId, text) => maria.notifyUser(userId, text),
@@ -4481,7 +4484,7 @@ const ana = new Ana({
   log: (l) => store.addLog(l),
 });
 const maria = new Maria({
-  ana, store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
+  ana, portfolio, store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
   lineIdByName: (name) => lines.list().find((l) => String(l.agentName || '').trim().toLowerCase() === String(name).trim().toLowerCase())?.id || '',
   isConnected: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected'),
   stt: nina.stt, tts: nina.tts,
@@ -4573,6 +4576,20 @@ app.get('/api/cash/export.csv', (req, res) => {
 });
 // Nina lança no Caixa Migra: as telas dela exigem acesso a esse caixa.
 app.use('/api/cash/assistant', (req, _res, next) => { cashBook(req, 'migra'); next(); });
+// Portfólio de novidades do grupo (a Maria aprende com ele). Só administrador lê, anota e remove.
+app.get('/api/portfolio', (req, res) => { needAdmin(req); res.json(portfolio.list()); });
+app.post('/api/portfolio', (req, res) => {
+  needAdmin(req);
+  const item = portfolio.add(req.user, req.body?.text, req.body?.status);
+  securityEvent('portfolio_novidade', req.user, req, `Novidade anotada (${item.status})`);
+  res.json(item);
+});
+app.delete('/api/portfolio/:id', (req, res) => {
+  needAdmin(req);
+  const gone = portfolio.remove(req.user, req.params.id);
+  securityEvent('portfolio_removido', req.user, req, `Novidade removida (${gone.status})`);
+  res.json({ ok: true });
+});
 // Ana (assistente pessoal): quem pode usar e o horário do resumo da manhã. NUNCA devolve agenda nem financeiro de ninguém.
 app.get('/api/ana', (req, res) => {
   needAdmin(req);
