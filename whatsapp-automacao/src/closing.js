@@ -259,6 +259,9 @@ export class Closing {
 
   /** Depois da ficha: agradece, manda o Pix da reserva e o termo (se for depois do Pix). */
   async afterForm(f) {
+    // Ficha criada por uma pessoa da equipe (Maria), sem conversa de cliente: nada é enviado ao cliente e nenhum Pix nasce.
+    // Só avisa quem pediu, que gera o contrato quando quiser.
+    if (f.noAuto) { if (this.onManualFilled) await this.onManualFilled(f); return; }
     const first = f.data.nome.split(' ')[0];
     await this.#say(f, `Recebi seus dados, ${first}! ✅ Já ficam guardados aqui para darmos entrada no seu processo.`);
     // Orçamento refeito com o nome completo da ficha (quando já existe um pacote combinado).

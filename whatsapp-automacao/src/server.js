@@ -24,7 +24,7 @@ import { LeadRouter, chatPreview } from './routing.js';
 import { buildRanking, currentMonth } from './ranking.js';
 import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
-import { makeContractFlow, contractReady } from './autocontract.js';
+import { makeContractFlow, contractReady, CONTRACT_REQUIRED } from './autocontract.js';
 import { makeSellerCommands } from './seller-commands.js';
 import { Learnings } from './learnings.js';
 import { ReceiptReader } from './receipts.js';
@@ -4383,8 +4383,61 @@ const nina = new Nina({
   log: (l) => store.addLog(l),
 });
 // Contrato em PDF de uma venda: o assinado se existir, senão o gerado (nunca cria nada novo aqui).
+const mariaContracts = {
+  packages: () => [...(store.settings.crm?.packages || []).map((p) => p.name || p), ...serviceCatalog.activeNames()].filter(Boolean),
+  fields: CONTRACT_FIELDS,
+  required: CONTRACT_REQUIRED,
+  ready: contractReady,
+  // Orçamento recente (30 dias) do mesmo cliente que ainda não foi assinado: reaproveita em vez de criar outro.
+  findQuote: (viewer, { nome = '', phone = '' }) => {
+    const n = String(nome).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const ph = normalizePhone(phone) || '';
+    const since = Date.now() - 30 * 86_400_000;
+    return quotes.list.filter((q) => canSeeQuote(viewer, q) && q.contract?.status !== 'assinado' && Date.parse(q.createdAt) >= since
+      && ((n && String(q.client).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() === n) || (ph && q.phone && samePhone(q.phone, ph)))).at(-1) || null;
+  },
+  createQuote: ({ pacote, pessoas, adultos, nome, telefone, user }) => quotes.create({
+    items: [{ pacote, quantidade: pessoas }], adults: adultos, client: nome, phone: normalizePhone(telefone) || '',
+    consultant: String(user.name || '').split(' ')[0], createdBy: { id: user.id, name: user.name },
+  }),
+  clientFor: (q, { nome = '', telefone = '', dados = {} }) => {
+    const form = q.mariaFormId ? closing.list.find((f) => f.id === q.mariaFormId) : null;
+    const fromForm = form?.status === 'preenchida' ? form.data : {};
+    return pickClient({ whatsapp: telefone ? `+${normalizePhone(telefone) || telefone}` : '', ...fromForm, ...(q.contract?.client || {}), ...dados, nome: dados.nome || fromForm.nome || q.contract?.client?.nome || nome });
+  },
+  // Gera o PDF do contrato e o link de assinatura. NADA é enviado ao cliente: tudo volta para quem pediu.
+  prepare: (q, client, user) => {
+    const r = prepareContractSign(q, client, user);
+    const ct = `CT-${q.number.replace(/^ORC-/, '')}`;
+    return { url: r.url, ct, buffer: fs.readFileSync(contractFile(q)), name: `Contrato ${ct}.pdf` };
+  },
+  // Ficha de dados sem conversa de cliente: quem pediu encaminha o link (ou preenche). Não dispara Pix nem mensagem ao cliente.
+  formLink: (q, { nome = '', telefone = '', dados = {}, user }) => {
+    let f = q.mariaFormId ? closing.list.find((x) => x.id === q.mariaFormId) : null;
+    if (!f || f.term?.status === 'assinado') {
+      f = closing.createForm({ convKey: null, lead: null, servico: q.items.map((r) => `${r.name} × ${r.qty}`).join(', '), adultos: q.plan?.adults });
+      q.mariaFormId = f.id;
+    }
+    f.noAuto = true;
+    f.requesterId = user.id;
+    f.quoteId = q.id;
+    const known = { nome, ...(telefone ? { whatsapp: `+${normalizePhone(telefone) || telefone}` } : {}), ...Object.fromEntries(Object.entries(dados).filter(([k, v]) => v && CONTRACT_FIELDS.includes(k))) };
+    for (const [k, v] of Object.entries(known)) if (v && !f.data[k]) f.data[k] = String(v).slice(0, 200);
+    store.save();
+    return { url: closing.formUrl(f), filled: f.status === 'preenchida' };
+  },
+  summary: (q) => ({ number: q.number, items: q.items.map((r) => `${r.name}${r.qty > 1 ? ` × ${r.qty}` : ''}`).join(', '), total: q.plan.total, entry: q.plan.entry, parcels: q.plan.parcels?.length || 0 }),
+  audit: (text) => securityEvent('maria_contrato', { name: 'Maria' }, null, text),
+};
+// O cliente preencheu a ficha pedida pela Maria: avisa quem pediu (nada vai para o cliente).
+closing.onManualFilled = async (f) => {
+  const u = auth.get(f.requesterId);
+  if (!u?.whatsapp) return;
+  const nome = f.data.nome || 'O cliente';
+  await wa.send(u.whatsapp, { text: `📝 ${nome} preencheu a ficha de dados. Quando quiser o contrato, é só pedir: "Maria, gere o contrato de ${nome}".`, typing: false }).catch(() => {});
+};
 const maria = new Maria({
-  store, auth, sales, customers: customer360, collections, cash, llm,
+  store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts,
   stt: nina.stt, tts: nina.tts,
   send: (jid, payload) => wa.send(jid, payload),
   downloadAudio: (m) => wa.downloadAudio(m),
