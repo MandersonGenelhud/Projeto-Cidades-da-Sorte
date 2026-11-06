@@ -38,6 +38,7 @@ import { Maria, PROFILES as MARIA_PROFILES } from './maria.js';
 import { Ana } from './ana.js';
 import { Personal } from './personal.js';
 import { makeOutbound, findRecentQuote, filledNotice } from './maria-outbound.js';
+import { groupLiveBrief, HUB_OVERVIEW } from './group-brief.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES } from './voice.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
@@ -4457,7 +4458,10 @@ closing.onManualFilled = async (f) => {
 // O que a secretária sabe da empresa: a mesma base do atendimento (sem as regras de venda), os pacotes com preço de tabela e quem é da empresa.
 const mariaKnowledge = () => {
   const pk = (store.settings.crm?.packages || []).filter((p) => p?.name).map((p) => `- ${p.name}${p.price ? `: R$ ${Number(p.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} por pessoa (tabela)` : ''}`);
-  return `${companyBrief(store.settings)}${pk.length ? `\n## Pacotes (tabela)\n${pk.join('\n')}\n` : ''}`;
+  // Texto fixo do grupo (o que opera e o que está em desenvolvimento) + dados ao vivo do sistema + visão geral do Migra Hub.
+  const live = groupLiveBrief({ realty, finance: proposals.config, motors, catalog: serviceCatalog, crm: store.settings.crm, auth });
+  // Primeiro o que é ao vivo e curto (dados do grupo e o sistema), depois a base grande: nada importante fica no fim, onde seria cortado.
+  return `${live}\n\n${HUB_OVERVIEW}\n\n# BASE DA EMPRESA (conhecimento cadastrado)\n${companyBrief(store.settings)}${pk.length ? `\n## Pacotes (tabela)\n${pk.join('\n')}\n` : ''}`;
 };
 // Envio da ficha e do contrato ao cliente, pedido pela Maria (sai do WhatsApp do vendedor ou do principal, nunca do número interno dela).
 const mariaOutbound = makeOutbound({

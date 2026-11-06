@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { DEFAULT_PRESET, CRISIS_KNOWLEDGE, presetSettings, presetUpgrade } from './agent/presets.js';
+import { DEFAULT_PRESET, CRISIS_KNOWLEDGE, GROUP_KNOWLEDGE, GROUP_BLOCK_V1, presetSettings, presetUpgrade } from './agent/presets.js';
 
 const PRESET = presetSettings(DEFAULT_PRESET);
 
@@ -308,6 +308,29 @@ export class Store extends EventEmitter {
       this.data.settings.agent ||= {};
       this.data.settings.agent.crisisMemory2026 = true;
       this.data.settings.agent.crisisMemory2026b = true;
+      this.flush();
+    }
+    // Nov/2026: visão completa do Grupo Migra (o que opera e o que está em desenvolvimento). Se o bloco antigo não foi editado, é trocado;
+    // se o Marcos já mexeu nele, o texto novo entra ANTES e o dele fica (nada é perdido).
+    const bizG = this.data.settings.business;
+    if (bizG && /migra/i.test(bizG.name || '') && !this.data.settings.agent?.groupMemory2026) {
+      const cur = String(bizG.knowledge || '');
+      const head = '# Grupo Migra: as empresas do grupo';
+      const i = cur.indexOf(head);
+      if (cur.includes('# Grupo Migra: visão completa')) {
+        // já tem
+      } else if (i >= 0) {
+        const j = cur.indexOf('\n# ', i + 5);
+        const block = cur.slice(i, j >= 0 ? j : undefined);
+        const norm = (x) => String(x).replace(/\s+/g, ' ').trim();
+        bizG.knowledge = norm(block) === norm(GROUP_BLOCK_V1)
+          ? `${cur.slice(0, i)}${GROUP_KNOWLEDGE}${j >= 0 ? `\n${cur.slice(j)}` : ''}`.trim()
+          : `${cur.slice(0, i)}${GROUP_KNOWLEDGE}\n(Se houver diferença entre o bloco acima e o bloco "as empresas do grupo" abaixo, vale o de cima, que é mais recente.)\n\n${cur.slice(i)}`.trim();
+      } else {
+        bizG.knowledge = `${cur.trim()}\n\n${GROUP_KNOWLEDGE}`.trim();
+      }
+      this.data.settings.agent ||= {};
+      this.data.settings.agent.groupMemory2026 = true;
       this.flush();
     }
     // Nov/2026: memória da atendente sobre CNH x licença paraguaia (quem vai morar precisa da licença: Ouro, não Prata).
