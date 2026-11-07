@@ -133,9 +133,12 @@ export function contractPdf({ client = {}, quote, cfg = {}, issued, sign = null,
     }
     y += gap;
   };
+  const ORD = ['PRIMEIRA', 'SEGUNDA', 'TERCEIRA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÉTIMA', 'OITAVA', 'NONA', 'DÉCIMA', 'DÉCIMA PRIMEIRA', 'DÉCIMA SEGUNDA'];
+  let clauseNo = 0;
+  const nextTitle = (t) => t.replace('CLÁUSULA @', `CLÁUSULA ${ORD[clauseNo++]}`);
   const clause = (title, paragraphs) => {
     need(46);
-    c.text(title, M, y, { size: 10, bold: true, color: C.green, spacing: 0.3 });
+    c.text(nextTitle(title), M, y, { size: 10, bold: true, color: C.green, spacing: 0.3 });
     y += 17;
     for (const t of paragraphs) if (t) para(t);
     y += 4;
@@ -164,7 +167,7 @@ export function contractPdf({ client = {}, quote, cfg = {}, issued, sign = null,
 
   // Cláusula 1 – objeto, com a tabela dos serviços
   need(60);
-  c.text('CLÁUSULA PRIMEIRA – DO OBJETO', M, y, { size: 10, bold: true, color: C.green, spacing: 0.3 });
+  c.text(nextTitle('CLÁUSULA @ – DO OBJETO'), M, y, { size: 10, bold: true, color: C.green, spacing: 0.3 });
   y += 17;
   para('Constitui objeto deste contrato a prestação de serviços técnicos especializados de assessoria migratória e documental, compreendendo orientação documental, análise de requisitos, preparação do dossiê, emissão das certidões no Paraguai (Interpol e Informática da Polícia Nacional), agendamentos, protocolo, acompanhamento processual junto às autoridades competentes e suporte em português, relativos aos serviços abaixo discriminados.');
   para('Parágrafo primeiro. Serviços contratados e respectivos valores:', { bold: true, gap: 4 });
@@ -190,15 +193,24 @@ export function contractPdf({ client = {}, quote, cfg = {}, issued, sign = null,
   c.text('Valor total contratado', M + 8, y + 2, { size: 9.5, bold: true, color: C.ink });
   c.text(money(p.total), col.total, y + 2, { size: 10.5, bold: true, color: C.green, align: 'right' });
   y += 24;
-  const extra = String(d.acompanhantes || '').trim();
+  const depText = String(d.acompanhantes || '').trim();
+  const semDep = !depText || /^(nenhum[ao]?|nao|não|sem|n\/?a|-)\b/i.test(depText);
+  const extra = semDep ? '' : depText;
   para(`Parágrafo segundo. Beneficiários: o(a) CONTRATANTE${extra ? ` e ${extra}` : ''}, totalizando ${p.people} pessoa(s), das quais ${p.adults} adulta(s).`);
   para('Parágrafo terceiro. Não estão incluídos no valor deste contrato as despesas pessoais do(a) CONTRATANTE com passagens, hospedagem, alimentação e deslocamentos nas viagens ao Paraguai, nem custos de documentos de responsabilidade do(a) CONTRATANTE no Brasil, salvo se expressamente previstos no Parágrafo primeiro.');
   y += 4;
 
-  clause('CLÁUSULA SEGUNDA – DAS OBRIGAÇÕES DA CONTRATADA', [
+  // Dependentes: quem são (filho, pessoa com deficiência, sobrinho...), declarados pelo(a) contratante na ficha.
+  clause('CLÁUSULA @ – DOS DEPENDENTES', [
+    semDep
+      ? 'O(A) CONTRATANTE declara que não há dependentes incluídos neste contrato. Qualquer dependente que venha a ser incluído depois da assinatura será formalizado por escrito entre as partes, com os valores correspondentes.'
+      : `O(A) CONTRATANTE declara que os seguintes dependentes integram o processo objeto deste contrato e estão sob a sua responsabilidade: ${depText}.`,
+    'Parágrafo único. O(A) CONTRATANTE responde pela veracidade dos dados de cada dependente (nome completo, parentesco, data de nascimento e documentos) e pela entrega da documentação dele; dependentes menores de idade ou pessoas com deficiência são representados pelo(a) CONTRATANTE ou por seu responsável legal.',
+  ]);
+  clause('CLÁUSULA @ – DAS OBRIGAÇÕES DA CONTRATADA', [
     'A CONTRATADA compromete-se a executar os serviços com observância da legislação vigente da República do Paraguai, com diligência, ética profissional e boa-fé, prestando ao(à) CONTRATANTE as informações necessárias ao regular andamento do procedimento migratório e informando-o(a) sobre cada etapa, as datas de comparecimento e os documentos exigidos.',
   ]);
-  clause('CLÁUSULA TERCEIRA – DAS OBRIGAÇÕES DO(A) CONTRATANTE', [
+  clause('CLÁUSULA @ – DAS OBRIGAÇÕES DO(A) CONTRATANTE', [
     'Compete ao(à) CONTRATANTE fornecer documentos autênticos, verdadeiros e atualizados, cumprir as exigências legais, comparecer aos órgãos públicos quando convocado(a) e efetuar os pagamentos ajustados nos prazos estipulados neste instrumento.',
     'Parágrafo único. Caso o(a) CONTRATANTE não compareça aos órgãos competentes dentro dos prazos informados pela CONTRATADA, a responsabilidade pelo vencimento, expiração ou perda de validade de documentos, protocolos ou agendamentos será exclusivamente do(a) CONTRATANTE, eximindo a CONTRATADA de qualquer ônus, retrabalho ou ressarcimento decorrente.',
   ]);
@@ -206,7 +218,7 @@ export function contractPdf({ client = {}, quote, cfg = {}, issued, sign = null,
   // Cláusula 4 – preço e pagamento
   const entryParts = `${money(p.base)} de sinal de contratação dos serviços e ${money(p.perAdult * p.adults)} (${money(p.perAdult)} por adulto) referentes às certidões da Interpol e da Informática da Polícia Nacional do Paraguai`;
   const trips = p.custom ? [] : ['na primeira vinda ao Paraguai', 'na segunda vinda ao Paraguai', 'na retirada dos documentos'];
-  clause('CLÁUSULA QUARTA – DO PREÇO E DAS CONDIÇÕES DE PAGAMENTO', [
+  clause('CLÁUSULA @ – DO PREÇO E DAS CONDIÇÕES DE PAGAMENTO', [
     `O valor total deste contrato é de ${money(p.total)} (${moneyWords(p.total)}), a ser pago via Pix na conta indicada pela CONTRATADA (${K.payee}), da seguinte forma:`,
     `a) Entrada de ${money(p.entry)} (${moneyWords(p.entry)}), na assinatura, composta de ${entryParts};`,
     ...p.parcels.map((x, k) => `${String.fromCharCode(98 + k)}) ${x.label} de ${money(x.value)} (${moneyWords(x.value)}), com vencimento previsto em ${fmtBr(x.date)}${trips[k] ? `, ${trips[k]}` : ''};`),
@@ -214,27 +226,27 @@ export function contractPdf({ client = {}, quote, cfg = {}, issued, sign = null,
     'Parágrafo segundo. O valor ajustado em reais é fixo e não sofre alteração por oscilações cambiais. Aumentos de taxas públicas, novos impostos ou gastos extraordinários causados pelo(a) CONTRATANTE (como novas fotos ou segundas vias de documentos perdidos) serão repassados ao(à) CONTRATANTE mediante comprovante, sob pena de suspensão dos serviços.',
     'Parágrafo terceiro. Este contrato somente produz efeitos após a confirmação do pagamento da entrada.',
   ]);
-  clause('CLÁUSULA QUINTA – DA NATUREZA DA OBRIGAÇÃO', [
+  clause('CLÁUSULA @ – DA NATUREZA DA OBRIGAÇÃO', [
     'Os serviços contratados constituem obrigação de meio. A concessão de residência, cédula e demais documentos é ato exclusivo das autoridades competentes, e os prazos informados são estimativas que dependem desses órgãos, não havendo garantia de resultado ou de prazo por parte da CONTRATADA.',
   ]);
-  clause('CLÁUSULA SEXTA – DA CONFIDENCIALIDADE', [
+  clause('CLÁUSULA @ – DA CONFIDENCIALIDADE', [
     'As partes comprometem-se a manter absoluto sigilo sobre as informações e os documentos compartilhados em razão deste contrato.',
   ]);
-  clause('CLÁUSULA SÉTIMA – DOS DADOS PESSOAIS', [
+  clause('CLÁUSULA @ – DOS DADOS PESSOAIS', [
     'O(A) CONTRATANTE autoriza a CONTRATADA a coletar, armazenar e tratar seus dados pessoais e documentos, e os dos beneficiários que indicar, exclusivamente para a execução deste contrato, podendo compartilhá-los apenas com os órgãos públicos, cartórios, tradutores e parceiros necessários aos procedimentos contratados, observada a Lei Geral de Proteção de Dados (Lei nº 13.709/2018) e a legislação paraguaia aplicável. O(A) CONTRATANTE pode solicitar a qualquer tempo informações sobre o uso de seus dados.',
   ]);
-  clause('CLÁUSULA OITAVA – DA RESCISÃO', [
+  clause('CLÁUSULA @ – DA RESCISÃO', [
     'Este contrato poderá ser rescindido por qualquer das partes, mediante aviso prévio por escrito com antecedência mínima de 30 (trinta) dias.',
     'Parágrafo primeiro. Considera-se iniciada a execução dos serviços, para todos os fins, com o início da análise documental, a triagem de requisitos, a solicitação das certidões ou a abertura de canal de atendimento exclusivo ao(à) CONTRATANTE, independentemente do protocolo formal perante os órgãos paraguaios.',
     'Parágrafo segundo. Em caso de desistência por iniciativa do(a) CONTRATANTE após o início da execução, não haverá devolução dos valores já pagos, que se destinam à cobertura dos custos operacionais e administrativos e das certidões já solicitadas.',
     'Parágrafo terceiro. Sem prejuízo do parágrafo anterior, a rescisão imotivada por iniciativa do(a) CONTRATANTE, ou a resolução por sua culpa exclusiva, implica multa compensatória de 20% (vinte por cento) sobre o valor total do contrato.',
     'Parágrafo quarto. O atraso de qualquer parcela por mais de 15 (quinze) dias corridos constitui o(a) CONTRATANTE em mora, autorizando a CONTRATADA a: I – suspender os serviços e os trâmites até a regularização, sem responsabilidade por prazos ou validade de documentos nesse período; ou II – declarar o contrato resolvido por inadimplemento, sendo devida a multa do parágrafo terceiro, com juros de 1% (um por cento) ao mês e correção monetária sobre o saldo devedor.',
   ]);
-  clause('CLÁUSULA NONA – DO USO DE IMAGEM E VOZ (OPCIONAL)', [
+  clause('CLÁUSULA @ – DO USO DE IMAGEM E VOZ (OPCIONAL)', [
     'O(A) CONTRATANTE, marcando abaixo, decide se autoriza, de forma gratuita, a CONTRATADA a utilizar sua imagem, voz e depoimentos relacionados aos serviços em redes sociais, site e materiais de divulgação, de forma ética e respeitosa. A autorização pode ser revogada a qualquer tempo, por escrito, para usos futuros.',
     sign ? `( ${sign.imageConsent === 'sim' ? 'X' : '  '} ) Autorizo          ( ${sign.imageConsent === 'sim' ? '  ' : 'X'} ) Não autorizo` : '(   ) Autorizo          (   ) Não autorizo',
   ]);
-  clause('CLÁUSULA DÉCIMA – DO FORO', [
+  clause('CLÁUSULA @ – DO FORO', [
     `As partes elegem o foro de ${K.foro} para dirimir quaisquer controvérsias oriundas deste contrato, com renúncia a qualquer outro, por mais privilegiado que seja.`,
   ]);
   para('E, por estarem assim justas e contratadas, as partes firmam o presente instrumento em duas vias de igual teor e forma, na presença de duas testemunhas.', { gap: 10 });

@@ -7,6 +7,8 @@
  * deps: publicBase(), store, quotes() → lista, samePhone, lines, lineKey, wa, agent, crm, closing, contractFlow,
  * fichaMessage(nome, url) → texto.
  */
+import { fichaMensagens } from './ficha-text.js';
+
 export function makeOutbound(deps) {
   const { publicBase, store, quotes, samePhone, lines, lineKey, wa, agent, crm, closing, contractFlow, fichaMessage, contractFile = () => null } = deps;
   const connected = (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected');
@@ -53,9 +55,11 @@ export function makeOutbound(deps) {
       const q = quotes().filter((x) => (lead && x.leadId === lead.id) || (x.phone && samePhone(x.phone, phone))).at(-1);
       if (q) f.quoteId = q.id;
       store.save();
-      const text = fichaMessage(nome, closing.formUrl(f));
-      await wa.send(key, { text, typing: false });
-      agent.remember(conv, 'assistant', text);
+      // O pedido por escrito (para quem tem medo de link) e, logo depois, o link sozinho.
+      const [pedido, link] = fichaMensagens(closing.formUrl(f), { nome });
+      await wa.send(key, { text: pedido, typing: false });
+      await wa.send(key, { text: link, typing: false });
+      agent.remember(conv, 'assistant', `${pedido}\n${link}`);
       if (lead) crm.addNote(viewer, lead.id, `📝 Ficha de dados enviada ao cliente pela Maria, a pedido de ${user.name}`);
       return { kind: 'ficha', via };
     },
@@ -71,9 +75,10 @@ export function makeOutbound(deps) {
       if (r.erro) throw new Error(r.erro);
       if (r.jaAssinado) return { kind: 'ja_assinado', via };
       if (r.precisaDados) {
-        const text = `Para preparar o seu contrato preciso dos seus dados. É só tocar no link, preencher (uns 2 minutos) e enviar:\n${r.link}`;
-        await wa.send(key, { text, typing: false });
-        agent.remember(conv, 'assistant', text);
+        const [pedido, link] = fichaMensagens(r.link, { nome, contrato: true });
+        await wa.send(key, { text: pedido, typing: false });
+        await wa.send(key, { text: link, typing: false });
+        agent.remember(conv, 'assistant', `${pedido}\n${link}`);
         const form = lead ? closing.forLead(lead.id) : null;
         if (form) { form.requesterId = user.id; store.save(); } // o vendedor é avisado quando o cliente preencher; o contrato sai sozinho
 

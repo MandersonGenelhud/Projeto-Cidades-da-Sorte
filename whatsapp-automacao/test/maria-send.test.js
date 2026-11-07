@@ -140,7 +140,8 @@ test('sendForm: sai pelo número principal (administrador) ou pelo do vendedor, 
   const r = await a.out.sendForm({ user: a.marcos, viewer: a.marcos, phone: '5545988887777', nome: 'Ana Souza', adultos: 2 });
   assert.equal(r.kind, 'ficha');
   assert.equal(a.sent.at(-1).key, '5545988887777@s.whatsapp.net');
-  assert.match(a.sent.at(-1).text, /Oi, Ana! Preencha: https:\/\/painel\.migra\.com\/ficha\//);
+  assert.match(a.sent.at(-1).text, /^https:\/\/painel\.migra\.com\/ficha\//, 'o link vai sozinho, na segunda mensagem');
+  assert.match(a.sent.at(-2).text, /Oi, Ana! Para gerar a sua reserva, preencha estes dados[\s\S]*DADOS PARA O CONTRATO[\s\S]*Dependentes/, 'antes, o pedido por escrito para quem tem medo de link');
   assert.equal(a.memory.length, 1, 'a atendente lembra do que foi enviado');
   assert.equal(a.closing.list.at(-1).convKey, '5545988887777@s.whatsapp.net', 'a ficha segue o fluxo normal (conversa real do cliente)');
   assert.equal(a.closing.list.at(-1).noAuto, true, 'sem Pix nem termo automáticos: o vendedor decide');
@@ -167,7 +168,8 @@ test('sendContract: sem dados do cliente manda a ficha (o contrato sai quando el
   const a = outSetup();
   const r = await a.out.sendContract({ user: a.marcos, viewer: a.marcos, phone: '5545988887777', nome: 'Ana Souza', pacote: 'Pacote Ouro', pessoas: 2 });
   assert.equal(r.kind, 'ficha_para_contrato');
-  assert.match(a.sent.at(-1).text, /Para preparar o seu contrato preciso dos seus dados/);
+  assert.match(a.sent.at(-2).text, /Para gerar o seu contrato, preencha estes dados[\s\S]*DADOS PARA O CONTRATO/);
+  assert.match(a.sent.at(-1).text, /^https:\/\//, 'e o link sozinho logo depois');
   a.store.addToBlacklist('5545911112222');
   assert.equal(a.out.isBlocked('5545911112222'), true);
   assert.equal(a.out.isBlocked('5545988887777'), false);

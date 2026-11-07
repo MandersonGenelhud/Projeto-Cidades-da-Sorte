@@ -46,6 +46,7 @@ import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Audit } from './audit.js';
 import { byAttendant, attendantOf, conversationBoards } from './attendants.js';
 import { auditMessaging } from './messaging-audit.js';
+import { fichaPedido } from './ficha-text.js';
 import { cleanProfile, profileFor } from './send-profiles.js';
 import { LegacyContracts, cashRowsFromCapture } from './legacy-import.js';
 import { buildBat, buildSiteBat } from './legacy-tool.js';
@@ -3978,7 +3979,7 @@ app.get('/orcamento/:id', (req, res) => {
   res.sendFile(quotes.file(q));
 });
 // Ficha de dados pelo vendedor: link para o cliente só tocar e preencher (sem copiar e colar nada).
-const fichaMessage = (name, url) => `Oi${name ? `, ${String(name).split(' ')[0]}` : ''}! Para eu deixar tudo pronto para você, é só tocar no link abaixo e preencher os seus dados. Leva uns 2 minutos e não precisa copiar nem colar nada: cada campo explica o que colocar, e o CEP já completa o endereço sozinho.\n\n${url}\n\nNo final, toque em "Enviar meus dados". Se travar em algum campo, me chama aqui que eu te ajudo. 😊`;
+const fichaMessage = (name, url) => `${fichaPedido({ nome: name })}\n\n${url}`;
 app.post('/api/closing/link', (req, res) => {
   const b = req.body || {};
   const phone = normalizePhone(b.phone);

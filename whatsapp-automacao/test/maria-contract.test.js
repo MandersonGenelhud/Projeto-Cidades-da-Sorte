@@ -63,11 +63,14 @@ test('com nome, pacote e dados completos: gera o contrato e manda PDF + link só
 test('sem os dados do cliente: manda o link da ficha para quem pediu e diz o que falta; não gera contrato nem escreve ao cliente', async () => {
   const { say, forms, prepared, created } = setup();
   const r = await say('5545999990001', 'Maria, gere o contrato da Ana Souza, pacote Ouro para 2 pessoas');
-  assert.equal(r.length, 1);
+  assert.equal(r.length, 3, 'o aviso para quem pediu + o pedido por escrito + o link sozinho (para encaminhar ao cliente)');
   assert.match(r[0].text, /faltam dados/);
   assert.match(r[0].text, /CPF/);
-  assert.match(r[0].text, /https:\/\/painel\.migra\.com\/ficha\/f1/);
   assert.match(r[0].text, /Não enviei nada ao cliente/);
+  assert.match(r[1].text, /DADOS PARA O CONTRATO[\s\S]*Dependentes/, 'o pedido por escrito traz os campos, e-mail opcional e dependentes');
+  assert.match(r[1].text, /Email \(se quiser\)/);
+  assert.equal(r[2].text, 'https://painel.migra.com/ficha/f1?t=tok', 'o link vem sozinho, fácil de tocar e encaminhar');
+  assert.ok(r.every((m) => m.jid === r[0].jid), 'tudo volta só para quem pediu');
   assert.equal(forms.length, 1);
   assert.equal(prepared.length, 0);
   assert.equal(created[0].items[0].qty, 2);

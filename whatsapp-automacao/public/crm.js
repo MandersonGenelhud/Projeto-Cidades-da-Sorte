@@ -1199,7 +1199,7 @@ async function renderLeadClosing(l) {
       ${step(Boolean(f?.term), 'Termo da reserva enviado')}
       ${step(f?.term?.status === 'assinado', 'Termo assinado', f?.termPdf ? ` · <a href="${esc(f.termPdf)}" target="_blank" rel="noopener">ver PDF</a>` : '')}
     </ol>
-    ${f?.status === 'preenchida' ? `<details><summary>Dados da ficha</summary><dl>${Object.entries({ Nome: f.data.nome, CPF: f.data.cpf, RG: `${f.data.rg} ${f.data.rgOrgao || ''}`, Nascimento: f.data.nascimento, 'Estado civil': f.data.estadoCivil, Endereço: [f.data.rua, f.data.numero, f.data.bairro, `${f.data.cidade}/${f.data.uf}`].filter(Boolean).join(', '), Adultos: f.data.adultos, Acompanhantes: f.data.acompanhantes }).filter(([, v]) => v && String(v).trim()).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>` : ''}
+    ${f?.status === 'preenchida' ? `<details><summary>Dados da ficha</summary><dl>${Object.entries({ Nome: f.data.nome, CPF: f.data.cpf, RG: `${f.data.rg} ${f.data.rgOrgao || ''}`, Nascimento: f.data.nascimento, 'Estado civil': f.data.estadoCivil, Endereço: [f.data.rua, f.data.numero, f.data.bairro, `${f.data.cidade}/${f.data.uf}`].filter(Boolean).join(', '), Adultos: f.data.adultos, Dependentes: f.data.acompanhantes }).filter(([, v]) => v && String(v).trim()).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>` : ''}
     <div class="row">${f?.status !== 'preenchida' ? `<button type="button" class="btn small primary" id="btnSendFicha">${f ? 'Reenviar a ficha no WhatsApp' : 'Enviar a ficha no WhatsApp'}</button>` : ''}
     ${f ? `<button type="button" class="btn small" id="btnCopyFicha">Copiar link da ficha</button>` : ''}</div>`;
   $('#btnSendFicha')?.addEventListener('click', async () => {

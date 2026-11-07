@@ -18,6 +18,7 @@ import { detectChange, OBJECT_LABEL } from './assistant-guard.js';
 import { STATUS as PORTFOLIO_STATUS } from './portfolio.js';
 import { speakable } from './voice.js';
 import { accessExpired } from './auth.js';
+import { fichaMensagens } from './ficha-text.js';
 import { parseItems, parseDiscount, peopleOf, describeItems } from './maria-items.js';
 import { salesCoach, leadFacts, ruleAdvice, coachMessages, prioritiesText } from './sales-coach.js';
 
@@ -386,7 +387,7 @@ export class Maria {
   }
 
   async #say(msg, answer, asVoice) {
-    const { text, file = null, spoken: short = '', voice = '', style = '' } = typeof answer === 'string' ? { text: answer } : answer;
+    const { text, file = null, more = [], spoken: short = '', voice = '', style = '' } = typeof answer === 'string' ? { text: answer } : answer;
     if (asVoice && this.tts?.ready && this.config.voiceReply !== false) {
       try {
         const spoken = speakable(short || text).replace(/[^\p{L}\p{N}\s.,!?;:-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 700);
@@ -398,6 +399,7 @@ export class Maria {
     }
     if (file) await this.send(msg.jid, { text, media: file, typing: false });
     else await this.send(msg.jid, { text, typing: false });
+    for (const extra of more) await this.send(msg.jid, { text: extra, typing: false }); // mensagens prontas para encaminhar (pedido por escrito e link sozinho)
   }
 
   async #interpret(text, user) {
@@ -710,8 +712,9 @@ export class Maria {
     c.audit(`${user.name} pediu o orçamento ${sum.number} de ${d.nome} (${sum.items}) pela Maria`);
     const file = c.quoteFile?.(quote) || null;
     return {
-      text: [`✅ *Orçamento ${sum.number}* pronto, ${first}!`, `Cliente: *${d.nome}* (cadastrado no seu nome)`, `Pacotes: ${sum.items}${Maria.discountNote(sum)} · total *${brl(sum.total)}* (entrada ${brl(sum.entry)}${sum.parcels ? ` + ${sum.parcels} parcelas` : ''})`, ...Maria.adultsNote(quote, d), '', 'Para o cliente preencher os dados dele, encaminhe este link da *ficha*:', form.url, '', `Quando ele preencher, eu te aviso aqui com a prévia do orçamento. Se ele fechar, é só pedir: "${this.name}, gere o contrato de ${d.nome}". _Não enviei nada ao cliente._`].join('\n'),
-      spoken: `Pronto, ${first}! O orçamento de ${d.nome} está feito. Mandei o PDF e o link da ficha por escrito, para você encaminhar ao cliente. Quando ele preencher, eu te aviso.`,
+      text: [`✅ *Orçamento ${sum.number}* pronto, ${first}!`, `Cliente: *${d.nome}* (cadastrado no seu nome)`, `Pacotes: ${sum.items}${Maria.discountNote(sum)} · total *${brl(sum.total)}* (entrada ${brl(sum.entry)}${sum.parcels ? ` + ${sum.parcels} parcelas` : ''})`, ...Maria.adultsNote(quote, d), '', 'Para o cliente passar os dados dele, encaminhe as duas mensagens a seguir: o *pedido por escrito* e o *link da ficha* sozinho.', '', `Quando ele preencher, eu te aviso aqui com a prévia do orçamento. Se ele fechar, é só pedir: "${this.name}, gere o contrato de ${d.nome}". _Não enviei nada ao cliente._`].join('\n'),
+      more: fichaMensagens(form.url, { nome: d.nome }),
+      spoken: `Pronto, ${first}! O orçamento de ${d.nome} está feito. Mandei o PDF, o pedido por escrito e o link da ficha, para você encaminhar ao cliente. Quando ele preencher, eu te aviso.`,
       ...(file ? { file: { buffer: file.buffer, mimetype: 'application/pdf', fileName: file.name } } : {}),
     };
   }
@@ -816,7 +819,8 @@ export class Maria {
     try { r = c.reservationLink({ user, viewer, nome: got.nome || '', telefone: got.telefone || '', adultos: got.adultos || got.pessoas || null }); } catch (e) { return `${first}, não consegui preparar o link: ${e.message}`; }
     c.audit(`${user.name} pediu o link de preenchimento para reserva${got.nome ? ` de ${got.nome}` : ''} pela Maria`);
     return {
-      text: [`📝 Pronto, ${first}! Este é o link de *preenchimento para a reserva*${got.nome ? ` de ${got.nome}` : ''}:`, r.url, '', 'Entregue ao cliente (ele pode abrir no celular dele ou no seu aparelho). São uns 2 minutos e o CEP completa o endereço; o e-mail é opcional.', `Quando ele preencher eu te aviso aqui. Depois do pagamento, é só pedir: "${this.name}, gere o contrato de ${got.nome || 'fulano'}". _Não enviei nada ao cliente._`].join('\n'),
+      text: [`📝 Pronto, ${first}! Preparei o preenchimento para a *reserva*${got.nome ? ` de ${got.nome}` : ''}.`, 'Como muita gente tem receio de tocar em link, mando em duas mensagens para você encaminhar ao cliente: *primeiro o pedido por escrito* (ele responde com os dados) e *depois o link sozinho* (para quem preferir preencher mais rápido). O e-mail é opcional.', `Quando ele preencher o link eu te aviso aqui. Depois do pagamento, é só pedir: "${this.name}, gere o contrato de ${got.nome || 'fulano'}". _Não enviei nada ao cliente._`].join('\n'),
+      more: fichaMensagens(r.url, { nome: got.nome }),
       spoken: `Pronto, ${first}! Mandei o link de preenchimento da reserva por escrito. Entregue ao cliente e, quando ele preencher, eu te aviso.`,
     };
   }
@@ -1090,8 +1094,9 @@ ${CONTRACT_BRIEF}`;
     c.audit(`${user.name} pediu a ficha de dados de ${d.nome} (${sum.number}) · ${sum.items}`);
     const have = c.required.filter((k) => String(client[k] || '').trim()).map((k) => FIELD_LABEL[k] || k);
     return {
-      text: [`📝 *${d.nome}*: ainda faltam dados para o contrato (${missing.map((k) => FIELD_LABEL[k] || k).join(', ')}).`, `Já deixei o orçamento *${sum.number}* pronto (${sum.items}${Maria.discountNote(sum)} · total ${brl(sum.total)}).`, ...Maria.adultsNote(quote, d), have.length ? `Já tenho: ${have.join(', ')}.` : '', '', 'Este é o link da *ficha de dados*. Você pode preencher agora ou encaminhar ao cliente (são uns 2 minutos, o CEP completa o endereço):', form.url, '', `Quando a ficha for preenchida eu te aviso aqui. Aí é só pedir: "${this.name}, gere o contrato de ${d.nome}". _Não enviei nada ao cliente._`].filter((x) => x !== '').join('\n'),
-      spoken: `${first}, faltam alguns dados do cliente para o contrato. Mandei o link da ficha por escrito: você pode preencher ou encaminhar ao cliente. Quando ele preencher, eu aviso.`,
+      text: [`📝 *${d.nome}*: ainda faltam dados para o contrato (${missing.map((k) => FIELD_LABEL[k] || k).join(', ')}).`, `Já deixei o orçamento *${sum.number}* pronto (${sum.items}${Maria.discountNote(sum)} · total ${brl(sum.total)}).`, ...Maria.adultsNote(quote, d), have.length ? `Já tenho: ${have.join(', ')}.` : '', '', 'Encaminhe ao cliente as duas mensagens a seguir: o *pedido por escrito* (ele responde com os dados, sem precisar tocar em link) e o *link da ficha* sozinho (para quem preferir). Se ele mandar os dados escritos, é só me passar que eu monto o contrato.', '', `Quando a ficha for preenchida eu te aviso aqui. Aí é só pedir: "${this.name}, gere o contrato de ${d.nome}". _Não enviei nada ao cliente._`].filter((x) => x !== '').join('\n'),
+      more: fichaMensagens(form.url, { nome: d.nome, contrato: true }),
+      spoken: `${first}, faltam alguns dados do cliente para o contrato. Mandei por escrito o pedido e o link da ficha para você encaminhar ao cliente. Quando ele preencher, eu aviso.`,
     };
   }
 

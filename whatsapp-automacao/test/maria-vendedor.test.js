@@ -60,12 +60,13 @@ test('orçar: cadastra o cliente, faz o orçamento no nome do vendedor e devolve
   assert.equal(quickIntent('orce o pacote Ouro para 2 pessoas para a Ana Souza').acao, 'orcar');
   assert.equal(quickIntent('faça o orçamento do pacote ouro').acao, 'orcar');
   const r = await say('5545999990004', 'Maria, orce o pacote Ouro para 2 pessoas para a cliente Ana Souza, 45 98888-7777');
-  assert.equal(r.length, 1);
-  assert.equal(r[0].jid, 'l:linha-maria:5545999990004@s.whatsapp.net', 'só para o vendedor');
+  assert.equal(r.length, 3, 'resumo com PDF + pedido por escrito + link sozinho');
+  assert.ok(r.every((m) => m.jid === 'l:linha-maria:5545999990004@s.whatsapp.net'), 'só para o vendedor');
   assert.equal(r[0].media.mimetype, 'application/pdf');
   assert.match(r[0].text, /Orçamento ORC-2026-0001/);
   assert.match(r[0].text, /Pacote Ouro × 2 · total \*R\$ 25\.994,00\*/);
-  assert.match(r[0].text, /ficha\/f1/);
+  assert.match(r[1].text, /DADOS PARA O CONTRATO/);
+  assert.match(r[2].text, /ficha\/f1/);
   assert.match(r[0].text, /Quando ele preencher, eu te aviso/);
   assert.match(r[0].text, /Não enviei nada ao cliente/);
   assert.equal(leads.length, 1, 'cadastrou o cliente');

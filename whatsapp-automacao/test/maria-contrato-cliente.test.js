@@ -101,3 +101,13 @@ test('link de preenchimento para RESERVA: volta para quem pediu, não envia nada
   assert.match(r, /e-mail é opcional/);
   assert.equal(t.reservas.length, 1);
 });
+
+import { fichaPedido, fichaMensagens, FICHA_CAMPOS } from '../src/ficha-text.js';
+test('pedido por escrito: traz os campos (e-mail opcional, dependentes) e o link vai sozinho na segunda mensagem', () => {
+  for (const campo of ['Nome completo:', 'CPF:', 'RG:', 'Telefone:', 'Email (se quiser):', 'Endereço', 'Dependentes']) assert.ok(FICHA_CAMPOS.includes(campo), campo);
+  const [pedido, link] = fichaMensagens('https://x.test/ficha/1', { nome: 'Ana Souza' });
+  assert.match(pedido, /^Oi, Ana! Para gerar a sua reserva, preencha estes dados e me mande de volta por aqui, escrito mesmo/);
+  assert.match(pedido, /Se preferir ir mais rápido/);
+  assert.equal(link, 'https://x.test/ficha/1');
+  assert.match(fichaPedido({ contrato: true }), /^Oi! Para gerar o seu contrato/);
+});

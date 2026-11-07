@@ -34,7 +34,7 @@ export const FORM_FIELDS = [
   { k: 'cidade', label: 'Cidade', req: true },
   { k: 'uf', label: 'Estado (UF)', req: true },
   { k: 'adultos', label: 'Adultos no processo', req: true },
-  { k: 'acompanhantes', label: 'Quem mais vai no processo' },
+  { k: 'acompanhantes', label: 'Dependentes (nome, parentesco e idade)' },
   { k: 'objetivo', label: 'Objetivo' },
 ];
 
@@ -203,7 +203,7 @@ export class Closing {
       `Nome: ${d.nome}`, `CPF: ${d.cpf}`, `RG: ${d.rg}${d.rgOrgao ? ` (${d.rgOrgao})` : ''}`, `Nascimento: ${d.nascimento}`,
       `Nacionalidade: ${d.nacionalidade}`, `Estado civil: ${d.estadoCivil}`, d.profissao && `Profissão: ${d.profissao}`,
       d.email && `E-mail: ${d.email}`, `WhatsApp: ${d.whatsapp}`, `Endereço: ${this.address(d)}`,
-      `Adultos no processo: ${d.adultos}`, d.acompanhantes && `Acompanhantes: ${d.acompanhantes}`, d.objetivo && `Objetivo: ${d.objetivo}`,
+      `Adultos no processo: ${d.adultos}`, d.acompanhantes && `Dependentes: ${d.acompanhantes}`, d.objetivo && `Objetivo: ${d.objetivo}`,
     ].filter(Boolean).join('\n');
   }
 

@@ -71,3 +71,20 @@ test('Maria: "link de preenchimento do contrato" ou "para ele assinar online" en
   assert.equal(quickIntent('Maria, mande o link para o cliente 45 98888-7777 preencher e assinar online').o_que, 'contrato');
   assert.equal(quickIntent('Maria, envie a ficha para o cliente 45 98888-7777').o_que, 'ficha');
 });
+
+test('contrato: cláusula DOS DEPENDENTES lista quem são (ou diz que não há) e a numeração das cláusulas segue certa', () => {
+  const txt = (b) => b.toString('latin1');
+  const base = { nome: 'Ana Souza', cpf: '529.982.247-25' };
+  const com = contractPdf({ client: { ...base, acompanhantes: 'Pedro Souza (filho, 8 anos); Lia Souza (sobrinha, pessoa com deficiência)' }, quote });
+  assert.match(txt(com), /DOS DEPENDENTES/);
+  assert.match(txt(com), /Pedro Souza/);
+  assert.match(txt(com), /Lia Souza/);
+  assert.match(txt(com), /CL.USULA SEGUNDA . DOS DEPENDENTES/);
+  assert.match(txt(com), /CL.USULA TERCEIRA . DAS OBRIGA/);
+  assert.match(txt(com), /CL.USULA D.CIMA PRIMEIRA . DO FORO/);
+  const nenhum = contractPdf({ client: { ...base, acompanhantes: 'nenhum' }, quote });
+  assert.match(txt(nenhum), /n.o h. dependentes inclu.dos/);
+  assert.doesNotMatch(txt(nenhum), /integram o processo/);
+  const vazio = contractPdf({ client: base, quote });
+  assert.match(txt(vazio), /n.o h. dependentes inclu.dos/);
+});
