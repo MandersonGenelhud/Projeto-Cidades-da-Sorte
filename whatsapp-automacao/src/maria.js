@@ -157,7 +157,8 @@ export function quickIntent(text) {
   if (/\b(orce|orca|orcar|orcamento)\b/.test(n) && /\b(orce|orca|orcar|faca|faz|fazer|monte|monta|montar|gere|gera|gerar|crie|cria|criar|prepare|prepara|preparar|emita|emite)\b/.test(n)) return { acao: 'orcar' };
   const hasPhone = /(?:\+?\d{2}\s?)?\(?\d{2}\)?\s?9?\d{4}[-\s]?\d{4}\b/.test(n);
   if (/\b(envie|enviar|envia|mande|mandar|manda|encaminhe|encaminha)\b/.test(n) && /\b(ficha|formulario|link|contrato)\b/.test(n) && !/\b(me|mim)\b/.test(n) && (hasPhone || /\b(para|pra|pro|ao|a) (o |a )?(cliente|numero|whatsapp|ele|ela)\b/.test(n))) {
-    return { acao: 'enviar_cliente', o_que: /\bcontrato\b/.test(n) && !/\b(ficha|formulario)\b/.test(n) ? 'contrato' : 'ficha' };
+    // "link de preenchimento do contrato" ou "para ele assinar" = contrato (ele preenche e assina online); só "ficha" = só os dados.
+    return { acao: 'enviar_cliente', o_que: (/\bcontrato\b/.test(n) || /\bassin/.test(n)) && !/\b(ficha|formulario)\b/.test(n) ? 'contrato' : 'ficha' };
   }
   if (/\b(gere|gera|gerar|crie|cria|criar|faca|faz|fazer|monte|monta|prepare|prepara|emita|emite)\b[^.?!]*\b(contrato|ficha)\b/.test(n) || /\b(link|formulario) d[ae] (ficha|dados|cadastro)\b/.test(n) || /\bficha (de dados )?(pra|para|do|da|desse|dessa)\b/.test(n)) return { acao: 'gerar_contrato' };
   if (/\b(como (eu )?(fecho|vendo|convenco|contorno|abordo|retomo)|me ajud[ae] (a )?(fechar|vender|convencer)|(o que|que) (eu )?(falo|digo|respondo|mando)|contornar|objecao|argumentos?|dica de venda|estrategia de venda)\b/.test(n)) {
