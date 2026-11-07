@@ -2732,6 +2732,11 @@ app.get('/api/conversations-boards', (req, res) => {
   const convs = agent.listConversations().filter((c) => inOffice(req, conversationOffice(c)));
   res.json({ boards: conversationBoards({ conversations: convs.map((c) => ({ ...c, channelLabel: convLabel(c.key) })), users: auth.users, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) }) });
 });
+// Baixas de pagamento feitas pela Maria a partir do comprovante (só administrador): quem mandou, de quem era, e se foi baixa direta ou ficou para conferir.
+app.get('/api/maria-receipts', (req, res) => {
+  needAdmin(req);
+  res.json({ items: [...(store.data.mariaReceipts || [])].reverse().slice(0, 100).map(({ file, hash, ...r }) => ({ ...r, hasFile: Boolean(file) })) });
+});
 // Controle do rodízio e dos fechamentos: quantos clientes a central entregou a cada vendedor, por onde chegaram, quanto demoraram a atender,
 // quantos viraram proposta e contrato, e quem está com cliente parado (só administrador, só leitura).
 const convOfLead = (l) => (l.conversationKey ? agent.conversation(l.conversationKey, { create: false }) : null);
@@ -4667,7 +4672,7 @@ const ana = new Ana({
   log: (l) => store.addLog(l),
 });
 const maria = new Maria({
-  ana, portfolio, crm, store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
+  ana, portfolio, crm, receiptReader: { read: (b, m) => receipts.read(b, m), receiverOk: (r) => receipts.receiverOk(r), get maxAuto() { return receipts.maxAuto; } }, payments, saleDoc: (sale) => quotes.list.find((q) => q.id === sale.quoteId)?.contract?.client?.cpf || closing.list.find((f) => f.leadId && f.leadId === sale.leadId && f.status === 'preenchida')?.data?.cpf || '', store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
   lineIdByName: (name) => lines.list().find((l) => String(l.agentName || '').trim().toLowerCase() === String(name).trim().toLowerCase())?.id || '',
   isConnected: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected'),
   stt: nina.stt, tts: nina.tts,

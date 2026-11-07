@@ -19,6 +19,7 @@
   async function load() {
     const from = iso(new Date(Date.now() - (state.days - 1) * 86_400_000));
     const r = await api(`/api/distribution?from=${from}&to=${iso(new Date())}&days=${Math.min(state.days, 14)}`);
+    const baixas = await api('/api/maria-receipts').catch(() => ({ items: [] }));
     const f = r.funnel;
     const step = (label, n, extra = '') => `<div class="stat"><b>${n}</b><span>${esc(label)}</span>${extra}</div>`;
     const viaTxt = (s) => Object.entries(s.byVia).map(([k, n]) => `${n} ${esc((r.viaLabels[k] || k).toLowerCase())}`).join(' · ') || '—';
@@ -33,6 +34,11 @@
         <td><b>${s.contracts}</b>${s.contracts ? `<br><span class="meta">${esc(brl(s.contractsValue))}</span>` : ''}</td><td>${s.conversionPct != null ? `${s.conversionPct}%` : '—'}</td>
         <td>${s.fair ? `${s.fair.got} de ${s.fair.expected} esperados ${Math.abs(s.fair.deviationPct) >= 30 ? `<b>(${s.fair.deviationPct > 0 ? '+' : ''}${s.fair.deviationPct}%)</b>` : ''}` : '—'}</td>
         ${s.perDay.map((n) => `<td class="${n ? 'has' : ''}">${n || ''}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${10 + r.days.length}" class="muted">Sem entregas neste período.</td></tr>`}
+      </tbody></table></div>
+      <h3>Pagamentos baixados pela Maria (${baixas.items.length})</h3>
+      <p class="hint">Cada comprovante que o vendedor manda é lido pela Maria. "Baixa" = lançado como recebido; "conferir" = você confirma no extrato do banco; "sem parcela" = o valor não bateu com nenhuma parcela. O arquivo fica guardado.</p>
+      <div class="table-wrap"><table><thead><tr><th>Quando</th><th>Cliente</th><th>Parcela</th><th>Valor</th><th>Quem pagou</th><th>Enviado por</th><th>Situação</th></tr></thead><tbody>
+      ${baixas.items.map((b) => `<tr><td>${esc(new Date(b.at).toLocaleString('pt-BR'))}</td><td>${esc(b.cliente || '—')}</td><td>${esc(b.label || '')} ${esc(b.saleNumber || '')}</td><td>${esc(brl(b.amount))}</td><td>${esc(b.payer || '')}</td><td>${esc(b.byName || '')}</td><td>${b.status === 'baixa' ? '<span class="badge ok">baixa</span>' : b.status === 'conferir' ? `<span class="badge pending" title="${esc((b.problems || []).join('; '))}">conferir</span>` : '<span class="badge paused">sem parcela</span>'}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum comprovante lançado ainda.</td></tr>'}
       </tbody></table></div>
       <h3>Contratos fechados no período (${r.contracts.length})</h3>
       <div class="table-wrap"><table><thead><tr><th>Contrato</th><th>Cliente</th><th>Vendedor</th><th>Valor</th><th>Data</th></tr></thead><tbody>
