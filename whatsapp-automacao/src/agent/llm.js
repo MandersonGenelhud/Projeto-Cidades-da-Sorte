@@ -101,7 +101,7 @@ export class LLMClient {
     // (o último texto do histórico foi nosso). Entra um aviso curto no lugar do cliente, só nesse caso.
     const last = messages[messages.length - 1];
     if (last && last.role === 'assistant' && !last.tool_calls) {
-      messages = [...messages, { role: 'user', content: '[Aviso do sistema: o cliente ainda não respondeu. Escreva a próxima mensagem da atendente, continuando a conversa de onde parou e seguindo as instruções acima.]' }];
+      messages = [...messages, { role: 'user', content: '[Aviso do sistema: o cliente ainda não respondeu à última mensagem da atendente e está frio. Reaqueça a conversa: escreva UMA mensagem curta, calorosa e natural, começando com um cumprimento (oi/olá, com o nome se souber) e dizendo que está entrando em contato para dar continuidade ao atendimento. Em seguida retome de onde parou, usando só o que já foi dito na conversa, e termine com uma pergunta simples e fácil de responder. Não peça desculpas, não invente fatos nem valores e não repita a mensagem anterior.]' }];
     }
     if (provider === 'anthropic') {
       const claude = new ClaudeChat({ apiKey, model, client: this.claudeClient || null });

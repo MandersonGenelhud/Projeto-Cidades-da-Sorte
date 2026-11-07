@@ -154,7 +154,7 @@ test('conversa que termina com mensagem da atendente recebe um aviso no lugar do
   const llm = new LLMClient({ getConfig: () => ({ provider: 'gemini', apiKey: 'AIzaTeste', model: 'gemini-3.8-flash' }), fetchImpl });
   await llm.chat({ messages: [{ role: 'system', content: 's' }, { role: 'user', content: 'oi' }, { role: 'assistant', content: 'Olá, retomando seu atendimento' }] });
   assert.equal(enviado.at(-1).role, 'user');
-  assert.match(enviado.at(-1).content, /ainda não respondeu/);
+  assert.match(enviado.at(-1).content, /dar continuidade ao atendimento/);
   await llm.chat({ messages: [{ role: 'system', content: 's' }, { role: 'user', content: 'oi' }] });
   assert.equal(enviado.length, 2, 'conversa normal não muda');
 });
