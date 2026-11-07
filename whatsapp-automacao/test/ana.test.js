@@ -220,8 +220,9 @@ test('áudio: a Ana ouve, responde com a voz DELA (diferente da Maria) em voz e 
   state.transcript = 'Ana, me lembre de ligar para o contador amanhã às 14h';
   const r = await say(M, '', { hasAudio: true });
   assert.ok(r.some((m) => m.media?.ptt), 'mandou áudio');
-  assert.ok(r.some((m) => /Anotado, Marcos/.test(m.text || '')), 'e texto');
+  assert.equal(r.filter((m) => /Anotado, Marcos/.test(m.text || '')).length, 0, 'só áudio, sem o texto junto');
   assert.equal(spoke[0].voice, 'Aoede');
+  assert.ok((await say(M, 'sim, me manda o texto')).some((m) => /Anotado, Marcos/.test(m.text || '')), 'o texto vem quando a pessoa pede');
   state.transcript = 'Maria, como está o faturamento?';
   spoke.length = 0;
   await say(M, '', { hasAudio: true });

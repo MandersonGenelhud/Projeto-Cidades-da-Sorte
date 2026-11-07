@@ -232,3 +232,9 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 - O Gabriel saiu da área de corretores; quem atende imóveis, terrenos, corretores e parcerias imobiliárias é só o **Diego**. A atendente (prompts e conhecimento) e a Maria (resumo ao vivo e regras) não citam mais o Gabriel; os padrões novos (setor Loteamentos "só Diego", contato de vagas) também.
 - Instalações que já rodavam recebem a migração `corretorDiego2026` (uma vez): setor Loteamentos e contato de vagas passam para o Diego, a área "loteamentos" sai do cadastro do Gabriel, e o nome dele é trocado nos textos de conhecimento e aprendizados guardados. Não desativa o usuário do Gabriel nem mexe no rodízio (isso é no painel). Teste: `test/sectors.test.js`.
+
+## Maria: áudio só quando falam em áudio, texto sob pedido
+
+- Pergunta em **áudio** → resposta **só em áudio** (conversando, explicando um pouco mais e perguntando se a pessoa entendeu) que termina oferecendo o resumo por texto. Pergunta em **texto** → resposta em texto; nas conversas ela oferece explicar por áudio. Isso economiza as conversas: nunca mais áudio e texto juntos.
+- "Sim", "me manda o texto", "pode mandar em áudio" (por texto ou por áudio, com ou sem o nome dela) só **reapresentam a última resposta dela à mesma pessoa** (até 15 minutos): nada novo é consultado nem feito, então não é uma brecha da trava do nome. Um envio ao cliente esperando o "sim" tem prioridade sobre isso, e "não" cancela a oferta.
+- Resposta com arquivo ou link vai por escrito (áudio não carrega link). Sem o serviço de voz, ela avisa e manda por escrito. Vale também para a Ana. Testes: `test/maria-audio.test.js`.

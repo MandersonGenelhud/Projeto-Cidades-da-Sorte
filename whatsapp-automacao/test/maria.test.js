@@ -130,13 +130,14 @@ test('contrato: pede o nome quando falta, manda o PDF quando pedido e lembra do 
   assert.match(pdf[0].text, /sem assinatura/);
 });
 
-test('áudio: a Maria ouve, responde em voz E em texto; texto comum recebe só texto', async () => {
+test('áudio: a Maria ouve e responde SÓ em áudio (oferece o resumo por texto); texto comum recebe só texto', async () => {
   const { say } = setup({ voice: true });
   const a = await say('5545999990001', '', { hasAudio: true });
   assert.ok(a.some((m) => m.media?.ptt), 'mandou áudio');
-  assert.ok(a.some((m) => /Vendido:/.test(m.text || '')), 'e o texto também');
+  assert.equal(a.filter((m) => /Vendido:/.test(m.text || '')).length, 0, 'e nenhum texto junto');
   const t = await say('5545999990001', 'Maria, faturamento do mês');
   assert.equal(t.filter((m) => m.media).length, 0);
+  assert.ok(t.some((m) => /Vendido:/.test(m.text || '')));
 });
 
 test('sem o serviço de voz, o áudio recebe um aviso educado em texto', async () => {
@@ -183,7 +184,7 @@ test('trava do nome vale para áudio (depois de ouvir) e foto; o aviso a número
   assert.equal((await sem.say('5545999990001', '', { hasAudio: true })).length, 0, 'áudio sem o nome: silêncio');
   const com = setup({ voice: true });
   com.maria.stt.transcribe = async () => 'Atendente, como está o faturamento do mês?';
-  assert.ok((await com.say('5545999990001', '', { hasAudio: true })).some((m) => /Vendido:/.test(m.text || '')));
+  assert.ok((await com.say('5545999990001', '', { hasAudio: true })).some((m) => m.media?.ptt), 'com o nome, ela responde (em áudio)');
   assert.equal((await sem.say('5545999990001', 'olha isso', { hasImage: true })).length, 0, 'foto sem o nome: silêncio');
   assert.match((await sem.say('5545999990001', 'Maria, olha isso', { hasImage: true }))[0].text, /só entendo texto e áudio/);
   assert.match((await sem.say('5511900000000', 'oi'))[0].text, /exclusivo para o atendimento interno/, 'quem não é da equipe sempre recebe o aviso');
@@ -233,8 +234,9 @@ test('relatório em áudio: responde em voz com um resumo curto e manda o relat�
   maria.stt.transcribe = async () => 'Maria, me faz um relatório dos contratos de hoje';
   const r = await say('5545999990001', '', { hasAudio: true });
   assert.ok(r.some((m) => m.media?.ptt), 'voz');
-  const txt = r.find((m) => /Relatório de contratos/.test(m.text || ''));
-  assert.ok(txt && txt.text.length > 300, 'e o texto completo');
+  assert.equal(r.filter((m) => /Relatório de contratos/.test(m.text || '')).length, 0, 'sem o texto junto');
+  const txt = (await say('5545999990001', 'sim, me manda o texto')).find((m) => /Relatório de contratos/.test(m.text || ''));
+  assert.ok(txt && txt.text.length > 300, 'o relatório completo por escrito, quando a pessoa pede');
 });
 
 test('períodos: ontem, semana passada, últimos N dias, mês pelo nome, ano passado', () => {
