@@ -45,6 +45,8 @@ import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Audit } from './audit.js';
 import { byAttendant, attendantOf, conversationBoards } from './attendants.js';
+import { auditMessaging } from './messaging-audit.js';
+import { cleanProfile, profileFor } from './send-profiles.js';
 import { LegacyContracts, cashRowsFromCapture } from './legacy-import.js';
 import { buildBat, buildSiteBat } from './legacy-tool.js';
 import { Ingest, MIME as FILE_MIME } from './legacy-ingest.js';
@@ -2725,6 +2727,45 @@ app.get('/api/conversations-boards', (req, res) => {
   needAdmin(req);
   const convs = agent.listConversations().filter((c) => inOffice(req, conversationOffice(c)));
   res.json({ boards: conversationBoards({ conversations: convs.map((c) => ({ ...c, channelLabel: convLabel(c.key) })), users: auth.users, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) }) });
+});
+// Auditoria das conversas e mapa de mensagens por número e por cliente (só administrador, só leitura).
+app.get('/api/audit/messaging', (req, res) => {
+  needAdmin(req);
+  const days = Math.min(60, Math.max(1, Number(req.query.days) || 14));
+  const convs = Object.values(store.data.conversations || {}).filter((c) => inOffice(req, conversationOffice(c)));
+  const lineList = lines.list();
+  const report = auditMessaging({
+    conversations: convs, lines: lineList, settings: store.settings, days,
+    findLead: (c) => { const l = crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }); return l ? crm.view(l) : null; },
+    ownerName: (id) => auth.get(id)?.name || '',
+    senderLabel: (k) => pending.senderLabel(k),
+    isConnected: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected'),
+    blacklisted: (phone) => Boolean(phone) && store.isBlacklisted(phone),
+    llmOn: Boolean(agent.active),
+  });
+  const only = String(req.query.sender || '');
+  res.json(only ? { ...report, map: report.map.filter((m) => m.sender === only) } : report);
+});
+// Configuração de envio de cada número (principal, Instagram e o WhatsApp de cada vendedor): cada um com o seu limite, intervalo, horário e ritmo humano.
+const sendSenders = () => [
+  { key: 'principal', label: pending.senderLabel('principal') },
+  { key: 'instagram', label: pending.senderLabel('instagram') },
+  ...lines.list().map((l) => ({ key: `linha:${l.id}`, label: pending.senderLabel(`linha:${l.id}`) })),
+];
+app.get('/api/send-profiles', (req, res) => {
+  needAdmin(req);
+  res.json({ defaults: profileFor({ agent: store.settings.agent }, 'principal', { delay: pending.delay }), senders: sendSenders().map((x) => ({ ...x, own: store.settings.sendProfiles?.[x.key] || {}, effective: profileFor(store.settings, x.key, { delay: pending.delay }), sentToday: pending.status().bySender.find((b) => b.key === x.key)?.sentLastHour ?? 0 })) });
+});
+app.put('/api/send-profiles/:key', (req, res) => {
+  needAdmin(req);
+  const key = String(req.params.key);
+  if (!sendSenders().some((x) => x.key === key)) throw httpError(404, 'Número não encontrado');
+  const own = cleanProfile(req.body || {});
+  store.data.settings.sendProfiles = { ...(store.settings.sendProfiles || {}) };
+  if (Object.keys(own).length) store.data.settings.sendProfiles[key] = own; else delete store.data.settings.sendProfiles[key];
+  store.save();
+  securityEvent('envio_por_numero', req.user, req, `${pending.senderLabel(key)}: ${Object.keys(own).length ? JSON.stringify(own) : 'voltou ao padrão geral'}`);
+  res.json({ key, own, effective: profileFor(store.settings, key, { delay: pending.delay }) });
 });
 // Busca por palavra em todas as conversas (só administrador; respeita o escritório escolhido no alto da tela).
 app.get('/api/search/conversations', (req, res) => {

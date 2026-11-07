@@ -347,7 +347,7 @@ test('limite por NÚMERO: cada WhatsApp (principal e de cada vendedor) tem o seu
   add('595981000002@s.whatsapp.net', 'Principal 2');
   add('l:franciely:595981000003@s.whatsapp.net', 'Da Franciely');
   inbox.enqueue(Object.keys(inbox.items));
-  await waitFor(() => /limite de 1 respostas por hora em cada número/.test(inbox.status().waiting));
+  await waitFor(() => /limite de 1 respostas por hora atingido/.test(inbox.status().waiting));
   const to = wa.sent.map((s) => s.to).sort();
   assert.deepEqual(to, ['595981000001@s.whatsapp.net', 'l:franciely:595981000003@s.whatsapp.net'], 'o número principal e o da Franciely responderam um cada');
   assert.equal(inbox.status().senders, 1, 'só falta o principal (que já usou a vaga dele)');
@@ -356,4 +356,48 @@ test('limite por NÚMERO: cada WhatsApp (principal e de cada vendedor) tem o seu
   assert.equal(by.principal.waiting, 2, 'e quantos esperam em cada número (a pausada e a que falta)');
   inbox.cancel();
   await waitFor(() => !inbox.running);
+});
+
+test('cada número anda por conta própria: um número lento não atrasa o outro, e cada um segue o SEU perfil de envio', async () => {
+  const { store, wa } = setup();
+  store.updateSettings({ agent: { triagePending: false } });
+  const agent = new Agent({ store, llm: { configured: true, chat: async () => ({ content: 'Oi! Agradeço por aguardar.', tool_calls: [] }) }, calendar: null });
+  const autoReply = new AutoReply({ store, wa, agent });
+  const clock = new Date(2026, 9, 30, 10, 0);
+  const inbox = new PendingInbox({ store, agent, wa, autoReply, delay: [0, 0], careful: true, now: () => clock });
+  let releasePrincipal;
+  const principalBlocked = new Promise((r) => { releasePrincipal = r; });
+  wa.send = async (to, payload) => {
+    if (!to.startsWith('l:')) await principalBlocked; // o principal está "digitando" por muito tempo
+    wa.sent.push({ to, ...payload }); inbox.resolve(to); return { jid: to };
+  };
+  wa.isConnected = () => true;
+  // Padrão geral: 1 por hora. O número da Franciely tem perfil próprio: 5 por hora.
+  store.updateSettings({ agent: { pendingPerHour: 1, autoAnswerPending: false }, sendProfiles: { 'linha:franciely': { perHour: 5 } } });
+  const add = (jid, name) => { inbox.items[jid] = { jid, phone: jid.replace(/\D/g, '').slice(-12), name, texts: ['oi'], at: Date.now() - 3600_000, channel: 'whatsapp' }; };
+  add('595981000001@s.whatsapp.net', 'Principal 1');
+  for (let i = 1; i <= 3; i++) add(`l:franciely:59598100010${i}@s.whatsapp.net`, `Fran ${i}`);
+  inbox.enqueue(Object.keys(inbox.items));
+  await waitFor(() => wa.sent.filter((s) => s.to.startsWith('l:franciely')).length === 3);
+  assert.equal(wa.sent.filter((s) => !s.to.startsWith('l:')).length, 0, 'o principal ainda está ocupado e a Franciely já respondeu as 3 (limite dela é 5 por hora)');
+  assert.equal(inbox.profile('linha:franciely').perHour, 5);
+  assert.equal(inbox.profile('principal').perHour, 1, 'o principal segue o padrão geral');
+  releasePrincipal();
+  await waitFor(() => !inbox.running);
+  assert.equal(wa.sent.length, 4);
+});
+
+import { profileFor, cleanProfile } from '../src/send-profiles.js';
+test('perfil de envio por número: herda o padrão geral, valida os campos e aplica o ritmo humano do número', () => {
+  const settings = { agent: { pendingPerHour: 30, pendingHours: '7-21', humanize: { enabled: true, noticeMin: 5, noticeMax: 20 } }, sendProfiles: { principal: { perHour: 12, dailyLimit: 80, minGapSec: 20, maxGapSec: 50, from: 8, to: 20, typingCharsPerSecond: 4, noticeMin: 10, noticeMax: 30 } } };
+  const p = profileFor(settings, 'principal', { delay: [1, 2] });
+  assert.deepEqual([p.perHour, p.dailyLimit, p.from, p.to, p.gap], [12, 80, 8, 20, [20, 50]]);
+  assert.equal(p.humanize.typingCharsPerSecond, 4);
+  assert.equal(p.humanize.noticeMax, 30);
+  const g = profileFor(settings, 'linha:x', { delay: [1, 2] });
+  assert.deepEqual([g.perHour, g.from, g.to, g.gap, g.custom], [30, 7, 21, [1, 2], false], 'quem não tem perfil usa o padrão geral');
+  assert.deepEqual(cleanProfile({ perHour: '15', dailyLimit: '', minGapSec: '30', maxGapSec: '10' }), { perHour: 15, minGapSec: 30, maxGapSec: 30 });
+  assert.throws(() => cleanProfile({ from: 20, to: 8 }), /horário final/);
+  assert.throws(() => cleanProfile({ perHour: 'abc' }), /números/);
+  assert.equal(cleanProfile({ perHour: 9999 }).perHour, 200, 'limites máximos protegem o número');
 });

@@ -3,6 +3,7 @@ import { fixGreeting, professionalTone } from './greeting.js';
 import { parseJsonObject } from '../crm-ai.js';
 import { buildSystemPrompt, canSchedule } from './prompt.js';
 import { TOOL_DEFINITIONS, runTool } from './tools.js';
+import { senderOf, profileFor } from '../send-profiles.js';
 import { humanizeConfig, noticeDelayMs, readingTimeMs, splitIntoBubbles, typingTimeMs } from '../humanize.js';
 import { sleep } from '../utils.js';
 
@@ -526,7 +527,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
   async #drain(key, q, { phone, name, username }, send) {
     let last = null;
     while (q.pending.length) {
-      const h = humanizeConfig(this.config.humanize);
+      const h = humanizeConfig(profileFor(this.store.settings, senderOf(key)).humanize); // ritmo humano do número por onde a conversa chegou
       const human = h.enabled !== false;
       // Na fila de pendentes já existe intervalo entre clientes: não precisa "perceber".
       if (human && !q.delayed) await this.#waitLikeHuman(q, h);

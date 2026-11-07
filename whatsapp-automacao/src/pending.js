@@ -2,14 +2,9 @@
 // Vêm do histórico que o celular envia ao conectar e de mensagens que o agente
 // não respondeu (agente desligado ou em modo de teste).
 import { randomBetween } from './utils.js';
-import { parseLineKey } from './lines.js';
 
-/** De qual número sai a resposta: cada WhatsApp (principal, cada vendedor, Instagram) tem o seu próprio limite e ritmo. */
-export const senderOf = (jid) => {
-  const l = parseLineKey(String(jid || ''));
-  if (l) return `linha:${l.id}`;
-  return String(jid || '').startsWith('ig:') ? 'instagram' : 'principal';
-};
+import { senderOf, profileFor } from './send-profiles.js';
+export { senderOf };
 
 /**
  * A partir de mensagens normalizadas (de várias conversas), devolve as conversas
@@ -99,11 +94,44 @@ export class PendingInbox {
     this.sentAt = []; // horários das respostas da última hora (todos os números juntos, só para o painel)
     this.sentBy = {}; // número → horários das respostas da última hora (o limite vale por número)
     this.nextBy = {}; // número → quando pode mandar a próxima (intervalo entre uma e outra, por número)
-    this.waiting = ''; // por que a fila está esperando (aparece no painel)
+    this.waitingBy = {}; // número → por que ele está esperando (aparece no painel)
+    this.sentDay = {}; // número → { day, n }: respostas de hoje (limite diário por número)
     this.queue = [];
-    this.running = false;
-    this.wakeUp = null;
+    this.workers = new Map(); // número → true: cada número tem a sua própria fila andando, sem esperar pelos outros
+    this.wakeUps = new Map();
     store.data.pending ||= {};
+  }
+
+  get running() {
+    return this.workers.size > 0;
+  }
+
+  get waiting() {
+    return [...new Set(Object.values(this.waitingBy).filter(Boolean))].join(' · ');
+  }
+
+  /** Perfil de envio daquele número (o dele por cima do padrão geral). */
+  profile(sender) {
+    return profileFor(this.store.settings, sender, { delay: this.delay });
+  }
+
+  #today() {
+    const d = this.now();
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  }
+
+  #sentToday(sender) {
+    const e = this.sentDay[sender];
+    return e && e.day === this.#today() ? e.n : 0;
+  }
+
+  /** Liga a fila de cada número que tem cliente esperando e ainda não está andando. */
+  #startWorkers() {
+    for (const sender of new Set(this.queue.map(senderOf))) {
+      if (this.workers.has(sender)) continue;
+      this.workers.set(sender, true);
+      this.#run(sender).catch((err) => this.store.addLog({ type: 'error', message: `Fila de pendentes (${sender}): ${err.message}` }));
+    }
   }
 
   get items() {
@@ -242,7 +270,7 @@ export class PendingInbox {
     if (!allowed.length && !blocked.length) return { queued: 0, blocked: 0, reasons };
     this.queue.push(...allowed);
     this.#changed();
-    if (!this.running) this.#run().catch((err) => this.store.addLog({ type: 'error', message: `Fila de pendentes: ${err.message}` }));
+    this.#startWorkers();
     return { queued: allowed.length, blocked: blocked.length, reasons };
   }
 
@@ -264,19 +292,19 @@ export class PendingInbox {
 
   /** Vigia: se há clientes na fila mas nada está rodando (a fila caiu por algum erro), religa. */
   ensureRunning() {
-    if (this.queue.length && !this.running) this.#run().catch((err) => this.store.addLog({ type: 'error', message: `Fila de pendentes: ${err.message}` }));
+    if (this.queue.length) this.#startWorkers();
   }
 
   cancel() {
     this.queue = [];
-    this.wakeUp?.();
+    for (const w of this.wakeUps.values()) w();
     this.#changed();
   }
 
-  #wait(ms) {
+  #wait(ms, sender = '*') {
     return new Promise((resolve) => {
       const t = setTimeout(resolve, ms);
-      this.wakeUp = () => { clearTimeout(t); resolve(); };
+      this.wakeUps.set(sender, () => { clearTimeout(t); resolve(); });
     });
   }
 
@@ -287,52 +315,46 @@ export class PendingInbox {
   }
 
   /**
-   * Espera o horário permitido e devolve o próximo cliente a responder.
-   * O limite por hora e o intervalo entre respostas valem POR NÚMERO: enquanto um WhatsApp espera a vez dele,
-   * os clientes dos outros números seguem sendo atendidos.
+   * Espera a vez DESTE número e devolve o próximo cliente dele. Cada número tem o seu horário, o seu limite por hora e por dia
+   * e o seu intervalo (perfil de envio); a espera de um número nunca atrasa os outros.
    */
-  async #gate() {
-    if (!this.careful) return this.queue[0];
+  async #gate(sender) {
+    const mine = () => this.queue.filter((j) => senderOf(j) === sender);
+    if (!this.careful) return mine()[0] || null;
     for (;;) {
-      if (!this.queue.length) return null;
-      const { perHour, from, to } = this.#limits();
+      if (!mine().length) return null;
+      const prof = this.profile(sender);
       const now = this.now();
       const ms = now.getTime();
       const h = now.getHours();
       let waitMs = 60_000;
-      if (h < from || h >= to) {
-        this.waiting = `fora do horário (responde das ${from}h às ${to}h)`;
+      if (h < prof.from || h >= prof.to) {
+        this.waitingBy[sender] = `fora do horário (responde das ${prof.from}h às ${prof.to}h)`;
+      } else if (prof.dailyLimit && this.#sentToday(sender) >= prof.dailyLimit) {
+        this.waitingBy[sender] = `limite de ${prof.dailyLimit} respostas por dia atingido; continua amanhã`;
+        waitMs = 5 * 60_000;
       } else {
         this.sentAt = this.sentAt.filter((t) => ms - t < 3_600_000);
-        for (const k of Object.keys(this.sentBy)) this.sentBy[k] = this.sentBy[k].filter((t) => ms - t < 3_600_000);
-        const pick = this.queue.find((jid) => {
-          const k = senderOf(jid);
-          return (this.sentBy[k] || []).length < perHour && (this.nextBy[k] || 0) <= ms;
-        });
-        if (pick) { this.waiting = ''; return pick; }
-        // Ninguém pode mandar agora: espera o número que libera primeiro (no máximo 1 minuto).
-        const soonest = Math.min(...[...new Set(this.queue.map(senderOf))].map((k) => {
-          const hour = (this.sentBy[k] || []).length >= perHour ? (this.sentBy[k][0] + 3_600_000) : 0;
-          return Math.max(hour, this.nextBy[k] || 0);
-        }));
-        waitMs = Math.min(60_000, Math.max(1000, soonest - ms));
-        const full = [...new Set(this.queue.map(senderOf))].every((k) => (this.sentBy[k] || []).length >= perHour);
-        this.waiting = full ? `limite de ${perHour} respostas por hora em cada número atingido; continua sozinho em alguns minutos` : 'intervalo entre uma resposta e outra (para proteger os números)';
+        this.sentBy[sender] = (this.sentBy[sender] || []).filter((t) => ms - t < 3_600_000);
+        const hourFull = this.sentBy[sender].length >= prof.perHour;
+        if (!hourFull && (this.nextBy[sender] || 0) <= ms) { delete this.waitingBy[sender]; return mine()[0]; }
+        const free = hourFull ? this.sentBy[sender][0] + 3_600_000 : this.nextBy[sender];
+        waitMs = Math.min(60_000, Math.max(1000, free - ms));
+        this.waitingBy[sender] = hourFull ? `limite de ${prof.perHour} respostas por hora atingido; continua sozinho em alguns minutos` : 'intervalo entre uma resposta e outra (para proteger o número)';
       }
       this.#changed();
-      await this.#wait(waitMs);
+      await this.#wait(waitMs, sender);
     }
   }
 
-  async #run() {
-    this.running = true;
+  async #run(sender) {
     this.#changed();
     try {
       let fails = 0;
-      while (this.queue.length) {
-        let failedJid = this.queue[0];
+      while (this.queue.some((j) => senderOf(j) === sender)) {
+        let failedJid = this.queue.find((j) => senderOf(j) === sender);
         try {
-        const chosen = await this.#gate();
+        const chosen = await this.#gate(sender);
         if (!this.queue.length || !chosen) break;
         failedJid = chosen;
         // Conversa nova (sem nada antes) também passa pela análise: cria a memória dela aqui.
@@ -343,7 +365,6 @@ export class PendingInbox {
           c.name ||= it.name;
         }
         const jid = chosen;
-        const sender = senderOf(jid);
         const p = this.items[jid];
         const startedAt = this.now().getTime(); // mesmo relógio do limite por hora (e dos testes)
         let answered = false;
@@ -413,11 +434,14 @@ export class PendingInbox {
           const at = this.now().getTime();
           this.sentAt.push(at);
           (this.sentBy[sender] ||= []).push(at);
-          this.nextBy[sender] = this.now().getTime() + randomBetween(this.delay[0], this.delay[1]) * 1000;
+          this.nextBy[sender] = this.now().getTime() + randomBetween(...this.profile(sender).gap) * 1000;
+          const day = this.#today();
+          const e = this.sentDay[sender];
+          this.sentDay[sender] = e && e.day === day ? { day, n: e.n + 1 } : { day, n: 1 };
         }
         this.#changed();
-        if (this.queue.length && !this.careful) await this.#wait(randomBetween(this.delay[0], this.delay[1]) * 1000);
-        else if (this.queue.length) await this.#wait(Math.min(1500, this.delay[1] * 1000)); // pausa curta entre clientes de números diferentes (sem intervalo configurado, sem pausa)
+        const gap = this.profile(sender).gap;
+        if (this.queue.some((j) => senderOf(j) === sender) && !this.careful) await this.#wait(randomBetween(gap[0], gap[1]) * 1000, sender);
         fails = 0;
         } catch (err) {
           // Um cliente com problema não pode parar a fila inteira: registra o motivo, pula este e segue.
@@ -435,9 +459,9 @@ export class PendingInbox {
         }
       }
     } finally {
-      this.running = false;
-      this.waiting = '';
-      this.wakeUp = null;
+      this.workers.delete(sender);
+      delete this.waitingBy[sender];
+      this.wakeUps.delete(sender);
       this.#changed();
     }
   }

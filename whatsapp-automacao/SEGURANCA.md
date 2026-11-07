@@ -202,3 +202,10 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 ## Conversas: quadros por pessoa
 
 - `GET /api/conversations-boards` (só administrador, respeitando o escritório escolhido) devolve um quadro por pessoa da equipe, um da IA ainda sem direcionar e um por número da equipe sem dono, com quem espera resposta, há quanto tempo e quantas estão com humano. Vendedor continua vendo só as próprias conversas. Testes: `test/attendants.test.js`.
+
+## Envio por número, fila paralela e auditoria das conversas
+
+- **Cada número anda sozinho.** A fila de clientes esperando resposta (`src/pending.js`) tinha UM só trabalhador para todos os números: enquanto o número principal "digitava" uma resposta, os WhatsApps dos vendedores esperavam. Agora cada número (principal, Instagram e cada vendedor) tem a sua própria fila, o seu limite por hora e por dia, o seu intervalo e o seu horário, e a espera de um não atrasa os outros. O ritmo humano (tempo "vendo", velocidade de digitação) também vem do perfil do número por onde a conversa chegou.
+- **Perfil de envio por número** (`src/send-profiles.js`, `/api/send-profiles`, só administrador): campos vazios herdam o padrão geral; os limites têm teto (200 por hora, 2000 por dia, intervalos até 10 e 30 min) para proteger o número, o horário final precisa ser depois do inicial e cada mudança fica no registro de segurança (`envio_por_numero`).
+- **Auditoria e mapa** (`src/messaging-audit.js`, `/api/audit/messaging`, só administrador e só leitura): para cada número, mensagens recebidas e enviadas, clientes sem resposta e o motivo (modo de teste, conversa pausada, IA desligada, bloqueio, sem conexão, passou de 24h no Instagram), e por cliente e por dia o que chegou e saiu, o responsável e se fechou. Testes: `test/pending.test.js`, `test/messaging-audit.test.js`, `test/envio-http.test.js`.
+- Limite que ainda NÃO é por número: a retomada de contatos (`reengage`) e as campanhas em massa usam o número principal e um limite diário único.
