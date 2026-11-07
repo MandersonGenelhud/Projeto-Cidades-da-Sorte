@@ -364,6 +364,12 @@ export class Store extends EventEmitter {
       this.flush();
     }
     // Nov/2026: a IA retoma conversas de até 30 dias (antes 15), para ninguém ficar para trás. Uma vez; depois vale o painel.
+    // O Google aposenta modelos Gemini antigos (2.x e 1.x): quem ficou salvo neles trava a IA inteira. Troca pelo atual em toda inicialização.
+    const agModel = this.data.settings.agent;
+    if (agModel && /^gemini-[12]\./.test(String(agModel.geminiModel || ''))) {
+      agModel.geminiModel = 'gemini-3.8-flash';
+      this.flush();
+    }
     const agDays = this.data.settings.agent;
     if (agDays && !agDays.pendingDays2026) {
       if (!(Number(agDays.pendingMaxDays) > 30)) agDays.pendingMaxDays = 30;

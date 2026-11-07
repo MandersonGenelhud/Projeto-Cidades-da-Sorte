@@ -51,7 +51,7 @@ export class ReceiptReader {
       const c = this.getConfig();
       if (c.provider !== 'gemini' || !c.apiKey) return { unsupported: true };
       const base = process.env.GEMINI_NATIVE_URL || 'https://generativelanguage.googleapis.com/v1beta';
-      const res = await this.fetchImpl(`${base}/models/${c.model || 'gemini-2.5-flash'}:generateContent`, {
+      const res = await this.fetchImpl(`${base}/models/${c.model || 'gemini-3.8-flash'}:generateContent`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': c.apiKey },
         body: JSON.stringify({ contents: [{ parts: [{ text: SYSTEM }, { inline_data: { mime_type: 'application/pdf', data: buffer.toString('base64') } }] }] }),

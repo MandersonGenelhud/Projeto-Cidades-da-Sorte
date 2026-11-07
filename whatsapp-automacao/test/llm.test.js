@@ -111,3 +111,35 @@ test('ChatGPT (OpenAI): sem temperatura e com max_completion_tokens', async () =
   assert.equal(body.max_completion_tokens, 4096);
   assert.ok(!('_anthropic' in body.messages[0]));
 });
+
+test('modelo aposentado pelo Google: usa o que o próprio erro indica e segue atendendo', async () => {
+  const tried = [];
+  const fetchImpl = async (url, opts) => {
+    const model = JSON.parse(opts.body).model;
+    tried.push(model);
+    if (model === 'gemini-2.5-flash') {
+      return { ok: false, status: 404, text: async () => JSON.stringify({ error: { message: 'This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-9.9-flash for the latest features.' } }), json: async () => ({ error: { message: 'This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-9.9-flash for the latest features.' } }) };
+    }
+    if (model === 'gemini-9.9-flash') {
+      const body = { choices: [{ message: { role: 'assistant', content: 'Olá!' } }] };
+      return { ok: true, status: 200, text: async () => JSON.stringify(body), json: async () => body };
+    }
+    return { ok: false, status: 404, text: async () => '{"error":{"message":"not found"}}', json: async () => ({ error: { message: 'not found' } }) };
+  };
+  const llm = new LLMClient({ getConfig: () => ({ provider: 'gemini', apiKey: 'AIzaTeste', model: 'gemini-2.5-flash' }), fetchImpl });
+  const r = await llm.chat({ messages: [{ role: 'user', content: 'oi' }] });
+  assert.equal(r.content, 'Olá!');
+  assert.equal(llm.suggestedModel, 'gemini-9.9-flash');
+  assert.equal(tried[0], 'gemini-2.5-flash');
+});
+
+test('modelo Gemini antigo salvo no painel é trocado pelo atual ao iniciar', async () => {
+  const { Store } = await import('../src/store.js');
+  const fs = await import('node:fs'); const os = await import('node:os'); const path = await import('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-model-'));
+  const a = new Store(dir);
+  a.updateSettings({ agent: { geminiModel: 'gemini-2.5-flash' } });
+  a.flush();
+  const b = new Store(dir);
+  assert.equal(b.settings.agent.geminiModel, 'gemini-3.8-flash');
+});

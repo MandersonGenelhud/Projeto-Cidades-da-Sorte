@@ -117,7 +117,7 @@ export class GeminiStt {
       { inline_data: { mime_type: mimetype.split(';')[0], data: Buffer.from(buffer).toString('base64') } },
     ] }] });
     let lastErr;
-    for (const m of [...new Set([model, 'gemini-2.5-flash'].filter(Boolean))]) {
+    for (const m of [...new Set([model, 'gemini-3.8-flash'].filter(Boolean))]) {
       const res = await withTimeout(this.fetchImpl, `${base}/models/${m}:generateContent`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey }, body }, this.timeoutMs).catch((e) => { lastErr = e; return null; });
       if (!res) continue;
       const data = await res.json().catch(() => ({}));

@@ -13,7 +13,7 @@ export const PROVIDERS = {
     // e evita que o raciocínio gaste todo o limite e a resposta venha vazia.
     extraBody: { reasoning_effort: 'low' },
     // Se o modelo escolhido falhar (fora do ar, sem cota grátis, nome errado), tenta estes.
-    fallbackModels: ['gemini-3.5-flash-lite', 'gemini-2.5-flash'],
+    fallbackModels: ['gemini-3.8-flash', 'gemini-3.5-flash-lite'],
   },
   openai: {
     label: 'OpenAI (ChatGPT)',
@@ -104,7 +104,8 @@ export class LLMClient {
     // Modelo escolhido e, se ele falhar por motivo que não seja a chave, os reservas.
     const models = [model, ...(p.fallbackModels || []).filter((m) => m !== model)];
     let lastErr;
-    for (const m of models) {
+    for (let i = 0; i < models.length; i++) {
+      const m = models[i];
       try {
         const reply = await this.#call(p, provider, apiKey, m, { messages, tools });
         if (m !== model) reply.fallbackModel = m;
@@ -112,6 +113,9 @@ export class LLMClient {
       } catch (err) {
         lastErr = err;
         if (err.auth) break; // chave errada: trocar de modelo não resolve
+        // Modelo aposentado: o próprio Google diz qual usar ("use models/gemini-X"); entra na vez e fica lembrado.
+        const hint = /no longer available[\s\S]*?models\/([\w.\-]+)/i.exec(String(err.message || ''))?.[1];
+        if (hint && hint !== m && !models.includes(hint)) { models.splice(i + 1, 0, hint); this.suggestedModel = hint; }
       }
     }
     throw lastErr;

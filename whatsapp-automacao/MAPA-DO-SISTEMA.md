@@ -33,7 +33,7 @@
 | `agent/calendar.js` | 231 | Agenda usada pelo agente: agenda interna (padrão) ou Cal.com. | `agent/prompt.js`, `crm-ai.js`, `crm.js`, `server.js`, `videocalls.js` | 4 |
 | `agent/claude.js` | 97 | Claude (Anthropic) como cérebro da atendente, pelo SDK oficial. | `agent/llm.js` | 1 |
 | `agent/greeting.js` | 43 | Saudação certa pelo horário (regra da Migra): | `agent/agent.js`, `agent/prompt.js`, `server.js` | 1 |
-| `agent/llm.js` | 171 | Cliente de IA no formato da API da OpenAI (chat completions + ferramentas). | `server.js` | 4 |
+| `agent/llm.js` | 175 | Cliente de IA no formato da API da OpenAI (chat completions + ferramentas). | `server.js` | 4 |
 | `agent/presets.js` | 421 | Perfis prontos de negócio. "Carregar perfil" no painel copia estes dados | `server.js`, `store.js` | 11 |
 | `agent/prompt.js` | 135 | Monta o prompt de sistema a partir da base do negócio (passo 5 do vídeo). | `agent/agent.js`, `server.js` | 7 |
 | `agent/tools.js` | 577 | Ferramentas que o agente pode usar (passo 6 do vídeo: "o agente age"). | `agent/agent.js` | 4 |
@@ -130,7 +130,7 @@
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `site-content.js` | 90 | Conteúdo editável da página inicial do site (título, números confirmados, vídeos de depoimento e perguntas), | `server.js` | 1 |
 | `site-host.js` | 43 | Domínio próprio do site público da Migra (ex.: www.migraparaguay.com): no domínio do site só aparecem | `server.js` | 3 |
-| `store.js` | 504 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 9 |
+| `store.js` | 510 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 10 |
 | `support.js` | 135 | Suporte interno: qualquer pessoa da equipe abre um chamado (problema no sistema, dúvida, pedido), | `server.js` | 1 |
 | `tasks.js` | 65 | Tarefas da equipe: o que cada pessoa precisa fazer, com prazo e lembrete no WhatsApp (uma vez, no dia do prazo ou quando atrasar). | `server.js` | 1 |
 | `transports/cloudapi.js` | 208 | WhatsApp Cloud API (API oficial da Meta): envio via Graph API e recebimento via webhook. | `server.js` | 1 |
