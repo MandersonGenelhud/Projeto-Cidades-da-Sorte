@@ -1243,6 +1243,7 @@ const lineCard = (l, people) => `
         <span class="switch" aria-hidden="true"><i></i></span>
         <span><b>${l.agent !== false ? 'IA ligada' : 'IA desligada'}</b><small>${l.agent !== false ? 'A atendente responde os clientes deste WhatsApp' : 'Só o vendedor responde neste WhatsApp'}</small></span>
       </button>
+      <label class="agent-name">Memória deste agente (orientações próprias deste número: área, jeito de falar, o que priorizar)<textarea data-field="memory" rows="3" maxlength="3000" placeholder="Ex.: Aqui atendemos migração e residência. Priorize quem quer começar o processo logo. Fale de forma direta e simpática.">${esc(l.memory || '')}</textarea></label>
       <label class="agent-name">Nome da atendente de IA deste WhatsApp <input data-field="agentName" maxlength="30" placeholder="ex.: Sofia (vazio = nome geral)" value="${esc(l.agentName || '')}" /></label>
       ${numberCheck(l)}
       ${isAdmin() && !l.ownerId ? `<div class="row">
@@ -1298,7 +1299,7 @@ async function addLine(ownerId = null) {
 $('#btnAddLine').addEventListener('click', () => addLine());
 document.addEventListener('change', async (e) => {
   const card = e.target.closest('[data-lines-grid] [data-line]');
-  if (!card || !['label', 'ownerId', 'agentName'].includes(e.target.dataset.field)) return;
+  if (!card || !['label', 'ownerId', 'agentName', 'memory'].includes(e.target.dataset.field)) return;
   try {
     await api(`/api/lines/${card.dataset.line}`, { method: 'PATCH', body: { [e.target.dataset.field]: e.target.value } });
     toast('Salvo');

@@ -499,18 +499,19 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
    * Mensagens que chegam em sequência são respondidas juntas.
    * `send(text, { typingMs })` envia ao cliente; `hooks.markRead(ids)` marca como lida.
    */
-  handleIncoming({ key, phone, name, username, text, id = null, delayed = false }, send, hooks = {}) {
+  handleIncoming({ key, phone, name, username, text, id = null, delayed = false, resume = '' }, send, hooks = {}) {
     let q = this.queues.get(key);
     if (!q) {
       q = { pending: [], ids: [], running: false, delayed: false, lastAt: 0, hooks: {} };
       this.queues.set(key, q);
     }
-    q.pending.push(text);
+    if (text) q.pending.push(text);
+    if (resume) q.resume = resume; // retomada: o cliente parou de responder e a IA recomeça a conversa (nenhuma mensagem nova dele)
     if (id) q.ids.push(id);
     q.lastAt = Date.now();
     q.hooks = hooks;
     if (delayed) q.delayed = true;
-    if (!q.running) {
+    if (!q.running && (q.pending.length || q.resume)) {
       q.running = true;
       return this.#drain(key, q, { phone, name, username }, send).finally(() => {
         q.running = false;
@@ -530,7 +531,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
 
   async #drain(key, q, { phone, name, username }, send) {
     let last = null;
-    while (q.pending.length) {
+    while (q.pending.length || q.resume) {
       const h = humanizeConfig(profileFor(this.store.settings, senderOf(key)).humanize); // ritmo humano do número por onde a conversa chegou
       const human = h.enabled !== false;
       // Na fila de pendentes já existe intervalo entre clientes: não precisa "perceber".
@@ -542,7 +543,9 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       conv.phone = phone || conv.phone;
       if (name) conv.name = name;
       if (username) conv.username = username;
-      this.remember(conv, 'user', texts.join('\n'));
+      if (texts.length) this.remember(conv, 'user', texts.join('\n'));
+      const resumeNote = q.resume || '';
+      q.resume = '';
       // A pausa de "respondi pelo celular" termina sozinha se o dono ficou calado por horas e o cliente voltou a escrever.
       if (conv.handoff && conv.handoffReason === OWNER_PAUSE) {
         const hours = Number(this.config.resumeAfterOwnerHours ?? 6);
@@ -564,7 +567,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       q.delayed = false;
       const thinkStart = Date.now();
       try {
-        result = await this.think(conv, { delayed });
+        result = await this.think(conv, { delayed, extraSystem: resumeNote });
       } catch (err) {
         // Nunca manda mensagem de erro para o cliente: ele continua em
         // "Clientes esperando resposta" e o painel mostra o motivo.
@@ -601,7 +604,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
    * (cliente esperando) ou se é conversa do Marcos (pessoal, negociação dele em andamento, outro assunto).
    * Devolve { tipo, responder, motivo, continuidade }.
    */
-  async triageBacklog(conv, texts = []) {
+  async triageBacklog(conv, texts = [], { restart = false } = {}) {
     const lines = conv.messages.slice(-20).map((m) => `${m.role === 'user' ? 'CONTATO' : 'MARCOS/EQUIPE'}: ${String(m.content || '').replace(/\s+/g, ' ').slice(0, 400)}`);
     const waiting = texts.map((t) => `CONTATO (sem resposta): ${String(t).replace(/\s+/g, ' ').slice(0, 400)}`);
     const business = this.store.settings.business?.name || 'a empresa';
@@ -613,7 +616,7 @@ responder = false quando:
 - é fornecedor, parceiro, funcionário, cobrança, outro negócio ou assunto que não é cliente da empresa;
 - não dá para entender o contexto e a entrada da atendente seria estranha.
 responder = true quando é cliente (ou interessado nos serviços) esperando resposta, sem negociação pessoal do Marcos em andamento.
-Na dúvida, responder = false.
+${restart ? 'MODO RECOMEÇAR (ordem da direção; vale acima das regras anteriores): o Marcos quer que TODA conversa dos últimos 30 dias que trate de qualquer serviço ou produto da empresa (residência e cédula paraguaia, RUC e empresa, imóveis e terrenos, veículos, Migra School, câmbio e outros do grupo) seja retomada, mesmo que ele já tenha falado pessoalmente com a pessoa. Use responder = true sempre que o contato for cliente ou interessado em comprar ou saber de algum serviço do grupo. Use responder = false SÓ para conversa claramente pessoal (família, amigos, igreja), fornecedor, funcionário ou assunto sem relação com os serviços da empresa.' : 'Na dúvida, responder = false.'}
 Responda só com JSON: {"tipo":"cliente_novo|cliente_em_atendimento|negociacao_do_marcos|pessoal|outro_assunto","responder":true,"motivo":"uma frase","continuidade":"em até 3 frases: em que ponto a conversa parou, o que já foi dito ou combinado e qual o próximo passo natural"}`;
     const user = `Contato: ${conv.name || conv.phone || 'sem nome'}\n\n${[...lines, ...waiting].join('\n') || '(sem mensagens anteriores)'}`;
     const reply = await this.llm.chat({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], tools: [] });

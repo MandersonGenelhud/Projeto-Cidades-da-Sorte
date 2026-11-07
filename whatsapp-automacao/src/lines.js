@@ -97,6 +97,8 @@ export class LineManager extends EventEmitter {
     if (patch.agent !== undefined) next.agent = Boolean(patch.agent);
     if (patch.office !== undefined) next.office = patch.office === 'pr' ? 'pr' : 'py';
     if (patch.agentName !== undefined) next.agentName = cleanAgentName(patch.agentName);
+    // Memória do agente deste número: orientações próprias de quem atende (área, jeito de falar, o que priorizar). Só texto, até 3000 letras.
+    if (patch.memory !== undefined) next.memory = String(patch.memory ?? '').replace(/\r/g, '').trim().slice(0, 3000);
     // Número que conectou e se ele confere com o cadastro do vendedor (true, false ou null = sem cadastro).
     if (patch.phone !== undefined) next.phone = patch.phone || '';
     if (patch.verified !== undefined) next.verified = patch.verified;

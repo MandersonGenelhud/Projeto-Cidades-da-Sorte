@@ -6,9 +6,23 @@ import { LINE_PREFIX } from './lines.js';
 
 const FORWARDED = ['checkNumber', 'getGroups', 'getGroupParticipants', 'resolveJid'];
 
+/** De qual CONTA (número) sai a mensagem: cada número da equipe, o principal e o Instagram são contas separadas. */
+export const accountOf = (to) => {
+  const s = String(to || '');
+  if (s.startsWith(LINE_PREFIX)) return `linha:${s.split(':')[1]}`;
+  return s.startsWith(IG_PREFIX) ? 'instagram' : 'principal';
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 export class ConnectionManager extends EventEmitter {
-  constructor({ store, clients, instagram = null, lines = null }) {
+  constructor({ store, clients, instagram = null, lines = null, quietMs = 6000, maxQuietWaitMs = 20_000 }) {
     super();
+    // Uma mensagem de cada vez em cada conta: duas respostas automáticas nunca saem juntas pelo mesmo número (contas diferentes seguem em paralelo).
+    this.sendChain = new Map(); // conta → fim da última mensagem na fila
+    this.humanAt = new Map(); // conta → quando a pessoa da equipe digitou pelo celular pela última vez
+    this.quietMs = quietMs;
+    this.maxQuietWaitMs = maxQuietWaitMs;
+    this.on('ownerMessage', (msg) => this.humanAt.set(accountOf(msg?.jid), Date.now()));
     this.store = store;
     this.lines = lines; // LineManager: números da equipe (chaves "l:…")
     if (lines) {
@@ -74,7 +88,24 @@ export class ConnectionManager extends EventEmitter {
     return this.current?.revoke?.(to, id);
   }
 
-  async send(to, payload) {
+  /**
+   * Envia pelo canal da conversa. Cada conta (número) tem a sua fila: só uma mensagem sai por vez, e se a pessoa da equipe acabou de
+   * digitar pelo celular naquele número, a resposta automática espera alguns segundos para não atravessar o atendimento manual.
+   */
+  send(to, payload) {
+    const account = accountOf(to);
+    const prev = this.sendChain.get(account) || Promise.resolve();
+    const run = async () => {
+      const wait = Math.min(this.maxQuietWaitMs, Math.max(0, (this.humanAt.get(account) || 0) + this.quietMs - Date.now()));
+      if (wait > 0 && payload?.auto !== false) await sleep(wait);
+      return this.#sendNow(to, payload);
+    };
+    const next = prev.catch(() => {}).then(run);
+    this.sendChain.set(account, next.catch(() => {}));
+    return next;
+  }
+
+  async #sendNow(to, payload) {
     if (String(to).startsWith(LINE_PREFIX)) {
       if (!this.lines) throw new Error('Números da equipe não configurados');
       const result = await this.lines.send(to, payload);

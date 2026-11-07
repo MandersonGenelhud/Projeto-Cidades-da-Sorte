@@ -253,7 +253,7 @@ test('o nome do Gabriel não aparece em nenhum texto que a atendente ou a Maria 
   const bad = [];
   const walk = (dir) => { for (const f of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, f.name); if (f.isDirectory()) walk(p); else if (/\.(js|html)$/.test(f.name)) { const t = fs.readFileSync(p, 'utf8'); if (/gabriel/i.test(t)) bad.push(path.relative(root, p)); } } };
   walk(path.join(root, 'src')); walk(path.join(root, 'public'));
-  assert.deepEqual(bad.sort(), ['src/agent/presets.js', 'src/store.js'], 'só a migração (store) e os blocos antigos de comparação (presets) citam o nome');
+  assert.deepEqual(bad.sort(), ['src/agent/presets.js', 'src/maintenance.js', 'src/store.js'], 'só as migrações (store e maintenance) e os blocos antigos de comparação (presets) citam o nome');
   const presets = await import('../src/agent/presets.js');
   for (const k of ['GROUP_KNOWLEDGE', 'MIGRATECH_KNOWLEDGE', 'SCHOOL_KNOWLEDGE', 'CRISIS_KNOWLEDGE']) assert.doesNotMatch(presets[k], /Gabriel/, k);
   const migra = presets.PRESETS['migra-paraguai'];

@@ -111,7 +111,7 @@ const DEFAULT_DATA = {
       // Ritmo humano: espera para "ver", ler e digitar; divide a resposta em mensagens curtas.
       humanize: { enabled: true, noticeMin: 5, noticeMax: 20 },
       // Conversas sem resposta: considera mensagens dos últimos N dias e responde sozinho.
-      pendingMaxDays: 15, // a IA responde sozinha quem esperou até 15 dias
+      pendingMaxDays: 30, // a IA responde sozinha quem esperou até 30 dias
       pendingPerHour: 30, // modo cuidadoso: no máximo 30 respostas por hora para quem ficou esperando
       pendingHours: '7-23', // e só das 7h às 23h (igual ao horário de trabalho da IA)
       // Horário de trabalho da atendente de IA: todos os dias, das 7h às 23h. Fora dele ela não responde; a mensagem espera e é respondida quando abre.
@@ -359,6 +359,13 @@ export class Store extends EventEmitter {
       bizS.knowledge = cur.trim();
       this.data.settings.agent ||= {};
       this.data.settings.agent.schoolMemory2026 = true;
+      this.flush();
+    }
+    // Nov/2026: a IA retoma conversas de até 30 dias (antes 15), para ninguém ficar para trás. Uma vez; depois vale o painel.
+    const agDays = this.data.settings.agent;
+    if (agDays && !agDays.pendingDays2026) {
+      if (!(Number(agDays.pendingMaxDays) > 30)) agDays.pendingMaxDays = 30;
+      agDays.pendingDays2026 = true;
       this.flush();
     }
     // Nov/2026: a atendente de IA trabalha todos os dias, das 7h às 23h (a fila de quem esperou segue o mesmo horário). Uma vez; depois vale o painel.

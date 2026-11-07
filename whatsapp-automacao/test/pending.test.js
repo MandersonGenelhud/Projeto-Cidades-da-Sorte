@@ -107,18 +107,18 @@ test('limite gratuito da IA: a fila pausa e ninguém recebe desculpa genérica',
   assert.ok(store.data.logs.some((l) => /fila de clientes esperando foi pausada/.test(l.message)));
 });
 
-test('responde sozinho quem ficou esperando, até 15 dias (padrão), sem atropelar quem acabou de escrever', async () => {
+test('responde sozinho quem ficou esperando, até 30 dias (padrão), sem atropelar quem acabou de escrever', async () => {
   const { store, wa, inbox } = setup();
   const now = Date.now();
   inbox.items['a@s.whatsapp.net'] = { jid: 'a@s.whatsapp.net', phone: '595981111111', name: 'A', texts: ['oi'], at: now - 10 * 60000, channel: 'whatsapp' };
   inbox.items['b@s.whatsapp.net'] = { jid: 'b@s.whatsapp.net', phone: '595982222222', name: 'B', texts: ['oi'], at: now - 30000, channel: 'whatsapp' }; // acabou de escrever
-  inbox.items['c@s.whatsapp.net'] = { jid: 'c@s.whatsapp.net', phone: '595983333333', name: 'C', texts: ['oi'], at: now - 16 * 86_400_000, channel: 'whatsapp' }; // mais de 15 dias
-  inbox.items['d@s.whatsapp.net'] = { jid: 'd@s.whatsapp.net', phone: '595984444444', name: 'D', texts: ['oi'], at: now - 12 * 86_400_000, channel: 'whatsapp' }; // 12 dias: entra
+  inbox.items['c@s.whatsapp.net'] = { jid: 'c@s.whatsapp.net', phone: '595983333333', name: 'C', texts: ['oi'], at: now - 31 * 86_400_000, channel: 'whatsapp' }; // mais de 30 dias
+  inbox.items['d@s.whatsapp.net'] = { jid: 'd@s.whatsapp.net', phone: '595984444444', name: 'D', texts: ['oi'], at: now - 20 * 86_400_000, channel: 'whatsapp' }; // 20 dias: agora entra (antes o limite era 15)
   store.updateSettings({ agent: { autoAnswerPending: false } });
   assert.deepEqual(inbox.autoAnswer(), { queued: 0, blocked: 0 });
   store.updateSettings({ agent: { autoAnswerPending: true } });
   const r = inbox.autoAnswer();
-  assert.equal(store.settings.agent.pendingMaxDays, 15);
+  assert.equal(store.settings.agent.pendingMaxDays, 30);
   assert.equal(r.queued, 2);
   await waitFor(() => !inbox.running && wa.sent.length === 2);
   assert.deepEqual(wa.sent.map((m) => m.to).sort(), ['a@s.whatsapp.net', 'd@s.whatsapp.net']);
@@ -400,4 +400,34 @@ test('perfil de envio por número: herda o padrão geral, valida os campos e apl
   assert.throws(() => cleanProfile({ from: 20, to: 8 }), /horário final/);
   assert.throws(() => cleanProfile({ perHour: 'abc' }), /números/);
   assert.equal(cleanProfile({ perHour: 9999 }).perHour, 200, 'limites máximos protegem o número');
+});
+
+test('fila: conversa "retomar" (cliente parou) manda a mensagem de retomada pelo número dela, sem inventar fala do cliente, e a de recomeçar usa a triagem de venda', async () => {
+  const { store, wa } = setup();
+  store.updateSettings({ agent: { triagePending: true, autoAnswerPending: false } });
+  const prompts = [];
+  const llm = { configured: true, chat: async ({ messages }) => {
+    prompts.push(messages[0].content);
+    if (/Você analisa conversas antigas/.test(messages[0].content)) return { content: '{"tipo":"cliente_em_atendimento","responder":true,"motivo":"quer residência","continuidade":"parou no orçamento"}', tool_calls: [] };
+    return { content: 'Oi, Ana! Passando para saber se ainda quer seguir com a residência.', tool_calls: [] };
+  } };
+  const agent = new Agent({ store, llm, calendar: null });
+  const autoReply = new AutoReply({ store, wa, agent });
+  const inbox = new PendingInbox({ store, agent, wa, autoReply, delay: [0, 0], careful: false });
+  wa.send = async (to, payload) => { wa.sent.push({ to, ...payload }); inbox.resolve(to); return { jid: to }; };
+  wa.isConnected = () => true;
+  const jid = 'l:fran:595981000001@s.whatsapp.net';
+  const c = agent.conversation(jid);
+  agent.remember(c, 'user', 'Quero a residência no Paraguai');
+  agent.remember(c, 'assistant', 'Perfeito! Você pretende morar lá?');
+  inbox.items[jid] = { jid, phone: '595981000001', name: 'Ana', texts: [], at: Date.now() - 5 * 86_400_000, channel: 'whatsapp', kind: 'retomar', restart: true, silentDays: 5 };
+  inbox.enqueue([jid]);
+  await waitFor(() => !inbox.running);
+  assert.equal(wa.sent.length >= 1, true);
+  assert.match(wa.sent[0].text, /Passando para saber/);
+  assert.equal(wa.sent[0].to, jid, 'sai pelo mesmo número da conversa');
+  assert.equal(c.messages.filter((m) => m.role === 'user').length, 1, 'nenhuma fala inventada do cliente');
+  assert.ok(prompts.some((p) => /MODO RECOMEÇAR/.test(p)), 'a triagem usou a regra de venda');
+  assert.ok(prompts.some((p) => /RETOMADA DO ATENDIMENTO[\s\S]*há cerca de 5 dia/.test(p)));
+  assert.equal(Object.keys(inbox.items).length, 0, 'saiu da lista de espera');
 });

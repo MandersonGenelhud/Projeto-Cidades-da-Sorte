@@ -48,6 +48,8 @@ import { byAttendant, attendantOf, conversationBoards } from './attendants.js';
 import { auditMessaging } from './messaging-audit.js';
 import { fichaPedido } from './ficha-text.js';
 import { distributionReport, slaCheck } from './distribution.js';
+import { restartStalled } from './restart.js';
+import { moveOldCorretorLeads } from './maintenance.js';
 import { cleanProfile, profileFor } from './send-profiles.js';
 import { LegacyContracts, cashRowsFromCapture } from './legacy-import.js';
 import { buildBat, buildSiteBat } from './legacy-tool.js';
@@ -110,7 +112,7 @@ import { Agent, STRESS_TESTS } from './agent/agent.js';
 import { backlogOpening } from './agent/greeting.js';
 import { buildSystemPrompt, companyBrief } from './agent/prompt.js';
 import { PRESETS, presetSettings } from './agent/presets.js';
-import { csvToContacts, normalizePhone, randomBetween, renderTemplate, samePhone, sleep, uid } from './utils.js';
+import { csvToContacts, isWithinWorkHours, normalizePhone, randomBetween, renderTemplate, samePhone, sleep, uid } from './utils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(ROOT, 'data'));
@@ -1030,7 +1032,8 @@ agent.channelNote = (conv) => {
   const owner = line?.ownerId ? auth.get(line.ownerId) : null;
   if (!owner) return '';
   const first = owner.name.split(' ')[0];
-  return `Você atende pelo WhatsApp de ${owner.name}, consultor(a) da equipe. Os clientes daqui são de ${first}. Apresente-se como a assistente de ${first} na Migra (ex.: "Oi! Aqui é a assistente de ${first}, da Migra"). ${first} acompanha as conversas e assume quando o cliente precisar. Não encaminhe para outro vendedor: este cliente já é de ${first}.`;
+  const memory = line?.memory ? `\n\n# Memória deste agente (orientações de ${first}, valem para os clientes deste número)\n${line.memory}` : '';
+  return `Você atende pelo WhatsApp de ${owner.name}, consultor(a) da equipe. Os clientes daqui são de ${first}. Apresente-se como a assistente de ${first} na Migra (ex.: "Oi! Aqui é a assistente de ${first}, da Migra"). ${first} acompanha as conversas e assume quando o cliente precisar. Não encaminhe para outro vendedor: este cliente já é de ${first}.${memory}`;
 };
 // Histórico de orçamentos deste número (inclusive os desativados por prazo): a IA retoma de onde o cliente parou.
 agent.quoteContext = (conv) => {
@@ -2732,6 +2735,18 @@ app.get('/api/conversations-boards', (req, res) => {
   const convs = agent.listConversations().filter((c) => inOffice(req, conversationOffice(c)));
   res.json({ boards: conversationBoards({ conversations: convs.map((c) => ({ ...c, channelLabel: convLabel(c.key) })), users: auth.users, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) }) });
 });
+// Recomeçar os atendimentos parados dos últimos 30 dias (todos os números): a IA lê as últimas 20 mensagens, confere se é assunto da Migra e retoma.
+const restartAll = (opts = {}) => restartStalled({
+  store, agent, pending, now: Date.now(),
+  leadOf: (c) => crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }), isBlocked: (p) => store.isBlacklisted(p), ...opts,
+});
+app.post('/api/restart-stalled', (req, res) => {
+  needAdmin(req);
+  const b = req.body || {};
+  const r = restartAll({ days: Math.min(60, Math.max(1, Number(b.days) || 30)), includeSilent: b.includeSilent !== false, dryRun: b.dryRun === true });
+  if (!r.dryRun) securityEvent('recomecar_atendimentos', req.user, req, `${r.total} conversa(s) paradas: ${r.queued} entraram na fila da IA`);
+  res.json(r);
+});
 // Baixas de pagamento feitas pela Maria a partir do comprovante (só administrador): quem mandou, de quem era, e se foi baixa direta ou ficou para conferir.
 app.get('/api/maria-receipts', (req, res) => {
   needAdmin(req);
@@ -3732,7 +3747,7 @@ app.post('/api/lines', (req, res) => {
 });
 app.patch('/api/lines/:id', (req, res) => {
   myLine(req.user, req.params.id);
-  const patch = req.user.role === 'admin' ? req.body : { agent: req.body.agent, agentName: req.body.agentName };
+  const patch = req.user.role === 'admin' ? req.body : { agent: req.body.agent, agentName: req.body.agentName, memory: req.body.memory };
   if (req.user.role !== 'admin') delete patch.office;
   res.json(lines.update(req.params.id, patch));
 });
@@ -4672,7 +4687,7 @@ const ana = new Ana({
   log: (l) => store.addLog(l),
 });
 const maria = new Maria({
-  ana, portfolio, crm, receiptReader: { read: (b, m) => receipts.read(b, m), receiverOk: (r) => receipts.receiverOk(r), get maxAuto() { return receipts.maxAuto; } }, payments, saleDoc: (sale) => quotes.list.find((q) => q.id === sale.quoteId)?.contract?.client?.cpf || closing.list.find((f) => f.leadId && f.leadId === sale.leadId && f.status === 'preenchida')?.data?.cpf || '', store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
+  ana, portfolio, crm, restartAll, receiptReader: { read: (b, m) => receipts.read(b, m), receiverOk: (r) => receipts.receiverOk(r), get maxAuto() { return receipts.maxAuto; } }, payments, saleDoc: (sale) => quotes.list.find((q) => q.id === sale.quoteId)?.contract?.client?.cpf || closing.list.find((f) => f.leadId && f.leadId === sale.leadId && f.status === 'preenchida')?.data?.cpf || '', store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
   lineIdByName: (name) => lines.list().find((l) => String(l.agentName || '').trim().toLowerCase() === String(name).trim().toLowerCase())?.id || '',
   isConnected: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected'),
   stt: nina.stt, tts: nina.tts,
@@ -5262,12 +5277,24 @@ if (process.env.NODE_ENV !== 'test') {
       const first = String(auth.get(n.sellerId)?.name || '').split(' ')[0];
       await maria.notifyUser(n.sellerId, `⏰ ${first}, o cliente *${n.lead.name || n.lead.phone || 'novo'}* foi entregue a você há cerca de ${n.hours} h e ainda não tem contato seu registrado. Fale com ele agora: cliente que espera esfria. Se não puder atender, avise a administração para passar para outra pessoa.`).catch(() => {});
     }
+    // Cliente que continua parado: a administração NÃO recebe aviso. O próprio sistema recomeça o atendimento (a IA retoma de onde parou).
     for (const e of r.escalate) {
       e.lead.slaEscalatedAt = new Date().toISOString();
-      await notifyAdmins(`🚨 *Cliente parado*\n👤 ${e.lead.name || e.lead.phone || 'novo'}\n🧑‍💼 Com ${auth.get(e.sellerId)?.name || 'vendedor'} há ${e.hours} h sem contato registrado.\n\nVeja em Equipe → Rodízio e fechamentos e, se preciso, passe para outra pessoa.`).catch(() => {});
+      if (e.lead.conversationKey) restartAll({ onlyKeys: [e.lead.conversationKey], minSilentHours: 0, resumeOwnerPauseHours: 0, includeMarcos: true });
+      store.addLog({ type: 'system', message: `🔁 Cliente parado com ${auth.get(e.sellerId)?.name || 'vendedor'} há ${e.hours} h (${e.lead.name || e.lead.phone || 'novo'}): atendimento recomeçado pela IA` });
     }
     if (r.nudge.length || r.escalate.length) store.save();
   };
+  // Nov/2026: quem saiu da área de corretores passa os atendimentos em aberto para o Diego (uma vez, assim que o Diego existir na Equipe).
+  try {
+    const moved = moveOldCorretorLeads({ store, auth, crm });
+    if (moved?.done && moved.transferred) {
+      store.addLog({ type: 'system', message: `🔁 ${moved.transferred} atendimento(s) em aberto do ${moved.from} passaram para o ${moved.to}` });
+      securityEvent('atendimentos_corretor_trocado', { name: 'Sistema' }, null, `${moved.transferred} prospecto(s) em aberto passaram de ${moved.from} para ${moved.to}`);
+    }
+  } catch (e) { store.addLog({ type: 'error', message: `Troca de corretor: ${e.message}` }); }
+  // Rede de segurança: a cada 15 minutos, dentro do horário de trabalho, quem ficou esperando e não está na fila entra nela (últimos dias do prazo escolhido). Silenciosos só pelo botão.
+  setInterval(() => { try { if (agent.active && isWithinWorkHours(store.settings.agent?.workHours)) restartAll({ days: Number(store.settings.agent?.pendingMaxDays) || 30, includeSilent: false, includeMarcos: false }); } catch (e) { store.addLog({ type: 'error', message: `Recomeçar parados: ${e.message}` }); } }, 15 * 60_000).unref();
   setInterval(() => slaTick().catch((e) => store.addLog({ type: 'error', message: `Cliente parado: ${e.message}` })), 10 * 60_000).unref();
   // Ana: resumo da manhã (04:30) e lembretes pessoais na hora marcada.
   setInterval(() => ana.tick().catch((e) => store.addLog({ type: 'error', message: `Ana: ${e.message}` })), 60_000).unref();

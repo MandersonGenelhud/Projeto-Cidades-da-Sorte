@@ -7,6 +7,10 @@ import { senderOf, profileFor } from './send-profiles.js';
 import { workHourRange, isWithinWorkHours } from './utils.js';
 export { senderOf };
 
+/** Instrução da retomada: o cliente parou de responder (ou o retorno combinado chegou) e a IA recomeça a conversa. */
+const RESUME_NOTE = (p) => `# RETOMADA DO ATENDIMENTO (regra da direção)
+Este contato parou de responder${p.silentDays ? ` há cerca de ${p.silentDays} dia(s)` : ''}${p.reason ? ` e o retorno combinado era: ${p.reason}` : ''}. Leia as últimas mensagens da conversa e RETOME o atendimento com UMA mensagem curta, calorosa e humana: cumprimente pelo horário, lembre em que ponto pararam (sem repetir o que ele já respondeu), pergunte se ainda tem interesse e qual o melhor próximo passo. Sem pressão, sem desconto novo, sem inventar preço, prazo ou promessa. Se a conversa mostrar que ele não quer mais ou não é assunto da empresa, não insista: despeça-se com educação em uma frase.`;
+
 /**
  * A partir de mensagens normalizadas (de várias conversas), devolve as conversas
  * em que o cliente falou por último, com as mensagens que ficaram sem resposta.
@@ -372,6 +376,13 @@ export class PendingInbox {
         let skip = false;
         const conv = this.agent.conversation(jid, { create: false });
         // Conversa pausada (ex.: "você respondeu pelo celular"): a IA não entra. Avisa em vez de pular em silêncio.
+        // Recomeçar: conversa que ficou "do Marcos" é reavaliada com a regra de venda (qualquer serviço da Migra volta para a IA).
+        if (conv?.handoff && p?.reTriage && /^Conversa do Marcos/.test(conv.handoffReason || '') && this.agent.triageBacklog) {
+          try {
+            const v = await this.agent.triageBacklog(conv, p.texts, { restart: true });
+            if (v.responder) { conv.handoff = false; conv.handoffReason = ''; conv.continuity = v.continuidade; conv.triage = { ...v, at: new Date().toISOString() }; this.store.save(); }
+          } catch { /* mantém pausada */ }
+        }
         if (conv?.handoff) {
           this.store.addLog({ type: 'system', phone: p?.phone || jid, message: `⏸️ A IA não respondeu ${p?.name || p?.phone || jid}: conversa pausada (${conv.handoffReason || 'um humano assumiu'}). Use "Retomar com a IA" em Conversas.` });
           this.queue = this.queue.filter((j) => j !== jid);
@@ -382,7 +393,7 @@ export class PendingInbox {
         // Antes de entrar: lê as mensagens anteriores e vê se é cliente esperando ou conversa do Marcos.
         if (p && conv && !conv.handoff && this.agent.triageBacklog && this.store.settings.agent?.triagePending !== false) {
           try {
-            const v = await this.agent.triageBacklog(conv, p.texts);
+            const v = await this.agent.triageBacklog(conv, p.texts, { restart: Boolean(p.restart) });
             conv.triage = { ...v, at: new Date().toISOString() };
             if (v.responder) conv.continuity = v.continuidade;
             else {
@@ -403,7 +414,7 @@ export class PendingInbox {
         }
         if (!skip && p && (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected')) {
           await this.agent.handleIncoming(
-            { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true },
+            { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true, resume: p.kind === 'retomar' ? RESUME_NOTE(p) : '' },
             async (text, { typingMs } = {}) => {
               try {
                 await this.wa.send(jid, { text, typingMs });
