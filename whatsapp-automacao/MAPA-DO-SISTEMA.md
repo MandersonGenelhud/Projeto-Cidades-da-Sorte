@@ -33,7 +33,7 @@
 | `agent/calendar.js` | 231 | Agenda usada pelo agente: agenda interna (padrão) ou Cal.com. | `agent/prompt.js`, `crm-ai.js`, `crm.js`, `server.js`, `videocalls.js` | 4 |
 | `agent/claude.js` | 97 | Claude (Anthropic) como cérebro da atendente, pelo SDK oficial. | `agent/llm.js` | 1 |
 | `agent/greeting.js` | 43 | Saudação certa pelo horário (regra da Migra): | `agent/agent.js`, `agent/prompt.js`, `server.js` | 1 |
-| `agent/llm.js` | 175 | Cliente de IA no formato da API da OpenAI (chat completions + ferramentas). | `server.js` | 4 |
+| `agent/llm.js` | 181 | Cliente de IA no formato da API da OpenAI (chat completions + ferramentas). | `server.js` | 4 |
 | `agent/presets.js` | 421 | Perfis prontos de negócio. "Carregar perfil" no painel copia estes dados | `server.js`, `store.js` | 11 |
 | `agent/prompt.js` | 135 | Monta o prompt de sistema a partir da base do negócio (passo 5 do vídeo). | `agent/agent.js`, `server.js` | 7 |
 | `agent/tools.js` | 577 | Ferramentas que o agente pode usar (passo 6 do vídeo: "o agente age"). | `agent/agent.js` | 4 |
