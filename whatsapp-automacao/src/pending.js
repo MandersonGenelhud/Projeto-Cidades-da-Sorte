@@ -5,7 +5,12 @@ import { randomBetween } from './utils.js';
 
 import { senderOf, profileFor } from './send-profiles.js';
 import { workHourRange, isWithinWorkHours } from './utils.js';
+import { buildOpening, wantsOpening } from './opening.js';
 export { senderOf };
+
+/** A mensagem de retorno (agradecimento, demanda alta, imprevistos) já foi enviada: a IA não repete e segue direto ao assunto. */
+const OPENED_NOTE = (p) => `# RETORNO JÁ ENVIADO (regra da direção)
+A mensagem de retorno (agradecimento por aguardar, demanda alta, imprevistos e continuidade do atendimento) JÁ foi enviada a este contato agora. NÃO repita saudação, agradecimento nem explicação, e nunca peça desculpas. ${p.texts?.length ? 'Responda direto o que ele perguntou, e conduza ao próximo passo.' : `Em UMA mensagem curta, retome o assunto de onde pararam (leia as últimas mensagens, sem repetir o que ele já respondeu) e faça uma pergunta simples que avance o atendimento${p.reason ? ` (o retorno combinado era: ${p.reason})` : ''}.`}`;
 
 /** Instrução da retomada: o cliente parou de responder (ou o retorno combinado chegou) e a IA recomeça a conversa. */
 const RESUME_NOTE = (p) => `# RETOMADA DO ATENDIMENTO (regra da direção)
@@ -413,8 +418,25 @@ export class PendingInbox {
           }
         }
         if (!skip && p && (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected')) {
+          // Quem esperou bastante recebe primeiro a mensagem de retorno (texto fixo da direção: agradece, demanda alta, imprevistos, continuidade).
+          let opened = false;
+          const cfgAg = this.store.settings.agent || {};
+          if (wantsOpening({ item: p, conv: this.agent.conversation(jid, { create: false }), now: this.now().getTime(), cfg: cfgAg.backlogOpening })) {
+            const c = this.agent.conversation(jid);
+            const text = buildOpening({ name: p.name || c.name, date: p.scheduledFor || '', now: this.now(), cfg: cfgAg.backlogOpening });
+            try {
+              await this.wa.send(jid, { text });
+              this.agent.remember(c, 'assistant', text);
+              c.openingSentAt = this.now().getTime();
+              opened = true; answered = true;
+              this.lastSentAt = Date.now();
+              this.store.addLog({ type: 'autoreply', phone: p.phone || jid, message: text, rule: 'Retorno automático (esperou atendimento)' });
+            } catch (err) {
+              this.store.addLog({ type: 'error', phone: p.phone || jid, message: `Retorno automático: ${err.message}` });
+            }
+          }
           await this.agent.handleIncoming(
-            { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true, resume: p.kind === 'retomar' ? RESUME_NOTE(p) : '' },
+            { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true, resume: opened ? OPENED_NOTE(p) : p.kind === 'retomar' ? RESUME_NOTE(p) : '' },
             async (text, { typingMs } = {}) => {
               try {
                 await this.wa.send(jid, { text, typingMs });

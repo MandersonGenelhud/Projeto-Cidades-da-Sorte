@@ -112,6 +112,8 @@ const DEFAULT_DATA = {
       humanize: { enabled: true, noticeMin: 5, noticeMax: 20 },
       // Conversas sem resposta: considera mensagens dos últimos N dias e responde sozinho.
       pendingMaxDays: 30, // a IA responde sozinha quem esperou até 30 dias
+      // Retorno automático para quem esperou: mensagem fixa (agradece, demanda alta, imprevistos, continuidade). minHours = quanto tempo de espera para enviar.
+      backlogOpening: { enabled: true, minHours: 6, repeatDays: 7, template: '', templateNoDate: '' },
       pendingPerHour: 30, // modo cuidadoso: no máximo 30 respostas por hora para quem ficou esperando
       pendingHours: '7-23', // e só das 7h às 23h (igual ao horário de trabalho da IA)
       // Horário de trabalho da atendente de IA: todos os dias, das 7h às 23h. Fora dele ela não responde; a mensagem espera e é respondida quando abre.

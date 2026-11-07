@@ -65,7 +65,7 @@ export function restartStalled({ store, agent, pending, leadOf, isBlocked, now =
       ...(existing || {}),
       jid: it.key, channel: String(it.key).startsWith('ig:') ? 'instagram' : 'whatsapp', username: c.username || existing?.username || '', phone: c.phone || existing?.phone || null, name: c.name || existing?.name || '',
       texts: it.kind === 'esperando' ? trailing.slice(-5) : [], at: it.lastAt, source: 'recomeçar', restart: true, reTriage: it.handoff === 'marcos',
-      kind: it.kind === 'esperando' ? existing?.kind : 'retomar', reason: it.reason, silentDays: Math.max(1, Math.round((now - it.lastAt) / DAY)),
+      kind: it.kind === 'esperando' ? existing?.kind : 'retomar', reason: it.reason, scheduledFor: it.lead?.followUpAt && it.lead.followUpAt <= new Date(now).toISOString().slice(0, 10) ? it.lead.followUpAt : '', silentDays: Math.max(1, Math.round((now - it.lastAt) / DAY)),
     };
     keys.push(it.key);
   }

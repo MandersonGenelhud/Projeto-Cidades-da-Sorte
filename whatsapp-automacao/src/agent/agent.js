@@ -376,8 +376,8 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
     const lessons = this.learnings ? this.learnings() : '';
     if (lessons) system += `\n\n# Aprendizados de vendas fechadas (aprovados pelo Marcos)\nO que já funcionou com clientes reais da Migra. Use quando a situação for parecida, sempre com os fatos da base:\n${lessons}`;
     if (extraSystem) tail.push(extraSystem);
-    if (delayed) {
-      tail.push('# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece com a saudação de agora e agradeça por aguardar, por exemplo: "Oi, bom dia! Agradeço por aguardar. Nossa demanda está muito alta e responder um a um ficou um pouco complicado." Nunca peça desculpas. Depois siga a conversa normalmente, respondendo o que ele perguntou.');
+    if (delayed && !/RETORNO JÁ ENVIADO/.test(extraSystem)) {
+      tail.push('# Atenção\nA última mensagem do cliente ficou um tempo sem resposta. Comece com a saudação de agora e agradeça por aguardar, por exemplo: "Oi, bom dia! Agradeço por aguardar. Nossa demanda está alta, mas estamos atendendo todos os clientes." Nunca peça desculpas nem diga que algo "ficou complicado". Depois siga a conversa normalmente, respondendo o que ele perguntou.');
     }
     // Sem agenda, o agente só pode transferir para a equipe.
     const tools = TOOL_DEFINITIONS.filter((t) => {

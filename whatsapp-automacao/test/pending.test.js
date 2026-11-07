@@ -114,7 +114,7 @@ test('responde sozinho quem ficou esperando, até 30 dias (padrão), sem atropel
   inbox.items['b@s.whatsapp.net'] = { jid: 'b@s.whatsapp.net', phone: '595982222222', name: 'B', texts: ['oi'], at: now - 30000, channel: 'whatsapp' }; // acabou de escrever
   inbox.items['c@s.whatsapp.net'] = { jid: 'c@s.whatsapp.net', phone: '595983333333', name: 'C', texts: ['oi'], at: now - 31 * 86_400_000, channel: 'whatsapp' }; // mais de 30 dias
   inbox.items['d@s.whatsapp.net'] = { jid: 'd@s.whatsapp.net', phone: '595984444444', name: 'D', texts: ['oi'], at: now - 20 * 86_400_000, channel: 'whatsapp' }; // 20 dias: agora entra (antes o limite era 15)
-  store.updateSettings({ agent: { autoAnswerPending: false } });
+  store.updateSettings({ agent: { autoAnswerPending: false, backlogOpening: { enabled: false } } }); // aqui só importa quem entra na fila (o texto de retorno tem teste próprio)
   assert.deepEqual(inbox.autoAnswer(), { queued: 0, blocked: 0 });
   store.updateSettings({ agent: { autoAnswerPending: true } });
   const r = inbox.autoAnswer();
@@ -424,10 +424,11 @@ test('fila: conversa "retomar" (cliente parou) manda a mensagem de retomada pelo
   inbox.enqueue([jid]);
   await waitFor(() => !inbox.running);
   assert.equal(wa.sent.length >= 1, true);
-  assert.match(wa.sent[0].text, /Passando para saber/);
-  assert.equal(wa.sent[0].to, jid, 'sai pelo mesmo número da conversa');
+  assert.match(wa.sent[0].text, /Agradecemos muito por aguardar/, 'primeiro o retorno automático');
+  assert.ok(wa.sent.some((m) => /Passando para saber/.test(m.text)), 'depois a retomada da IA');
+  assert.ok(wa.sent.every((m) => m.to === jid), 'tudo sai pelo mesmo número da conversa');
   assert.equal(c.messages.filter((m) => m.role === 'user').length, 1, 'nenhuma fala inventada do cliente');
   assert.ok(prompts.some((p) => /MODO RECOMEÇAR/.test(p)), 'a triagem usou a regra de venda');
-  assert.ok(prompts.some((p) => /RETOMADA DO ATENDIMENTO[\s\S]*há cerca de 5 dia/.test(p)));
+  assert.ok(prompts.some((p) => /RETORNO JÁ ENVIADO[\s\S]*retome o assunto de onde pararam/.test(p)), 'e a IA retoma o assunto sem repetir o agradecimento');
   assert.equal(Object.keys(inbox.items).length, 0, 'saiu da lista de espera');
 });
