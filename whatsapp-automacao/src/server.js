@@ -1832,7 +1832,8 @@ app.post('/api/auth/login', async (req, res) => {
     securityEvent('senha_errada', login, req);
     if (locked) {
       securityEvent('bloqueado', login, req);
-      notifyAdmins(`🚨 *Tentativas de senha bloqueadas no painel*\nLogin tentado: ${login || '-'}\nIP: ${ip}\nHora: ${new Date().toLocaleString('pt-BR')}\n\nSe não foi alguém da equipe, alguém está tentando entrar. Troque as senhas e ligue a verificação em duas etapas (Configurações → Segurança).`).catch(() => {});
+      const who = auth.users.find((u) => u.login === login);
+      notifyAdmins(`🚨 *Tentativas de senha bloqueadas no painel*\nLogin tentado: ${login || '-'}${who ? ` (${who.name})` : ''}\nIP: ${ip}\nHora: ${new Date().toLocaleString('pt-BR')}\n\n${who ? `Se foi ${who.name.split(' ')[0]} que esqueceu a senha: abra Equipe e toque em *Liberar acesso* (ou troque a senha dela(e), que também libera na hora). Sem fazer nada, libera sozinho em 15 minutos.\n\n` : ''}Se não foi alguém da equipe, alguém está tentando entrar. Troque as senhas e ligue a verificação em duas etapas (Configurações → Segurança).`).catch(() => {});
     }
     throw httpError(401, 'Login ou senha incorretos');
   }
@@ -3771,10 +3772,19 @@ app.post('/api/update', async (req, res) => {
 // Equipe (usuários)
 const sameOfficeUser = (req, u) => req.user.role === 'admin' || (officeOfUser(u) === officeOfUser(req.user) && u.role !== 'admin');
 app.get('/api/users', (req, res) => {
-  const list = auth.list();
+  const list = auth.list().map((u) => ({ ...u, lockedMin: loginGuard.lockedLogin(u.login) })); // lockedMin: minutos de bloqueio por tentativas erradas (0 = livre)
   if (req.user.role === 'admin') return res.json(list.filter((u) => u.role === 'admin' || inOffice(req, u.office)));
   const mine = list.filter((u) => u.role !== 'admin' && u.office === officeOfUser(req.user));
   res.json(req.user.officeAdmin ? mine : mine.filter((u) => u.active).map(({ id, name }) => ({ id, name })));
+});
+// "Liberar acesso": tira o bloqueio por tentativas erradas (a pessoa esqueceu a senha) sem esperar os 15 minutos.
+app.post('/api/users/:id/unlock', (req, res) => {
+  const target = auth.get(req.params.id);
+  if (!target) throw httpError(404, 'Usuário não encontrado');
+  if (req.user.role !== 'admin' && !(req.user.officeAdmin && sameOfficeUser(req, target))) throw httpError(403, 'Só administrador libera o acesso');
+  loginGuard.unlock(target.login);
+  securityEvent('acesso_liberado', req.user, req, `${target.name}: bloqueio por tentativas removido`);
+  res.json({ ok: true });
 });
 app.post('/api/users', (req, res) => {
   const b = { ...(req.body || {}) };
@@ -3795,6 +3805,7 @@ app.patch('/api/users/:id', (req, res) => {
   const roleChange = body.role !== undefined && (body.role === 'admin') !== (target.role === 'admin');
   if (roleChange && target.id === req.user.id) throw httpError(403, 'Você não pode mudar o seu próprio nível de acesso. Peça a outro administrador geral.');
   const user = auth.update(req.params.id, body);
+  if (body.password) { loginGuard.unlock(target.login); securityEvent('acesso_liberado', req.user, req, `${target.name}: senha trocada, tentativas zeradas`); } // senha nova também tira o bloqueio por tentativas
   if (roleChange) {
     const made = user.role === 'admin';
     securityEvent(made ? 'admin_geral_concedido' : 'admin_geral_removido', req.user, req, target.name);

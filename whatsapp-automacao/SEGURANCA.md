@@ -243,3 +243,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 - Voz padrão da Maria: **Achernar** (suave) com estilo "calma, devagar, em tom baixo, pausas naturais, sem euforia" (`MARIA_VOICE_STYLE`); pode ser trocada em `maria.voice` e `maria.voiceStyle`. A voz local da VPS (Kokoro) passou de 0,96 para 0,9 de velocidade (`VOICE_SPEED`).
 - No texto, a Maria aparece "digitando…" por 1,5 a 6 segundos, proporcional ao tamanho (`maria.humanize: false` desliga). Teste: `test/maria-audio.test.js`.
+
+## Acesso bloqueado por tentativas: como liberar
+
+- Depois de 5 erros de senha no mesmo login (ou 20 no mesmo IP) em 15 minutos, o painel bloqueia por 15 minutos e os administradores recebem um aviso no WhatsApp com o nome da pessoa e o caminho para liberar. O bloqueio solta sozinho em 15 minutos.
+- **Liberar na hora:** Equipe → botão **Liberar acesso** (aparece só em quem está bloqueado, com o selo "Bloqueado por tentativas") ou **trocar a senha** da pessoa. As duas formas zeram as tentativas do login e dos IPs de onde ele errou, ficam no registro de segurança (`acesso_liberado`) e só administrador (ou administrador do escritório, para a própria equipe) pode usar. Teste: `test/acesso-bloqueado.test.js`.

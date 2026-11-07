@@ -708,7 +708,7 @@ loaders.team = async () => {
   $('#teamList').innerHTML = users.filter((u) => !u.pending).map((u) => `
     <div class="item ${u.active ? '' : 'disabled'}" data-user="${esc(u.id)}">
       <div class="grow"><b>${esc(u.name)}</b> ${u.role === 'admin' ? '<span class="badge running">Administrador geral</span>' : `<span class="badge pending">${u.officeAdmin ? 'Administrador do escritório' : 'Vendedor'}</span> <span class="office-chip">${esc((window.officeNames || {})[u.office] || '')}</span>`}
-        ${u.active ? '' : '<span class="badge canceled">Inativo</span>'} ${u.twoFactor ? '<span class="badge done">2 etapas</span>' : '<span class="badge paused">só senha</span>'}
+        ${u.active ? '' : '<span class="badge canceled">Inativo</span>'} ${u.lockedMin ? `<span class="badge canceled" title="Errou a senha várias vezes. Libera sozinho, ou toque em Liberar acesso.">Bloqueado por tentativas (${u.lockedMin} min)</span>` : ''} ${u.twoFactor ? '<span class="badge done">2 etapas</span>' : '<span class="badge paused">só senha</span>'}
         <div class="meta">login: ${esc(u.login)}${u.whatsapp ? ` · WhatsApp ${esc(fmtPhone(u.whatsapp))}` : ' · sem WhatsApp (fora do rodízio)'}
           · ${u.receivesLeads && u.whatsapp ? `no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : 'fora do rodízio'}
           · ${u.receivesAffiliateLeads ? 'recebe indicações de parceiros' : 'não recebe indicações de parceiros'}
@@ -721,6 +721,7 @@ loaders.team = async () => {
         ${u.role !== 'admin' ? `<button class="btn small ${u.manager ? 'primary' : ''}" data-act="manager" title="Gerente cadastra mapas, lotes, veículos e alunos (nunca exclui)">${u.manager ? 'É gerente' : 'Tornar gerente'}</button>` : ''}` : ''}
       <button class="btn small" data-act="edit">Editar</button>
       <button class="btn small" data-act="password">Senha</button>
+      ${u.lockedMin ? '<button class="btn small primary" data-act="unlock">Liberar acesso</button>' : ''}
       ${u.id === window.currentUser.id ? '' : `<button class="btn small ${u.active ? 'danger' : ''}" data-act="toggle">${u.active ? 'Desativar' : 'Reativar'}</button>`}
       <button class="btn small" data-act="transfer" title="Passar os prospectos em aberto para outra pessoa">Passar carteira</button>
     </div>`).join('');
@@ -804,7 +805,10 @@ $('#teamList').addEventListener('click', async (e) => {
       const password = prompt('Nova senha (mínimo 6 caracteres):');
       if (!password) return;
       await api(`/api/users/${id}`, { method: 'PATCH', body: { password } });
-      toast('Senha alterada');
+      toast('Senha alterada e acesso liberado: a pessoa já pode entrar com a senha nova');
+    } else if (act === 'unlock') {
+      await api(`/api/users/${id}/unlock`, { method: 'POST' });
+      toast('Acesso liberado: a pessoa já pode tentar de novo');
     } else if (act === 'toggle') {
       const disabling = !e.target.closest('.item').classList.contains('disabled');
       if (disabling && !confirm('Desativar esta pessoa? Ela não consegue mais entrar. Depois use "Passar carteira" para os prospectos dela.')) return;

@@ -67,6 +67,7 @@ export class LoginGuard {
   constructor({ perLogin = 5, perIp = 20, windowMs = 15 * 60_000, now = () => Date.now() } = {}) {
     Object.assign(this, { perLogin, perIp, windowMs, now });
     this.fails = new Map(); // chave → [horários]
+    this.ipsOf = new Map(); // login → IPs de onde vieram os erros (para liberar o login sem deixar o IP dele preso)
   }
 
   #recent(key) {
@@ -87,7 +88,23 @@ export class LoginGuard {
     return until > this.now() ? Math.ceil((until - this.now()) / 60_000) : 0;
   }
 
+  /** Minutos de bloqueio que faltam SÓ para este login (0 = liberado), para o painel mostrar quem está travado. */
+  lockedLogin(login) {
+    const l = this.#recent(`l:${login}`);
+    const until = l.length >= this.perLogin ? l[l.length - this.perLogin] + this.windowMs : 0;
+    return until > this.now() ? Math.ceil((until - this.now()) / 60_000) : 0;
+  }
+
+  /** O administrador libera: zera as tentativas desse login e dos IPs de onde ele errou. */
+  unlock(login) {
+    this.fails.delete(`l:${login}`);
+    for (const ip of this.ipsOf.get(login) || []) this.fails.delete(`i:${ip}`);
+    this.ipsOf.delete(login);
+  }
+
   fail({ login, ip }) {
+    if (!this.ipsOf.has(login)) this.ipsOf.set(login, new Set());
+    this.ipsOf.get(login).add(ip);
     for (const key of [`l:${login}`, `i:${ip}`]) {
       const list = this.#recent(key);
       list.push(this.now());
