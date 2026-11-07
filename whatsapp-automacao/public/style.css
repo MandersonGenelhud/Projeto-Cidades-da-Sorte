@@ -1249,3 +1249,7 @@ button.xd-kpi.xd-link:focus-visible, .xd-alert:focus-visible, .xd-more:focus-vis
 .audit-map td.has { background: var(--green-soft); font-weight: 600; }
 .audit-map tr.row-wait td:first-child { border-left: 3px solid #d93025; }
 .send-form .grid3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 8px 0; }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin: 10px 0; }
+.stats-row .stat { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; text-align: center; }
+.stats-row .stat b { display: block; font-size: 22px; }
+.stats-row .stat span, .stats-row .stat small { display: block; font-size: 12px; color: var(--muted); }

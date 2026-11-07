@@ -281,10 +281,12 @@ export class Crm {
     const owner = ownerId ? this.auth.get(ownerId) : null;
     if (ownerId && !owner) throw err(400, 'Vendedor não encontrado');
     if ((lead.ownerId || null) === (ownerId || null)) return;
+    const prevOwner = lead.ownerId || null;
     lead.ownerId = ownerId || null;
     if (owner) lead.office = officeOfUser(owner); // o prospecto passa a ser do escritório de quem o recebeu
     lead.assignedAt = new Date().toISOString();
-    this.#log(lead, user, 'dono', owner ? `Responsável: ${owner.name}${how ? ` (${how})` : ''}` : 'Sem responsável (disponível para a equipe)', { toId: ownerId || null });
+    // via = como o cliente chegou a esta pessoa (rodízio, IA, indicação, transferência, manual): é o histórico que o controle do rodízio usa.
+    this.#log(lead, user, 'dono', owner ? `Responsável: ${owner.name}${how ? ` (${how})` : ''}` : 'Sem responsável (disponível para a equipe)', { toId: ownerId || null, fromId: prevOwner || null, via: how || (user === 'Sistema' ? 'rodízio' : 'manual') });
   }
 
   /** Administrador confirma a venda: só então ela conta no ranking (evita venda "inventada"). */

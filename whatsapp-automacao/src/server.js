@@ -47,6 +47,7 @@ import { Audit } from './audit.js';
 import { byAttendant, attendantOf, conversationBoards } from './attendants.js';
 import { auditMessaging } from './messaging-audit.js';
 import { fichaPedido } from './ficha-text.js';
+import { distributionReport, slaCheck } from './distribution.js';
 import { cleanProfile, profileFor } from './send-profiles.js';
 import { LegacyContracts, cashRowsFromCapture } from './legacy-import.js';
 import { buildBat, buildSiteBat } from './legacy-tool.js';
@@ -2731,6 +2732,22 @@ app.get('/api/conversations-boards', (req, res) => {
   const convs = agent.listConversations().filter((c) => inOffice(req, conversationOffice(c)));
   res.json({ boards: conversationBoards({ conversations: convs.map((c) => ({ ...c, channelLabel: convLabel(c.key) })), users: auth.users, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) }) });
 });
+// Controle do rodízio e dos fechamentos: quantos clientes a central entregou a cada vendedor, por onde chegaram, quanto demoraram a atender,
+// quantos viraram proposta e contrato, e quem está com cliente parado (só administrador, só leitura).
+const convOfLead = (l) => (l.conversationKey ? agent.conversation(l.conversationKey, { create: false }) : null);
+app.get('/api/distribution', (req, res) => {
+  needAdmin(req);
+  const today = new Date().toISOString().slice(0, 10);
+  const days = Math.min(60, Math.max(1, Number(req.query.days) || 14));
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || '')) ? String(req.query.from) : new Date(Date.now() - 29 * 86_400_000).toISOString().slice(0, 10);
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.to || '')) ? String(req.query.to) : today;
+  const leads = crm.leads.filter((l) => inOffice(req, crm.officeOf(l)));
+  const convs = agent.listConversations().filter((c) => !c.simulation);
+  res.json(distributionReport({
+    leads, users: auth.users, rotation: crm.rotation(), sales: sales.listFor(req.user, { from, to }), convOf: convOfLead, from, to, days,
+    slaHours: Number(store.settings.crm?.sla?.hours) || 2, conversations: convs.filter((c) => { const d = String(c.updatedAt || '').slice(0, 10); return d >= from && d <= to; }).length,
+  }));
+});
 // Auditoria das conversas e mapa de mensagens por número e por cliente (só administrador, só leitura).
 app.get('/api/audit/messaging', (req, res) => {
   needAdmin(req);
@@ -5230,6 +5247,23 @@ if (process.env.NODE_ENV !== 'test') {
   setInterval(() => { const h = new Date().getHours(); if (wa.status === 'connected' && h >= 8 && h < 19) tasks.remind((phone, text) => wa.send(phone, { text, typing: false })).catch(() => {}); }, 10 * 60_000).unref();
   // Cobrança aprovada: manda uma mensagem por vez, respeitando limite, horário e intervalo.
   setInterval(() => collections.tick().catch((e) => store.addLog({ type: 'error', message: `Cobrança: ${e.message}` })), 20_000).unref();
+  // Cliente parado: entregue ao vendedor e sem nenhuma ação dele no prazo (só no horário comercial). Lembra o vendedor; se continuar, avisa a administração.
+  const slaTick = async () => {
+    const cfg = store.settings.crm?.sla || {};
+    if (cfg.enabled === false) return;
+    const r = slaCheck({ leads: crm.leads, convOf: convOfLead, now: new Date(), slaHours: Number(cfg.hours) || 2 });
+    for (const n of r.nudge) {
+      n.lead.slaNudgedAt = new Date().toISOString();
+      const first = String(auth.get(n.sellerId)?.name || '').split(' ')[0];
+      await maria.notifyUser(n.sellerId, `⏰ ${first}, o cliente *${n.lead.name || n.lead.phone || 'novo'}* foi entregue a você há cerca de ${n.hours} h e ainda não tem contato seu registrado. Fale com ele agora: cliente que espera esfria. Se não puder atender, avise a administração para passar para outra pessoa.`).catch(() => {});
+    }
+    for (const e of r.escalate) {
+      e.lead.slaEscalatedAt = new Date().toISOString();
+      await notifyAdmins(`🚨 *Cliente parado*\n👤 ${e.lead.name || e.lead.phone || 'novo'}\n🧑‍💼 Com ${auth.get(e.sellerId)?.name || 'vendedor'} há ${e.hours} h sem contato registrado.\n\nVeja em Equipe → Rodízio e fechamentos e, se preciso, passe para outra pessoa.`).catch(() => {});
+    }
+    if (r.nudge.length || r.escalate.length) store.save();
+  };
+  setInterval(() => slaTick().catch((e) => store.addLog({ type: 'error', message: `Cliente parado: ${e.message}` })), 10 * 60_000).unref();
   // Ana: resumo da manhã (04:30) e lembretes pessoais na hora marcada.
   setInterval(() => ana.tick().catch((e) => store.addLog({ type: 'error', message: `Ana: ${e.message}` })), 60_000).unref();
 
