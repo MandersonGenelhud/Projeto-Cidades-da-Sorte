@@ -143,3 +143,18 @@ test('modelo Gemini antigo salvo no painel é trocado pelo atual ao iniciar', as
   const b = new Store(dir);
   assert.equal(b.settings.agent.geminiModel, 'gemini-3.8-flash');
 });
+
+test('conversa que termina com mensagem da atendente recebe um aviso no lugar do cliente (Gemini recusa o contrário)', async () => {
+  let enviado;
+  const fetchImpl = async (url, opts) => {
+    enviado = JSON.parse(opts.body).messages;
+    const body = { choices: [{ message: { role: 'assistant', content: 'Oi!' } }] };
+    return { ok: true, status: 200, text: async () => JSON.stringify(body), json: async () => body };
+  };
+  const llm = new LLMClient({ getConfig: () => ({ provider: 'gemini', apiKey: 'AIzaTeste', model: 'gemini-3.8-flash' }), fetchImpl });
+  await llm.chat({ messages: [{ role: 'system', content: 's' }, { role: 'user', content: 'oi' }, { role: 'assistant', content: 'Olá, retomando seu atendimento' }] });
+  assert.equal(enviado.at(-1).role, 'user');
+  assert.match(enviado.at(-1).content, /ainda não respondeu/);
+  await llm.chat({ messages: [{ role: 'system', content: 's' }, { role: 'user', content: 'oi' }] });
+  assert.equal(enviado.length, 2, 'conversa normal não muda');
+});

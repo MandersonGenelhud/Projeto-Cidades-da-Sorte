@@ -97,6 +97,12 @@ export class LLMClient {
       err.status = 400;
       throw err;
     }
+    // O Gemini (e outros) recusam conversa que termina com mensagem da própria atendente. Acontece ao recomeçar um atendimento
+    // (o último texto do histórico foi nosso). Entra um aviso curto no lugar do cliente, só nesse caso.
+    const last = messages[messages.length - 1];
+    if (last && last.role === 'assistant' && !last.tool_calls) {
+      messages = [...messages, { role: 'user', content: '[Aviso do sistema: o cliente ainda não respondeu. Escreva a próxima mensagem da atendente, continuando a conversa de onde parou e seguindo as instruções acima.]' }];
+    }
     if (provider === 'anthropic') {
       const claude = new ClaudeChat({ apiKey, model, client: this.claudeClient || null });
       return claude.chat({ messages, tools });
