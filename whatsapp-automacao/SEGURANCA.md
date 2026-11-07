@@ -227,3 +227,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 - O contrato ganhou a **CLÁUSULA SEGUNDA – DOS DEPENDENTES**, com quem são os dependentes declarados na ficha (nome, parentesco e idade: filho, pessoa especial, sobrinho...) ou a declaração de que não há; as demais cláusulas são renumeradas sozinhas. O campo da ficha passou a se chamar "Dependentes". O texto jurídico da cláusula precisa ser revisado por um advogado antes de ir para o uso definitivo.
 - Quem tem receio de tocar em link recebe **duas mensagens**: o pedido de dados **por escrito** (nome, CPF, RG, nacionalidade, estado civil, telefone, e-mail opcional, endereço e dependentes, para responder por conta própria) e, logo depois, o **link sozinho**. Vale para a Maria (para quem pediu encaminhar, e nos envios ao cliente) e para a ficha enviada pelo painel (`src/ficha-text.js`). Testes: `test/maria-contrato-cliente.test.js` e `test/assinatura-contratada.test.js`.
+
+## Equipe de imóveis: Diego (Gabriel saiu)
+
+- O Gabriel saiu da área de corretores; quem atende imóveis, terrenos, corretores e parcerias imobiliárias é só o **Diego**. A atendente (prompts e conhecimento) e a Maria (resumo ao vivo e regras) não citam mais o Gabriel; os padrões novos (setor Loteamentos "só Diego", contato de vagas) também.
+- Instalações que já rodavam recebem a migração `corretorDiego2026` (uma vez): setor Loteamentos e contato de vagas passam para o Diego, a área "loteamentos" sai do cadastro do Gabriel, e o nome dele é trocado nos textos de conhecimento e aprendizados guardados. Não desativa o usuário do Gabriel nem mexe no rodízio (isso é no painel). Teste: `test/sectors.test.js`.

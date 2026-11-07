@@ -14,7 +14,7 @@ export function financeLines(cfg) {
   const out = [`- Financiamento próprio de lotes: entrada mínima de ${cfg.minEntryPct}% do valor do lote (a entrada abate do saldo e pode ser dividida em até ${cfg.maxEntryParts} vezes), parcelamento em até ${cfg.maxInstallments} parcelas${cfg.reserveFee > 0 ? `, taxa de reserva de ${money(cfg.reserveFee)}` : ''}; a proposta vale por ${cfg.validDays} dias até o pagamento da reserva.`];
   const bands = Array.isArray(cfg.bands) ? cfg.bands : [];
   if (bands.length && bands.every((b) => !(Number(b.interestPct) > 0))) {
-    out.push('- Juros do financiamento: os percentuais AINDA NÃO foram definidos pelo Marcos (aparecem 0% por padrão). Não diga "sem juros" nem informe valor de parcela de memória: use a simulação do sistema (Imobiliária → Financiamento) ou confirme com o Marcos ou o Gabriel.');
+    out.push('- Juros do financiamento: os percentuais AINDA NÃO foram definidos pelo Marcos (aparecem 0% por padrão). Não diga "sem juros" nem informe valor de parcela de memória: use a simulação do sistema (Imobiliária → Financiamento) ou confirme com o Marcos ou o Diego.');
   } else if (bands.length) {
     let prev = 0;
     out.push(`- Juros por faixa (total sobre o saldo financiado): ${bands.map((b) => { const t = `${prev + 1} a ${b.upTo} parcelas: ${b.interestPct}%`; prev = b.upTo; return t; }).join('; ')}. Para valores exatos, use a simulação do sistema.`);

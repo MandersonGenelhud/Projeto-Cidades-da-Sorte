@@ -36,7 +36,7 @@ export function byAttendant({ conversations, leads, users, lineOwner, findLead }
   };
   for (const u of users) if (u.active !== false) bucket(u.id, u.name, u.role === 'admin' ? 'admin' : 'vendedor');
   // Toda conversa vai para um atendente. Só fica aqui quem acabou de chegar e a IA ainda está
-  // conversando para descobrir o assunto (terreno → Diego/Gabriel, migração → equipe, veículo → Marcos).
+  // conversando para descobrir o assunto (terreno → Diego, migração → equipe, veículo → Marcos).
   bucket('triagem', 'IA conversando (ainda não direcionada)', 'canal');
 
   const leadBucket = (lead) => {

@@ -72,7 +72,7 @@ test('nova divisão da equipe: setores só com o nome usam o WhatsApp da Equipe 
   const again = new Store(path.dirname(store.file));
   const s = again.data.settings;
   assert.deepEqual(s.crm.sectors.documentacao.people.map((p) => p.name), ['Camila', 'Fran']);
-  assert.deepEqual(s.crm.sectors.loteamentos.people.map((p) => p.name), ['Gabriel', 'Diego']);
+  assert.deepEqual(s.crm.sectors.loteamentos.people.map((p) => p.name), ['Diego']);
   assert.deepEqual(s.crm.sectors.veiculos.people.map((p) => p.name), ['Eliezer']);
   assert.deepEqual(s.visits.people.map((p) => p.name), ['Silvani']);
   assert.equal(again.data.users.find((u) => u.id === marcos.id).receivesLeads, false, 'Marcos sai do rodízio');
@@ -91,12 +91,12 @@ test('nova divisão da equipe: setores só com o nome usam o WhatsApp da Equipe 
   assert.ok(fs.existsSync(store.file));
 });
 
-test('quem quer trabalhar na Migra não vai para ninguém (vagas preenchidas, currículo guardado); parceria imobiliária de negócio vai para Gabriel e Diego, outras parcerias com o Marcos', async () => {
+test('quem quer trabalhar na Migra não vai para ninguém (vagas preenchidas, currículo guardado); parceria imobiliária de negócio vai só para o Diego, outras parcerias com o Marcos', async () => {
   const { Agent } = await import('../src/agent/agent.js');
   const store = tempStore();
   store.updateSettings(presetSettings('migra-paraguai'));
   store.updateSettings({ agent: { enabled: true, audience: 'all' } });
-  assert.deepEqual(store.settings.crm.jobsContact, [{ name: 'Gabriel', whatsapp: '' }]);
+  assert.deepEqual(store.settings.crm.jobsContact, [{ name: 'Diego', whatsapp: '' }]);
   let system = '';
   const llm = { configured: true, chat: async ({ messages }) => { system = messages[0].content; return { content: 'Que bom!', tool_calls: [] }; } };
   const agent = new Agent({ store, llm, now: () => new Date(2026, 9, 26, 9, 5) });
@@ -105,7 +105,7 @@ test('quem quer trabalhar na Migra não vai para ninguém (vagas preenchidas, cu
   const conv = agent.conversation('5511999990000@s.whatsapp.net');
   agent.remember(conv, 'user', 'Tenho interesse em trabalhar no Paraguai com vocês');
   await agent.think(conv);
-  assert.doesNotMatch(system, /assunto "contratação": o contato vai para o Gabriel/);
+  assert.doesNotMatch(system, /assunto "contratação": o contato vai para o Diego/);
   assert.match(system, /Quem quer trabalhar na Migra ou na corretora[^\n]*NÃO vai para o Marcos nem para ninguém/);
   assert.match(system, /Vagas e currículos/);
   assert.match(system, /Outras parcerias de negócio, fornecedores, imprensa ou investidores: use avisar_marcos/);
@@ -121,7 +121,7 @@ test('corretor/parceria imobiliária nunca vai para o Marcos nem para os adminis
   const sectors = new Sectors({ store, crm, auth: { users: [] }, send: async () => {}, notifyAdmins: async (t) => adminMsgs.push(t) });
   const r = await sectors.route({ key: '5511942969570@s.whatsapp.net', phone: '5511942969570', name: 'Carrera' }, { setor: 'loteamentos', resumo: 'corretor quer parceria' });
   assert.equal(r.ok, true);
-  assert.equal(adminMsgs.length, 0, 'sem Gabriel/Diego cadastrados, ninguém da diretoria recebe');
+  assert.equal(adminMsgs.length, 0, 'sem o Diego cadastrado, ninguém da diretoria recebe');
   assert.ok(store.data.logs.some((l) => /ninguém com WhatsApp cadastrado/.test(l.message)));
 });
 
@@ -131,14 +131,14 @@ test('o mesmo cliente não é avisado duas vezes ao mesmo setor nem ao mesmo ven
   const sent = [];
   const lead = { id: 'L1', code: 'MIG-1', name: 'Adriano', phone: '5527999343066' };
   const crm = { findForConversation: () => lead, ensureFromConversation: () => lead, update() {}, addNote() {} };
-  const auth = { users: [{ id: 'g', name: 'Gabriel', whatsapp: '5545999990002', active: true }] };
-  store.updateSettings({ crm: { sectors: { loteamentos: { people: [{ name: 'Gabriel', whatsapp: '5545999990002' }] } } } });
+  const auth = { users: [{ id: 'g', name: 'Diego', whatsapp: '5545999990002', active: true }] };
+  store.updateSettings({ crm: { sectors: { loteamentos: { people: [{ name: 'Diego', whatsapp: '5545999990002' }] } } } });
   const sectors = new Sectors({ store, crm, auth, send: async (p, t) => sent.push({ p, t }) });
   const conv = { key: '5527999343066@s.whatsapp.net', phone: '5527999343066', name: 'Adriano' };
   const r1 = await sectors.route(conv, { setor: 'loteamentos', resumo: 'corretor quer parceria' });
   const r2 = await sectors.route(conv, { setor: 'loteamentos', resumo: 'corretor de novo, com outro texto' });
   const r3 = await sectors.route(conv, { setor: 'loteamentos', resumo: 'e mais uma vez' });
-  assert.equal(sent.length, 1, 'uma única mensagem para o Gabriel');
+  assert.equal(sent.length, 1, 'uma única mensagem para o Diego');
   assert.equal(r1.jaEncaminhado, undefined);
   assert.equal(r2.jaEncaminhado && r3.jaEncaminhado, true);
   assert.match(r2.instrucao, /NÃO chame esta ferramenta de novo/);
@@ -174,19 +174,19 @@ test('área por pessoa: botões da Equipe definem quem recebe cada setor, migra 
   assert.deepEqual(crm.rotation().map((u) => u.name), ['Camila']);
 });
 
-test('terrenos e imóveis: tudo vai só para o Gabriel, de qualquer linha, sem rodízio com o Diego', async () => {
+test('terrenos e imóveis: tudo vai só para o Diego (o Gabriel saiu da área de corretores), de qualquer linha', async () => {
   const store = tempStore();
   const auth = new Auth({ store, dataDir: store.dataDir });
   const crm = new Crm({ store, auth });
-  assert.equal(store.settings.crm.sectors.loteamentos.only, 'Gabriel');
-  store.updateSettings({ crm: { sectors: { loteamentos: { people: [{ name: 'Gabriel', whatsapp: '5545999990002' }, { name: 'Diego', whatsapp: '5545999990003' }] } } } });
+  assert.equal(store.settings.crm.sectors.loteamentos.only, 'Diego');
+  store.updateSettings({ crm: { sectors: { loteamentos: { people: [{ name: 'Diego', whatsapp: '5545999990002' }] } } } });
   const sent = [];
   const sectors = new Sectors({ store, crm, auth, send: async (phone) => sent.push(phone), notifyAdmins: async () => {} });
   for (const n of ['1', '2', '3']) await sectors.route({ key: `55119111122${n}${n}@s.whatsapp.net`, phone: `55119111122${n}${n}`, name: 'C' }, { setor: 'loteamentos', resumo: 'quer apartamento' });
   assert.deepEqual(sent, ['5545999990002', '5545999990002', '5545999990002']);
 });
 
-test('prompt: conhecimento do Gabriel sobre imóveis (só filtrar o projeto, parcelado, apartamentos) e rota única', async () => {
+test('prompt: conhecimento do setor de imóveis (Diego) (só filtrar o projeto, parcelado, apartamentos) e rota única', async () => {
   const store = tempStore();
   store.updateSettings(presetSettings('migra-paraguai'));
   store.updateSettings({ agent: { enabled: true, audience: 'all' } });
@@ -197,12 +197,12 @@ test('prompt: conhecimento do Gabriel sobre imóveis (só filtrar o projeto, par
   const conv = agent.conversation('5511900002222@s.whatsapp.net');
   agent.remember(conv, 'user', 'Tenho interesse em um terreno');
   await agent.think(conv);
-  assert.match(seen[0], /TODO assunto de imóvel, de qualquer vendedor ou linha, vai para o Gabriel/);
+  assert.match(seen[0], /TODO assunto de imóvel, de qualquer vendedor ou linha, vai para o Diego/);
   assert.match(seen[0], /SÓ FILTRAR/);
   assert.match(seen[0], /lotes comerciais e residenciais, e também apartamentos/);
   assert.match(seen[0], /parcelado/);
   assert.match(seen[0], /curiosos/);
-  assert.doesNotMatch(seen[0], /Gabriel e (o )?Diego/);
+  assert.doesNotMatch(seen[0], /Gabriel/, 'a atendente nunca cita o Gabriel');
 });
 
 test('contexto que falha (contratos, CRM, orçamentos) nunca cala a IA: ela responde e o erro vai para o registro', async () => {
@@ -218,4 +218,44 @@ test('contexto que falha (contratos, CRM, orçamentos) nunca cala a IA: ela resp
   const r = await agent.think(conv);
   assert.match(JSON.stringify(r), /Oi, tudo bem\?/);
   assert.ok(store.data.logs?.some?.((l) => /Contexto "contratos" falhou/.test(l.message)) || true);
+});
+
+test('instalação que já rodava com o Gabriel nos imóveis: a migração passa tudo para o Diego e limpa o que a atendente sabe', async () => {
+  const path = await import('node:path');
+  const { Store } = await import('../src/store.js');
+  const store = tempStore();
+  const auth = new Auth({ store, dataDir: store.dataDir });
+  const gab = auth.create({ name: 'Gabriel Souza', login: 'gabriel', password: 'segredo123', role: 'seller', whatsapp: '5545999990003' });
+  auth.update(gab.id, { sectors: ['loteamentos', 'veiculos'] });
+  const d = store.data.settings;
+  d.crm.sectors.loteamentos = { label: 'Loteamentos', people: [{ name: 'Gabriel', whatsapp: '' }, gab.id, { name: 'Diego', whatsapp: '' }], only: 'Gabriel' };
+  d.crm.jobsContact = [{ name: 'Gabriel', whatsapp: '' }];
+  d.business.knowledge = 'Quem quer falar com o dono de um loteamento resolve aqui, e o Gabriel, do setor, entra em contato. O Gabriel e o Diego cuidam dos corretores.';
+  d.agent.rulesExtra = 'Passe imóvel para o Gabriel.';
+  d.crm.corretorDiego2026 = false;
+  store.flush();
+  const again = new Store(path.dirname(store.file));
+  const s = again.data.settings;
+  assert.equal(s.crm.sectors.loteamentos.only, 'Diego');
+  assert.deepEqual(s.crm.sectors.loteamentos.people.map((p) => p.name), ['Diego'], 'o Gabriel sai do setor (por nome e por usuário) e o Diego fica uma vez só');
+  assert.deepEqual(s.crm.jobsContact, [{ name: 'Diego', whatsapp: '' }]);
+  assert.doesNotMatch(s.business.knowledge, /Gabriel/);
+  assert.match(s.business.knowledge, /o Diego, do setor, entra em contato\. O Diego cuidam|o Diego, do setor, entra em contato/);
+  assert.equal(s.agent.rulesExtra, 'Passe imóvel para o Diego.');
+  assert.deepEqual(again.data.users.find((u) => u.id === gab.id).sectors, ['veiculos'], 'ele sai só da área de imóveis');
+  assert.equal(s.crm.corretorDiego2026, true);
+});
+
+test('o nome do Gabriel não aparece em nenhum texto que a atendente ou a Maria leem (só na migração e nos textos antigos usados para comparar)', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+  const bad = [];
+  const walk = (dir) => { for (const f of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, f.name); if (f.isDirectory()) walk(p); else if (/\.(js|html)$/.test(f.name)) { const t = fs.readFileSync(p, 'utf8'); if (/gabriel/i.test(t)) bad.push(path.relative(root, p)); } } };
+  walk(path.join(root, 'src')); walk(path.join(root, 'public'));
+  assert.deepEqual(bad.sort(), ['src/agent/presets.js', 'src/store.js'], 'só a migração (store) e os blocos antigos de comparação (presets) citam o nome');
+  const presets = await import('../src/agent/presets.js');
+  for (const k of ['GROUP_KNOWLEDGE', 'MIGRATECH_KNOWLEDGE', 'SCHOOL_KNOWLEDGE', 'CRISIS_KNOWLEDGE']) assert.doesNotMatch(presets[k], /Gabriel/, k);
+  const migra = presets.PRESETS['migra-paraguai'];
+  assert.doesNotMatch(JSON.stringify(migra), /Gabriel/);
 });

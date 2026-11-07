@@ -69,7 +69,7 @@ export class Sectors {
     const flagged = users.filter((u) => u.active !== false && !u.pending && u.whatsapp && (u.sectors || []).includes(id) && (!office || officeOfUser(u) === office)).map((u) => ({ name: u.name, whatsapp: u.whatsapp }));
     const legacy = (office && office !== 'py' ? [] : resolvePeople(this.config[id]?.people, users)).filter((p) => !flagged.some((f) => samePhone(f.whatsapp, p.whatsapp)));
     const all = [...flagged, ...legacy];
-    // Setor exclusivo (ex.: terrenos só para o Gabriel): sem rodízio, ninguém mais recebe.
+    // Setor exclusivo (ex.: terrenos só para o Diego): sem rodízio, ninguém mais recebe.
     const only = norm(this.config[id]?.only || '');
     return only ? all.filter((p) => norm(p.name) === only || norm(p.name).startsWith(`${only} `)) : all;
   }
@@ -139,8 +139,8 @@ export class Sectors {
     }
     if (person && this.canSend()) await this.send(person.whatsapp, text).catch(() => {});
     else if (id === 'loteamentos') {
-      // Terreno, corretor e parceria imobiliária nunca vão para o Marcos nem para os administradores: ficam no CRM até o Gabriel ter WhatsApp cadastrado.
-      this.store.addLog({ type: 'error', message: `⚠️ ${label}: ninguém com WhatsApp cadastrado (Gabriel em Prospectos → Regras → Setores ou na Equipe). O contato ficou só no CRM.` });
+      // Terreno, corretor e parceria imobiliária nunca vão para o Marcos nem para os administradores: ficam no CRM até o Diego ter WhatsApp cadastrado.
+      this.store.addLog({ type: 'error', message: `⚠️ ${label}: ninguém com WhatsApp cadastrado (Diego em Prospectos → Regras → Setores ou na Equipe). O contato ficou só no CRM.` });
     } else await this.notifyAdmins(`${text}\n\n⚠️ O setor "${label}" ainda não tem atendente cadastrado (Prospectos → Regras → Setores).`).catch(() => {});
     this.store.addLog({ type: 'system', message: `🏷️ ${who} direcionado para ${person?.name || 'o Marcos'} (${label})` });
     return { ok: true, setor: label, instrucao: say };

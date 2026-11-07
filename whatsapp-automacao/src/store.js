@@ -44,7 +44,7 @@ const DEFAULT_DATA = {
       routing: { enabled: true, criteria: PRESET.crm?.routing?.criteria || '' },
       panelUrl: '', // endereço do painel na internet, para o link da ficha no aviso ao vendedor
       ownerPhone: '', // WhatsApp do Marcos: parcerias e assuntos de negócio vão direto para ele
-      jobsContact: [{ name: 'Gabriel', whatsapp: '' }], // quem quer trabalhar na Migra (só o nome = WhatsApp da Equipe)
+      jobsContact: [{ name: 'Diego', whatsapp: '' }], // quem quer trabalhar na Migra (só o nome = WhatsApp da Equipe)
       mentoring: { enabled: true, price: 400, currency: 'USD', minutes: 60, priceBRL: 0 }, // priceBRL: valor do Pix em reais (0 = US$ × cotação do painel) // mentoria com o Marcos Miguel (único atendimento direto com ele)
       // Oferta do aplicativo de idiomas da Migra (ainda em desenvolvimento): só vale até a data que o Marcos escolher.
       appOffer: { enabled: true, regularPrice: 59.99, discountPct: 50, months: 6, period: 'por mês', validUntil: '2026-12-25', gift: '' }, // oferta de Natal: vale até 25/12/2026
@@ -54,7 +54,7 @@ const DEFAULT_DATA = {
       specialists: (PRESET.crm?.specialists || []).map((x) => ({ ...x })),
       // Setores do Grupo Migra e os atendentes de cada um (Prospectos → Regras → Setores).
       sectors: {
-        loteamentos: { label: 'Loteamentos e terrenos (Migra Imobiliária)', people: [], only: 'Gabriel' },
+        loteamentos: { label: 'Loteamentos e terrenos (Migra Imobiliária)', people: [], only: 'Diego' },
         documentacao: { label: 'Documentação e migração (Migra Paraguai)', people: [] },
         veiculos: { label: 'Veículos (Migra Motors)', people: [] },
       },
@@ -270,26 +270,26 @@ export class Store extends EventEmitter {
       this.flush();
     }
     // Nova divisão da equipe (Nov/2026): nada de vendas nem visitas para o Marcos.
-    // Visitas → Silvani; migração → Camila e Fran; veículos → Eliezer; imobiliária → Gabriel e Diego.
+    // Visitas → Silvani; migração → Camila e Fran; veículos → Eliezer; imobiliária → Diego (o Gabriel saiu da área de corretores em Nov/2026).
     // Só os nomes: o WhatsApp vem do cadastro de cada um na Equipe. Aplica uma vez (depois vale o painel).
     if (crmS && !crmS.teamRouting2026) {
       const people = (...names) => names.map((name) => ({ name, whatsapp: '' }));
       crmS.sectors ||= {};
-      crmS.sectors.loteamentos = { ...(crmS.sectors.loteamentos || {}), people: people('Gabriel', 'Diego') };
+      crmS.sectors.loteamentos = { ...(crmS.sectors.loteamentos || {}), people: people('Diego') };
       crmS.sectors.documentacao = { ...(crmS.sectors.documentacao || {}), people: people('Camila', 'Fran') };
       crmS.sectors.veiculos = { ...(crmS.sectors.veiculos || {}), people: people('Eliezer') };
       this.data.settings.visits = { ...(this.data.settings.visits || {}), people: people('Silvani') };
       for (const u of this.data.users || []) {
         if (/^marcos\b/i.test(String(u.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) Object.assign(u, { receivesLeads: false, receivesAffiliateLeads: false });
       }
-      crmS.jobsContact = [{ name: 'Gabriel', whatsapp: '' }];
+      crmS.jobsContact = [{ name: 'Diego', whatsapp: '' }];
       crmS.teamRouting2026 = true;
       this.flush();
     }
-    // Nov/2026: TODO assunto de terreno, lote e imóvel, de qualquer vendedor, vai só para o Gabriel (sem rodízio com o Diego).
+    // Nov/2026: TODO assunto de terreno, lote e imóvel, de qualquer vendedor, vai só para o Diego.
     if (crmS && !crmS.lotsGabriel2026) {
       crmS.sectors ||= {};
-      crmS.sectors.loteamentos = { ...(crmS.sectors.loteamentos || {}), only: 'Gabriel' };
+      crmS.sectors.loteamentos = { ...(crmS.sectors.loteamentos || {}), only: 'Diego' };
       crmS.lotsGabriel2026 = true;
       this.flush();
     }
@@ -357,6 +357,36 @@ export class Store extends EventEmitter {
       bizS.knowledge = cur.trim();
       this.data.settings.agent ||= {};
       this.data.settings.agent.schoolMemory2026 = true;
+      this.flush();
+    }
+    // Nov/2026: o Gabriel saiu da área de corretores; quem cuida de imóveis é só o Diego. Para quem já tinha as regras antigas:
+    // setor Loteamentos (só o Diego), contato de vagas, especialistas, a área da pessoa e o que a atendente "sabe" (nunca cita o Gabriel).
+    if (crmS && !crmS.corretorDiego2026) {
+      const fold1 = (n) => String(n || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      const isGab = (n) => /^gabriel\b/i.test(fold1(n));
+      const users = this.data.users || [];
+      const gabIds = new Set(users.filter((u) => isGab(u.name)).map((u) => u.id));
+      const nameOf = (x) => (typeof x === 'string' ? users.find((u) => u.id === x)?.name : x?.name);
+      const sec = crmS.sectors?.loteamentos;
+      if (sec) {
+        if (isGab(sec.only)) sec.only = 'Diego';
+        if (Array.isArray(sec.people)) {
+          sec.people = sec.people.filter((x) => !(typeof x === 'string' ? gabIds.has(x) : isGab(x?.name) || gabIds.has(x?.id)));
+          if (!sec.people.some((x) => /^diego\b/i.test(fold1(nameOf(x))))) sec.people.push({ name: 'Diego', whatsapp: '' });
+        }
+      }
+      if (Array.isArray(crmS.jobsContact)) {
+        const j = crmS.jobsContact.map((x) => (isGab(x?.name) ? { ...x, name: 'Diego' } : x));
+        crmS.jobsContact = j.filter((x, i) => j.findIndex((y) => fold1(y?.name).toLowerCase() === fold1(x?.name).toLowerCase()) === i);
+      }
+      if (Array.isArray(crmS.specialists)) for (const sp of crmS.specialists) if (isGab(sp?.name)) sp.name = 'Diego';
+      for (const u of users) if (gabIds.has(u.id) && Array.isArray(u.sectors)) u.sectors = u.sectors.filter((x) => x !== 'loteamentos');
+      const noGab = (t) => String(t).replace(/\bGabriel e (?:o )?Diego\b/g, 'Diego').replace(/\bDiego e (?:o )?Gabriel\b/g, 'Diego').replace(/\bGabriel\b/g, 'Diego');
+      const biz = this.data.settings.business;
+      if (biz && typeof biz.knowledge === 'string' && /\bGabriel\b/.test(biz.knowledge)) biz.knowledge = noGab(biz.knowledge);
+      for (const [k, v] of Object.entries(this.data.settings.agent || {})) if (typeof v === 'string' && /\bGabriel\b/.test(v)) this.data.settings.agent[k] = noGab(v);
+      for (const l of this.data.learnings || []) if (typeof l?.text === 'string' && /\bGabriel\b/.test(l.text)) l.text = noGab(l.text);
+      crmS.corretorDiego2026 = true;
       this.flush();
     }
     // Nov/2026: memória da atendente sobre CNH x licença paraguaia (quem vai morar precisa da licença: Ouro, não Prata).
