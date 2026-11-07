@@ -80,15 +80,16 @@ test('mensagem respondida (pelo agente ou pelo dono) sai da lista', () => {
   assert.equal(inbox.list().length, 0);
 });
 
-test('limite gratuito da IA: a fila pausa e ninguém recebe desculpa genérica', async () => {
+test('limite gratuito da IA: a fila espera e volta sozinha, ninguém perde a vez nem recebe desculpa genérica', async () => {
   const store = tempStore();
   store.updateSettings({ agent: { enabled: true, audience: 'all', triagePending: false } });
   let calls = 0;
+  let recovered = false;
   const llm = {
     configured: true,
     chat: async () => {
       calls++;
-      if (calls === 1) return { content: 'Desculpe a demora! Como posso ajudar?', tool_calls: [] };
+      if (calls === 1 || recovered) return { content: 'Olá! Como posso ajudar?', tool_calls: [] };
       const err = new Error('Google Gemini: limite de uso atingido');
       err.quota = true;
       throw err;
@@ -97,14 +98,17 @@ test('limite gratuito da IA: a fila pausa e ninguém recebe desculpa genérica',
   const agent = new Agent({ store, llm, calendar: null });
   const wa = new FakeWA();
   const autoReply = new AutoReply({ store, wa, agent });
-  const inbox = new PendingInbox({ store, agent, wa, autoReply, delay: [0, 0], careful: false });
+  const inbox = new PendingInbox({ store, agent, wa, autoReply, delay: [0, 0], careful: false, backoffUnitMs: 20 });
   wa.send = async (to, payload) => { wa.sent.push({ to, ...payload }); inbox.resolve(to); return { jid: to }; };
   for (const n of ['1', '2', '3']) inbox.onIncoming({ jid: `${n}@s.whatsapp.net`, phone: `55119000000${n}0`, text: 'oi' });
   inbox.enqueue(inbox.list().map((p) => p.jid));
-  await waitFor(() => !inbox.running);
+  await waitFor(() => store.data.logs.some((l) => /tenta de novo sozinha/.test(l.message)));
   assert.equal(wa.sent.length, 1); // só o primeiro, antes do limite
-  assert.equal(inbox.list().length, 2); // os outros continuam esperando
-  assert.ok(store.data.logs.some((l) => /fila de clientes esperando foi pausada/.test(l.message)));
+  assert.equal(inbox.list().length, 2); // os outros continuam esperando, na fila
+  assert.ok(inbox.queue.length >= 1, 'a fila não foi zerada');
+  recovered = true; // o limite voltou
+  await waitFor(() => wa.sent.length === 3, 3000);
+  assert.equal(inbox.list().length, 0);
 });
 
 test('responde sozinho quem ficou esperando, até 30 dias (padrão), sem atropelar quem acabou de escrever', async () => {
@@ -259,21 +263,20 @@ test('um cliente com erro não derruba a fila: registra o motivo, pula e continu
   assert.match(inbox.status().lastError.message, /Cannot read/);
 });
 
-test('três falhas seguidas pausam a fila com aviso claro, e o vigia religa uma fila que caiu sem rodar', async () => {
+test('três falhas seguidas: o número espera e tenta de novo sozinho, sem apagar a fila', async () => {
   const { store, wa, inbox } = setup();
+  inbox.backoffUnitMs = 20;
   const jids = ['1', '2', '3', '4'].map((n) => `59598${n.repeat(7)}@s.whatsapp.net`);
   inbox.ingestHistory(jids.map((jid) => ({ ...msg(jid, false, 'oi', 120), timestamp: Date.now() - 60000 })));
-  inbox.agent.handleIncoming = async () => { throw new Error('modelo indisponível'); };
+  let broken = true;
+  inbox.agent.handleIncoming = async (m, reply) => { if (broken) throw new Error('modelo indisponível'); await reply('Oi!'); };
   inbox.enqueue(jids);
-  await waitFor(() => !inbox.running);
-  assert.ok(store.data.logs.some((l) => /A fila parou depois de 3 falhas seguidas/.test(l.message)));
-  assert.equal(inbox.queue.length, 0);
+  await waitFor(() => store.data.logs.some((l) => /3 falhas seguidas/.test(l.message)));
   assert.equal(wa.sent.length, 0);
-  // Vigia: fila com itens e nada rodando volta a andar.
-  inbox.agent.handleIncoming = async (m, reply) => { await reply('Oi!'); };
-  inbox.queue = [jids[3]];
-  inbox.ensureRunning();
-  await waitFor(() => wa.sent.length === 1);
+  assert.ok(inbox.list().length >= 1, 'os clientes continuam na lista');
+  broken = false;
+  inbox.enqueue(jids);
+  await waitFor(() => wa.sent.length >= 1, 5000);
 });
 
 test('conversa pausada porque o dono respondeu pelo celular: a fila avisa em vez de pular em silêncio, e retomar devolve para a IA', async () => {

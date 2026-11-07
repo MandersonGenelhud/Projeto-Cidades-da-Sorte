@@ -89,7 +89,7 @@ export function extractStalled(messages, { now = Date.now(), maxDays = 15, minHo
 }
 
 export class PendingInbox {
-  constructor({ store, agent, wa, autoReply, notify, delay = [45, 90], careful = true, now = () => new Date(), senderLabel = (k) => k }) {
+  constructor({ store, agent, wa, autoReply, notify, delay = [45, 90], careful = true, backoffUnitMs = 60_000, now = () => new Date(), senderLabel = (k) => k }) {
     this.senderLabel = senderLabel; // nome de cada número no painel (ex.: WhatsApp da Franciely)
     this.store = store;
     this.agent = agent;
@@ -109,6 +109,8 @@ export class PendingInbox {
     this.queue = [];
     this.workers = new Map(); // número → true: cada número tem a sua própria fila andando, sem esperar pelos outros
     this.wakeUps = new Map();
+    this.backoffN = {};
+    this.backoffUnitMs = backoffUnitMs;
     store.data.pending ||= {};
   }
 
@@ -318,6 +320,17 @@ export class PendingInbox {
     });
   }
 
+  /** A IA ou a análise falhou: o número espera (2, 5, 10 e no máximo 15 min) e volta sozinho. Nada é apagado da fila. */
+  async #backoff(sender, motivo, fatal = false, quota = false) {
+    const n = (this.backoffN[sender] = (this.backoffN[sender] || 0) + 1);
+    const min = fatal ? 15 : quota ? Math.min(15, 5 * n) : Math.min(15, 2 ** n);
+    this.lastError = { at: new Date().toISOString(), message: motivo };
+    this.waitingBy[sender] = `IA indisponível (${motivo}); tenta de novo em ${min} min`;
+    if (n === 1 || n % 4 === 0) this.store.addLog({ type: 'system', message: `⏸️ ${sender}: ${motivo}. A fila continua e tenta de novo sozinha em ${min} min.${fatal ? ' Confira a chave da IA em Configurações.' : ''}` });
+    this.#changed();
+    await this.#wait(min * this.backoffUnitMs, sender);
+  }
+
   #limits() {
     const a = this.store.settings.agent || {};
     const [from, to] = workHourRange(a); // a fila de quem esperou responde no mesmo horário de trabalho da IA
@@ -409,12 +422,10 @@ export class PendingInbox {
             }
             this.store.save();
           } catch (err) {
-            // Limite do plano ou chave errada: não adianta continuar, pausa. Qualquer outro erro afeta só este cliente.
+            // Limite do plano ou chave errada: não zera a fila. Espera uns minutos e tenta de novo sozinho (os clientes continuam na fila).
             if (!(err.quota || err.auth || /limite|quota|chave|api key|rate limit/i.test(err.message))) throw err;
-            this.queue = [];
-            this.lastError = { at: new Date().toISOString(), message: err.message };
-            this.store.addLog({ type: 'system', message: `⏸️ A IA não conseguiu analisar as conversas antigas (${err.message}). A fila foi pausada; os clientes continuam na lista.` });
-            break;
+            await this.#backoff(sender, `não consegui analisar as conversas (${err.message})`, err.auth);
+            continue;
           }
         }
         if (!skip && p && (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected')) {
@@ -450,15 +461,18 @@ export class PendingInbox {
           );
         }
         if ((this.agent.errorAt || 0) >= startedAt) {
-          // A IA falhou (limite do plano, chave, fora do ar): pausa a fila e mantém os clientes na lista.
-          this.queue = [];
-          this.lastError = { at: new Date().toISOString(), message: this.agent.lastError?.message || 'a IA falhou' };
+          // A IA falhou (limite do plano, chave, fora do ar): este cliente continua na fila; espera e tenta de novo sozinho.
           const quota = (this.agent.quotaHitAt || 0) >= startedAt;
-          this.store.addLog({ type: 'system', message: quota
-            ? '⏸️ Limite de uso da IA atingido: a fila de clientes esperando foi pausada. Os clientes continuam na lista; tente de novo mais tarde (no plano gratuito, normalmente no dia seguinte).'
-            : `⏸️ A IA falhou e a fila foi pausada (${this.agent.lastError?.message || 'erro'}). Os clientes continuam na lista.` });
-          break;
+          await this.#backoff(sender, quota ? 'limite de uso da IA atingido' : `a IA falhou (${this.agent.lastError?.message || 'erro'})`, false, quota);
+          // Se a falha é só deste cliente (6 tentativas seguidas), tira ele da vez para não travar os outros; continua na lista.
+          if ((this.backoffN[sender] || 0) >= 6) {
+            this.queue = this.queue.filter((j) => j !== jid);
+            this.backoffN[sender] = 0;
+            this.store.addLog({ type: 'error', phone: p?.phone || jid, message: `A IA não conseguiu responder ${p?.name || p?.phone || jid} depois de várias tentativas. Ele continua na lista; os outros seguem.` });
+          }
+          continue;
         }
+        this.backoffN[sender] = 0;
         this.lastProgressAt = Date.now();
         if (conv) delete conv.continuity; // a análise vale só para a primeira resposta
         this.queue = this.queue.filter((j) => j !== jid);
@@ -486,9 +500,8 @@ export class PendingInbox {
           this.store.addLog({ type: 'error', message: `Fila de clientes: não consegui responder ${who} (${err.message}). Pulei e segui com os próximos.` });
           this.#changed();
           if (fails >= 3) {
-            this.queue = [];
-            this.store.addLog({ type: 'system', message: `⏸️ A fila parou depois de 3 falhas seguidas (última: ${err.message}). Os clientes continuam na lista. Abra Conexões → Saúde do sistema.` });
-            break;
+            fails = 0;
+            await this.#backoff(sender, `3 falhas seguidas (última: ${err.message})`);
           }
         }
       }
