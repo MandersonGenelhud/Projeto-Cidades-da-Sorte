@@ -1,0 +1,713 @@
+{
+ "src/affiliate-extras.js": [
+  "AffiliateExtras",
+  "CHANNELS"
+ ],
+ "src/affiliates.js": [
+  "Affiliates",
+  "CATEGORY_LABEL",
+  "DEFAULT_SERVICES",
+  "moneyIn",
+  "payoutText",
+  "readCookie"
+ ],
+ "src/agent/agent.js": [
+  "Agent",
+  "OWNER_PAUSE",
+  "STRESS_TESTS"
+ ],
+ "src/agent/calendar.js": [
+  "CalComCalendar",
+  "LocalCalendar",
+  "WEEKDAYS",
+  "createCalendar",
+  "parseLocal",
+  "parseRanges",
+  "toDateStr",
+  "toTimeStr"
+ ],
+ "src/agent/claude.js": [
+  "CLAUDE_MODELS",
+  "ClaudeChat",
+  "toAnthropic",
+  "toAnthropicTools"
+ ],
+ "src/agent/greeting.js": [
+  "backlogOpening",
+  "fixGreeting",
+  "greetingFor",
+  "professionalTone"
+ ],
+ "src/agent/llm.js": [
+  "LLMClient",
+  "PROVIDERS"
+ ],
+ "src/agent/presets.js": [
+  "CRISIS_KNOWLEDGE",
+  "DEFAULT_PRESET",
+  "GROUP_BLOCK_V1",
+  "GROUP_BLOCK_V2",
+  "GROUP_KNOWLEDGE",
+  "MIGRATECH_KNOWLEDGE",
+  "PRESETS",
+  "SCHOOL_KNOWLEDGE",
+  "presetSettings",
+  "presetUpgrade"
+ ],
+ "src/agent/prompt.js": [
+  "buildSystemPrompt",
+  "canSchedule",
+  "companyBrief"
+ ],
+ "src/agent/tools.js": [
+  "TOOL_DEFINITIONS",
+  "runTool"
+ ],
+ "src/alerts.js": [
+  "Alerts"
+ ],
+ "src/ana-dates.js": [
+  "MAX_YEARS_AHEAD",
+  "WEEKDAY_LABELS",
+  "addDays",
+  "addMonths",
+  "dBr",
+  "dayLabel",
+  "fold1",
+  "fromIso",
+  "isoOf",
+  "parseWhenPt",
+  "titleFrom",
+  "validIso",
+  "validTime",
+  "weekdayOf"
+ ],
+ "src/ana.js": [
+  "Ana",
+  "brNum",
+  "expandMagnitude",
+  "financePeriod",
+  "financeRange"
+ ],
+ "src/app-signups.js": [
+  "APPS",
+  "AppSignups",
+  "maskEmail",
+  "maskPhone"
+ ],
+ "src/assistant-guard.js": [
+  "OBJECT_LABEL",
+  "detectChange"
+ ],
+ "src/assistant.js": [
+  "Nina",
+  "periodOf",
+  "quickParse",
+  "scopeOf"
+ ],
+ "src/attendants.js": [
+  "attendantOf",
+  "byAttendant",
+  "conversationBoards"
+ ],
+ "src/audit.js": [
+  "Audit",
+  "FIELD_LABELS",
+  "SENSITIVE",
+  "diff"
+ ],
+ "src/auth.js": [
+  "Auth",
+  "SECTOR_IDS",
+  "accessExpired",
+  "checkPassword",
+  "hashPassword",
+  "publicUser"
+ ],
+ "src/autocontract.js": [
+  "CONTRACT_REQUIRED",
+  "contractReady",
+  "makeContractFlow"
+ ],
+ "src/autoreply.js": [
+  "AutoReply",
+  "normalizeText",
+  "ruleMatches"
+ ],
+ "src/backup.js": [
+  "Backups",
+  "decrypt",
+  "encrypt",
+  "loadKey"
+ ],
+ "src/campaigns.js": [
+  "CampaignRunner"
+ ],
+ "src/cash.js": [
+  "BOOKS",
+  "CURRENCIES",
+  "Cash",
+  "DEFAULT_CATEGORIES",
+  "DEFAULT_PARTNERS",
+  "METHODS",
+  "SCOPES",
+  "SCOPE_LABELS",
+  "TITHE_PCT",
+  "toCsv"
+ ],
+ "src/cities.js": [
+  "CATEGORIES",
+  "Cities"
+ ],
+ "src/closing.js": [
+  "Closing",
+  "DEFAULT_TERM",
+  "ESTADO_CIVIL",
+  "FORM_FIELDS",
+  "fmtCpf",
+  "validCpf"
+ ],
+ "src/collections.js": [
+  "Collections",
+  "DEFAULTS",
+  "MAX_PER_DAY",
+  "messageFor",
+  "tier"
+ ],
+ "src/commissions.js": [
+  "Commissions",
+  "DEFAULT_LEVELS"
+ ],
+ "src/commitments.js": [
+  "Commitments"
+ ],
+ "src/connection.js": [
+  "ConnectionManager",
+  "accountOf"
+ ],
+ "src/contabil.js": [
+  "COMPANY_STATUS",
+  "CURRENCIES",
+  "Contabil",
+  "DEFAULT_OBLIGATIONS",
+  "DEFAULT_RUC_DAYS",
+  "PERIODS",
+  "REGIMES",
+  "TASK_STATUS"
+ ],
+ "src/contract-cards.js": [
+  "ContractCards"
+ ],
+ "src/contract.js": [
+  "CONTRACT_DEFAULTS",
+  "contractPdf",
+  "fullAddress",
+  "moneyWords"
+ ],
+ "src/convsearch.js": [
+  "searchConversations"
+ ],
+ "src/crm-ai.js": [
+  "CrmAi",
+  "parseJsonObject"
+ ],
+ "src/crm.js": [
+  "Crm",
+  "STAGES",
+  "addDays",
+  "sourceLabel"
+ ],
+ "src/csrf.js": [
+  "crossSiteBlocked"
+ ],
+ "src/csv.js": [
+  "brDate",
+  "brNumber",
+  "csvCell",
+  "toCsv"
+ ],
+ "src/customer360.js": [
+  "Customer360"
+ ],
+ "src/demo.js": [
+  "clearDemo",
+  "hasDemo",
+  "loadDemo"
+ ],
+ "src/digest.js": [
+  "collectHandoffs",
+  "digestMessage"
+ ],
+ "src/distribution.js": [
+  "VIA_LABEL",
+  "assignments",
+  "distributionReport",
+  "slaCheck",
+  "viaOf"
+ ],
+ "src/documents.js": [
+  "DEFAULT_RULES",
+  "Documents",
+  "TYPES",
+  "addMonths",
+  "parseDocumentPages"
+ ],
+ "src/executive.js": [
+  "buildExecutive",
+  "dayStr",
+  "periods"
+ ],
+ "src/ficha-text.js": [
+  "FICHA_CAMPOS",
+  "fichaMensagens",
+  "fichaPedido"
+ ],
+ "src/finance.js": [
+  "DEFAULT_FINANCE",
+  "Proposals",
+  "cleanConfig",
+  "interestFor",
+  "isConfigured",
+  "missingClientData",
+  "options",
+  "proposalPdf",
+  "schedule",
+  "simulate"
+ ],
+ "src/followups.js": [
+  "AutoFollowUps",
+  "isAck"
+ ],
+ "src/group-brief.js": [
+  "HUB_OVERVIEW",
+  "STAFF_RULES",
+  "financeLines",
+  "groupLiveBrief"
+ ],
+ "src/humanize.js": [
+  "DEFAULT_HUMANIZE",
+  "humanizeConfig",
+  "noticeDelayMs",
+  "readingTimeMs",
+  "splitIntoBubbles",
+  "typingTimeMs"
+ ],
+ "src/learnings.js": [
+  "Learnings"
+ ],
+ "src/legacy-extras.js": [
+  "ContractTemplates",
+  "importLessons",
+  "importTeamContacts",
+  "renderTemplate"
+ ],
+ "src/legacy-import.js": [
+  "LegacyContracts",
+  "auditCapture",
+  "cashRowsFromCapture",
+  "extractClients",
+  "extractRecords",
+  "flat",
+  "isCobrancaTable",
+  "knownApiRecords",
+  "lastNumber",
+  "mergeRecords",
+  "norm",
+  "normalizeRecord",
+  "objectsIn",
+  "openInstallments",
+  "parcelStats",
+  "parcelsFromTables",
+  "parseDate",
+  "parseMoney",
+  "summarize"
+ ],
+ "src/legacy-ingest.js": [
+  "Ingest",
+  "MIME",
+  "fileOwners"
+ ],
+ "src/legacy-map.js": [
+  "OUR_FEATURES",
+  "buildScreenMap",
+  "compareMap"
+ ],
+ "src/legacy-tool.js": [
+  "MARKER",
+  "buildBat",
+  "buildSiteBat"
+ ],
+ "src/lines.js": [
+  "LINE_PREFIX",
+  "LineManager",
+  "MAX_LINES",
+  "cleanAgentName",
+  "lineKey",
+  "matchSeller",
+  "parseLineKey"
+ ],
+ "src/live.js": [
+  "DEFAULT_LIVE",
+  "Live"
+ ],
+ "src/maintenance.js": [
+  "moveOldCorretorLeads"
+ ],
+ "src/maria-baixa.js": [
+  "alreadyUsed",
+  "cpfMatches",
+  "digits",
+  "findCandidates",
+  "hintsFrom",
+  "money",
+  "nameMatches",
+  "openParcelsOf",
+  "receiptProblems"
+ ],
+ "src/maria-items.js": [
+  "MAX_DISCOUNT",
+  "describeItems",
+  "parseDiscount",
+  "parseItems",
+  "peopleOf"
+ ],
+ "src/maria-outbound.js": [
+  "filledNotice",
+  "findRecentQuote",
+  "makeOutbound"
+ ],
+ "src/maria.js": [
+  "CONTRACT_BRIEF",
+  "Maria",
+  "PROFILES",
+  "bareName",
+  "periodFrom",
+  "quickIntent",
+  "rangeOf",
+  "stripPeriod"
+ ],
+ "src/marketing.js": [
+  "Marketing",
+  "PRESETS"
+ ],
+ "src/merge-data.js": [
+  "mergeData"
+ ],
+ "src/messaging-audit.js": [
+  "auditMessaging",
+  "whyUnanswered"
+ ],
+ "src/migratech.js": [
+  "CONTRACT_STATUS",
+  "CURRENCIES",
+  "Migratech",
+  "RECURRENCE",
+  "SERVICE_STATUS"
+ ],
+ "src/motors.js": [
+  "LENDER_TYPES",
+  "Motors",
+  "VEHICLE_STATUS"
+ ],
+ "src/offices.js": [
+  "DEFAULT_OFFICES",
+  "OFFICE_IDS",
+  "isGlobal",
+  "normOffice",
+  "officeList",
+  "officeOfUser",
+  "sees"
+ ],
+ "src/opening.js": [
+  "DEFAULT_OPENING",
+  "DEFAULT_OPENING_NO_DATE",
+  "buildOpening",
+  "greetingOf",
+  "openingConfig",
+  "wantsOpening"
+ ],
+ "src/partner-projects.js": [
+  "DEFAULTS",
+  "PartnerProjects",
+  "STAGES",
+  "ym"
+ ],
+ "src/patch-baileys.js": [
+  "patchBaileys"
+ ],
+ "src/payments.js": [
+  "Payments"
+ ],
+ "src/payplan.js": [
+  "DEFAULT_STEPS",
+  "PayPlans",
+  "dueDate",
+  "fmtBr",
+  "money",
+  "paymentPlan",
+  "planMessage",
+  "todayIso"
+ ],
+ "src/pdfdoc.js": [
+  "PAGE",
+  "PdfCanvas",
+  "documentPdf",
+  "jpegSize"
+ ],
+ "src/pending.js": [
+  "PendingInbox",
+  "extractPending",
+  "extractStalled",
+  "senderOf"
+ ],
+ "src/personal.js": [
+  "CATEGORIES",
+  "Personal",
+  "categoryFromName",
+  "categoryOf",
+  "personalMoney"
+ ],
+ "src/pix.js": [
+  "crc16",
+  "normalizePixKey",
+  "pixBrCode",
+  "simplePdf",
+  "valorPorExtenso"
+ ],
+ "src/portfolio.js": [
+  "Portfolio",
+  "STATUS",
+  "statusOf"
+ ],
+ "src/quotes.js": [
+  "Quotes",
+  "packageInfo"
+ ],
+ "src/ranking.js": [
+  "POINTS",
+  "buildRanking",
+  "currentMonth"
+ ],
+ "src/realty.js": [
+  "LOT_STATUS",
+  "PROPERTY_STATUS",
+  "PROPERTY_TYPES",
+  "Realty",
+  "slugify"
+ ],
+ "src/receipts.js": [
+  "AUTO_MAX_DEFAULT",
+  "ReceiptReader"
+ ],
+ "src/recordings.js": [
+  "Recordings"
+ ],
+ "src/reengage.js": [
+  "MAX_PER_DAY",
+  "Reengage",
+  "TEMPLATES",
+  "guessSource",
+  "leadRowsFromApi",
+  "rowsFrom"
+ ],
+ "src/reports-csv.js": [
+  "REPORTS",
+  "auditCsv",
+  "reportCsv"
+ ],
+ "src/restart.js": [
+  "collectStalled",
+  "restartStalled"
+ ],
+ "src/resumes.js": [
+  "MIME_BY_EXT",
+  "Resumes",
+  "THANKS"
+ ],
+ "src/routes/assinatura-contratada.js": [
+  "makeContractorSigner"
+ ],
+ "src/routes/controle.js": [
+  "registerControleRoutes"
+ ],
+ "src/routing.js": [
+  "LeadRouter",
+  "REPEAT_MS",
+  "chatPreview"
+ ],
+ "src/sales-coach.js": [
+  "SALES_COACH",
+  "coachMessages",
+  "leadFacts",
+  "prioritiesText",
+  "ruleAdvice",
+  "salesCoach"
+ ],
+ "src/sales.js": [
+  "Sales"
+ ],
+ "src/scheduler.js": [
+  "Scheduler",
+  "nextRun"
+ ],
+ "src/school.js": [
+  "LEVELS",
+  "STAGES",
+  "School"
+ ],
+ "src/sectors.js": [
+  "SECTORS",
+  "Sectors",
+  "isOwner",
+  "parsePeople",
+  "resolvePeople"
+ ],
+ "src/security.js": [
+  "LoginGuard",
+  "base32Decode",
+  "base32Encode",
+  "newTotpSecret",
+  "otpauthUrl",
+  "totpCode",
+  "verifyTotp"
+ ],
+ "src/seller-commands.js": [
+  "COMMANDS",
+  "extractContractArgs",
+  "makeSellerCommands",
+  "parseCommand",
+  "parseWhen"
+ ],
+ "src/send-profiles.js": [
+  "cleanProfile",
+  "profileFor",
+  "senderOf"
+ ],
+ "src/server.js": [
+  "agent",
+  "app",
+  "auth",
+  "crm",
+  "store",
+  "wa"
+ ],
+ "src/services.js": [
+  "CATEGORIES",
+  "ServiceCatalog"
+ ],
+ "src/shopping.js": [
+  "STORES",
+  "parseShoppingItems",
+  "storeFromName",
+  "storeOf"
+ ],
+ "src/site-content.js": [
+  "DEFAULT_CONTENT",
+  "localizeMedia",
+  "mergeContent",
+  "renderHome",
+  "renderPremium",
+  "sanitizeContent",
+  "videoKind"
+ ],
+ "src/site-host.js": [
+  "SITE_ALLOW",
+  "hostOf",
+  "siteAllows",
+  "siteGuard",
+  "siteHostsFrom",
+  "siteOfficeMap"
+ ],
+ "src/store.js": [
+  "Store",
+  "deepMerge"
+ ],
+ "src/support.js": [
+  "SLA",
+  "STATUS",
+  "Support"
+ ],
+ "src/tasks.js": [
+  "Tasks"
+ ],
+ "src/transports/cloudapi.js": [
+  "CloudApiClient"
+ ],
+ "src/transports/instagram.js": [
+  "IG_PREFIX",
+  "InstagramClient",
+  "parseReferral",
+  "splitForInstagram"
+ ],
+ "src/transports/whatsapp-web.js": [
+  "WhatsAppClient",
+  "describeClose",
+  "isSelfChat",
+  "normalizeMessage",
+  "reconnectDelay"
+ ],
+ "src/tunnel.js": [
+  "Tunnel",
+  "downloadName",
+  "findTunnelUrl"
+ ],
+ "src/tutorials.js": [
+  "AUDIENCES",
+  "INCENTIVES",
+  "SEED",
+  "Tutorials"
+ ],
+ "src/updater.js": [
+  "RESTART_EXIT_CODE",
+  "UPDATE_SOURCE",
+  "Updater"
+ ],
+ "src/usage.js": [
+  "DEFAULT_PRICING",
+  "Usage",
+  "cleanPricing",
+  "historyReport",
+  "priceModel"
+ ],
+ "src/utils.js": [
+  "DEFAULT_WORK_HOURS",
+  "csvToContacts",
+  "isWithinBusinessHours",
+  "isWithinWorkHours",
+  "jidToPhone",
+  "normalizePhone",
+  "parseCSV",
+  "phoneToJid",
+  "randomBetween",
+  "renderTemplate",
+  "samePhone",
+  "sleep",
+  "spin",
+  "uid",
+  "workHourRange",
+  "workHoursOf"
+ ],
+ "src/videocalls.js": [
+  "DEFAULTS",
+  "VideoCalls",
+  "priceSeen"
+ ],
+ "src/visits.js": [
+  "DEFAULT_BRING",
+  "Visits"
+ ],
+ "src/voice.js": [
+  "ChoiceTts",
+  "DEFAULT_VOICE_STYLE",
+  "FallbackStt",
+  "GEMINI_VOICES",
+  "GeminiStt",
+  "GeminiTts",
+  "HttpStt",
+  "HttpTts",
+  "MARIA_VOICE_STYLE",
+  "numberToWords",
+  "speakable",
+  "toOpus"
+ ]
+}

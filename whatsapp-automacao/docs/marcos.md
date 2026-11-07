@@ -1,0 +1,8 @@
+- **Maria**: assistente de vendas/coach, perfis completo, básico, próprio e parceiro (`src/maria.js`, `src/sales-coach.js`).
+- **Contratos e pacotes**: vários pacotes por cliente, desconto até 15%, cláusula de dependentes, assinatura da contratada só autorizada (`src/contract.js`, `src/routes/assinatura-contratada.js`).
+- **Envio por número**: fila paralela por número, perfis de envio, auditoria (`src/pending.js`, `src/send-profiles.js`, `src/messaging-audit.js`).
+- **Rodízio e SLA**: distribuição entre vendedores e controle de parados (`src/distribution.js`).
+- **Recomeço de atendimentos parados**: 30 dias, mensagem de retorno automática (`src/restart.js`, `src/opening.js`).
+- **IA 07h–23h**: horário de funcionamento para todos os números (`src/utils.js`).
+- **Baixa por comprovante**: Maria lê comprovantes (`src/maria-baixa.js`).
+- **Memória do projeto**: mapa, snapshot de exportações, teste de arquitetura (`tools/mapa.js`, `test/arquitetura.test.js`).

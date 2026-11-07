@@ -14,3 +14,11 @@ Estas regras valem para qualquer IA que trabalhe neste repositório (Migra Hub e
 - Todo pedido do Marcos ou do Manderson é a **ideia inicial**, não o limite. Antes de implementar, pesquise como bons sistemas resolvem o mesmo problema (fluxos, controles, riscos, fraudes, boas práticas) e entregue a versão **melhor** do que foi pedido, explicando em português simples o que foi aprimorado e por quê. Nunca entregue só o mínimo literal.
 - Sempre que o pedido envolver dinheiro, contrato, acesso ou dado de cliente: conferir o que pode dar errado (duplicidade, fraude, erro humano, vazamento) e cobrir com teste automatizado e registro no `whatsapp-automacao/SEGURANCA.md`.
 - Dizer com honestidade o que foi testado, o que não foi e o que depende de dados da produção.
+
+# Memória do projeto (ler antes de mexer)
+
+- Antes de alterar um arquivo, rode `npm run quem-usa -- src/arquivo.js` (na pasta `whatsapp-automacao`) para ver quem depende dele.
+- `whatsapp-automacao/MAPA-DO-SISTEMA.md` mostra módulos, rotas, tarefas agendadas e migrações. Depois de mudar a estrutura, rode `npm run mapa` e commite o mapa junto.
+- `docs/exports.json` guarda tudo o que cada módulo oferece; o teste `test/arquitetura.test.js` falha se algo sumir sem querer, se surgir dependência circular, módulo sem uso ou tarefa agendada sem `unref`.
+- `LINHA-DO-TEMPO.md` (`npm run linha-do-tempo`) conta a história pelo Git; marcos escritos à mão ficam em `docs/marcos.md`.
+- Código novo entra em módulo próprio (`src/routes/*.js` para rotas, `register*Routes(app, ctx)`), sem depender de variáveis internas do `server.js`.

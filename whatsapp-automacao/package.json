@@ -7,7 +7,11 @@
     "start": "node --env-file-if-exists=.env src/server.js",
     "dev": "node --env-file-if-exists=.env --watch src/server.js",
     "test": "node --test test/*.test.js",
-    "postinstall": "node src/patch-baileys.js || exit 0"
+    "postinstall": "node src/patch-baileys.js || exit 0",
+    "mapa": "node tools/mapa.js",
+    "quem-usa": "node tools/quem-usa.js",
+    "linha-do-tempo": "node tools/linha-do-tempo.js",
+    "auditoria": "node tools/mapa.js --check && node --test test/arquitetura.test.js"
   },
   "keywords": [],
   "author": "",

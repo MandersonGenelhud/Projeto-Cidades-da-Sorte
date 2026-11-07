@@ -287,3 +287,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 - Quem esperou o atendimento (há 6 horas ou mais) ou entrou no "recomeçar" recebe **primeiro uma mensagem fixa** da direção, no número por onde falou, e só depois a IA continua a conversa: saudação do horário e nome, **agradece por aguardar**, diz que a demanda está alta mas todos estão sendo atendidos, que o contato combinado (com o dia, quando existe no CRM) acabou não acontecendo por imprevistos, que a Migra está aqui para dar continuidade e proporcionar a melhor migração com a melhor assessoria da fronteira. **Nunca pede desculpas** (a IA também é instruída a não pedir e a não dizer que ficou "complicado").
 - Um retorno por conversa a cada 7 dias; a IA não repete agradecimento depois dele. Texto editável em Conversas → Recomeçar → "Mensagem de retorno automática" (`agent.backlogOpening`: enabled, minHours, repeatDays, template, templateNoDate). Respeita o horário de trabalho (7h às 23h) e o limite por hora de cada número, como qualquer resposta da fila. Testes: `test/opening.test.js`.
+
+## Memória e auditoria da arquitetura
+
+- Risco: mudança em um módulo quebrar outro sem ninguém perceber (inclusive regras de login, permissão, backup).
+- Controle: `test/arquitetura.test.js` bloqueia dependência circular, módulo órfão, exportação removida sem querer, tarefa agendada sem `unref` e mapa desatualizado. Rotas de controle e de assinatura da contratada saíram do `server.js` para `src/routes/` mantendo as mesmas proteções (`needAdmin`), cobertas pelos testes HTTP existentes.

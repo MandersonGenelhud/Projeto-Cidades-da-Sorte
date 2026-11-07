@@ -44,13 +44,12 @@ import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Audit } from './audit.js';
-import { byAttendant, attendantOf, conversationBoards } from './attendants.js';
-import { auditMessaging } from './messaging-audit.js';
+import { byAttendant, attendantOf } from './attendants.js';
+import { registerControleRoutes } from './routes/controle.js';
+import { makeContractorSigner } from './routes/assinatura-contratada.js';
 import { fichaPedido } from './ficha-text.js';
-import { distributionReport, slaCheck } from './distribution.js';
-import { restartStalled } from './restart.js';
+import { slaCheck } from './distribution.js';
 import { moveOldCorretorLeads } from './maintenance.js';
-import { cleanProfile, profileFor } from './send-profiles.js';
 import { LegacyContracts, cashRowsFromCapture } from './legacy-import.js';
 import { buildBat, buildSiteBat } from './legacy-tool.js';
 import { Ingest, MIME as FILE_MIME } from './legacy-ingest.js';
@@ -2729,83 +2728,12 @@ app.get('/api/conversations', (req, res) => {
     return { ...base, attendantId: id, attendantName: names.get(id) || (id.startsWith('line:') ? id.slice(5) : 'IA conversando (ainda não direcionada)') };
   }));
 });
-// Quadros: um por pessoa da equipe, um da IA ainda sem direcionar e um por número da equipe sem dono, com "como está respondendo" (só administrador).
-app.get('/api/conversations-boards', (req, res) => {
-  needAdmin(req);
-  const convs = agent.listConversations().filter((c) => inOffice(req, conversationOffice(c)));
-  res.json({ boards: conversationBoards({ conversations: convs.map((c) => ({ ...c, channelLabel: convLabel(c.key) })), users: auth.users, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) }) });
-});
-// Recomeçar os atendimentos parados dos últimos 30 dias (todos os números): a IA lê as últimas 20 mensagens, confere se é assunto da Migra e retoma.
-const restartAll = (opts = {}) => restartStalled({
-  store, agent, pending, now: Date.now(),
-  leadOf: (c) => crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }), isBlocked: (p) => store.isBlacklisted(p), ...opts,
-});
-app.post('/api/restart-stalled', (req, res) => {
-  needAdmin(req);
-  const b = req.body || {};
-  const r = restartAll({ days: Math.min(60, Math.max(1, Number(b.days) || 30)), includeSilent: b.includeSilent !== false, dryRun: b.dryRun === true });
-  if (!r.dryRun) securityEvent('recomecar_atendimentos', req.user, req, `${r.total} conversa(s) paradas: ${r.queued} entraram na fila da IA`);
-  res.json(r);
-});
-// Baixas de pagamento feitas pela Maria a partir do comprovante (só administrador): quem mandou, de quem era, e se foi baixa direta ou ficou para conferir.
-app.get('/api/maria-receipts', (req, res) => {
-  needAdmin(req);
-  res.json({ items: [...(store.data.mariaReceipts || [])].reverse().slice(0, 100).map(({ file, hash, ...r }) => ({ ...r, hasFile: Boolean(file) })) });
-});
-// Controle do rodízio e dos fechamentos: quantos clientes a central entregou a cada vendedor, por onde chegaram, quanto demoraram a atender,
-// quantos viraram proposta e contrato, e quem está com cliente parado (só administrador, só leitura).
-const convOfLead = (l) => (l.conversationKey ? agent.conversation(l.conversationKey, { create: false }) : null);
-app.get('/api/distribution', (req, res) => {
-  needAdmin(req);
-  const today = new Date().toISOString().slice(0, 10);
-  const days = Math.min(60, Math.max(1, Number(req.query.days) || 14));
-  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || '')) ? String(req.query.from) : new Date(Date.now() - 29 * 86_400_000).toISOString().slice(0, 10);
-  const to = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.to || '')) ? String(req.query.to) : today;
-  const leads = crm.leads.filter((l) => inOffice(req, crm.officeOf(l)));
-  const convs = agent.listConversations().filter((c) => !c.simulation);
-  res.json(distributionReport({
-    leads, users: auth.users, rotation: crm.rotation(), sales: sales.listFor(req.user, { from, to }), convOf: convOfLead, from, to, days,
-    slaHours: Number(store.settings.crm?.sla?.hours) || 2, conversations: convs.filter((c) => { const d = String(c.updatedAt || '').slice(0, 10); return d >= from && d <= to; }).length,
-  }));
-});
-// Auditoria das conversas e mapa de mensagens por número e por cliente (só administrador, só leitura).
-app.get('/api/audit/messaging', (req, res) => {
-  needAdmin(req);
-  const days = Math.min(60, Math.max(1, Number(req.query.days) || 14));
-  const convs = Object.values(store.data.conversations || {}).filter((c) => inOffice(req, conversationOffice(c)));
-  const lineList = lines.list();
-  const report = auditMessaging({
-    conversations: convs, lines: lineList, settings: store.settings, days,
-    findLead: (c) => { const l = crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }); return l ? crm.view(l) : null; },
-    ownerName: (id) => auth.get(id)?.name || '',
-    senderLabel: (k) => pending.senderLabel(k),
-    isConnected: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected'),
-    blacklisted: (phone) => Boolean(phone) && store.isBlacklisted(phone),
-    llmOn: Boolean(agent.active),
-  });
-  const only = String(req.query.sender || '');
-  res.json(only ? { ...report, map: report.map.filter((m) => m.sender === only) } : report);
-});
-// Configuração de envio de cada número (principal, Instagram e o WhatsApp de cada vendedor): cada um com o seu limite, intervalo, horário e ritmo humano.
-const sendSenders = () => [
-  { key: 'principal', label: pending.senderLabel('principal') },
-  { key: 'instagram', label: pending.senderLabel('instagram') },
-  ...lines.list().map((l) => ({ key: `linha:${l.id}`, label: pending.senderLabel(`linha:${l.id}`) })),
-];
-app.get('/api/send-profiles', (req, res) => {
-  needAdmin(req);
-  res.json({ defaults: profileFor({ agent: store.settings.agent }, 'principal', { delay: pending.delay }), senders: sendSenders().map((x) => ({ ...x, own: store.settings.sendProfiles?.[x.key] || {}, effective: profileFor(store.settings, x.key, { delay: pending.delay }), sentToday: pending.status().bySender.find((b) => b.key === x.key)?.sentLastHour ?? 0 })) });
-});
-app.put('/api/send-profiles/:key', (req, res) => {
-  needAdmin(req);
-  const key = String(req.params.key);
-  if (!sendSenders().some((x) => x.key === key)) throw httpError(404, 'Número não encontrado');
-  const own = cleanProfile(req.body || {});
-  store.data.settings.sendProfiles = { ...(store.settings.sendProfiles || {}) };
-  if (Object.keys(own).length) store.data.settings.sendProfiles[key] = own; else delete store.data.settings.sendProfiles[key];
-  store.save();
-  securityEvent('envio_por_numero', req.user, req, `${pending.senderLabel(key)}: ${Object.keys(own).length ? JSON.stringify(own) : 'voltou ao padrão geral'}`);
-  res.json({ key, own, effective: profileFor(store.settings, key, { delay: pending.delay }) });
+// Rotas de controle (quadros, auditoria dos números, envio por número, rodízio e fechamentos, baixas da Maria, recomeçar parados): src/routes/controle.js
+const { restartAll, convOfLead } = registerControleRoutes(app, {
+  // Funções definidas mais adiante no arquivo entram por "ponte" (só são chamadas quando chega um pedido).
+  needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), inOffice: (...x) => inOffice(...x), securityEvent: (...x) => securityEvent(...x),
+  conversationOffice: (...x) => conversationOffice(...x), convLabel: (...x) => convLabel(...x), lineOwnerOf: (...x) => lineOwnerOf(...x),
+  store, auth, crm, agent, pending, lines, wa, sales,
 });
 // Busca por palavra em todas as conversas (só administrador; respeita o escritório escolhido no alto da tela).
 app.get('/api/search/conversations', (req, res) => {
@@ -4175,59 +4103,10 @@ app.post('/api/contract/extract', async (req, res) => {
   }
   res.json({ client: pickClient(found), ai: llm.configured });
 });
-// Assinatura da CONTRATADA (ex.: Eliezer) nos contratos: só vale se a própria pessoa cadastrou a imagem da sua assinatura e marcou
-// que autoriza. O sistema nunca desenha nem imita assinatura. A imagem fica em data/ (fora do Git).
-const signerFile = () => path.join(DATA_DIR, 'contract-signer.jpg');
-function contractorSign() {
-  const c = store.settings.contractSigner;
-  if (!c?.enabled || !c.authorizedAt || !c.name || !fs.existsSync(signerFile())) return null;
-  return { image: fs.readFileSync(signerFile()), name: c.name, role: c.role || '', authorizedAt: c.authorizedAt };
-}
-const signerMeta = () => {
-  const c = store.settings.contractSigner || {};
-  return { enabled: Boolean(c.enabled), name: c.name || '', role: c.role || '', hasImage: fs.existsSync(signerFile()), authorizedBy: c.authorizedBy || '', authorizedAt: c.authorizedAt || null, active: Boolean(contractorSign()) };
-};
-app.get('/api/contract-signer', (req, res) => { needAdmin(req); res.json(signerMeta()); });
-app.get('/api/contract-signer/image', (req, res) => {
-  needAdmin(req);
-  if (!fs.existsSync(signerFile())) throw httpError(404, 'Nenhuma assinatura cadastrada');
-  res.type('image/jpeg').set('Cache-Control', 'no-store').send(fs.readFileSync(signerFile()));
-});
-app.put('/api/contract-signer', (req, res) => {
-  needAdmin(req);
-  const b = req.body || {};
-  const name = String(b.name || '').replace(/\s+/g, ' ').trim().slice(0, 80);
-  const role = String(b.role || '').replace(/\s+/g, ' ').trim().slice(0, 60);
-  if (name.split(' ').length < 2) throw httpError(400, 'Informe o nome completo de quem assina pela empresa');
-  const cur = store.settings.contractSigner || {};
-  let newImage = false;
-  if (b.image) {
-    const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(b.image));
-    const buf = m ? Buffer.from(m[1], 'base64') : null;
-    if (!buf || buf.length < 1500 || buf.length > 600_000 || buf[0] !== 0xff || buf[1] !== 0xd8) throw httpError(400, 'Envie a imagem da assinatura em JPEG (até 600 KB).');
-    fs.writeFileSync(signerFile(), buf, { mode: 0o600 });
-    newImage = true;
-  }
-  if (!fs.existsSync(signerFile())) throw httpError(400, 'Cadastre primeiro a imagem da assinatura.');
-  const enabled = b.enabled !== false;
-  const authorizeNow = b.authorize === true;
-  // Nova imagem ou novo nome exigem a confirmação de que a própria pessoa autoriza o uso da assinatura.
-  if (enabled && (newImage || name !== cur.name || !cur.authorizedAt) && !authorizeNow) throw httpError(400, 'Marque a confirmação: a pessoa que assina autoriza o uso da própria assinatura nos contratos.');
-  const authorizedAt = authorizeNow ? new Date().toISOString() : cur.authorizedAt || null;
-  store.data.settings.contractSigner = { enabled, name, role, authorizedBy: authorizeNow ? req.user.name : cur.authorizedBy || '', authorizedAt };
-  store.save();
-  securityEvent('assinatura_contratada', req.user, req, `${enabled ? 'ligada' : 'desligada'} para ${name}${newImage ? ' (imagem nova)' : ''}`);
-  notifyAdmins(`✍️ *Assinatura da empresa nos contratos ${enabled ? 'ligada' : 'desligada'}*\n👤 ${name}${newImage ? ' (imagem nova)' : ''}\nFeito por: ${req.user.name}\n🕒 ${new Date().toLocaleString('pt-BR')}\n\nSe não foi combinado, avise o Marcos.`).catch(() => {});
-  res.json(signerMeta());
-});
-app.delete('/api/contract-signer', (req, res) => {
-  needAdmin(req);
-  try { fs.rmSync(signerFile(), { force: true }); } catch { /* já não existia */ }
-  store.data.settings.contractSigner = { enabled: false, name: store.settings.contractSigner?.name || '', role: store.settings.contractSigner?.role || '', authorizedBy: '', authorizedAt: null };
-  store.save();
-  securityEvent('assinatura_contratada', req.user, req, 'removida');
-  res.json(signerMeta());
-});
+// Assinatura da empresa (CONTRATADA) nos contratos: src/routes/assinatura-contratada.js
+const contractorSigner = makeContractorSigner({ store, dataDir: DATA_DIR, needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), notifyAdmins: (t) => notifyAdmins(t) });
+const contractorSign = () => contractorSigner.contractorSign();
+contractorSigner.register(app);
 app.post('/api/quotes/:id/contract', (req, res) => {
   const q = quotes.list.find((x) => x.id === req.params.id);
   if (!q || !canSeeQuote(req.user, q)) throw httpError(404, 'Orçamento não encontrado');
