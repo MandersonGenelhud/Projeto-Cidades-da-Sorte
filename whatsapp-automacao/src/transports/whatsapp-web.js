@@ -7,6 +7,7 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
   fetchLatestWaWebVersion,
+  generateMessageIDV2,
   downloadMediaMessage,
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
@@ -412,10 +413,17 @@ export class WhatsAppClient extends EventEmitter {
    * Envia com limite de tempo e vigia a saúde da conexão: o WhatsApp às vezes fica "conectado" mas deixa de entregar
    * (conexão meio morta). Depois de 3 falhas seguidas, a conexão é reiniciada sozinha.
    */
+  /** Carimba o id ANTES de enviar: o WhatsApp devolve a mensagem durante o envio, e sem isso a resposta da própria IA parecia do dono (e pausava a conversa). */
+  #stampId() {
+    const id = generateMessageIDV2(this.sock?.user?.id);
+    this.sentIds.add(id);
+    return id;
+  }
+
   async #guardedSend(jid, content) {
     const limit = new Promise((_, reject) => { setTimeout(() => reject(new Error('O WhatsApp não respondeu ao envio em 40 segundos')), 40_000).unref?.(); });
     try {
-      const sent = await Promise.race([this.sock.sendMessage(jid, content), limit]);
+      const sent = await Promise.race([this.sock.sendMessage(jid, content, { messageId: this.#stampId() }), limit]);
       this.sendFailures = 0;
       this.lastSend = { at: new Date().toISOString(), ok: true, error: '' };
       return sent;
@@ -477,7 +485,7 @@ export class WhatsAppClient extends EventEmitter {
     }
     // Áudio não aceita legenda: envia o texto separado.
     if (media?.mimetype?.startsWith('audio/') && text) {
-      const extra = await this.sock.sendMessage(jid, { text });
+      const extra = await this.sock.sendMessage(jid, { text }, { messageId: this.#stampId() });
       if (extra?.key?.id) this.sentIds.add(extra.key.id);
     }
     return { id: sent?.key?.id, jid };

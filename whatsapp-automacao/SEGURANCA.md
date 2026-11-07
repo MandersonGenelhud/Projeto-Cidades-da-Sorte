@@ -248,3 +248,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 - Depois de 5 erros de senha no mesmo login (ou 20 no mesmo IP) em 15 minutos, o painel bloqueia por 15 minutos e os administradores recebem um aviso no WhatsApp com o nome da pessoa e o caminho para liberar. O bloqueio solta sozinho em 15 minutos.
 - **Liberar na hora:** Equipe → botão **Liberar acesso** (aparece só em quem está bloqueado, com o selo "Bloqueado por tentativas") ou **trocar a senha** da pessoa. As duas formas zeram as tentativas do login e dos IPs de onde ele errou, ficam no registro de segurança (`acesso_liberado`) e só administrador (ou administrador do escritório, para a própria equipe) pode usar. Teste: `test/acesso-bloqueado.test.js`.
+
+## IA do número principal que "começa e não continua"
+
+- **Causa provável:** o WhatsApp devolve a mensagem que o próprio sistema acabou de mandar enquanto o envio ainda não terminou. Como o sistema só guardava o id depois do envio, a resposta da própria IA parecia "o dono respondeu pelo celular" e a conversa ficava **pausada por até 6 horas**: a IA falava duas ou três mensagens e calava quando o cliente respondia.
+- **Correção:** (1) o sistema carimba o id da mensagem **antes** de enviar (`messageId`), então o eco nunca vale como o dono (vale para `notify` e `append`, mesmo com envio lento); (2) o agente ignora texto igual a uma resposta recente da própria IA; (3) o conserto das pausas por eco roda a cada 10 minutos, não só ao ligar. Conversas já pausadas aparecem na auditoria como "pausada" e voltam em "Retomar com a IA". Testes: `test/owner-append.test.js`.

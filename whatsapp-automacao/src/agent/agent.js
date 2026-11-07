@@ -143,6 +143,10 @@ export class Agent {
     const conv = this.conversation(key, { create: pause });
     if (!conv) return null;
     conv.phone ||= phone || null;
+    // Segunda proteção: se o texto é a própria resposta recente da IA voltando do WhatsApp, não é o dono falando (não pausa nem duplica).
+    const flat = (t) => String(t || '').replace(/\s+/g, ' ').trim();
+    const mine = flat(text);
+    if (mine.length >= 4 && (conv.messages || []).slice(-6).some((m) => m.role === 'assistant' && Date.now() - Date.parse(m.at) < 10 * 60_000 && flat(m.content).includes(mine))) return conv;
     if (text) this.remember(conv, 'assistant', text);
     conv.ownerRepliedAt = Date.now();
     if (this.config.pauseOnOwnerReply !== false && !conv.handoff) {

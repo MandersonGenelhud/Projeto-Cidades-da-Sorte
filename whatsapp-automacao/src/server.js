@@ -204,6 +204,7 @@ const agent = new Agent({
 });
 // Destrava conversas pausadas por engano (resposta da própria IA lida como se fosse do celular).
 try { agent.repairEchoPauses(); } catch (err) { console.error('Conserto das pausas:', err.message); }
+setInterval(() => { try { agent.repairEchoPauses(); } catch { /* segue */ } }, 10 * 60_000).unref(); // pausas por eco da própria IA voltam sozinhas, não só ao ligar
 const campaigns = new CampaignRunner({ store, wa, notify });
 const autoReply = new AutoReply({ store, wa, notify, agent });
 const scheduler = new Scheduler({ store, wa, campaigns, notify });

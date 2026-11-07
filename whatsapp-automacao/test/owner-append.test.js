@@ -96,3 +96,40 @@ test('atalho no plural também vale (/contratos, /orçamentos)', () => {
   assert.equal(parseCommand('/orçamentos 2 pessoas').cmd, 'orcamento');
   assert.equal(parseCommand('/lembrete amanhã 10h ligar').cmd, 'lembrar');
 });
+
+test('envio do sistema: o id é carimbado ANTES de enviar, então a mensagem devolvida durante o envio (notify ou append) nunca conta como o dono', async () => {
+  const { c, out } = client();
+  c.status = 'connected';
+  c.sock = {
+    user: sock.user,
+    sendMessage: async (jid, content, opts) => {
+      // O WhatsApp devolve a mensagem na hora, antes de o envio terminar (como "notify" e como "append").
+      c.handleUpsert({ type: 'notify', messages: [msg(opts.messageId, content.text, { to: jid })] }, c.sock);
+      c.handleUpsert({ type: 'append', messages: [msg(opts.messageId, content.text, { to: jid })] }, c.sock);
+      await new Promise((r) => setTimeout(r, 120)); // envio lento: demora mais que o intervalo de espera do append
+      return { key: { id: opts.messageId } };
+    },
+    sendPresenceUpdate: async () => {}, presenceSubscribe: async () => {},
+  };
+  await c.send('5545999990000@s.whatsapp.net', { text: 'Oi! Me conta o seu objetivo no Paraguai.', typing: false });
+  await tick();
+  assert.equal(out.owner.length, 0, 'a resposta da própria IA não vira "o dono respondeu"');
+  // Já uma mensagem digitada de verdade no celular (id que o sistema não mandou) continua valendo.
+  c.handleUpsert({ type: 'notify', messages: [msg('REAL1', 'Pode deixar que eu respondo.')] }, c.sock);
+  assert.equal(out.owner.length, 1);
+});
+
+test('agente: texto igual a uma resposta recente da própria IA não pausa a conversa nem duplica; fala nova do dono pausa', async () => {
+  const { Agent, OWNER_PAUSE } = await import('../src/agent/agent.js');
+  const { tempStore } = await import('./helpers.js');
+  const store = tempStore();
+  const agent = new Agent({ store, llm: { configured: false }, calendar: null });
+  const conv = agent.conversation('5545999990000@s.whatsapp.net');
+  agent.remember(conv, 'assistant', 'Oi, Adriano!\n\nMe conta: hoje o seu objetivo seria morar, trabalhar ou abrir empresa?');
+  agent.ownerReplied({ key: conv.key, phone: '5545999990000', text: 'Me conta: hoje o seu objetivo seria morar, trabalhar ou abrir empresa?' });
+  assert.ok(!conv.handoff, 'eco da IA: sem pausa');
+  assert.equal(conv.messages.length, 1, 'e sem mensagem duplicada');
+  agent.ownerReplied({ key: conv.key, phone: '5545999990000', text: 'Adriano, aqui é o Marcos, vou te ligar já.' });
+  assert.equal(conv.handoff, true);
+  assert.equal(conv.handoffReason, OWNER_PAUSE);
+});
