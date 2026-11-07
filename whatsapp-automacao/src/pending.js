@@ -4,6 +4,7 @@
 import { randomBetween } from './utils.js';
 
 import { senderOf, profileFor } from './send-profiles.js';
+import { workHourRange, isWithinWorkHours } from './utils.js';
 export { senderOf };
 
 /**
@@ -310,8 +311,8 @@ export class PendingInbox {
 
   #limits() {
     const a = this.store.settings.agent || {};
-    const [from, to] = String(a.pendingHours || '7-21').split('-').map(Number);
-    return { perHour: Math.max(1, Number(a.pendingPerHour) || 30), from: Number.isFinite(from) ? from : 7, to: Number.isFinite(to) ? to : 21 };
+    const [from, to] = workHourRange(a); // a fila de quem esperou responde no mesmo horário de trabalho da IA
+    return { perHour: Math.max(1, Number(a.pendingPerHour) || 30), from, to };
   }
 
   /**
@@ -328,7 +329,7 @@ export class PendingInbox {
       const ms = now.getTime();
       const h = now.getHours();
       let waitMs = 60_000;
-      if (h < prof.from || h >= prof.to) {
+      if (h < prof.from || h >= prof.to || !isWithinWorkHours({ ...(this.store.settings.agent?.workHours || {}), start: '00:00', end: '24:00' }, now)) {
         this.waitingBy[sender] = `fora do horário (responde das ${prof.from}h às ${prof.to}h)`;
       } else if (prof.dailyLimit && this.#sentToday(sender) >= prof.dailyLimit) {
         this.waitingBy[sender] = `limite de ${prof.dailyLimit} respostas por dia atingido; continua amanhã`;

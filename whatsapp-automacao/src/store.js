@@ -113,7 +113,9 @@ const DEFAULT_DATA = {
       // Conversas sem resposta: considera mensagens dos últimos N dias e responde sozinho.
       pendingMaxDays: 15, // a IA responde sozinha quem esperou até 15 dias
       pendingPerHour: 30, // modo cuidadoso: no máximo 30 respostas por hora para quem ficou esperando
-      pendingHours: '7-21', // e só das 7h às 21h
+      pendingHours: '7-23', // e só das 7h às 23h (igual ao horário de trabalho da IA)
+      // Horário de trabalho da atendente de IA: todos os dias, das 7h às 23h. Fora dele ela não responde; a mensagem espera e é respondida quando abre.
+      workHours: { enabled: true, days: [0, 1, 2, 3, 4, 5, 6], start: '07:00', end: '23:00', message: '' },
       autoAnswerPending: true,
       ...PRESET.agent,
     },
@@ -357,6 +359,14 @@ export class Store extends EventEmitter {
       bizS.knowledge = cur.trim();
       this.data.settings.agent ||= {};
       this.data.settings.agent.schoolMemory2026 = true;
+      this.flush();
+    }
+    // Nov/2026: a atendente de IA trabalha todos os dias, das 7h às 23h (a fila de quem esperou segue o mesmo horário). Uma vez; depois vale o painel.
+    const agW = this.data.settings.agent;
+    if (agW && !agW.workHours2026) {
+      agW.workHours = { enabled: true, days: [0, 1, 2, 3, 4, 5, 6], start: '07:00', end: '23:00', message: '' };
+      agW.pendingHours = '7-23';
+      agW.workHours2026 = true;
       this.flush();
     }
     // Nov/2026: o Gabriel saiu da área de corretores; quem cuida de imóveis é só o Diego. Para quem já tinha as regras antigas:

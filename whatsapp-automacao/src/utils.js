@@ -150,6 +150,35 @@ export function csvToContacts(text) {
 }
 
 /** Verifica se agora está dentro do horário comercial configurado. */
+/**
+ * Horário de trabalho da atendente de IA (settings.agent.workHours): por padrão todos os dias, das 7h às 23h.
+ * Fora dele a IA não responde (a mensagem fica esperando e é respondida quando o horário abre).
+ */
+export const DEFAULT_WORK_HOURS = { enabled: true, days: [0, 1, 2, 3, 4, 5, 6], start: '07:00', end: '23:00', message: '' };
+export function workHoursOf(cfg) {
+  const c = { ...DEFAULT_WORK_HOURS, ...(cfg || {}) };
+  const days = Array.isArray(c.days) && c.days.length ? c.days.map(Number).filter((d) => d >= 0 && d <= 6) : DEFAULT_WORK_HOURS.days;
+  return { ...c, days };
+}
+export function isWithinWorkHours(cfg, now = new Date()) {
+  const c = workHoursOf(cfg);
+  if (c.enabled === false) return true;
+  if (!c.days.includes(now.getDay())) return false;
+  const [sh, sm] = String(c.start).split(':').map(Number);
+  const [eh, em] = String(c.end).split(':').map(Number);
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  return minutes >= sh * 60 + (sm || 0) && minutes < eh * 60 + (em || 0);
+}
+/** Hora inicial e final (inteiras) do horário de trabalho, para a fila de quem ficou esperando. */
+export function workHourRange(agentCfg) {
+  const c = workHoursOf(agentCfg?.workHours);
+  if (c.enabled === false) {
+    const [f, t] = String(agentCfg?.pendingHours || '7-23').split('-').map(Number);
+    return [Number.isFinite(f) ? f : 7, Number.isFinite(t) ? t : 23];
+  }
+  return [Number(String(c.start).split(':')[0]) || 0, Math.ceil(Number(String(c.end).split(':')[0]) + (Number(String(c.end).split(':')[1]) > 0 ? 1 : 0)) || 24];
+}
+
 export function isWithinBusinessHours(cfg, now = new Date()) {
   if (!cfg || !cfg.enabled) return true;
   const days = cfg.days || [1, 2, 3, 4, 5];

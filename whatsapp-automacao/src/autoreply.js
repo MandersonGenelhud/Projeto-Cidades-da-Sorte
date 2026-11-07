@@ -1,5 +1,5 @@
 // Chatbot de respostas automáticas por palavra-chave.
-import { isWithinBusinessHours, renderTemplate, samePhone, uid } from './utils.js';
+import { isWithinBusinessHours, isWithinWorkHours, renderTemplate, samePhone, uid } from './utils.js';
 
 /** Remove acentos e padroniza para comparação. */
 export function normalizeText(text) {
@@ -98,6 +98,8 @@ export class AutoReply {
 
     // Agente de IA ligado: regras de palavra-chave (opcionais) e depois a IA.
     if (this.agentAllowed(msg)) {
+      // Fora do horário de trabalho da IA (padrão: todos os dias, 7h às 23h) ela não responde: a mensagem fica esperando e a fila responde quando abre.
+      if (!isWithinWorkHours(s.agent?.workHours, now)) return { kind: 'workhours', text: String(s.agent?.workHours?.message || '') };
       const rule = this.store.settings.agent.rulesFirst
         ? this.list().find((r) => r.matchType !== 'any' && ruleMatches(r, msg.text))
         : null;
@@ -185,6 +187,16 @@ export class AutoReply {
     const contact = this.#rememberContact(msg);
     if (msg.phone) this.seenContacts.add(msg.phone);
     if (!decision) return;
+
+    if (decision.kind === 'workhours') {
+      this.store.addLog({ type: 'system', phone: msg.phone || msg.jid, message: 'Fora do horário de atendimento da IA: a mensagem ficou esperando e será respondida quando o horário abrir' });
+      // Aviso opcional (workHours.message), uma vez a cada 8 horas por cliente.
+      if (decision.text && Date.now() - (this.lastReply.get(`wh:${msg.jid}`) || 0) > 8 * 3_600_000) {
+        this.lastReply.set(`wh:${msg.jid}`, Date.now());
+        try { await this.wa.send(msg.jid, { text: renderTemplate(decision.text, contact) }); } catch (err) { this.store.addLog({ type: 'error', phone: msg.phone || msg.jid, message: `Aviso fora do horário: ${err.message}` }); }
+      }
+      return;
+    }
 
     if (decision.kind === 'agent') {
       await this.agent.handleIncoming(

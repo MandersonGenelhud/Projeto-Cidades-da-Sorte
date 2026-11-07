@@ -395,7 +395,7 @@ test('perfil de envio por número: herda o padrão geral, valida os campos e apl
   assert.equal(p.humanize.typingCharsPerSecond, 4);
   assert.equal(p.humanize.noticeMax, 30);
   const g = profileFor(settings, 'linha:x', { delay: [1, 2] });
-  assert.deepEqual([g.perHour, g.from, g.to, g.gap, g.custom], [30, 7, 21, [1, 2], false], 'quem não tem perfil usa o padrão geral');
+  assert.deepEqual([g.perHour, g.from, g.to, g.gap, g.custom], [30, 7, 23, [1, 2], false], 'quem não tem perfil usa o padrão geral');
   assert.deepEqual(cleanProfile({ perHour: '15', dailyLimit: '', minGapSec: '30', maxGapSec: '10' }), { perHour: 15, minGapSec: 30, maxGapSec: 30 });
   assert.throws(() => cleanProfile({ from: 20, to: 8 }), /horário final/);
   assert.throws(() => cleanProfile({ perHour: 'abc' }), /números/);

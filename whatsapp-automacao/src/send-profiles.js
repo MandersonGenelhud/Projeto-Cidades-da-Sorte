@@ -2,6 +2,7 @@
 // intervalo entre respostas, horário de envio e ritmo humano ("vendo", lendo e digitando). Cada número usa o seu próprio perfil;
 // o que não for definido herda o padrão geral da aba Agente IA. Um número nunca divide o limite com outro.
 import { parseLineKey } from './lines.js';
+import { workHourRange } from './utils.js';
 
 /** De qual número sai a resposta: cada WhatsApp (principal, cada vendedor, Instagram) tem o seu próprio limite e ritmo. */
 export const senderOf = (jid) => {
@@ -41,9 +42,9 @@ export function cleanProfile(input = {}) {
 export function profileFor(settings, sender, { delay = [0, 0] } = {}) {
   const a = settings?.agent || {};
   const own = settings?.sendProfiles?.[sender] || {};
-  const [gFrom, gTo] = String(a.pendingHours || '7-21').split('-').map(Number);
-  const from = own.from ?? (Number.isFinite(gFrom) ? gFrom : 7);
-  const to = own.to ?? (Number.isFinite(gTo) ? gTo : 21);
+  const [gFrom, gTo] = workHourRange(a); // padrão: o horário de trabalho da IA (7h às 23h)
+  const from = own.from ?? gFrom;
+  const to = own.to ?? gTo;
   const minGap = own.minGapSec ?? delay[0];
   const maxGap = Math.max(minGap, own.maxGapSec ?? delay[1]);
   const humanize = { ...(a.humanize || {}) };
