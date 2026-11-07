@@ -4509,8 +4509,53 @@ const mariaContracts = {
     items: Array.isArray(itens) && itens.length ? itens : [{ pacote, quantidade: pessoas }], adults: adultos, discountPct: desconto, client: nome, phone: normalizePhone(telefone) || '', leadId,
     consultant: String(user.name || '').split(' ')[0], createdBy: { id: user.id, name: user.name },
   }),
-  clientFor: (q, { nome = '', telefone = '', dados = {} }) => {
-    const form = q.mariaFormId ? closing.list.find((f) => f.id === q.mariaFormId) : null;
+  // Quem pode ser o cliente do contrato: leads, fichas preenchidas e orçamentos que a pessoa enxerga, os últimos atendimentos primeiro.
+  candidates: (viewer, user, { nome = '', phone = '' }) => {
+    const fold = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const n = fold(nome); const ph = normalizePhone(phone) || '';
+    const match = (nm, tel) => (ph ? Boolean(tel) && samePhone(tel, ph) : Boolean(n) && fold(nm).includes(n));
+    const found = new Map();
+    const add = (c) => {
+      if (!match(c.nome, c.telefone)) return;
+      const tel = normalizePhone(c.telefone) || '';
+      const key = tel ? `p:${tel.slice(-9)}` : c.leadId ? `l:${c.leadId}` : `n:${fold(c.nome)}`;
+      const prev = found.get(key);
+      if (!prev) { found.set(key, { ...c, telefone: tel }); return; }
+      if (Date.parse(c.lastAt) > Date.parse(prev.lastAt)) prev.lastAt = c.lastAt;
+      if ((c.nome || '').length > (prev.nome || '').length) prev.nome = c.nome;
+      prev.leadId ||= c.leadId; prev.formId ||= c.formId; prev.quoteId ||= c.quoteId;
+    };
+    for (const l of crm.list(viewer, { q: ph || nome })) {
+      const conv = l.conversationKey ? agent.conversation(l.conversationKey, { create: false }) : null;
+      const last = [l.updatedAt, conv?.updatedAt].filter(Boolean).sort().at(-1);
+      add({ nome: l.name, telefone: l.phone || '', lastAt: last, leadId: l.id });
+    }
+    for (const f of closing.list) {
+      if (f.status !== 'preenchida') continue;
+      const lead = f.leadId ? crm.byId(f.leadId) : null;
+      const mine = viewer.role === 'admin' || f.requesterId === user.id || (lead && crm.canSee(viewer, lead));
+      if (mine) add({ nome: f.data?.nome, telefone: f.data?.whatsapp || '', lastAt: f.filledAt || f.createdAt, leadId: f.leadId || null, formId: f.id });
+    }
+    const since = Date.now() - 60 * 86_400_000;
+    for (const q of quotes.list) {
+      if (!canSeeQuote(viewer, q) || q.contract?.status === 'assinado' || Date.parse(q.createdAt) < since) continue;
+      add({ nome: q.client, telefone: q.phone || '', lastAt: q.createdAt, leadId: q.leadId || null, quoteId: q.id });
+    }
+    return [...found.values()].sort((a, b) => Date.parse(b.lastAt) - Date.parse(a.lastAt));
+  },
+  // Link da ficha de dados para a RESERVA (cliente presencial): volta para quem pediu; nada é enviado ao cliente.
+  reservationLink: ({ user, viewer, nome = '', telefone = '', adultos = null }) => {
+    const lead = nome || telefone ? mariaContracts.registerLead({ user, viewer, nome, telefone, interesse: 'Reserva', pessoas: adultos || 1 }).lead : null;
+    const f = closing.createForm({ convKey: lead?.conversationKey || null, lead, servico: 'Reserva', adultos });
+    f.noAuto = true;
+    f.requesterId = user.id;
+    store.save();
+    return { url: closing.formUrl(f), leadId: lead?.id || null, formId: f.id };
+  },
+  clientFor: (q, { nome = '', telefone = '', dados = {}, formId = null, leadId = null }) => {
+    const byId = (id) => (id ? closing.list.find((f) => f.id === id) : null);
+    const filled = [byId(q.mariaFormId), byId(formId), leadId ? closing.forLead(leadId) : null].find((f) => f?.status === 'preenchida');
+    const form = filled || byId(q.mariaFormId);
     const fromForm = form?.status === 'preenchida' ? form.data : {};
     return pickClient({ whatsapp: telefone ? `+${normalizePhone(telefone) || telefone}` : '', ...fromForm, ...(q.contract?.client || {}), ...dados, nome: dados.nome || fromForm.nome || q.contract?.client?.nome || nome });
   },
