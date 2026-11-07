@@ -6,6 +6,7 @@ import { randomBetween } from './utils.js';
 import { senderOf, profileFor } from './send-profiles.js';
 import { workHourRange, isWithinWorkHours } from './utils.js';
 import { buildOpening, wantsOpening } from './opening.js';
+import { quoteNote } from './quote-expiry.js';
 export { senderOf };
 
 /** A mensagem de retorno (agradecimento, demanda alta, imprevistos) já foi enviada: a IA não repete e segue direto ao assunto. */
@@ -447,7 +448,7 @@ export class PendingInbox {
             }
           }
           await this.agent.handleIncoming(
-            { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true, resume: opened ? OPENED_NOTE(p) : p.kind === 'retomar' ? RESUME_NOTE(p) : '' },
+            { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true, resume: p.kind === 'orcamento' ? quoteNote(p) : opened ? OPENED_NOTE(p) : p.kind === 'retomar' ? RESUME_NOTE(p) : '' },
             async (text, { typingMs } = {}) => {
               try {
                 await this.wa.send(jid, { text, typingMs });

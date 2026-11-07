@@ -2729,7 +2729,7 @@ app.get('/api/conversations', (req, res) => {
   }));
 });
 // Rotas de controle (quadros, auditoria dos números, envio por número, rodízio e fechamentos, baixas da Maria, recomeçar parados): src/routes/controle.js
-const { restartAll, convOfLead } = registerControleRoutes(app, {
+const { restartAll, convOfLead, noticeQuotes } = registerControleRoutes(app, {
   // Funções definidas mais adiante no arquivo entram por "ponte" (só são chamadas quando chega um pedido).
   needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), inOffice: (...x) => inOffice(...x), securityEvent: (...x) => securityEvent(...x),
   conversationOffice: (...x) => conversationOffice(...x), convLabel: (...x) => convLabel(...x), lineOwnerOf: (...x) => lineOwnerOf(...x),
@@ -5174,6 +5174,8 @@ if (process.env.NODE_ENV !== 'test') {
   } catch (e) { store.addLog({ type: 'error', message: `Troca de corretor: ${e.message}` }); }
   // Rede de segurança: a cada 15 minutos, dentro do horário de trabalho, quem ficou esperando e não está na fila entra nela (últimos dias do prazo escolhido). Silenciosos só pelo botão.
   setInterval(() => { try { if (agent.active && isWithinWorkHours(store.settings.agent?.workHours)) restartAll({ days: Number(store.settings.agent?.pendingMaxDays) || 30, includeSilent: false, includeMarcos: false }); } catch (e) { store.addLog({ type: 'error', message: `Recomeçar parados: ${e.message}` }); } }, 15 * 60_000).unref();
+  // Orçamento a vencer (hoje ou amanhã): avisa uma vez, no horário de trabalho, pela conversa do cliente. Desligue com quoteExpiry.auto = false.
+  setInterval(() => { try { if (agent.active && store.settings.agent?.quoteExpiry?.auto !== false && isWithinWorkHours(store.settings.agent?.workHours)) { const r = noticeQuotes({}); if (r.queued) store.addLog({ type: 'system', message: `Orçamentos a vencer: ${r.queued} cliente(s) avisados pela fila da IA.` }); } } catch (e) { store.addLog({ type: 'error', message: `Aviso de orçamento a vencer: ${e.message}` }); } }, 30 * 60_000).unref();
   setInterval(() => slaTick().catch((e) => store.addLog({ type: 'error', message: `Cliente parado: ${e.message}` })), 10 * 60_000).unref();
   // Ana: resumo da manhã (04:30) e lembretes pessoais na hora marcada.
   setInterval(() => ana.tick().catch((e) => store.addLog({ type: 'error', message: `Ana: ${e.message}` })), 60_000).unref();

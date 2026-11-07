@@ -292,3 +292,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 - Risco: mudança em um módulo quebrar outro sem ninguém perceber (inclusive regras de login, permissão, backup).
 - Controle: `test/arquitetura.test.js` bloqueia dependência circular, módulo órfão, exportação removida sem querer, tarefa agendada sem `unref` e mapa desatualizado. Rotas de controle e de assinatura da contratada saíram do `server.js` para `src/routes/` mantendo as mesmas proteções (`needAdmin`), cobertas pelos testes HTTP existentes.
+
+## Aviso de orçamento a vencer (cliente e dinheiro)
+
+- Risco: cobrar/pressionar cliente com promessa falsa, avisar quem já fechou, avisar duas vezes, escrever para número que nunca falou conosco ou para quem pediu para não ser incomodado.
+- Controles (`src/quote-expiry.js`, testes em `test/quote-expiry.test.js` e `test/pending.test.js`): só orçamentos que vencem hoje ou amanhã, sem contrato e sem venda; cada orçamento é avisado uma única vez (`expiryNoticeAt`, só marcado quando entrou mesmo na fila); não avisa lista de bloqueio, lead ganho/perdido, conversa assumida por pessoa; quem não tem conversa guardada não recebe mensagem do nada (aparece no relatório); a IA só pode citar o prazo real, é proibida de inventar desconto, bônus ou vaga limitada, e se o cliente pedir prazo/desconto vai para humano. Rotas só para administrador, com registro de segurança. Ritmo por número e horário de trabalho valem como em toda a fila.

@@ -32,7 +32,7 @@ export function buildOpening({ name = '', date = '', now = new Date(), cfg = {} 
 /** Esta conversa deve receber a mensagem de retorno? (esperou tempo suficiente, ou veio do "recomeçar", e ainda não recebeu há pouco.) */
 export function wantsOpening({ item, conv, now = Date.now(), cfg = {} }) {
   const c = openingConfig({ backlogOpening: cfg });
-  if (c.enabled === false || !item) return false;
+  if (c.enabled === false || !item || item.noOpening) return false;
   if (conv?.openingSentAt && now - conv.openingSentAt < c.repeatDays * 86_400_000) return false;
   if (item.restart) return true;
   return now - Number(item.at || now) >= c.minHours * 3_600_000;

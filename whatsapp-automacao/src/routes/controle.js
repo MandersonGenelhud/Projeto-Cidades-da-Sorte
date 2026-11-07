@@ -5,9 +5,10 @@ import { conversationBoards } from '../attendants.js';
 import { auditMessaging } from '../messaging-audit.js';
 import { cleanProfile, profileFor } from '../send-profiles.js';
 import { distributionReport } from '../distribution.js';
+import { noticeExpiringQuotes } from '../quote-expiry.js';
 import { restartStalled } from '../restart.js';
 
-/** ctx: { needAdmin, httpError, inOffice, store, auth, crm, agent, pending, lines, wa, sales, securityEvent, conversationOffice, convLabel, lineOwnerOf } */
+/** ctx: { needAdmin, httpError, inOffice, store, auth, crm, agent, pending, lines, wa, sales, quotes, securityEvent, conversationOffice, convLabel, lineOwnerOf } */
 export function registerControleRoutes(app, ctx) {
   const { needAdmin, httpError, inOffice, store, auth, crm, agent, pending, lines, wa, sales, securityEvent, conversationOffice, convLabel, lineOwnerOf } = ctx;
 // Quadros: um por pessoa da equipe, um da IA ainda sem direcionar e um por número da equipe sem dono, com "como está respondendo" (só administrador).
@@ -17,6 +18,21 @@ app.get('/api/conversations-boards', (req, res) => {
   res.json({ boards: conversationBoards({ conversations: convs.map((c) => ({ ...c, channelLabel: convLabel(c.key) })), users: auth.users, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) }) });
 });
 // Recomeçar os atendimentos parados dos últimos 30 dias (todos os números): a IA lê as últimas 20 mensagens, confere se é assunto da Migra e retoma.
+// Orçamentos que vencem hoje ou amanhã: ver quem seria avisado (GET) e avisar pela fila da IA (POST). Cada orçamento é avisado uma vez só.
+const noticeQuotes = (opts = {}) => noticeExpiringQuotes({
+  store, agent, pending, quotes: quotes.list, sales: sales.list, now: Date.now(),
+  leadOf: (c) => crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }), isBlocked: (p) => store.isBlacklisted(p), ...opts,
+});
+app.get('/api/quotes-expiring', (req, res) => {
+  needAdmin(req);
+  res.json(noticeQuotes({ dryRun: true }));
+});
+app.post('/api/quotes-expiring/notify', (req, res) => {
+  needAdmin(req);
+  const r = noticeQuotes({ dryRun: false });
+  securityEvent('avisar_orcamentos_vencendo', req.user, req, `${r.total} orçamento(s) vencendo: ${r.queued} avisos entraram na fila da IA`);
+  res.json(r);
+});
 const restartAll = (opts = {}) => restartStalled({
   store, agent, pending, now: Date.now(),
   leadOf: (c) => crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }), isBlocked: (p) => store.isBlacklisted(p), ...opts,
@@ -88,5 +104,5 @@ app.put('/api/send-profiles/:key', (req, res) => {
   securityEvent('envio_por_numero', req.user, req, `${pending.senderLabel(key)}: ${Object.keys(own).length ? JSON.stringify(own) : 'voltou ao padrão geral'}`);
   res.json({ key, own, effective: profileFor(store.settings, key, { delay: pending.delay }) });
 });
-  return { restartAll, convOfLead };
+  return { restartAll, convOfLead, noticeQuotes };
 }

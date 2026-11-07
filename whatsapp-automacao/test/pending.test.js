@@ -435,3 +435,17 @@ test('fila: conversa "retomar" (cliente parou) manda a mensagem de retomada pelo
   assert.ok(prompts.some((p) => /RETORNO JÁ ENVIADO[\s\S]*retome o assunto de onde pararam/.test(p)), 'e a IA retoma o assunto sem repetir o agradecimento');
   assert.equal(Object.keys(inbox.items).length, 0, 'saiu da lista de espera');
 });
+
+test('aviso de orçamento a vencer: a IA recebe a instrução do prazo real e a mensagem de retorno genérica NÃO vai antes', async () => {
+  const { store, wa, inbox } = setup();
+  store.updateSettings({ agent: { triagePending: false } });
+  const jid = '595981111111@s.whatsapp.net';
+  const seen = [];
+  inbox.agent.handleIncoming = async (m, reply) => { seen.push(m); await reply('Oi! Seu orçamento vence amanhã.'); };
+  inbox.items[jid] = { jid, channel: 'whatsapp', phone: '595981111111', name: 'Ana', texts: [], at: Date.now(), kind: 'orcamento', restart: true, noOpening: true, quote: { number: 'ORC-1', validUntil: '2026-11-11', daysLeft: 1 } };
+  inbox.enqueue([jid]);
+  await waitFor(() => wa.sent.length >= 1);
+  assert.equal(wa.sent.length, 1, 'só a mensagem da IA, sem o texto de retorno');
+  assert.match(seen[0].resume, /AVISO DE ORÇAMENTO A VENCER/);
+  assert.match(seen[0].resume, /11\/11\/2026/);
+});

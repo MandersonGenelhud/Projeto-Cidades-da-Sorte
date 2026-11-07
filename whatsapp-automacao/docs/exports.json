@@ -479,6 +479,11 @@
   "STATUS",
   "statusOf"
  ],
+ "src/quote-expiry.js": [
+  "expiringQuotes",
+  "noticeExpiringQuotes",
+  "quoteNote"
+ ],
  "src/quotes.js": [
   "Quotes",
   "packageInfo"
