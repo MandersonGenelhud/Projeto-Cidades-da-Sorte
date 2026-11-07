@@ -25,7 +25,7 @@ KOKORO_BASE = os.environ.get(
 )
 # Modelo completo (~310 MB): voz mais limpa e natural que a versão compacta int8 (~88 MB, KOKORO_MODEL_FILE=kokoro-v1.0.int8.onnx).
 KOKORO_MODEL = os.environ.get("KOKORO_MODEL_FILE", "kokoro-v1.0.onnx")
-SPEED = float(os.environ.get("VOICE_SPEED", "0.96"))  # um pouco mais calma que o padrão: soa menos apressada
+SPEED = float(os.environ.get("VOICE_SPEED", "0.9"))  # mais calma que o padrão: soa tranquila, sem pressa
 PAUSE_S = 0.28  # respiro entre as frases
 KOKORO_VOICES = "voices-v1.0.bin"
 VOICES = {"pf_dora", "pm_alex", "pm_santa"}  # português do Brasil

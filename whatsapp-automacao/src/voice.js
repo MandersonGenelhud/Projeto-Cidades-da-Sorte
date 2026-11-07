@@ -148,7 +148,9 @@ export class FallbackStt {
 }
 
 // ---------- Voz do Gemini (animada) ----------
-export const GEMINI_VOICES = { Laomedeia: 'animada', Sadachbia: 'viva', Leda: 'jovem', Zephyr: 'brilhante', Aoede: 'leve', Autonoe: 'brilhante', Sulafat: 'calorosa' };
+export const GEMINI_VOICES = { Laomedeia: 'animada', Sadachbia: 'viva', Leda: 'jovem', Zephyr: 'brilhante', Aoede: 'leve', Autonoe: 'brilhante', Sulafat: 'calorosa', Achernar: 'suave', Vindemiatrix: 'gentil', Despina: 'macia', Algieba: 'macia', Callirrhoe: 'tranquila' };
+/** Jeito de falar da Maria: suave e tranquilo, sem euforia, devagar e com pausas (o Gemini segue esta instrução de estilo). */
+export const MARIA_VOICE_STYLE = 'suave, calma e acolhedora, falando devagar, em tom baixo e tranquilo, com pausas naturais entre as frases, sem euforia nem pressa, em português do Brasil, como uma assessora experiente conversando com um colega';
 export const DEFAULT_VOICE_STYLE = 'empolgada, animada e simpática, com energia e um sorriso na voz, falando em português do Brasil de forma natural, como uma secretária que adora ajudar';
 
 /** Localiza o ffmpeg: FFMPEG_PATH, o que vem com o sistema (ffmpeg-static) ou o do computador. */

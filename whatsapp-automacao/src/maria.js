@@ -16,7 +16,7 @@ import { samePhone, normalizePhone } from './utils.js';
 import { parseJsonObject } from './crm-ai.js';
 import { detectChange, OBJECT_LABEL } from './assistant-guard.js';
 import { STATUS as PORTFOLIO_STATUS } from './portfolio.js';
-import { speakable } from './voice.js';
+import { speakable, MARIA_VOICE_STYLE } from './voice.js';
 import { accessExpired } from './auth.js';
 import { fichaMensagens } from './ficha-text.js';
 import { parseItems, parseDiscount, peopleOf, describeItems } from './maria-items.js';
@@ -410,18 +410,24 @@ export class Maria {
     // Texto (ou áudio impossível: sem voz, com arquivo ou com link).
     const tail = offerAudio && canSpeak && !hasLinks && !asVoice ? '\n\nSe preferir, posso te explicar por áudio. É só dizer sim.' : '';
     if (file) await this.send(msg.jid, { text, media: file, typing: false });
-    else await this.send(msg.jid, { text: `${text}${tail}`, typing: false });
+    else await this.send(msg.jid, { text: `${text}${tail}`, ...this.#pace(text) });
     for (const extra of more) await this.send(msg.jid, { text: extra, typing: false }); // mensagens prontas para encaminhar (pedido por escrito e link sozinho)
     this.lastReply.set(msg.phone, { text, spoken: short || text, topic, voice, style, at: Date.now() });
     if (tail) this.offers.set(msg.phone, { kind: 'audio', text, spoken: short || text, topic, voice, style, at: Date.now() });
     else this.offers.delete(msg.phone);
   }
 
+  /** Ritmo humano no texto: aparece "digitando…" por alguns segundos, proporcional ao tamanho (maria.humanize: false desliga). */
+  #pace(text) {
+    if (this.config.humanize === false) return { typing: false };
+    return { typingMs: Math.min(6000, Math.max(1500, Math.round(String(text).length * 40))) };
+  }
+
   /** Manda um áudio (nota de voz). Devolve false se não deu (aí quem chamou responde por texto). */
   async #speak(msg, spokenText, voice = '', style = '') {
     try {
       const spoken = speakable(spokenText).replace(/[^\p{L}\p{N}\s.,!?;:-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 900);
-      const { buffer, mimetype } = await this.tts.speak(spoken, voice || this.config.voice || 'Leda', style || this.config.voiceStyle || 'alegre, cordial e educada, com um sorriso na voz, falando em português do Brasil de forma natural e formal, como uma assessora que adora ajudar');
+      const { buffer, mimetype } = await this.tts.speak(spoken, voice || this.config.voice || 'Achernar', style || this.config.voiceStyle || MARIA_VOICE_STYLE);
       await this.send(msg.jid, { text: '', media: { buffer, mimetype, ptt: true }, typing: false });
       return true;
     } catch (e) {

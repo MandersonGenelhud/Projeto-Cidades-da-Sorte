@@ -238,3 +238,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Pergunta em **áudio** → resposta **só em áudio** (conversando, explicando um pouco mais e perguntando se a pessoa entendeu) que termina oferecendo o resumo por texto. Pergunta em **texto** → resposta em texto; nas conversas ela oferece explicar por áudio. Isso economiza as conversas: nunca mais áudio e texto juntos.
 - "Sim", "me manda o texto", "pode mandar em áudio" (por texto ou por áudio, com ou sem o nome dela) só **reapresentam a última resposta dela à mesma pessoa** (até 15 minutos): nada novo é consultado nem feito, então não é uma brecha da trava do nome. Um envio ao cliente esperando o "sim" tem prioridade sobre isso, e "não" cancela a oferta.
 - Resposta com arquivo ou link vai por escrito (áudio não carrega link). Sem o serviço de voz, ela avisa e manda por escrito. Vale também para a Ana. Testes: `test/maria-audio.test.js`.
+
+## Maria: voz mais suave e ritmo humano
+
+- Voz padrão da Maria: **Achernar** (suave) com estilo "calma, devagar, em tom baixo, pausas naturais, sem euforia" (`MARIA_VOICE_STYLE`); pode ser trocada em `maria.voice` e `maria.voiceStyle`. A voz local da VPS (Kokoro) passou de 0,96 para 0,9 de velocidade (`VOICE_SPEED`).
+- No texto, a Maria aparece "digitando…" por 1,5 a 6 segundos, proporcional ao tamanho (`maria.humanize: false` desliga). Teste: `test/maria-audio.test.js`.

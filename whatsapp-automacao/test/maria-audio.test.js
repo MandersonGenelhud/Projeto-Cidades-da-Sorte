@@ -12,7 +12,7 @@ function setup({ voice = true, link = false } = {}) {
   const auth = new Auth({ store, dataDir: store.dataDir });
   const adm = auth.create({ name: 'Marcos Miguel', login: 'marcos', password: 'segredo123', role: 'admin' });
   auth.update(adm.id, { whatsapp: MARCOS });
-  const sent = []; const spoken = []; const prompts = [];
+  const sent = []; const spoken = []; const prompts = []; const voices = [];
   const state = { transcript: 'Maria, o que é o Pacote Ouro?' };
   const llm = { configured: true, chat: async ({ messages }) => {
     prompts.push(messages[0].content);
@@ -23,13 +23,13 @@ function setup({ voice = true, link = false } = {}) {
   const maria = new Maria({
     store, auth, llm, sales: { listFor: () => [] }, customers: {}, cash: {}, knowledge: () => 'BASE',
     stt: voice ? { ready: true, transcribe: async () => state.transcript } : null,
-    tts: voice ? { ready: true, speak: async (t) => { spoken.push(t); return { buffer: Buffer.from('voz'), mimetype: 'audio/ogg; codecs=opus' }; } } : null,
+    tts: voice ? { ready: true, speak: async (t, v, st) => { spoken.push(t); voices.push({ v, st }); return { buffer: Buffer.from('voz'), mimetype: 'audio/ogg; codecs=opus' }; } } : null,
     downloadAudio: async () => Buffer.from('a'),
     send: async (j, p) => { sent.push(p); }, lineName: () => 'Maria', marcosPhone: () => MARCOS, audit: () => {}, log: () => {},
   });
   maria.config.lineId = LINE;
   const say = async (text, extra = {}) => { sent.length = 0; await maria.handle({ line: LINE, jid: `l:${LINE}:${MARCOS}@s.whatsapp.net`, phone: MARCOS, text, ...extra }); return [...sent]; };
-  return { say, spoken, prompts, state };
+  return { say, spoken, prompts, state, voices, sent };
 }
 
 test('pergunta em ÁUDIO: responde SÓ em áudio (sem texto junto), conversando e oferecendo o resumo por texto', async () => {
@@ -98,4 +98,18 @@ test('resposta com link ou arquivo vai por escrito (áudio não carrega link), m
 test('o "sim" só vale por 15 minutos e só para a própria pessoa; sem resposta anterior, "sim" solto é ignorado', async () => {
   const t = setup();
   assert.equal((await t.say('sim')).length, 0);
+});
+
+import { GEMINI_VOICES, MARIA_VOICE_STYLE } from '../src/voice.js';
+test('voz da Maria: suave e tranquila (voz Achernar e estilo devagar, sem euforia) e texto com "digitando…" proporcional', async () => {
+  assert.ok(GEMINI_VOICES.Achernar, 'a voz suave existe na lista');
+  assert.ok(MARIA_VOICE_STYLE.length <= 300, 'cabe no limite do estilo');
+  assert.match(MARIA_VOICE_STYLE, /devagar/); assert.match(MARIA_VOICE_STYLE, /sem euforia/); assert.doesNotMatch(MARIA_VOICE_STYLE, /empolgada|animada/);
+  const t = setup();
+  await t.say('', { hasAudio: true });
+  assert.equal(t.voices[0].v, 'Achernar');
+  assert.equal(t.voices[0].st, MARIA_VOICE_STYLE);
+  const t2 = setup();
+  const r = await t2.say('Maria, o que é o Pacote Ouro?');
+  assert.ok(r[0].typingMs >= 1500 && r[0].typingMs <= 6000, 'a mensagem de texto leva o tempo do "digitando…"');
 });
