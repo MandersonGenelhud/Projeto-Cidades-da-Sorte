@@ -69,3 +69,16 @@ test('instalação que já rodava (7h às 21h): a migração coloca o horário d
   a.workHours.end = '22:00'; again.flush();
   assert.equal(new Store(path.dirname(store.file)).data.settings.agent.workHours.end, '22:00');
 });
+
+test('o horário vale para o WhatsApp de cada vendedor e para o Instagram, não só para o número principal', () => {
+  const store = tempStore();
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  const ar = new AutoReply({ store, wa: { send: async () => {} }, agent: { active: true } });
+  const vendedor = { jid: 'l:fran:5545999990000@s.whatsapp.net', line: 'fran', phone: '5545999990000', text: 'oi', name: 'Cliente' };
+  assert.equal(ar.decide(vendedor, at(9, 10, 0)).kind, 'agent', 'às 10h a IA da Franciele responde');
+  assert.equal(ar.decide(vendedor, at(9, 23, 30)).kind, 'workhours', 'às 23h30 não responde');
+  assert.equal(ar.decide(vendedor, at(14, 6, 0)).kind, 'workhours', 'sábado de madrugada também não');
+  assert.equal(ar.decide({ ...vendedor, agentOff: true }, at(9, 10, 0)), null, 'número com a IA desligada continua sem IA (só o vendedor)');
+  assert.equal(ar.decide({ jid: 'ig:123', username: 'cliente', text: 'oi', channel: 'instagram' }, at(9, 23, 30)).kind, 'workhours', 'Instagram também');
+  assert.equal(profileFor({ agent: {} }, 'linha:fran').to, 23, 'e a fila do número dela fecha às 23h');
+});
