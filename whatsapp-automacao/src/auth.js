@@ -31,7 +31,19 @@ import { normOffice } from './offices.js';
 export const SECTOR_IDS = ['documentacao', 'loteamentos', 'veiculos'];
 const cleanSectors = (v) => [...new Set((Array.isArray(v) ? v : []).filter((x) => SECTOR_IDS.includes(x)))];
 
+/** Acesso temporário: "2026-11-08" vale até o fim desse dia (horário de Brasília/Paraguai); data completa vale como está; vazio tira o prazo. */
+const cleanExpiry = (v) => {
+  const x = String(v ?? '').trim();
+  if (!x) return null;
+  const iso = /^\d{4}-\d{2}-\d{2}$/.test(x) ? `${x}T23:59:59-03:00` : x;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) throw Object.assign(new Error('Data do acesso temporário inválida'), { status: 400 });
+  return new Date(t).toISOString();
+};
+export const accessExpired = (u, now = Date.now()) => Boolean(u?.expiresAt) && Date.parse(u.expiresAt) <= now;
+
 const publicUser = (u) => (u ? {
+  expiresAt: u.expiresAt || null, expiredAt: u.expiredAt || null,
   id: u.id, name: u.name, login: u.login, role: u.role, whatsapp: u.whatsapp || '', active: u.active !== false,
   receivesLeads: u.receivesLeads ?? u.role === 'seller', leadsReceived: u.leadsReceived || 0, lastLeadAt: u.lastLeadAt || null, rotationSeq: u.rotationSeq || 0,
   twoFactor: Boolean(u.totpEnabled), pending: Boolean(u.pending), requestedAt: u.requestedAt || null, commissionPct: u.commissionPct ?? null, affiliateCommissionPct: u.affiliateCommissionPct ?? null,
@@ -74,7 +86,7 @@ export class Auth {
     return this.users.filter((u) => u.active !== false);
   }
 
-  create({ name, login, password, role = 'seller', whatsapp = '', receivesLeads, pending = false, sectors = [], office = 'py', officeAdmin = false }) {
+  create({ name, login, password, role = 'seller', whatsapp = '', receivesLeads, pending = false, sectors = [], office = 'py', officeAdmin = false, expiresAt = '' }) {
     name = String(name || '').trim();
     login = String(login || '').trim().toLowerCase();
     if (!name) throw Object.assign(new Error('Informe o nome'), { status: 400 });
@@ -93,12 +105,27 @@ export class Auth {
       sectors: cleanSectors(sectors),
       office: role === 'admin' ? null : normOffice(office) || 'py',
       officeAdmin: role !== 'admin' && Boolean(officeAdmin),
+      ...(cleanExpiry(expiresAt) && role !== 'admin' ? { expiresAt: cleanExpiry(expiresAt) } : {}),
       ...(pending ? { pending: true, requestedAt: new Date().toISOString() } : {}),
       createdAt: new Date().toISOString(),
     };
     this.users.push(user);
     this.store.save();
     return publicUser(user);
+  }
+
+  /** Desativa quem passou do prazo do acesso temporário (derruba as sessões abertas). Devolve quem foi desativado. */
+  sweepExpired(now = Date.now()) {
+    const out = [];
+    for (const u of this.users) {
+      if (u.active !== false && accessExpired(u, now)) {
+        u.active = false; u.expiredAt = new Date(now).toISOString(); delete u.expiresAt;
+        u.sessionVersion = (u.sessionVersion || 0) + 1;
+        out.push(publicUser(u));
+      }
+    }
+    if (out.length) this.store.save();
+    return out;
   }
 
   update(id, patch) {
@@ -115,6 +142,12 @@ export class Auth {
     if (patch.active !== undefined) {
       u.active = Boolean(patch.active);
       if (u.active) delete u.pending; // liberado pelo administrador
+    }
+    if (patch.expiresAt !== undefined) {
+      const e = cleanExpiry(patch.expiresAt);
+      if (e && u.role === 'admin') throw Object.assign(new Error('Administrador não tem acesso temporário'), { status: 400 });
+      if (e) u.expiresAt = e; else delete u.expiresAt;
+      if (e && patch.active === undefined && u.active === false && u.expiredAt) { u.active = true; delete u.expiredAt; } // novo prazo reabre quem tinha vencido
     }
     if (patch.receivesLeads !== undefined) u.receivesLeads = Boolean(patch.receivesLeads);
     if (patch.sectors !== undefined) u.sectors = cleanSectors(patch.sectors);
@@ -146,7 +179,7 @@ export class Auth {
 
   login(login, password) {
     const u = this.users.find((x) => x.login === String(login || '').trim().toLowerCase());
-    if (!u || u.active === false || !checkPassword(password, u.passwordHash)) return null;
+    if (!u || u.active === false || accessExpired(u) || !checkPassword(password, u.passwordHash)) return null;
     return u;
   }
 
@@ -223,7 +256,7 @@ export class Auth {
     if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
     if (Number(exp) < Date.now()) return null;
     const u = this.get(id);
-    if (!u || u.active === false || Number(ver) !== (u.sessionVersion || 0)) return null;
+    if (!u || u.active === false || accessExpired(u) || Number(ver) !== (u.sessionVersion || 0)) return null;
     return u;
   }
 }

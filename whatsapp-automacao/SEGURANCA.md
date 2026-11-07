@@ -193,3 +193,12 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 - Para quem fala com a Maria sem ser da equipe (parceiro que também é cliente), existe o perfil **parceiro**, definido por pessoa em Maria > perfis. Ele age como vendedor (cadastrar cliente, orçar, gerar contrato, enviar ficha ou contrato, e só vê o que ele mesmo cadastrou), mas **não** acessa faturamento, comissões, parcelas em atraso, caixa, resumo do dia, saúde do sistema, duplicados nem o portfólio.
 - No bate-papo, o parceiro recebe só a base pública da empresa e a tabela de pacotes: sem regras internas da direção (cortesia, descontos), sem lista da equipe, sem dados ao vivo do grupo. Ele nunca é administrador. Testes: `test/maria-parceiro.test.js`.
+
+## Acesso temporário (contas de teste)
+
+- Ao cadastrar um usuário, o administrador pode marcar "Acesso temporário até" (data). No fim desse dia (horário de Brasília/Paraguai) a pessoa é **desativada sozinha**: perde o painel e deixa de ser atendida pela Maria, as sessões abertas caem e o fato fica no registro de segurança (`acesso_temporario_encerrado`). Conferido na entrada e a cada minuto (`Auth.sweepExpired`), então vale mesmo se o servidor ficar desligado e voltar depois.
+- Só usuários que não são administradores podem ter prazo. Novo prazo reabre quem tinha vencido. Testes: `test/acesso-temporario.test.js`.
+
+## Conversas: quadros por pessoa
+
+- `GET /api/conversations-boards` (só administrador, respeitando o escritório escolhido) devolve um quadro por pessoa da equipe, um da IA ainda sem direcionar e um por número da equipe sem dono, com quem espera resposta, há quanto tempo e quantas estão com humano. Vendedor continua vendo só as próprias conversas. Testes: `test/attendants.test.js`.

@@ -44,7 +44,7 @@ import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Audit } from './audit.js';
-import { byAttendant, attendantOf } from './attendants.js';
+import { byAttendant, attendantOf, conversationBoards } from './attendants.js';
 import { LegacyContracts, cashRowsFromCapture } from './legacy-import.js';
 import { buildBat, buildSiteBat } from './legacy-tool.js';
 import { Ingest, MIME as FILE_MIME } from './legacy-ingest.js';
@@ -776,6 +776,12 @@ function forwardUnpaid(now = Date.now()) {
   }
 }
 setInterval(() => forwardUnpaid(), 15 * 60_000).unref();
+// Acesso temporário: ao passar do prazo, a pessoa é desativada (painel e WhatsApp da Maria) e fica no registro de segurança.
+const sweepTemporaryAccess = () => {
+  for (const u of auth.sweepExpired()) securityEvent('acesso_temporario_encerrado', { name: 'Sistema' }, null, `${u.name} (${u.login}): prazo do acesso temporário terminou e a pessoa foi desativada`);
+};
+sweepTemporaryAccess();
+setInterval(sweepTemporaryAccess, 60_000).unref();
 
 // Contratação, parcerias e assuntos de negócio vão direto para o WhatsApp do Marcos.
 // Mentoria com o Marcos (US$ 400/h, online ou presencial): paga antes de agendar; cliente da Migra não paga.
@@ -2713,6 +2719,12 @@ app.get('/api/conversations', (req, res) => {
     const id = attendantOf(c, { ids, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) });
     return { ...base, attendantId: id, attendantName: names.get(id) || (id.startsWith('line:') ? id.slice(5) : 'IA conversando (ainda não direcionada)') };
   }));
+});
+// Quadros: um por pessoa da equipe, um da IA ainda sem direcionar e um por número da equipe sem dono, com "como está respondendo" (só administrador).
+app.get('/api/conversations-boards', (req, res) => {
+  needAdmin(req);
+  const convs = agent.listConversations().filter((c) => inOffice(req, conversationOffice(c)));
+  res.json({ boards: conversationBoards({ conversations: convs.map((c) => ({ ...c, channelLabel: convLabel(c.key) })), users: auth.users, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) }) });
 });
 // Busca por palavra em todas as conversas (só administrador; respeita o escritório escolhido no alto da tela).
 app.get('/api/search/conversations', (req, res) => {

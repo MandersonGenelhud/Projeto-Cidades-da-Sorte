@@ -17,6 +17,7 @@ import { parseJsonObject } from './crm-ai.js';
 import { detectChange, OBJECT_LABEL } from './assistant-guard.js';
 import { STATUS as PORTFOLIO_STATUS } from './portfolio.js';
 import { speakable } from './voice.js';
+import { accessExpired } from './auth.js';
 import { parseItems, parseDiscount, peopleOf, describeItems } from './maria-items.js';
 import { salesCoach, leadFacts, ruleAdvice, coachMessages, prioritiesText } from './sales-coach.js';
 
@@ -236,7 +237,7 @@ export class Maria {
 
   personFor(msg) {
     if (!msg?.phone) return null;
-    return this.auth.users.find((u) => u.active !== false && u.whatsapp && samePhone(u.whatsapp, msg.phone)) || null;
+    return this.auth.users.find((u) => u.active !== false && !accessExpired(u) && u.whatsapp && samePhone(u.whatsapp, msg.phone)) || null;
   }
 
   /** Perfil da pessoa: administrador = tudo; senão o que foi definido em maria.profiles; senão (primeira vez) pelo nome; senão só o que é dela. */

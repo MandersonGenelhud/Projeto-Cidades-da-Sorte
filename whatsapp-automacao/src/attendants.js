@@ -80,3 +80,42 @@ export function byAttendant({ conversations, leads, users, lineOwner, findLead }
   shown.sort((a, b) => rank[a.kind] - rank[b.kind] || b.funnel.conversas - a.funnel.conversas);
   return { attendants: shown, total, sources: [...sources.values()].sort((x, y) => y.leads - x.leads) };
 }
+
+const BOARD_ITEMS = 40;
+
+/**
+ * Um QUADRO por pessoa da equipe (e um para a IA ainda sem direcionar e um para cada número da equipe sem dono), cada um com as suas
+ * conversas e "como está respondendo": quantos clientes esperam resposta, quanto tempo o mais antigo espera e quantas estão com humano.
+ * conversations: listConversations(); users: auth.users; lineOwner(key); findLead(conv); now: Date.
+ */
+export function conversationBoards({ conversations, users, lineOwner, findLead, now = new Date() }) {
+  const active = users.filter((u) => u.active !== false);
+  const ids = new Set(active.map((u) => u.id));
+  const boards = new Map();
+  const board = (id, name, kind) => {
+    if (!boards.has(id)) boards.set(id, { id, name, kind, total: 0, waiting: 0, human: 0, answered: 0, oldestWaitMin: 0, items: [] });
+    return boards.get(id);
+  };
+  board('triagem', 'IA ainda sem direcionar (número principal)', 'canal');
+  for (const u of active) board(u.id, u.name, u.role === 'admin' ? 'admin' : 'vendedor');
+  for (const c of conversations) {
+    let id = attendantOf(c, { ids, lineOwner, findLead });
+    if (id.startsWith('line:')) id = board(id, id.slice(5) || 'WhatsApp da equipe', 'equipe').id;
+    const b = boards.get(id);
+    const waiting = c.last?.role === 'user' && !c.handoff;
+    const waitMin = waiting ? Math.max(0, Math.round((now.getTime() - Date.parse(c.updatedAt)) / 60_000)) : 0;
+    b.total += 1;
+    if (c.handoff) b.human += 1;
+    if (waiting) { b.waiting += 1; b.oldestWaitMin = Math.max(b.oldestWaitMin, waitMin); } else b.answered += 1;
+    b.items.push({
+      key: c.key, name: c.name || '', phone: c.phone || '', channel: String(c.key).startsWith('ig:') ? 'ig' : 'wa', handoff: Boolean(c.handoff),
+      state: c.handoff ? 'humano' : waiting ? 'aguardando' : 'respondida', waitMin, updatedAt: c.updatedAt, count: c.count,
+      lastRole: c.last?.role || '', lastText: String(c.last?.content || '').replace(/\s+/g, ' ').slice(0, 140),
+    });
+  }
+  const rank = { canal: 0, admin: 1, vendedor: 2, equipe: 3 };
+  return [...boards.values()]
+    .map((b) => ({ ...b, shown: Math.min(b.items.length, BOARD_ITEMS), items: b.items.sort((x, y) => String(y.updatedAt).localeCompare(String(x.updatedAt))).slice(0, BOARD_ITEMS) }))
+    .filter((b) => b.kind !== 'equipe' || b.total)
+    .sort((a, b) => rank[a.kind] - rank[b.kind] || b.waiting - a.waiting || b.total - a.total || a.name.localeCompare(b.name));
+}

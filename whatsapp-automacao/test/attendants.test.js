@@ -35,3 +35,32 @@ test('canal sem movimento não aparece; pessoa da equipe aparece mesmo sem conve
   const r = byAttendant({ conversations: [], leads: [], users, lineOwner: () => null, findLead: () => null });
   assert.deepEqual(r.attendants.map((a) => a.id), ['m', 'f', 'e']);
 });
+
+import { conversationBoards } from '../src/attendants.js';
+
+test('quadros: um por pessoa (mesmo sem conversa), um da IA sem direcionar e um por número da equipe; mostra quem espera resposta', () => {
+  const now = new Date('2026-11-07T12:00:00Z');
+  const lineOwner = (k) => (k.startsWith('line:f') ? { ownerId: 'f', label: 'Fran' } : k.startsWith('line:t') ? { ownerId: null, label: 'WhatsApp da equipe' } : null);
+  const boards = conversationBoards({
+    now, users: [...users, { id: 'x', name: 'Inativa', role: 'seller', active: false }], lineOwner, findLead: () => null,
+    conversations: [
+      conv('line:f:1', { updatedAt: '2026-11-07T11:00:00Z' }), // cliente escreveu por último há 60 min
+      conv('line:f:2', { last: { role: 'assistant', content: 'resposta' } }),
+      conv('line:f:3', { handoff: true }),
+      conv('line:t:1'), conv('5959000'),
+    ],
+  });
+  const by = Object.fromEntries(boards.map((b) => [b.id, b]));
+  assert.equal(boards[0].id, 'triagem', 'o quadro da IA sem direcionar vem primeiro');
+  assert.equal(by.triagem.total, 1);
+  assert.ok(by.e && by.m, 'quem não tem conversa também tem quadro');
+  assert.equal(by.e.total, 0);
+  assert.ok(!by.x, 'usuário desativado não tem quadro');
+  assert.equal(by.f.total, 3);
+  assert.equal(by.f.waiting, 1);
+  assert.equal(by.f.oldestWaitMin, 60);
+  assert.equal(by.f.human, 1);
+  assert.equal(by.f.answered, 2);
+  assert.deepEqual(by.f.items.map((i) => i.state).sort(), ['aguardando', 'humano', 'respondida']);
+  assert.equal(by['line:WhatsApp da equipe'].total, 1, 'número da equipe sem dono tem o seu quadro');
+});

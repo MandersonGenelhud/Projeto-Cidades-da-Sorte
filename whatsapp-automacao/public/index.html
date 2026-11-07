@@ -771,6 +771,7 @@
             <label>Senha inicial <input name="password" required minlength="6" autocomplete="new-password" /></label>
           </div>
           <label>WhatsApp do vendedor (o sistema confere com o WhatsApp que ele conectar) <input name="whatsapp" placeholder="+55 11 98765-4321" /></label>
+          <label>Acesso temporário até (opcional: no fim desse dia a pessoa é desativada sozinha) <input type="date" name="expiresAt" /></label>
           <label class="check"><input type="checkbox" name="receivesLeads" checked /> Entra no rodízio de clientes</label>
           <fieldset class="sector-pick"><legend>Em que área esta pessoa atende?</legend>
             <label class="check"><input type="checkbox" name="sec_documentacao" checked /> Documentação e migração (Migra Paraguai)</label>
@@ -1080,6 +1081,10 @@
         <button type="button" class="btn small primary" data-channel="">Todas</button>
         <button type="button" class="btn small" data-channel="wa">WhatsApp</button>
         <button type="button" class="btn small" data-channel="ig">Instagram</button>
+      </div>
+      <div class="row conv-filter" id="convMode" hidden>
+        <button type="button" class="btn small primary" data-mode="quadros">Quadros por pessoa</button>
+        <button type="button" class="btn small" data-mode="lista">Lista</button>
       </div>
       <div class="row conv-filter" id="convAttendants" hidden></div>
       <div class="conv-layout">

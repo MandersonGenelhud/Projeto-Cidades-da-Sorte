@@ -1309,11 +1309,37 @@ $('#convSearchForm').addEventListener('submit', async (e) => {
   }
 });
 $('#convSearchClear').addEventListener('click', () => { convSearching = false; $('#convSearchQ').value = ''; loaders.conversations(); });
+let convMode = 'quadros';
+const waitText = (min) => (min >= 1440 ? `${Math.floor(min / 1440)} d` : min >= 60 ? `${Math.floor(min / 60)} h` : `${min} min`);
+// Um quadro por pessoa da equipe, um da IA ainda sem direcionar e um por número da equipe: quem espera resposta, quem está com humano.
+async function renderBoards() {
+  const { boards } = await api('/api/conversations-boards');
+  const stateChip = (i) => (i.state === 'aguardando' ? `<span class="badge pending">espera há ${waitText(i.waitMin)}</span>` : i.state === 'humano' ? '<span class="badge paused">humano</span>' : '<span class="badge ok">respondida</span>');
+  const item = (i) => `<div class="conv-item ${i.key === currentConv ? 'active' : ''}" data-key="${esc(i.key)}">
+      <span class="chan">${i.channel === 'ig' ? 'IG' : 'WA'}</span> <b>${esc(i.name || fmtPhone(i.phone) || i.key)}</b> ${stateChip(i)}
+      <div class="last">${i.lastText ? `${i.lastRole === 'user' ? 'Cliente: ' : 'Resposta: '}${esc(i.lastText)}` : ''}</div></div>`;
+  $('#convList').innerHTML = boards.map((b) => `<section class="conv-board">
+      <h3 class="conv-group">${esc(b.name)} <span class="badge pending">${b.total}</span></h3>
+      <div class="conv-stats">${b.waiting ? `<span class="badge pending">${b.waiting} esperando resposta${b.oldestWaitMin ? ` (a mais antiga há ${waitText(b.oldestWaitMin)})` : ''}</span>` : '<span class="badge ok">ninguém esperando</span>'} <span class="meta">${b.answered} respondidas · ${b.human} com humano</span></div>
+      ${b.items.length ? b.items.map(item).join('') : '<p class="muted small">Nenhuma conversa neste quadro.</p>'}
+      ${b.total > b.shown ? `<p class="muted small">Mostrando as ${b.shown} mais recentes de ${b.total}.</p>` : ''}</section>`).join('') || '<p class="muted">Nenhuma conversa ainda.</p>';
+  if (currentConv) openConversation(currentConv);
+}
+$('#convMode').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mode]');
+  if (!b) return;
+  convMode = b.dataset.mode;
+  $$('#convMode [data-mode]').forEach((x) => x.classList.toggle('primary', x === b));
+  loaders.conversations();
+});
 loaders.conversations = async () => {
   $('#convSearchForm').hidden = window.currentUser?.role !== 'admin';
   if (convSearching) return;
   loadPending();
-  if (window.currentUser?.role === 'admin') loadIgManual().catch(() => {});
+  const adminNow = window.currentUser?.role === 'admin';
+  $('#convMode').hidden = !adminNow;
+  if (adminNow) loadIgManual().catch(() => {});
+  if (adminNow && convMode === 'quadros' && !convChannel) { $('#convAttendants').hidden = true; return renderBoards(); }
   const all = await api('/api/conversations');
   const list = all.filter((c) => (!convChannel || (convChannel === 'ig') === String(c.key).startsWith('ig:')) && (!convAttendant || c.attendantId === convAttendant));
   const item = (c) => `
