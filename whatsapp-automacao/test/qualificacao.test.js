@@ -42,3 +42,23 @@ test('plano: o que será retomado vem separado por condição de fechar', () => 
   assert.equal(p.retomar, 4);
   assert.deepEqual(p.retomarPorCondicao, { sim: 1, parcial: 1, nao: 1, desconhecida: 1 });
 });
+
+import { Agent } from '../src/agent/agent.js';
+import { LocalCalendar } from '../src/agent/calendar.js';
+import { presetSettings } from '../src/agent/presets.js';
+import { tempStore } from './helpers.js';
+
+test('na Migra (sem agenda) a IA de fechamento recebe de fato as ferramentas do termômetro, do plano em PDF e do retorno', async () => {
+  const T = new Date(2026, 10, 10, 10, 0);
+  const store = tempStore();
+  store.updateSettings(presetSettings('migra-paraguai'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  let tools = []; let system = '';
+  const llm = { configured: true, async chat({ messages, tools: t }) { system = messages[0].content; tools = t.map((x) => x.function.name); return { content: 'ok', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm, calendar: new LocalCalendar({ store, getConfig: () => store.settings.agenda, now: () => T }), now: () => T });
+  agent.sendForm = async () => ({}); agent.sendQuote = async () => ({}); agent.closeHandoff = async () => ({}); agent.scheduleReturn = async () => ({}); agent.offerPlanPdf = async () => ({});
+  await agent.handleIncoming({ key: 'k', phone: '5511999990001', name: 'Rita', text: 'oi' }, async () => {});
+  for (const n of ['registrar_qualificacao', 'oferecer_plano_pdf', 'agendar_retorno', 'gerar_orcamento', 'enviar_ficha_de_dados']) assert.ok(tools.includes(n), `falta a ferramenta ${n}`);
+  assert.match(system, /Seu método de vendas/);
+  assert.match(system, /Leia cada resposta e saiba o que fazer/);
+});

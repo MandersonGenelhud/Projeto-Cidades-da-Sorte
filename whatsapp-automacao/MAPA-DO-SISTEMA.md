@@ -29,15 +29,15 @@
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
 | `affiliates.js` | 440 | Indicadores (afiliados): pessoas comuns que indicam clientes para a Migra e | `server.js` | 3 |
-| `agent/agent.js` | 741 | Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age. | `atendimento-plano.js`, `quote-expiry.js`, `restart.js`, `server.js` | 22 |
-| `agent/calendar.js` | 231 | Agenda usada pelo agente: agenda interna (padrão) ou Cal.com. | `agent/prompt.js`, `crm-ai.js`, `crm.js`, `server.js`, `videocalls.js` | 6 |
+| `agent/agent.js` | 742 | Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age. | `atendimento-plano.js`, `quote-expiry.js`, `restart.js`, `server.js` | 23 |
+| `agent/calendar.js` | 231 | Agenda usada pelo agente: agenda interna (padrão) ou Cal.com. | `agent/prompt.js`, `crm-ai.js`, `crm.js`, `server.js`, `videocalls.js` | 7 |
 | `agent/claude.js` | 97 | Claude (Anthropic) como cérebro da atendente, pelo SDK oficial. | `agent/llm.js` | 1 |
 | `agent/greeting.js` | 43 | Saudação certa pelo horário (regra da Migra): | `agent/agent.js`, `agent/prompt.js`, `server.js` | 1 |
 | `agent/llm.js` | 181 | Cliente de IA no formato da API da OpenAI (chat completions + ferramentas). | `server.js` | 4 |
-| `agent/presets.js` | 422 | Perfis prontos de negócio. "Carregar perfil" no painel copia estes dados | `server.js`, `store.js` | 18 |
+| `agent/presets.js` | 422 | Perfis prontos de negócio. "Carregar perfil" no painel copia estes dados | `server.js`, `store.js` | 19 |
 | `agent/prompt.js` | 136 | Monta o prompt de sistema a partir da base do negócio (passo 5 do vídeo). | `agent/agent.js`, `server.js` | 8 |
 | `agent/tools.js` | 596 | Ferramentas que o agente pode usar (passo 6 do vídeo: "o agente age"). | `agent/agent.js` | 6 |
-| `agent/vendas-playbook.js` | 36 | Playbook de vendas das IAs da Migra: síntese original dos princípios de vendas consultivas (diagnóstico, escuta, objeções, decisão informada, ética), | `agent/agent.js` | 2 |
+| `agent/vendas-playbook.js` | 58 | Playbook de vendas das IAs da Migra: síntese original dos princípios de vendas consultivas (diagnóstico, escuta, objeções, decisão informada, ética), | `agent/agent.js` | 2 |
 | `ai-stalls.js` | 31 | "Por que a atendente parou de falar?": para cada conversa em que a última mensagem é do cliente e a IA não respondeu, mostra o MOTIVO. | `routes/controle.js` | 1 |
 | `alerts.js` | 38 | Avisos do painel (sininho) e resumo diário no WhatsApp do administrador: | `server.js` | 1 |
 | `ana-dates.js` | 131 | Datas e horas ditas em português ("amanhã às 14h", "dia 15", "daqui a 2 anos", "15 de dezembro de 2027"). | `ana.js`, `assistant-guard.js`, `personal.js`, `shopping.js` | 1 |

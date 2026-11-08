@@ -429,6 +429,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       if (t.function.name === 'gerar_pix') return pix && !closing;
       if (t.function.name === 'gerar_link_cartao' || t.function.name === 'opcoes_cartao') return Boolean(this.createCardLink) && (pix || closing);
       if (t.function.name === 'cliente_informou_pagamento') return pix || closing;
+      if (t.function.name === 'registrar_qualificacao') return closing; // termômetro de venda: vale para a IA que fecha vendas, com ou sem agenda
       return canSchedule(settings) || t.function.name === 'transferir_para_humano';
     });
     // Quem ficou esperando: lê pelo menos 30 mensagens (as 20 anteriores + as que ele mandou).
