@@ -373,6 +373,7 @@
   "hintsFrom",
   "money",
   "nameMatches",
+  "openChargesOf",
   "openParcelsOf",
   "receiptProblems"
  ],

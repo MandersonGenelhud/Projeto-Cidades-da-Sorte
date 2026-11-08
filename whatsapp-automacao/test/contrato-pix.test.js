@@ -136,3 +136,15 @@ test('prospecto: abre pelo id, pelo código ou pelo @; prospecto apagado deixa r
   assert.throws(() => crm.remove({ name: 'Ana', role: 'seller' }, 'x'), /administrador/);
   assert.equal(store.data.leadTombstones.length, 1);
 });
+
+test('diagnóstico por número: mostra quantas conversas cada WhatsApp (principal, vendedor, Instagram) gravou e quando chegou a mensagem mais nova', () => {
+  const { store, crm } = crmSetup();
+  const t = (h) => new Date(Date.now() - h * 3_600_000).toISOString();
+  store.data.conversations['5545900000001@s.whatsapp.net'] = { key: '5545900000001@s.whatsapp.net', messages: [msg('user', 'oi', 2 * 3_600_000)], updatedAt: t(2) };
+  store.data.conversations['ig:5'] = { key: 'ig:5', messages: [msg('user', 'oi', 50 * 3_600_000)], updatedAt: t(50) };
+  const h = dataHealth({ store, crm, instance: { id: 'x' } });
+  assert.equal(h.byNumber.principal.conversations, 1);
+  assert.equal(h.byNumber.principal.last24h, 1);
+  assert.equal(h.byNumber.instagram.last24h, 0);
+  assert.ok(h.byNumber.instagram.newestClientMessageAt);
+});

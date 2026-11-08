@@ -61,7 +61,7 @@ export class Payments {
   }
 
   /** Cria a cobrança. Devolve o registro (com o copia e cola em p.brcode). */
-  async create({ convKey = null, leadId = null, amount, description, payerName = '', payerDoc = '', by = 'IA' }) {
+  async create({ convKey = null, leadId = null, amount, description, payerName = '', payerDoc = '', payerPhone = '', by = 'IA' }) {
     const c = this.config;
     if (c.enabled === false) throw err(400, 'Pagamentos por Pix estão desligados (Configurações → Pagamentos)');
     const value = Math.round(Number(amount) * 100) / 100;
@@ -77,6 +77,7 @@ export class Payments {
       description: String(description || c.reservation?.description || 'Reserva').trim(),
       payerName: String(payerName || '').trim(),
       payerDoc: String(payerDoc || '').trim(),
+      payerPhone: String(payerPhone || '').replace(/\D/g, ''), // telefone do cliente (para a Maria achar o Pix pelo número, mesmo sem prospecto)
       status: 'pending',
       provider: c.provider === 'mercadopago' && c.mercadopago?.accessToken ? 'mercadopago' : 'pix',
       createdAt: new Date().toISOString(),

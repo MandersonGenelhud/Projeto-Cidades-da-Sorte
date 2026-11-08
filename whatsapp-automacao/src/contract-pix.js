@@ -24,7 +24,7 @@ export function makeContractPix({ store, payments, wa, agent, crm, httpError = (
       if (prev && prev.status === 'pending' && Math.abs(prev.amount - amount) < 0.005) { out.why = 'o Pix deste combinado já foi enviado e está em aberto'; return out; }
       const conv = agent.conversation(key, { create: false });
       const lead = crm.findForConversation({ key, phone: conv?.phone || q.phone });
-      const p = await payments.create({ convKey: key, leadId: lead?.id || q.leadId || null, amount, description: `Reserva · contrato ${ct}`, payerName: client?.nome || q.contract?.client?.nome || '', payerDoc: client?.cpf || q.contract?.client?.cpf || '', by });
+      const p = await payments.create({ convKey: key, leadId: lead?.id || q.leadId || null, amount, description: `Reserva · contrato ${ct}`, payerName: client?.nome || q.contract?.client?.nome || '', payerDoc: client?.cpf || q.contract?.client?.cpf || '', payerPhone: client?.whatsapp || q.contract?.client?.whatsapp || q.phone || conv?.phone || '', by });
       q.contractPix = { paymentId: p.id, amount, at: new Date().toISOString(), by };
       store.save();
       await payments.sendCharge(p);

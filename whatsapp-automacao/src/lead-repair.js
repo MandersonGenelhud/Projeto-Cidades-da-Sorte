@@ -1,6 +1,8 @@
 // Conversas que a atendente respondeu mas não viraram prospecto no CRM (nada gravado para o vendedor ver): cria o prospecto que faltou.
 // Só conversas reais e recentes em que a IA realmente atendeu; ignora grupos, simulações, lista de bloqueio, conversa pessoal do Marcos e conversas
 // que uma pessoa assumiu de propósito. Nunca apaga nada.
+import { senderOf } from './send-profiles.js';
+
 const DAY = 86_400_000;
 
 export function repairMissingLeads({ store, crm, now = Date.now(), days = 3, dryRun = false, limit = 200, isBlocked = () => false }) {
@@ -36,8 +38,18 @@ export function dataHealth({ store, crm, instance }) {
   const withoutLead = convs.filter((c) => (c.messages || []).some((m) => m.role === 'assistant') && !crm.findForConversation({ key: c.key, phone: c.phone, username: c.username })).length;
   const leadsWithoutConv = crm.leads.filter((l) => l.conversationKey && !store.data.conversations?.[l.conversationKey]).length;
   const newest = crm.leads.reduce((m, l) => (String(l.createdAt || '') > m ? String(l.createdAt) : m), '');
+  // Por número (principal, cada vendedor, Instagram): quantas conversas e a hora da mensagem mais nova do cliente. Um número conectado sem mensagem nova há dias merece olhar.
+  const byNumber = {};
+  for (const c of convs) {
+    const k = senderOf(c.key);
+    const lastClient = [...(c.messages || [])].reverse().find((m) => m.role === 'user')?.at || '';
+    const e = (byNumber[k] ||= { conversations: 0, last24h: 0, newestClientMessageAt: '' });
+    e.conversations += 1;
+    if (lastClient && Date.now() - Date.parse(lastClient) < DAY) e.last24h += 1;
+    if (lastClient > e.newestClientMessageAt) e.newestClientMessageAt = lastClient;
+  }
   return {
-    instance, leads: crm.leads.length, conversations: convs.length, conversationsAnsweredWithoutLead: withoutLead, leadsPointingToMissingConversation: leadsWithoutConv,
+    byNumber, instance, leads: crm.leads.length, conversations: convs.length, conversationsAnsweredWithoutLead: withoutLead, leadsPointingToMissingConversation: leadsWithoutConv,
     newestLeadAt: newest, deletedLeadsRemembered: (store.data.leadTombstones || []).length,
   };
 }

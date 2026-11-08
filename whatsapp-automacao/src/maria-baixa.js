@@ -3,6 +3,8 @@
 // o CPF do CLIENTE e dá a baixa no cliente certo. Mesmas conferências da leitura de comprovante do atendimento: valor, recebedor, data,
 // pagamento concluído, número da transação único e valor dentro do limite. Qualquer dúvida vai para o administrador conferir no banco.
 
+import { isBrazilLocal } from './utils.js';
+
 const fold = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 const STOP = new Set(['de', 'da', 'do', 'dos', 'das', 'e', 'ltda', 'me', 'eireli', 'sa']);
 const toks = (s) => fold(s).split(' ').filter((t) => t.length > 1 && !STOP.has(t));
@@ -26,14 +28,39 @@ export function cpfMatches(shown, full) {
   return f.includes(s);
 }
 
-/** Pistas dadas por quem mandou (legenda ou resposta): telefone e CPF. */
+/** CPF válido? (dígitos verificadores) Usado para decidir se 11 dígitos soltos são CPF ou celular. */
+function cpfOk(d) {
+  if (!/^\d{11}$/.test(d) || /^(\d)\1{10}$/.test(d)) return false;
+  const calc = (n) => { let sum = 0; for (let i = 0; i < n; i++) sum += Number(d[i]) * (n + 1 - i); const r = (sum * 10) % 11; return r === 10 ? 0 : r; };
+  return calc(9) === Number(d[9]) && calc(10) === Number(d[10]);
+}
+/** DDD + número do Brasil (10 ou 11 dígitos, DDD de 11 a 99). */
+const localBr = (d) => isBrazilLocal(d);
+
+/**
+ * Pistas dadas por quem mandou (legenda ou resposta): telefone e CPF. Entende "+55 44 99999-1111", "(44) 9 9999-1111", "44999991111" e CPF com ou sem pontos.
+ * Onze dígitos soltos que são um CPF válido valem como CPF; os que parecem celular valem como telefone (se for os dois, vale os dois).
+ */
 export function hintsFrom(text) {
-  const t = String(text || '');
-  const cpf = t.match(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/)?.[0] || '';
-  const phone = t.replace(cpf, ' ').match(/(?:\+?\d{2}\s?)?\(?\d{2}\)?\s?9?\d{4}[-\s]?\d{4}\b/)?.[0] || '';
-  return { cpf: digits(cpf), phone: digits(phone) };
+  let t = String(text || '');
+  let cpf = ''; let phone = '';
+  // CPF formatado (000.000.000-00) sai primeiro, para não ser confundido com telefone.
+  const fmt = t.match(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/)?.[0];
+  if (fmt) { cpf = digits(fmt); t = t.replace(fmt, ' '); }
+  // Sequências de números com os separadores comuns; cada uma vale como telefone ou CPF.
+  for (const m of t.match(/\+?[\d()][\d\s().+-]{8,}\d/g) || []) {
+    let d = digits(m);
+    if (m.trim().startsWith('+')) { if (d.length >= 11 && d.length <= 15 && !phone) phone = d; continue; }
+    d = d.replace(/^0+/, '');
+    if (d.length === 11 && cpfOk(d) && !cpf) cpf = d;
+    if (!phone && ((d.length >= 12 && d.length <= 15) || localBr(d))) phone = d;
+    if (!cpf && !fmt && d.length === 11 && /^\d{11}$/.test(digits(m)) && cpfOk(d)) cpf = d;
+  }
+  return { cpf, phone };
 }
 
+/** Telefone que está na chave da conversa do WhatsApp (5545...@s.whatsapp.net); Instagram não tem. */
+const phoneOfKey = (key) => (key && !String(key).startsWith('ig:') && /@s\.whatsapp\.net$/.test(String(key)) ? digits(String(key).split('@')[0]) : '');
 const samePhone = (a, b) => { const x = digits(a); const y = digits(b); return x.length >= 8 && y.length >= 8 && x.slice(-8) === y.slice(-8); };
 
 /**
@@ -62,8 +89,11 @@ export function findCandidates({ sales = [], payments = [], leadOf = () => null,
   for (const p of payments) {
     if (p.status !== 'pending' || Math.abs(Number(p.amount) - amount) >= 0.005) continue;
     const lead = leadOf(p);
-    const name = p.payerName || lead?.name || ''; const phone = lead?.phone || '';
-    out.push({ kind: 'cobranca', payment: p, name, phone, cpf: '', label: p.description || 'Pix', ref: p.id, ...score(name, phone, '') });
+    const name = p.payerName || lead?.name || '';
+    // O telefone do cliente vem do prospecto, do que ficou gravado no próprio Pix ou da conversa (WhatsApp); o CPF, do Pix. Instagram sem telefone ainda acha pelo CPF.
+    const phone = lead?.phone || p.payerPhone || phoneOfKey(p.convKey);
+    const cpf = p.payerDoc || '';
+    out.push({ kind: 'cobranca', payment: p, name, phone, cpf, label: p.description || 'Pix', ref: p.id, ...score(name, phone, cpf) });
   }
   // Com telefone ou CPF informado, só vale quem bate com eles.
   const filtered = hints.phone || hints.cpf ? out.filter((c) => (hints.phone && samePhone(hints.phone, c.phone)) || (hints.cpf && c.cpf && digits(c.cpf) === hints.cpf)) : out;
@@ -79,6 +109,16 @@ export function openParcelsOf({ sales = [], hints = {}, docOf = () => '' }) {
     (s.parcels || []).forEach((p, index) => { if (p.status !== 'pago') out.push({ sale: s, index, parcel: p }); });
   }
   return out;
+}
+
+/** Cobranças Pix em aberto de um cliente (para explicar quando o valor do comprovante é diferente do Pix). */
+export function openChargesOf({ payments = [], leadOf = () => null, hints = {} }) {
+  return payments.filter((p) => {
+    if (p.status !== 'pending') return false;
+    const lead = leadOf(p);
+    const phone = lead?.phone || p.payerPhone || phoneOfKey(p.convKey);
+    return (hints.phone && samePhone(hints.phone, phone)) || (hints.cpf && p.payerDoc && digits(p.payerDoc) === hints.cpf);
+  });
 }
 
 /** Conferências do comprovante. Devolve a lista de problemas (vazia = pode dar baixa direta). */

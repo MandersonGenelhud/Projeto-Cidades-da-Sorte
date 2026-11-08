@@ -981,7 +981,7 @@ agent.createPix = async (conv, args, { dryRun } = {}) => {
   const open = payments.list.find((x) => x.convKey === conv.key && x.status === 'pending' && Date.now() - Date.parse(x.createdAt) < 86_400_000 && (Math.abs(x.amount - amount) < 0.005 || /contrato/i.test(x.description || '')));
   if (open) return { ok: true, jaEnviado: true, valor: money(open.amount), instrucao: `O Pix de ${money(open.amount)} (${open.description}) JÁ foi enviado a este cliente e está em aberto. NÃO gere outro: lembre o valor, diga que é só copiar o código e colar no app do banco e peça o comprovante aqui na conversa.` };
   const desc = `${store.settings.payments?.reservation?.description || 'reserva'} - ${adults} adulto(s)`;
-  const p = await payments.create({ convKey: conv.key, leadId: lead?.id, amount, description: desc, payerName: args.nome_pagador, payerDoc: args.cpf_pagador, by: 'IA' });
+  const p = await payments.create({ convKey: conv.key, leadId: lead?.id, amount, description: desc, payerName: args.nome_pagador, payerDoc: args.cpf_pagador, payerPhone: conv.phone || lead?.phone || '', by: 'IA' });
   await payments.sendCharge(p);
   return { ok: true, valor: money(amount), instrucao: 'O QR Code e o código Pix copia e cola já foram enviados ao cliente em mensagens separadas, logo acima. Diga o valor, explique que é só copiar o código e colar no app do banco (Pix copia e cola) e que o recibo chega aqui assim que o pagamento for confirmado.' };
 };
@@ -4377,7 +4377,7 @@ app.post('/api/conversations/:key/closing/:action', async (req, res) => {
     const c = store.settings.payments || {};
     if (c.enabled === false || !(c.pixKey || c.mercadopago?.accessToken)) throw httpError(400, 'O Pix não está configurado (Configurações → Pagamentos).');
     const adults = Number(filled?.adultos) || quote?.plan?.adults || lead?.people || 1;
-    const p = await payments.create({ convKey: conv.key, leadId: lead?.id || null, amount: payments.reservationAmount(adults), description: `${c.reservation?.description || 'reserva'} - ${adults} adulto(s)`, payerName: filled?.nome || '', payerDoc: filled?.cpf || '', by: req.user.name });
+    const p = await payments.create({ convKey: conv.key, leadId: lead?.id || null, amount: payments.reservationAmount(adults), description: `${c.reservation?.description || 'reserva'} - ${adults} adulto(s)`, payerName: filled?.nome || '', payerDoc: filled?.cpf || '', payerPhone: filled?.whatsapp || conv.phone || lead?.phone || '', by: req.user.name });
     if (form) { form.paymentId = p.id; store.save(); }
     await payments.sendCharge(p);
     agent.remember(conv, 'assistant', `[Pix de ${p.amount} enviado: QR Code e código copia e cola]`);

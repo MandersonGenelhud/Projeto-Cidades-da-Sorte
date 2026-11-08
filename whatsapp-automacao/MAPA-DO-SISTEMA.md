@@ -78,7 +78,7 @@
 | `group-brief.js` | 120 | Resumo AO VIVO do Grupo Migra para a Maria (a secretária da equipe): imóveis e loteamentos, financiamento de lotes, veículos, | `server.js` | 2 |
 | `humanize.js` | 65 | Ritmo humano: quanto tempo uma pessoa levaria para ver, ler e digitar. | `agent/agent.js`, `server.js` | 1 |
 | `lead-brief.js` | 77 | Ficha do vendedor: a conversa COMPLETA que o cliente teve antes de chegar a ele (Instagram, site ou WhatsApp, em ordem de tempo) e um resumo | `server.js` | 1 |
-| `lead-repair.js` | 44 | Conversas que a atendente respondeu mas não viraram prospecto no CRM (nada gravado para o vendedor ver): cria o prospecto que faltou. | `routes/controle.js` | 1 |
+| `lead-repair.js` | 56 | Conversas que a atendente respondeu mas não viraram prospecto no CRM (nada gravado para o vendedor ver): cria o prospecto que faltou. | `routes/controle.js` | 1 |
 | `learnings.js` | 90 | Aprendizados de vendas: a cada venda confirmada, a IA lê a conversa e anota o que funcionou | `server.js` | 1 |
 | `legacy-extras.js` | 78 | O que mais veio da cópia do sistema antigo: modelos de contrato (Migra Paraguai, Migra Med, Migra Brasil, RUC), | `server.js` | 1 |
 | `legacy-import.js` | 571 | Contratos do sistema antigo (do Marcos): lê o arquivo capturado pela ferramenta | `legacy-ingest.js`, `reconcile.js`, `reengage.js`, `server.js` | 6 |
@@ -88,10 +88,10 @@
 | `lines.js` | 213 | Números da equipe: um WhatsApp por vendedor (com o nome dele), cada um com o seu | `connection.js`, `send-profiles.js`, `server.js` | 3 |
 | `live.js` | 69 | Página de live: o Meet que a equipe já usa, com frase de "em breve" / "ao vivo", botão de entrar e botões dos grupos de WhatsApp. | `server.js` | 1 |
 | `maintenance.js` | 22 | Ajustes únicos de equipe, aplicados sozinhos na inicialização (cada um só uma vez). | `server.js` | 1 |
-| `maria-baixa.js` | 110 | Baixa de pagamento pela Maria: o vendedor manda o comprovante (foto ou PDF), a Maria lê, descobre de quem é o pagamento e qual parcela ou | `maria.js` | 1 |
+| `maria-baixa.js` | 150 | Baixa de pagamento pela Maria: o vendedor manda o comprovante (foto ou PDF), a Maria lê, descobre de quem é o pagamento e qual parcela ou | `maria.js` | 1 |
 | `maria-items.js` | 62 | Vários pacotes no mesmo pedido ("5 Ouro, 1 Estudantil e 1 Inicial, com 10% de desconto"): lê a lista e o desconto do texto, sem IA. | `maria.js` | 1 |
 | `maria-outbound.js` | 127 | Envio ao cliente pedido pela Maria: a ficha de dados e o contrato saem pelo WhatsApp que o cliente já conhece | `server.js` | 2 |
-| `maria.js` | 1532 | Maria: a assessora interna da Migra no WhatsApp (número exclusivo, só da equipe). | `server.js` | 21 |
+| `maria.js` | 1545 | Maria: a assessora interna da Migra no WhatsApp (número exclusivo, só da equipe). | `server.js` | 21 |
 | `marketing.js` | 88 | Marketing: traz os números dos anúncios da Meta (Facebook e Instagram) para o painel, em português simples. | `server.js` | 1 |
 | `merge-data.js` | 54 | Junta os dados de duas instalações (ex.: o computador e a VPS) SEM apagar nada da instalação de destino: | — | 1 |
 | `messaging-audit.js` | 97 | Auditoria das conversas e mapa de mensagens por número: para cada WhatsApp (principal, Instagram e o de cada vendedor) mostra | `routes/controle.js` | 1 |
@@ -102,7 +102,7 @@
 | `partner-projects.js` | 224 | Migra Sócios de Projeto: plano de carreira em que o consultor que chegou ao topo traz um projeto novo | `server.js` | 1 |
 | `patch-baileys.js` | 23 | Correção da biblioteca do WhatsApp (Baileys 7.0.0-rc14) enquanto a versão nova não sai: | — | 1 |
 | `payment-terms.js` | 49 | Regra de vencimento das parcelas (plano padrão): 1ª com vencimento ou pagamento na primeira vinda ao Paraguai; 2ª entre 60 e 90 dias após a | `store.js` | 1 |
-| `payments.js` | 423 | Cobrança por Pix no fechamento: gera o Pix (copia e cola + QR Code), confirma o | `server.js` | 8 |
+| `payments.js` | 424 | Cobrança por Pix no fechamento: gera o Pix (copia e cola + QR Code), confirma o | `server.js` | 8 |
 | `payplan.js` | 118 | Etapas de pagamento do processo (o "fluxograma" que o cliente recebe). | `contract.js`, `quotes.js`, `server.js` | 7 |
 | `pdfdoc.js` | 260 | PDF de várias páginas, sem dependências: títulos, parágrafos com quebra de linha | `closing.js`, `contract.js`, `finance.js`, `payments.js`, `quotes.js` | 1 |
 | `pending.js` | 517 | Conversas sem resposta: clientes cuja última mensagem ainda não foi respondida. | `server.js` | 2 |
@@ -131,7 +131,7 @@
 | `sectors.js` | 149 | Setores do Grupo Migra: cada assunto tem os seus atendentes (cadastrados no painel). | `server.js` | 2 |
 | `security.js` | 119 | Segurança do login: verificação em duas etapas (código do app autenticador, padrão TOTP/RFC 6238), | `server.js` | 28 |
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
-| `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
+| `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
 | `server.js` | 5246 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
@@ -147,7 +147,7 @@
 | `tutorials.js` | 225 | Tutoriais e treinamento semanal. Administrador lê o guia do administrador; vendedor lê só o dele (nunca vê a parte do administrador). | `server.js` | 2 |
 | `updater.js` | 120 | Atualização com um clique: baixa a versão mais nova do GitHub e troca só o código. | `server.js` | 1 |
 | `usage.js` | 199 | Consumo da IA por escritório (tokens e respostas) e calculadora de preço do serviço. | `server.js` | 1 |
-| `utils.js` | 224 | Funções utilitárias compartilhadas pelos módulos. | `affiliates.js`, `agent/agent.js`, `agent/calendar.js`, `assistant.js`, `auth.js`, `autoreply.js`, `campaigns.js`, `closing.js`, `crm.js`, `humanize.js`, `legacy-import.js`, `maria.js`, `pending.js`, `phone-fix.js`, `quotes.js`, `recordings.js`, `reengage.js`, `scheduler.js`, `sectors.js`, `send-profiles.js`, `server.js`, `transports/cloudapi.js`, `transports/whatsapp-web.js`, `videocalls.js` | 6 |
+| `utils.js` | 224 | Funções utilitárias compartilhadas pelos módulos. | `affiliates.js`, `agent/agent.js`, `agent/calendar.js`, `assistant.js`, `auth.js`, `autoreply.js`, `campaigns.js`, `closing.js`, `crm.js`, `humanize.js`, `legacy-import.js`, `maria-baixa.js`, `maria.js`, `pending.js`, `phone-fix.js`, `quotes.js`, `recordings.js`, `reengage.js`, `scheduler.js`, `sectors.js`, `send-profiles.js`, `server.js`, `transports/cloudapi.js`, `transports/whatsapp-web.js`, `videocalls.js` | 6 |
 | `videocalls.js` | 228 | Agenda de videochamadas com a equipe: a IA marca quando o cliente diz que vai falar com marido, esposa ou família. | `server.js` | 1 |
 | `visits.js` | 235 | Visitas ao escritório da Migra no Paraguai (consultoria presencial com a equipe). | `server.js` | 3 |
 | `voice.js` | 232 | Voz da Nina: clientes HTTP para o serviço de voz local (deploy/voz): faster-whisper entende o áudio | `assistant.js`, `maria.js`, `server.js` | 2 |

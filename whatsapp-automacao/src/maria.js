@@ -990,7 +990,13 @@ export class Maria {
   /** Vendas e cobranças que a PESSOA enxerga (vendedor: só as dele; administração: todas). */
   #visibleFor(viewer) {
     const sales = (this.sales.listFor?.(viewer, {}) || []).filter((x) => x && x.parcels);
-    const payments = (this.payments?.list || []).filter((p) => p.status === 'pending' && (!p.leadId || !this.crm || (this.crm.byId(p.leadId) && this.crm.canSee(viewer, this.crm.byId(p.leadId)))));
+    // Pix em aberto que a pessoa pode ver. Se o prospecto do Pix sumiu do CRM, o administrador continua vendo (antes ficava escondido e a Maria "não achava").
+    const payments = (this.payments?.list || []).filter((p) => {
+      if (p.status !== 'pending') return false;
+      if (!p.leadId || !this.crm) return true;
+      const lead = this.crm.byId(p.leadId);
+      return lead ? this.crm.canSee(viewer, lead) : viewer?.role === 'admin';
+    });
     return { sales, payments };
   }
 
@@ -1059,7 +1065,10 @@ export class Maria {
       this.baixas.delete(phone);
       await this.#registerOrphan(user, rec, `valor sem parcela correspondente para o cliente informado (${hints.phone || hints.cpf})`);
       const lista = open.slice(0, 4).map((o) => `${o.parcel.label} ${bx.money(o.parcel.value)} (${o.sale.number})`).join('; ');
-      return `${head}\n\nNão achei parcela de ${bx.money(rec.valor)} em aberto para esse cliente${lista ? `. As parcelas em aberto dele são: ${lista}` : ' (ele não tem parcela em aberto nas suas vendas)'}. Guardei o comprovante e *avisei a administração para conferir*; nada foi lançado.`;
+      const charges = bx.openChargesOf({ payments, leadOf: (p) => this.#leadOfPayment(p), hints });
+      const pix = charges.slice(0, 3).map((p) => `${p.description || 'Pix'} de ${bx.money(p.amount)}`).join('; ');
+      const found = lista || pix;
+      return `${head}\n\nNão achei parcela ou Pix de ${bx.money(rec.valor)} em aberto para esse cliente${found ? `. O que ele tem em aberto: ${[lista && `parcelas: ${lista}`, pix && `Pix: ${pix}`].filter(Boolean).join(' · ')}. O valor do comprovante é diferente do que está em aberto` : ' (não achei nenhum contrato, parcela ou Pix em aberto com esse telefone ou CPF nas suas vendas; confira se o número é o mesmo do cadastro do cliente)'}. Guardei o comprovante e *avisei a administração para conferir*; nada foi lançado.`;
     }
     if (cands.length > 1 || (cands.length === 1)) {
       this.baixas.set(phone, { stage: 'quem', rec, until: Date.now() + 15 * 60_000 });
@@ -1098,7 +1107,11 @@ export class Maria {
     if (st.stage === 'confirmar' && /^(sim|confirmo|confirma|pode sim|isso mesmo|pode dar baixa|pode lancar|sim pode)$/.test(yn)) return this.#baixaDo(user, viewer, phone, st);
     if (st.stage === 'quem') {
       const hints = bx.hintsFrom(t);
-      if (!hints.phone && !hints.cpf) return null; // outra conversa
+      if (!hints.phone && !hints.cpf) {
+        // Parece que a pessoa tentou digitar um número, mas não deu para entender: avisa em vez de calar.
+        if (/\d[\d\s().+-]{7,}\d/.test(t) && !/\b(sim|nao|não)\b/i.test(t) && t.replace(/\D/g, '').length >= 8) return `${first}, não consegui entender esse número. Me passe o *WhatsApp do cliente com DDD* (ex.: 44 99999-1111 ou +55 44 99999-1111) ou o *CPF* dele.`;
+        return null; // outra conversa
+      }
       return this.#baixaPropose(phone, user, viewer, st.rec, hints);
     }
     return null;
