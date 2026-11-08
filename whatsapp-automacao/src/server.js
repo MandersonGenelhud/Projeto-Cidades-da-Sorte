@@ -40,6 +40,7 @@ import { Personal } from './personal.js';
 import { planPdfPrice, loadPlanPdf } from './plano-pdf.js';
 import { registerFechamentosRoutes } from './routes/fechamentos.js';
 import { FlashOffer } from './flash-offer.js';
+import { reconcileOverdue } from './followups-done.js';
 import { Portfolio } from './portfolio.js';
 import { makeOutbound, findRecentQuote, filledNotice } from './maria-outbound.js';
 import { groupLiveBrief, HUB_OVERVIEW, STAFF_RULES } from './group-brief.js';
@@ -5300,6 +5301,14 @@ app.post('/api/followups/reconfirm', (req, res) => {
   res.json(reconfirmJob);
 });
 app.get('/api/crm/agenda', (req, res) => res.json(crm.agenda(req.user)));
+// Retornos atrasados que já foram feitos (a equipe ou a IA falaram depois da data): saem de "Atrasados" e vão para "Já contatados" (só administrador).
+app.post('/api/followups/reconcile-overdue', (req, res) => {
+  needAdmin(req);
+  const r = reconcileOverdue({ crm, store, dryRun: req.body?.dryRun === true });
+  if (!r.dryRun) securityEvent('retornos_atrasados_conferidos', req.user, req, `${r.resolved} de ${r.overdue} retornos atrasados já tinham sido feitos (${r.replied} responderam, ${r.silent} sem resposta)`);
+  res.json(r);
+});
+app.post('/api/leads/:id/contact-decision', (req, res) => res.json(crm.contactDecision(req.user, req.params.id, req.body || {})));
 app.get('/api/crm/handoffs', (req, res) => {
   const ownerId = req.user.role === 'admin' ? req.query.owner || undefined : req.user.id;
   res.json(crm.handoffs({ from: req.query.from, to: req.query.to, ownerId }));
@@ -5460,7 +5469,7 @@ if (process.env.NODE_ENV !== 'test') {
     }
   } catch (e) { store.addLog({ type: 'error', message: `Troca de corretor: ${e.message}` }); }
   // Rede de segurança: a cada 15 minutos, dentro do horário de trabalho, quem ficou esperando e não está na fila entra nela (últimos dias do prazo escolhido). Silenciosos só pelo botão.
-  setInterval(() => { try { if (agent.active && isWithinWorkHours(store.settings.agent?.workHours)) restartAll({ days: Number(store.settings.agent?.pendingMaxDays) || 30, includeSilent: false, includeMarcos: false, skipHumanReplied: false }); } catch (e) { store.addLog({ type: 'error', message: `Recomeçar parados: ${e.message}` }); } }, 15 * 60_000).unref();
+  setInterval(() => { try { if (agent.active && isWithinWorkHours(store.settings.agent?.workHours)) restartAll({ days: Number(store.settings.agent?.pendingMaxDays) || 30, includeSilent: false, includeMarcos: false, skipHumanReplied: false }); reconcileOverdue({ crm, store }); } catch (e) { store.addLog({ type: 'error', message: `Recomeçar parados: ${e.message}` }); } }, 15 * 60_000).unref();
   // Orçamento a vencer (hoje ou amanhã): avisa uma vez, no horário de trabalho, pela conversa do cliente. Desligue com quoteExpiry.auto = false.
   setInterval(() => { try { if (agent.active && store.settings.agent?.quoteExpiry?.auto !== false && isWithinWorkHours(store.settings.agent?.workHours)) { const r = noticeQuotes({}); if (r.queued) store.addLog({ type: 'system', message: `Orçamentos a vencer: ${r.queued} cliente(s) avisados pela fila da IA.` }); } } catch (e) { store.addLog({ type: 'error', message: `Aviso de orçamento a vencer: ${e.message}` }); } }, 30 * 60_000).unref();
   // Cliente que sumiu: a cada 15 minutos, no horário de trabalho, chama de volta (4 h sem resposta) ou avisa o encerramento (24 h depois do aviso).

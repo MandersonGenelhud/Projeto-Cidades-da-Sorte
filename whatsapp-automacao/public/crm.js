@@ -671,6 +671,8 @@ $('#btnLeadAi').addEventListener('click', async (e) => {
 
 // ---------- RETORNOS ----------
 loaders.followups = async () => {
+  // Antes de mostrar: retorno atrasado que já foi feito (alguém já falou com o cliente) sai de "Atrasados" e vai para "Já contatados".
+  if (isAdmin()) await api('/api/followups/reconcile-overdue', { method: 'POST', body: {} }).catch(() => {});
   const a = await api('/api/crm/agenda');
   updateDueBadge(a);
   const group = (title, list, tone, empty) => `
@@ -684,14 +686,39 @@ loaders.followups = async () => {
       </div>`).join('') || `<p class="muted">${empty}</p>`}
     </div>`;
   if (isAdmin()) renderReconfirm().catch(() => {});
+  const contacted = (list) => `
+    <div class="panel fu-group">
+      <h2>Já contatados: aguardando decisão <span class="muted">${list.length}</span></h2>
+      <p class="hint">Eram retornos atrasados, mas a equipe ou a IA já falaram com o cliente. Aqui você vê quem respondeu e quem ainda não, e decide se ele continua ou não.</p>
+      ${list.map((l) => `<div class="item fu-item" data-id="${esc(l.id)}">
+        <div class="grow"><b>${esc(l.name || fmtPhone(l.phone) || `@${l.instagram}`)}</b> <span class="muted">${esc(fmtPhone(l.phone) || '')}</span>
+          <span class="badge ${l.contacted.replied ? 'ok' : 'pending'}">${l.contacted.replied ? 'respondeu' : 'ainda não respondeu'}</span>
+          <div class="meta">Falamos em ${dateBR(String(l.contacted.at).slice(0, 10))}${l.contacted.snippet ? ` · "${esc(l.contacted.snippet)}"` : ''}${l.interest ? ` · ${esc(l.interest)}` : ''}${isAdmin() ? ` · ${esc(l.ownerName || 'sem responsável')}` : ''}</div></div>
+        <button class="btn small primary" data-decide="continua" data-id="${esc(l.id)}">Vai continuar</button>
+        <button class="btn small danger" data-decide="nao" data-id="${esc(l.id)}">Não vai continuar</button>
+        <button class="btn small" data-open="${esc(l.id)}">Abrir ficha</button>
+      </div>`).join('') || '<p class="muted">Ninguém por aqui.</p>'}
+    </div>`;
   $('#followupsBox').innerHTML = [
     a.atrasados.length ? group('Atrasados', a.atrasados, 'warn', '') : '',
     group('Hoje', a.hoje, 'today', 'Nenhum retorno para hoje.'),
     group('Próximos 30 dias', a.proximos, '', 'Nada nos próximos 30 dias.'),
     group('Mais para frente', a.futuros, '', 'Nenhum retorno distante (ex.: "ano que vem", "daqui 2 anos").'),
+    (a.contatados || []).length ? contacted(a.contatados) : '',
   ].join('');
 };
-$('#followupsBox').addEventListener('click', (e) => {
+$('#followupsBox').addEventListener('click', async (e) => {
+  const dec = e.target.closest('[data-decide]');
+  if (dec) {
+    try {
+      let reason = '';
+      if (dec.dataset.decide === 'nao') { reason = prompt('Por que ele não vai continuar? (vai para "perdido" com este motivo)', 'Não quis continuar depois do retorno'); if (reason === null) return; }
+      await api(`/api/leads/${dec.dataset.id}/contact-decision`, { method: 'POST', body: { decision: dec.dataset.decide, reason } });
+      toast(dec.dataset.decide === 'nao' ? 'Marcado como perdido' : 'Vai continuar: saiu da lista');
+      loaders.followups();
+    } catch (err) { toast(err.message, true); }
+    return;
+  }
   const id = e.target.closest('[data-open]')?.dataset.open;
   if (id) openLead(id);
 });

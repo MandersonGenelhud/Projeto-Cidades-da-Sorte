@@ -436,3 +436,11 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Quem o Marcos já atendeu**: no "recomeçar" normal ficam de fora as conversas em que o dono ou a equipe responderam pelo celular (`by: 'owner'`/`ownerRepliedAt`) e as marcadas "Conversa do Marcos". A triagem lê 30 mensagens e não retoma quem só cumprimentou o Marcos de forma pessoal. Mensagens automáticas não contam como atendimento humano. As rotinas automáticas de recuperação de falha da IA continuam valendo para quem está esperando resposta.
 - **Limite**: conversas antigas do celular, importadas sem marca de "dono respondeu", dependem da triagem da IA (30 mensagens) para serem reconhecidas.
 - Testes: `test/silencio.test.js`, `test/restart.test.js`, `test/pending.test.js`, `test/cliente-antigo.test.js`.
+
+## Retornos atrasados que já foram feitos ("Já contatados: aguardando decisão")
+
+- Retorno atrasado com **mensagem nossa depois da data** (IA, Marcos ou equipe) sai de "Atrasados" e vai para o quadro "Já contatados", marcado "respondeu" ou "ainda não respondeu". Quem ninguém procurou (ou que só escreveu e espera resposta) **continua atrasado**.
+- Só reorganiza o CRM e anota na linha do tempo (data antiga, quando falamos e o resultado); **não envia nada ao cliente**. Roda ao abrir a aba Retornos (administrador), a cada 15 min e sob demanda (`POST /api/followups/reconcile-overdue`, com ensaio `dryRun`, registrado em segurança).
+- A equipe decide: "Vai continuar" (sai do quadro) ou "Não vai continuar" (perdido, com o motivo digitado). Vendedor só decide os próprios prospectos.
+- Limite: depende de a conversa estar ligada ao prospecto (chave da conversa ou telefone com os 9 últimos dígitos). Conversa por outro número não é vista.
+- Testes: `test/retornos-atrasados.test.js`.

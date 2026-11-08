@@ -5,8 +5,8 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **139** · testes automatizados (arquivos): **138** · scripts do painel: **43**
-- Rotas da API em `server.js`: **508** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
+- Módulos em `src/`: **140** · testes automatizados (arquivos): **139** · scripts do painel: **43**
+- Rotas da API em `server.js`: **510** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
 
@@ -24,7 +24,7 @@
 - Configuração nova vai em `settings` com **valor padrão** em `store.js`; mudança em dado já existente usa **migração de uma vez** com selo (veja abaixo), nunca sobrescreve o que o painel salvou.
 - Nada de segredo no código. Dados reais ficam em `data/` e nunca no Git.
 
-## Módulos (139)
+## Módulos (140)
 | Módulo | Linhas | Para que serve | Quem usa | Testes |
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
@@ -48,7 +48,7 @@
 | `atendimento-plano.js` | 31 | Plano de atendimento: separa TODAS as conversas dos últimos dias em grupos claros, para o administrador saber o que o botão "Começar" vai fazer. | `routes/controle.js` | 2 |
 | `attendants.js` | 122 | Visão por atendente: separa as conversas e os prospectos de cada pessoa (e do | `routes/controle.js`, `server.js` | 1 |
 | `audit.js` | 125 | Trilha de auditoria: registra QUEM criou, alterou ou excluiu cada coisa | `server.js` | 1 |
-| `auth.js` | 265 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 53 |
+| `auth.js` | 265 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 54 |
 | `autocontract.js` | 90 | Contrato automático pela atendente de IA: o cliente pede o contrato na conversa. | `server.js` | 2 |
 | `autoreply.js` | 250 | Chatbot de respostas automáticas por palavra-chave. | `server.js` | 7 |
 | `backup.js` | 111 | Backup automático e criptografado dos dados do painel (clientes, conversas, vendas, configurações). | `server.js` | 1 |
@@ -67,7 +67,7 @@
 | `contract.js` | 341 | Contrato de prestação de serviços de assessoria migratória, preenchido sozinho com os dados | `server.js` | 3 |
 | `convsearch.js` | 37 | Busca por palavra nas conversas guardadas (WhatsApp e Instagram, de todos os números): ignora acentos e maiúsculas. | `server.js` | 1 |
 | `crm-ai.js` | 99 | IA a serviço do CRM: lê as conversas para preencher os prospectos e | `agent/agent.js`, `ana.js`, `assistant.js`, `maria.js`, `receipts.js`, `server.js` | 1 |
-| `crm.js` | 672 | CRM de vendas: prospectos (leads), funil, histórico, retornos agendados e números. | `attendants.js`, `server.js` | 30 |
+| `crm.js` | 697 | CRM de vendas: prospectos (leads), funil, histórico, retornos agendados e números. | `attendants.js`, `server.js` | 31 |
 | `csrf.js` | 16 | Segunda trava contra pedidos forjados por outros sites (CSRF). O cookie de sessão já é SameSite=Lax; | `server.js` | 1 |
 | `csv.js` | 16 | Planilhas (CSV para Excel brasileiro): ponto e vírgula, acentos corretos e proteção contra "fórmula" injetada no texto | `reports-csv.js` | 1 |
 | `customer360.js` | 136 | Ficha única do cliente (visão 360): tudo o que existe sobre uma pessoa em um lugar só, em ordem de data. | `server.js` | 1 |
@@ -81,6 +81,7 @@
 | `ficha-text.js` | 24 | A ficha de dados em TEXTO: muita gente tem medo de tocar num link, então o pedido sempre vai também escrito, para a pessoa | `maria-outbound.js`, `maria.js`, `server.js` | 1 |
 | `finance.js` | 283 | Financiamento próprio de lotes (Migra Imobiliária): simulador de parcelas com | `server.js` | 2 |
 | `flash-offer.js` | 57 | Oferta relâmpago com VAGAS LIMITADAS de verdade: só as próximas N pessoas (padrão 20), que fecharem até a data, em plano Prata ou Ouro, | `server.js` | 1 |
+| `followups-done.js` | 49 | Retornos ATRASADOS que na verdade já foram feitos: se depois da data do retorno a equipe ou a IA já falaram com o cliente, | `server.js` | 1 |
 | `followups.js` | 203 | Retorno combinado: quando o cliente pede "mais pra frente", a atendente marca dia e hora | `server.js` | 2 |
 | `group-brief.js` | 120 | Resumo AO VIVO do Grupo Migra para a Maria (a secretária da equipe): imóveis e loteamentos, financiamento de lotes, veículos, | `server.js` | 2 |
 | `humanize.js` | 82 | Ritmo humano: quanto tempo uma pessoa levaria para ver, ler e digitar. | `agent/agent.js`, `pending.js`, `server.js` | 2 |
@@ -146,7 +147,7 @@
 | `security.js` | 119 | Segurança do login: verificação em duas etapas (código do app autenticador, padrão TOTP/RFC 6238), | `server.js` | 28 |
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 5484 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 5493 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
@@ -231,7 +232,7 @@
 - `contabil-painel.js`
 - `nav-hubs.js`
 
-## Rotas da API (508)
+## Rotas da API (510)
 - `GET /webhook`
 - `GET /webhook/instagram`
 - `POST /webhook/instagram`
@@ -695,6 +696,8 @@
 - `GET /api/followups/reconfirm`
 - `POST /api/followups/reconfirm`
 - `GET /api/crm/agenda`
+- `POST /api/followups/reconcile-overdue`
+- `POST /api/leads/:id/contact-decision`
 - `GET /api/crm/handoffs`
 - `GET /api/crm/stats`
 - `GET /api/demo`

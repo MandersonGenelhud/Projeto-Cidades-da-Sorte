@@ -147,6 +147,7 @@ export class Crm {
       hoje: pick((l) => l.followUpAt === today),
       proximos: pick((l) => l.followUpAt > today && l.followUpAt <= addDays(today, 30)),
       futuros: pick((l) => l.followUpAt > addDays(today, 30)),
+      contatados: this.leads.filter((l) => l.contacted && OPEN.has(l.stage) && !l.followUpAt && (user.role === 'admin' ? true : l.ownerId === user.id)).sort((a, b) => String(b.contacted.at).localeCompare(String(a.contacted.at))).slice(0, 300).map((l) => this.view(l)),
     };
   }
 
@@ -257,6 +258,30 @@ export class Crm {
     lead.followUpAutoFailed = null;
     lead.followUpTime = /^\d{1,2}:\d{2}$/.test(String(time)) ? String(time).padStart(5, '0') : null;
     this.#log(lead, user, 'retorno', `Retorno agendado para ${fmtDate(date)}${lead.followUpReason ? ` · motivo: ${lead.followUpReason}` : ''}`);
+  }
+
+  /** O retorno atrasado já foi feito (a equipe ou a IA falaram depois da data): sai de "Atrasados" e vai para "Já contatados". */
+  markContacted(lead, { at, replied = false, lastUserAt = null, snippet = '', prevDate = '', now = Date.now() }) {
+    lead.contacted = { at, replied, lastUserAt, snippet, prevDate, doneAt: new Date(now).toISOString() };
+    lead.followUpAt = null;
+    lead.followUpAuto = false;
+    if (lead.stage === 'aguardando') lead.stage = 'em_contato';
+    this.#log(lead, 'Sistema', 'retorno', `Retorno de ${fmtDate(prevDate)} já feito: falamos com o cliente em ${fmtDate(String(at).slice(0, 10))} (${replied ? 'ele respondeu' : 'ele ainda não respondeu'}). Saiu de "Atrasados" e foi para "Já contatados: aguardando decisão".`);
+    this.notify('crm', { id: lead.id });
+  }
+
+  /** Decisão da equipe sobre quem já foi contatado: continua (sai do quadro) ou não continua (perdido, com o motivo). */
+  contactDecision(user, id, { decision, reason = '' }) {
+    const lead = this.#mustSee(user, id);
+    if (!lead.contacted) throw err(400, 'Este prospecto não está em "Já contatados"');
+    if (decision === 'nao') {
+      this.setStage(user, lead, { stage: 'perdido', lostReason: String(reason || '').trim() || 'Não quis continuar depois do retorno' });
+    } else if (decision === 'continua') {
+      this.#log(lead, user, 'nota', 'Confirmado: o cliente vai continuar o atendimento.');
+    } else throw err(400, 'Decisão inválida');
+    delete lead.contacted;
+    this.notify('crm', { id: lead.id });
+    return this.view(lead);
   }
 
   followUp(user, id, { date, reason }) {
