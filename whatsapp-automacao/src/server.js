@@ -4107,6 +4107,26 @@ app.post('/api/contract/extract', async (req, res) => {
 const contractorSigner = makeContractorSigner({ store, dataDir: DATA_DIR, needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), notifyAdmins: (t) => notifyAdmins(t) });
 const contractorSign = () => contractorSigner.contractorSign();
 contractorSigner.register(app);
+// Regra nova de vencimento das parcelas (valores iguais): refaz, uma vez, os PDFs de orçamento e os contratos que AINDA NÃO foram assinados.
+// Contrato assinado nunca é alterado (é o que o cliente leu e assinou).
+if (!store.data.termsPdf2026) {
+  const done = { quotes: 0, contracts: 0, signedKept: 0, failed: 0 };
+  for (const q of quotes.list) {
+    try {
+      fs.mkdirSync(quotes.dir, { recursive: true });
+      fs.writeFileSync(quotes.file(q), quotes.pdf(q));
+      done.quotes += 1;
+      if (q.contract?.status === 'assinado') { done.signedKept += 1; continue; }
+      if (q.contract?.client?.nome && fs.existsSync(contractFile(q))) {
+        fs.writeFileSync(contractFile(q), contractPdf({ client: q.contract.client, quote: q, cfg: store.settings.contract || {}, issued: String(q.contract.at || '').slice(0, 10) || undefined, contractor: contractorSign() }));
+        done.contracts += 1;
+      }
+    } catch { done.failed += 1; }
+  }
+  store.data.termsPdf2026 = true;
+  store.save();
+  store.addLog({ type: 'system', message: `Nova regra de vencimento das parcelas aplicada: ${done.quotes} orçamento(s) e ${done.contracts} contrato(s) não assinados refeitos; ${done.signedKept} contrato(s) já assinados mantidos como estavam${done.failed ? `; ${done.failed} falharam` : ''}.` });
+}
 app.post('/api/quotes/:id/contract', (req, res) => {
   const q = quotes.list.find((x) => x.id === req.params.id);
   if (!q || !canSeeQuote(req.user, q)) throw httpError(404, 'Orçamento não encontrado');

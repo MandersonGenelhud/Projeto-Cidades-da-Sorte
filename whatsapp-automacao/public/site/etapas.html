@@ -45,11 +45,11 @@
           <div class="chips"><span>${esc(d.packageName)}</span><span>${p.people} pessoa${p.people > 1 ? 's' : ''}</span>${p.adults !== p.people ? `<span>${p.adults} adulto${p.adults > 1 ? 's' : ''}</span>` : ''}</div>
           <div class="plan">
             <div class="step first"><div class="dot"></div><div><div class="when">Na assinatura do termo${p.start ? ` · ${dia(p.start)}` : ''}</div><div class="val">${brl(p.entry)}</div><div class="note">${p.base !== undefined ? `${brl(p.base)} de sinal de contratação dos serviços + ${brl(p.perAdult * p.adults)} (${brl(p.perAdult)} por adulto) das certidões da Interpol e da Informática da Polícia Nacional do Paraguai, sem as quais não conseguimos iniciar o processo. ` : ''}Já é descontada do total.</div></div></div>
-            ${p.parcels.map((x, i) => `<div class="step"><div class="dot">${icon(i)}</div><div><div class="when">${x.date ? `${dia(x.date)} · ` : ''}${esc(x.when)}</div><div class="val">${brl(x.value)}</div><div class="note">${esc(x.label)} (${x.pct}% do saldo) · ${esc(x.note)}</div></div></div>`).join('')}
+            ${p.parcels.map((x, i) => `<div class="step"><div class="dot">${icon(i)}</div><div><div class="when">${x.date && !x.trip ? `${dia(x.date)} · ` : ''}${esc(x.when)}</div><div class="val">${brl(x.value)}</div><div class="note">${esc(x.label)} (${x.pct}% do saldo) · ${esc(x.note)}</div></div></div>`).join('')}
           </div>
           <div class="total"><span>Valor total</span><b>${brl(p.total)}</b></div>
         </div>
-        <p class="fine">${p.parcels.some((x) => x.moved) ? 'Quando o prazo cai no sábado ou domingo, a data passa para a segunda-feira. ' : ''}As datas das viagens e da retirada dos documentos são confirmadas pela equipe da Migra.</p>`;
+        <p class="fine">${p.parcels.some((x) => x.trip) ? 'Os vencimentos acompanham a sua primeira vinda ao Paraguai e o pagamento da parcela anterior. ' : p.parcels.some((x) => x.moved) ? 'Quando o prazo cai no sábado ou domingo, a data passa para a segunda-feira. ' : ''}As datas das viagens e da retirada dos documentos são confirmadas pela equipe da Migra.</p>`;
     }).catch((e) => { $('#page').innerHTML = `<div class="flow-card center"><h1>Link inválido</h1><p class="muted">${esc(e.message)}</p></div>`; });
   </script>
 </body>

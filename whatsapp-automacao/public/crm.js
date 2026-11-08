@@ -1042,8 +1042,8 @@ async function runCalc() {
     calc.text = r.text;
     $('#calcResult').innerHTML = `
       <div class="calc-total"><div><span>Valor total</span><b>${brl2(p.total)}</b><small>${brl2(r.price)} × ${p.people} pessoa(s)</small></div><div><span>Entrada na assinatura</span><b>${brl2(p.entry)}</b><small>${brl2(p.base)} de sinal + ${brl2(p.perAdult)} × ${p.adults} adulto(s) das certidões (Interpol e Polícia Nacional) · ${diaSemana(p.start)}</small></div></div>
-      <ol class="calc-steps">${p.parcels.map((x, i) => `<li><span class="calc-dot">${i + 1}</span><div><b>${brl2(x.value)}</b> · ${esc(x.label)} (${x.pct}% do saldo)<div class="hint">${esc(diaSemana(x.date))} · ${esc(x.when.toLowerCase())} · ${esc(x.note)}${x.moved ? ' · <b>caiu no fim de semana, passou para segunda</b>' : ''}</div></div></li>`).join('')}</ol>
-      <p class="hint">Saldo depois da entrada: ${brl2(p.balance)}. As datas das viagens e da retirada são confirmadas pela equipe.</p>`;
+      <ol class="calc-steps">${p.parcels.map((x, i) => `<li><span class="calc-dot">${i + 1}</span><div><b>${brl2(x.value)}</b> · ${esc(x.label)} (${x.pct}% do saldo)<div class="hint">${x.trip ? '' : `${esc(diaSemana(x.date))} · `}${esc(x.trip ? x.when : x.when.toLowerCase())} · ${esc(x.note)}${x.moved ? ' · <b>caiu no fim de semana, passou para segunda</b>' : ''}</div></div></li>`).join('')}</ol>
+      <p class="hint">Saldo depois da entrada: ${brl2(p.balance)}. ${p.parcels.some((x) => x.trip) ? 'Os vencimentos acompanham a primeira vinda ao Paraguai e o pagamento da parcela anterior; a equipe confirma as datas.' : 'As datas das viagens e da retirada são confirmadas pela equipe.'}</p>`;
   } catch (err) {
     $('#calcResult').innerHTML = `<p class="err">${esc(err.message)}</p>`;
   }

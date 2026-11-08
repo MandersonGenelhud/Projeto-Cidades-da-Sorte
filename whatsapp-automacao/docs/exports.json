@@ -435,6 +435,12 @@
  "src/patch-baileys.js": [
   "patchBaileys"
  ],
+ "src/payment-terms.js": [
+  "NEW_STEPS",
+  "REPLACEMENTS",
+  "applyTermsToPlan",
+  "applyTermsToSettings"
+ ],
  "src/payments.js": [
   "Payments"
  ],

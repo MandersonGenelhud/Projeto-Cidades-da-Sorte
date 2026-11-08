@@ -1,13 +1,14 @@
 // Etapas de pagamento do processo (o "fluxograma" que o cliente recebe).
 // Regra do material "Seu pagamento, passo a passo" da Migra: a entrada
 // (R$ 1.000 + R$ 800 por adulto) é paga na assinatura e abatida do total;
-// o saldo é dividido em 50% na 1ª vinda, 30% na 2ª vinda e 20% na retirada.
+// o saldo é dividido em 50% (vence na 1ª vinda), 30% (60 a 90 dias após a 1ª vinda) e 20% (30 dias após pagar a 2ª parcela).
 import crypto from 'node:crypto';
 
 export const DEFAULT_STEPS = [
-  { pct: 50, days: 15, when: 'Com 15 dias', note: 'Na sua primeira vinda ao Paraguai' },
-  { pct: 30, days: 90, when: 'Com 90 dias', note: 'Na sua segunda vinda ao Paraguai' },
-  { pct: 20, days: 120, when: 'Com 120 dias', note: 'Quando retirar os documentos' },
+  // O vencimento acompanha a 1ª vinda ao Paraguai e o pagamento anterior (não uma data fixa). `days` só serve para estimar datas internas (cobrança e previsão).
+  { pct: 50, days: 15, when: 'Na 1ª vinda ao Paraguai', note: 'Com vencimento ou data de pagamento na primeira vinda ao Paraguai', trip: true },
+  { pct: 30, days: 90, when: 'De 60 a 90 dias após a 1ª vinda', note: 'Vencimento previsto entre 60 e 90 dias após a primeira vinda ao Paraguai', trip: true },
+  { pct: 20, days: 120, when: '30 dias após pagar a 2ª parcela', note: 'Vencimento 30 dias após o pagamento da segunda parcela', trip: true },
 ];
 
 const WEEKDAYS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
@@ -49,7 +50,7 @@ export function paymentPlan({ price, people = 1, adults = people, base = 1000, p
     rest = cents(rest - value);
     const days = Number(s.days ?? DEFAULT_STEPS[i]?.days ?? 0);
     const due = dueDate(start, days);
-    return { label: `${i + 1}ª parcela`, pct: Number(s.pct), value, days, when: s.when || `Com ${days} dias`, note: s.note, date: due.date, weekday: due.weekday, moved: due.moved };
+    return { label: `${i + 1}ª parcela`, pct: Number(s.pct), value, days, when: s.when || `Com ${days} dias`, note: s.note, trip: Boolean(s.trip), date: due.date, weekday: due.weekday, moved: due.moved };
   });
   const st = dueDate(start, 0);
   return { total, entry, base: cents(base), perAdult: cents(perAdult), balance, people: p, adults: a, start, startWeekday: WEEKDAYS[new Date(`${start}T12:00:00Z`).getUTCDay()], startMoved: st.moved, parcels };
@@ -61,10 +62,10 @@ export function planMessage(plan, { packageName = '', link = '' } = {}) {
     `📋 *Seu pagamento, passo a passo*${packageName ? `\n${packageName} · ${plan.people} pessoa${plan.people > 1 ? 's' : ''}` : ''}`,
     '',
     `✍️ *Na assinatura do termo${plan.start ? ` · ${plan.startWeekday.replace('-feira', '')}, ${fmtBr(plan.start)}` : ''}*\nEntrada: ${money(plan.entry)}${plan.base !== undefined ? `\n• ${money(plan.base)}: sinal de contratação dos serviços\n• ${money(plan.perAdult * plan.adults)} (${money(plan.perAdult)} × ${plan.adults} adulto${plan.adults > 1 ? 's' : ''}): certidões da Interpol e da Informática da Polícia Nacional do Paraguai, sem as quais não conseguimos iniciar o processo` : ''}`,
-    ...plan.parcels.flatMap((x, i) => ['⬇️', `${i === plan.parcels.length - 1 ? '🪪' : '✈️'} *${x.date ? `${dayLabel(x)} · ` : ''}${x.when.toLowerCase()}*\n${x.label}: ${money(x.value)}\n${x.note}`]),
+    ...plan.parcels.flatMap((x, i) => ['⬇️', `${i === plan.parcels.length - 1 ? '🪪' : '✈️'} *${x.date && !x.trip ? `${dayLabel(x)} · ` : ''}${x.trip ? x.when : x.when.toLowerCase()}*\n${x.label}: ${money(x.value)}\n${x.note}`]),
     '',
     `💰 *Valor total: ${money(plan.total)}*`,
-    plan.parcels.some((x) => x.moved) ? 'Quando o prazo cai no sábado ou domingo, a data passa para a segunda-feira.\nAs datas das viagens e da retirada são confirmadas pela equipe.' : 'As datas das viagens e da retirada são confirmadas pela equipe.',
+    plan.parcels.some((x) => x.trip) ? 'Os vencimentos acompanham a sua primeira vinda ao Paraguai e o pagamento da parcela anterior; a equipe confirma as datas com você.' : plan.parcels.some((x) => x.moved) ? 'Quando o prazo cai no sábado ou domingo, a data passa para a segunda-feira.\nAs datas das viagens e da retirada são confirmadas pela equipe.' : 'As datas das viagens e da retirada são confirmadas pela equipe.',
   ];
   if (link) lines.push('', `Veja o passo a passo completo: ${link}`);
   return lines.join('\n');

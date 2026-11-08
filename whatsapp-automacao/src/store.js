@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { applyTermsToSettings, applyTermsToPlan } from './payment-terms.js';
 import { DEFAULT_PRESET, CRISIS_KNOWLEDGE, GROUP_KNOWLEDGE, GROUP_BLOCK_V1, GROUP_BLOCK_V2, MIGRATECH_KNOWLEDGE, SCHOOL_KNOWLEDGE, presetSettings, presetUpgrade } from './agent/presets.js';
 
 const PRESET = presetSettings(DEFAULT_PRESET);
@@ -368,6 +369,14 @@ export class Store extends EventEmitter {
     const agModel = this.data.settings.agent;
     if (agModel && /^gemini-[12]\./.test(String(agModel.geminiModel || ''))) {
       agModel.geminiModel = 'gemini-3.8-flash';
+      this.flush();
+    }
+    // Regra nova de vencimento das parcelas (valores iguais): troca, uma vez, os textos antigos guardados (conhecimento da IA, planos enviados e orçamentos).
+    if (!this.data.termsMigration2026) {
+      applyTermsToSettings(this.data.settings);
+      for (const rec of this.data.payplans || []) applyTermsToPlan(rec.plan);
+      for (const rec of this.data.quotes || []) applyTermsToPlan(rec.plan);
+      this.data.termsMigration2026 = true;
       this.flush();
     }
     const agDays = this.data.settings.agent;

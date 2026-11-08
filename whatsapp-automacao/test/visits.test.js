@@ -60,5 +60,7 @@ test('calculadora: datas das parcelas, e sábado ou domingo passam para segunda'
     ['2026-01-28'.replace('2026', '2027'), 'quinta-feira', 14336.4],
     ['2027-03-01', 'segunda-feira', 9557.6],
   ]);
-  assert.match(planMessage(p, { packageName: 'Pacote Ouro' }), /segunda, 16\/11\/2026 · com 15 dias/);
+  const msg = planMessage(p, { packageName: 'Pacote Ouro' });
+  assert.match(msg, /Na 1ª vinda ao Paraguai\*\n1ª parcela: R\$ 23\.894,00/, 'valores iguais; o prazo agora acompanha a 1ª vinda, sem data fixa');
+  assert.doesNotMatch(msg, /16\/11\/2026/);
 });
