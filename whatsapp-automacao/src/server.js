@@ -4084,7 +4084,11 @@ app.post('/api/quotes', async (req, res) => {
 const CONTRACT_FIELDS = ['nome', 'nacionalidade', 'estadoCivil', 'profissao', 'rg', 'rgOrgao', 'cpf', 'cep', 'rua', 'numero', 'complemento', 'bairro', 'cidade', 'uf', 'whatsapp', 'email', 'acompanhantes'];
 const contractDir = path.join(DATA_DIR, 'contratos');
 const contractFile = (q) => path.join(contractDir, `CT-${q.number.replace(/^ORC-/, '')}.pdf`);
-const pickClient = (src = {}) => Object.fromEntries(CONTRACT_FIELDS.map((k) => [k, String(src[k] ?? '').replace(/\s+/g, ' ').trim().slice(0, k === 'acompanhantes' ? 600 : 200)]));
+const pickClient = (src = {}) => {
+  const out = Object.fromEntries(CONTRACT_FIELDS.map((k) => [k, String(src[k] ?? '').replace(/\s+/g, ' ').trim().slice(0, k === 'acompanhantes' ? 600 : 200)]));
+  if (out.whatsapp && out.whatsapp.replace(/\D/g, '').length > 2) { const w = normalizePhone(out.whatsapp); if (w) out.whatsapp = `+${w}`; } // sempre com o código do país (55 do Brasil)
+  return out;
+};
 // Dados já conhecidos: os do último contrato deste orçamento > a ficha que o cliente preencheu > o orçamento.
 app.get('/api/quotes/:id/contract-data', (req, res) => {
   const q = quotes.list.find((x) => x.id === req.params.id);

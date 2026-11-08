@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { applyTermsToSettings, applyTermsToPlan } from './payment-terms.js';
+import { fixPhones } from './phone-fix.js';
 import { DEFAULT_PRESET, CRISIS_KNOWLEDGE, GROUP_KNOWLEDGE, GROUP_BLOCK_V1, GROUP_BLOCK_V2, MIGRATECH_KNOWLEDGE, SCHOOL_KNOWLEDGE, presetSettings, presetUpgrade } from './agent/presets.js';
 
 const PRESET = presetSettings(DEFAULT_PRESET);
@@ -378,6 +379,13 @@ export class Store extends EventEmitter {
       for (const rec of this.data.quotes || []) applyTermsToPlan(rec.plan);
       this.data.termsMigration2026 = true;
       this.flush();
+    }
+    // Telefones de clientes sem o +55 (só DDD + número): acrescenta o 55 do Brasil uma vez; cada mudança fica registrada em phoneFixLog.
+    if (!this.data.phones55_2026) {
+      const r = fixPhones(this);
+      this.data.phones55_2026 = true;
+      this.flush();
+      if (r.count) this.addLog({ type: 'system', message: `Telefones: ${r.count} cadastro(s) de clientes ganharam o prefixo +55 do Brasil.` });
     }
     const agDays = this.data.settings.agent;
     if (agDays && !agDays.pendingDays2026) {

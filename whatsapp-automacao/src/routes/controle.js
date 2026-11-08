@@ -7,6 +7,7 @@ import { cleanProfile, profileFor } from '../send-profiles.js';
 import { distributionReport } from '../distribution.js';
 import { noticeExpiringQuotes } from '../quote-expiry.js';
 import { reconcile } from '../reconcile.js';
+import { fixPhones } from '../phone-fix.js';
 import { repairMissingLeads, dataHealth } from '../lead-repair.js';
 import crypto from 'node:crypto';
 import { restartStalled } from '../restart.js';
@@ -32,6 +33,14 @@ app.post('/api/leads-repair', (req, res) => {
   needAdmin(req);
   const r = repairLeads({ days: Math.min(30, Math.max(1, Number(req.body?.days) || 3)), dryRun: req.body?.dryRun === true });
   if (!req.body?.dryRun) securityEvent('reparar_prospectos', req.user, req, `${r.created} prospecto(s) criados para conversas sem registro, ${r.linked} ligados`);
+  res.json(r);
+});
+// Telefones sem o +55: ver quantos cadastros seriam corrigidos (GET) e corrigir (POST). Cada mudança fica registrada (antes e depois).
+app.get('/api/phones-fix', (req, res) => { needAdmin(req); res.json(fixPhones(store, { dryRun: true })); });
+app.post('/api/phones-fix', (req, res) => {
+  needAdmin(req);
+  const r = fixPhones(store);
+  securityEvent('corrigir_telefones', req.user, req, `${r.count} telefone(s) ganharam o +55`);
   res.json(r);
 });
 // Conferência dos contratos e do dinheiro (só administrador): repetidos, valores que não fecham, diferenças com o sistema antigo e totais.

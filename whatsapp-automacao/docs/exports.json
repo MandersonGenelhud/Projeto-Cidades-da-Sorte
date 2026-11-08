@@ -485,6 +485,10 @@
   "categoryOf",
   "personalMoney"
  ],
+ "src/phone-fix.js": [
+  "fixPhones",
+  "fixValue"
+ ],
  "src/pix.js": [
   "crc16",
   "normalizePixKey",
@@ -703,6 +707,7 @@
  "src/utils.js": [
   "DEFAULT_WORK_HOURS",
   "csvToContacts",
+  "isBrazilLocal",
   "isWithinBusinessHours",
   "isWithinWorkHours",
   "jidToPhone",
@@ -715,6 +720,7 @@
   "sleep",
   "spin",
   "uid",
+  "withBrazil55",
   "workHourRange",
   "workHoursOf"
  ],

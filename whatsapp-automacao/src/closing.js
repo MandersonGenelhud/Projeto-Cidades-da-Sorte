@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { documentPdf } from './pdfdoc.js';
+import { normalizePhone } from './utils.js';
 
 const err = (status, message) => Object.assign(new Error(message), { status });
 const money = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -140,7 +141,7 @@ export class Closing {
     const placeholder = !lead?.name || /^@|^\+?\d+$/.test(lead.name);
     const prefill = {
       nome: placeholder ? '' : lead.name,
-      whatsapp: lead?.phone ? `+${lead.phone}` : '',
+      whatsapp: lead?.phone ? `+${lead.phone}` : '+55 ', // já vem com o prefixo do Brasil: o cliente só completa DDD e número
       email: lead?.email || '',
       objetivo: clean(servico) || lead?.interest || '',
       adultos: String(adultos || lead?.people || ''),
@@ -173,6 +174,9 @@ export class Closing {
     const data = {};
     for (const { k } of FORM_FIELDS) data[k] = clean(input[k], k === 'acompanhantes' ? 600 : 200);
     data.uf = data.uf.toUpperCase().slice(0, 2);
+    // WhatsApp sempre com o código do país: "45 99999-0000" vira "+55 45 99999-0000" (sem isso o contrato e o Pix não chegam). Só "+55" sem número = não preenchido.
+    if (digits(data.whatsapp).length <= 2) data.whatsapp = '';
+    else { const w = normalizePhone(data.whatsapp); if (w) data.whatsapp = `+${w}`; }
     const missing = FORM_FIELDS.filter((x) => x.req && !data[x.k]).map((x) => x.label);
     if (missing.length) throw err(400, `Falta preencher: ${missing.join(', ')}`);
     if (!validCpf(data.cpf)) throw err(400, 'O CPF não parece correto. Confira os números, por favor.');

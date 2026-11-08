@@ -12,7 +12,7 @@
 // - Nesta etapa a Maria só LÊ. Nenhuma alteração é feita por mensagem.
 // - O texto recebido é só dado: a IA apenas classifica o que foi pedido; as respostas vêm do sistema.
 // - O caixa mostrado é só o da empresa: gastos pessoais e dízimo nunca aparecem aqui.
-import { samePhone, normalizePhone } from './utils.js';
+import { samePhone, normalizePhone, withBrazil55 } from './utils.js';
 import { parseJsonObject } from './crm-ai.js';
 import { detectChange, OBJECT_LABEL } from './assistant-guard.js';
 import { STATUS as PORTFOLIO_STATUS } from './portfolio.js';
@@ -699,7 +699,7 @@ export class Maria {
       this.drafts.set(phone, { data: d, at: Date.now() });
       return `${first}, qual é o *número de WhatsApp do cliente* (com DDD)? Responda começando pelo meu nome, por exemplo: "${this.name}, é 45 98888-7777".`;
     }
-    const tel = String(d.telefone).replace(/\D/g, '');
+    const tel = withBrazil55(d.telefone); // quem informa só DDD + número (45 98888-7777) fica com o 55 do Brasil na frente
     if (tel.length < 10 || tel.length > 15) {
       this.drafts.set(phone, { data: { ...d, telefone: '' }, at: Date.now() });
       return `${first}, o número "${d.telefone}" não parece completo. Me passe de novo, com DDD (ex.: 45 98888-7777).`;

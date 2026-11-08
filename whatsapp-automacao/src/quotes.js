@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PdfCanvas, PAGE } from './pdfdoc.js';
+import { withBrazil55 } from './utils.js';
 import { paymentPlan, DEFAULT_STEPS, todayIso, fmtBr, money } from './payplan.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -131,7 +132,7 @@ export class Quotes {
       id: crypto.randomBytes(6).toString('hex'),
       number: this.#nextNumber(year),
       client: clean(client) || 'Cliente',
-      phone: String(phone || '').replace(/\D/g, ''),
+      phone: withBrazil55(phone),
       consultant: clean(consultant) || this.config.consultant || 'Equipe Migra',
       items: rows,
       plan,

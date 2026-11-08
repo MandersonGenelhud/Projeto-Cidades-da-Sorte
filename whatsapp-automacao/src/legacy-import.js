@@ -3,7 +3,7 @@
 // junta duplicados e guarda tudo no arquivo de contratos antigos (só administrador vê).
 import crypto from 'node:crypto';
 
-import { normalizePhone } from './utils.js';
+import { normalizePhone, withBrazil55 } from './utils.js';
 const normalizePhoneLoose = (v) => normalizePhone(v) || normalizePhone(`+${String(v || '').replace(/\D/g, '')}`) || null;
 const err = (status, message) => Object.assign(new Error(message), { status });
 export const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -507,16 +507,16 @@ export class LegacyContracts {
         const created = r.date ? `${r.date}T12:00:00.000Z` : new Date().toISOString();
         sales.list.push({
           id: crypto.randomBytes(6).toString('hex'), number: `ANT-${r.number || r.id.slice(0, 6)}`, legacy: true, legacySynthetic: synth, legacyNumber: r.number, quoteId: null, quoteNumber: '', leadId: null,
-          client: { nome: r.client, phone: String(r.phone || '').replace(/\D/g, ''), doc: r.doc || '' }, sellerId: null, sellerName: r.seller || '',
+          client: { nome: r.client, phone: withBrazil55(r.phone), doc: r.doc || '' }, sellerId: null, sellerName: r.seller || '',
           items: [{ name: r.service || 'Contrato do sistema antigo', qty: 1, price: total, total }], total,
           parcels: parcels.map((p) => ({ label: p.label, value: p.value, due: p.due, status: p.paid ? 'pago' : 'pendente', ...(p.paid ? { paidAt: p.paidAt, method: 'Sistema antigo', confirmedBy: 'Importação' } : {}) })),
           commission: { pct: 0, value: 0, manual: true, status: 'paga', paidAt: null, note: 'Contrato do sistema antigo: sem comissão pelo sistema novo' }, affiliate: null,
           status: /cancel|rescind|distrat/i.test(r.status || '') ? 'cancelada' : 'ativa', office: 'py', createdAt: created, createdBy: user?.name || 'Importação', history: [{ at: new Date().toISOString(), by: user?.name || 'Importação', text: `Importado do sistema antigo (contrato ${r.number})` }],
         });
-        hasContract.add(String(r.phone || '').replace(/\D/g, '') || norm(r.client));
+        hasContract.add(withBrazil55(r.phone) || norm(r.client));
         out.sales += 1;
       }
-    } else for (const r of this.list) hasContract.add(String(r.phone || '').replace(/\D/g, '') || norm(r.client));
+    } else for (const r of this.list) hasContract.add(withBrazil55(r.phone) || norm(r.client));
     if (doClients) {
       for (const c of this.clients) {
         const phone = normalizePhoneLoose(c.phone);

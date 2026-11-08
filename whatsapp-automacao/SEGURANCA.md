@@ -324,3 +324,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 - Risco: vendedor ver conversa de cliente que não é dele; resumo com informação inventada.
 - Controles (`src/lead-brief.js`, rota `/api/leads/:id`, `test/ficha-vendedor.test.js`): a conversa completa e o resumo "Conheça o cliente" só saem para quem já pode ver o prospecto (dono, administrador do escritório, administrador); outro vendedor recebe 403 e o teste confere. O resumo usa só fatos registrados (primeiro contato, peneira da IA, o que ele respondeu a cada pergunta, orçamento, contrato, Pix, última mensagem); nada é gerado por IA nem inventado.
+
+## Telefones de clientes com +55 (dado de cliente)
+
+- Risco: telefone sem o código do país não é achado pelo WhatsApp (contrato, Pix e resposta não chegam); corrigir errado um número de outro país.
+- Controles (`src/utils.js` `withBrazil55`, `src/phone-fix.js`, `public/telefone55.js`, `test/telefone55.test.js`): campos de telefone vêm com +55 pré-preenchido (a ficha de cadastro também); número só com DDD + número ganha o 55 ao salvar (orçamento, contrato, ficha, Maria, importação). A correção dos cadastros já gravados só mexe em número claramente brasileiro (DDD que existe e 10 ou 11 dígitos, com 9 no celular); nunca em número com "+", com 55 já presente ou de outro país. Roda uma vez ao iniciar e há rota de administrador para ver (`GET /api/phones-fix`) e aplicar (`POST`); cada mudança fica em `phoneFixLog` com o antes e o depois.
