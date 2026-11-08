@@ -35,7 +35,7 @@ export function registerFechamentosRoutes(app, ctx) {
   // Oferta relâmpago: vagas reais, quem reservou, confirmar (pagamento à vista recebido) ou liberar; contar as pessoas dos grupos (só leitura).
   app.get('/api/flash-offer', (req, res) => {
     needAdmin(req);
-    res.json({ ...flashOffer.status(), config: { validUntil: flashOffer.cfg.validUntil, spots: flashOffer.cfg.spots, groupPeople: flashOffer.cfg.groupPeople || 0, groupPeopleRounded: roundedPeople(flashOffer.cfg.groupPeople || 0), title: flashOffer.cfg.title }, claims: flashOffer.list().slice(0, 100) });
+    res.json({ ...flashOffer.status(), config: { validUntil: flashOffer.cfg.validUntil, spots: flashOffer.cfg.spots, months: Number(flashOffer.cfg.months) || 12, groupPeople: flashOffer.cfg.groupPeople || 0, groupPeopleRounded: roundedPeople(flashOffer.cfg.groupPeople || 0), title: flashOffer.cfg.title }, claims: flashOffer.list().slice(0, 100) });
   });
   app.post('/api/flash-offer/claims/:id/:action', (req, res) => {
     needAdmin(req);
@@ -61,6 +61,6 @@ export function registerFechamentosRoutes(app, ctx) {
     if (!phone) throw httpError(400, 'Cadastre o WhatsApp do Marcos em Prospectos → Regras (campo do dono) para gerar o link.');
     const link = `https://wa.me/${phone}?text=${encodeURIComponent('Oi! Vi a oferta relâmpago no grupo e quero garantir a minha vaga.')}`;
     const people = Number(flashOffer.cfg.groupPeople) || 0;
-    res.json({ link, people, label: peopleLabel(people), text: buildCaption({ people, link, spots: Number(flashOffer.cfg.spots) || 20, until: flashOffer.cfg.validUntil }), contadoGrupos: people > 0 });
+    res.json({ link, people, label: peopleLabel(people), text: buildCaption({ people, link, until: flashOffer.cfg.validUntil }), contadoGrupos: people > 0 });
   });
 }

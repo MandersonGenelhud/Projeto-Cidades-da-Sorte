@@ -460,3 +460,10 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **De quem é o cliente** (`src/seller-pipeline.js`): dono do prospecto, depois dono do WhatsApp por onde a conversa chegou, depois para quem foi passado, depois quem fez o orçamento. Os avisos ao Marcos (venda fechada, ficha preenchida, termo e contrato assinados) trazem "Quem atendeu: fulano" ou "ainda sem vendedor". A lista de orçamentos mostra o vendedor.
 - **Pipeline por vendedor** (`GET /api/sellers-pipeline`): administrador vê todos; vendedor só os dele (filtro no servidor). Só leitura.
 - Testes: `test/pipeline-vendedores.test.js`, `test/oferta-relampago.test.js`.
+
+## Oferta relâmpago estendida a TODOS (decisão da direção, 09/11/2026)
+
+- Regra: quem fechar com a Migra e **pagar a entrada até 12/11/2026** ganha 12 meses do aplicativo Migra School, **sem limite de pessoas** e em qualquer forma de pagamento aceita (à vista, cartão em até 3x ou entrada com etapas). Os dois brindes (12 e 6 meses) foram unificados em um só.
+- A IA é instruída a **não dizer "vagas limitadas", "últimas vagas" nem "só X pessoas"**: o único limite verdadeiro é o prazo, e o brinde só é liberado depois que a equipe confirmar o pagamento da entrada. Com `crm.flashOffer.spots` maior que zero o contador volta a limitar (opcional).
+- A legenda e a arte nova (`docs/oferta-relampago-arte.md`) deixam de falar em "20 vagas". A arte antiga (com "20 VAGAS" e "À VISTA" desenhados) fica desatualizada.
+- Testes: `test/oferta-relampago.test.js`.

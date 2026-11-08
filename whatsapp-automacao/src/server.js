@@ -250,7 +250,7 @@ agent.onQualified = (conv, q) => {
   if (!lead || !q || conv.qualNoted === `${q.capacidade}|${q.urgencia}|${q.decisor}|${q.oferta}|${q.previsao}`) return;
   conv.qualNoted = `${q.capacidade}|${q.urgencia}|${q.decisor}|${q.oferta}|${q.previsao}`;
   const cap = { sim: 'TEM condições de fechar', parcial: 'tem condições em parte', nao: 'sem condições agora', desconhecida: 'condições ainda desconhecidas' }[q.capacidade];
-  crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Termômetro de venda: ${cap}${q.evidencia ? ` ("${q.evidencia}")` : ''}. Urgência: ${q.urgencia}. Decide: ${q.decisor}.${q.objecoes ? ` Trava: ${q.objecoes}.` : ''}${q.previsao ? ` Previsão de ter o valor: ${q.previsao}.` : ''}${q.oferta ? ` Oferta relâmpago: ${{ interessou: 'interessou', vai_a_vista: 'VAI PAGAR À VISTA (brinde de 12 meses: confira o pagamento até a data)', vai_parcelado: 'vai fechar hoje com a entrada (brinde de 6 meses: confira o pagamento da entrada até a data)', nao_a_vista: 'não vai fechar agora' }[q.oferta]}.` : ''}`);
+  crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Termômetro de venda: ${cap}${q.evidencia ? ` ("${q.evidencia}")` : ''}. Urgência: ${q.urgencia}. Decide: ${q.decisor}.${q.objecoes ? ` Trava: ${q.objecoes}.` : ''}${q.previsao ? ` Previsão de ter o valor: ${q.previsao}.` : ''}${q.oferta ? ` Oferta relâmpago: ${{ interessou: 'interessou', vai_a_vista: 'VAI PAGAR À VISTA (brinde de 12 meses: confira o pagamento da entrada até a data)', vai_parcelado: 'vai fechar com a entrada e etapas (brinde de 12 meses: confira o pagamento da entrada até a data)', nao_a_vista: 'não vai fechar agora' }[q.oferta]}.` : ''}`);
 };
 // Peneira feita: a IA passa o cliente para o vendedor da vez (rodízio).
 const router = new LeadRouter({

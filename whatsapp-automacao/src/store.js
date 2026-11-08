@@ -49,7 +49,7 @@ const DEFAULT_DATA = {
       jobsContact: [{ name: 'Diego', whatsapp: '' }], // quem quer trabalhar na Migra (só o nome = WhatsApp da Equipe)
       mentoring: { enabled: true, price: 400, currency: 'USD', minutes: 60, priceBRL: 0 }, // priceBRL: valor do Pix em reais (0 = US$ × cotação do painel) // mentoria com o Marcos Miguel (único atendimento direto com ele)
       // Oferta do aplicativo de idiomas da Migra (ainda em desenvolvimento): só vale até a data que o Marcos escolher.
-      flashOffer: { enabled: true, validUntil: '2026-11-12', spots: 20, semesterMonths: 6, groupPeople: 0, title: 'Oferta relâmpago: as 20 primeiras pessoas que fecharem Prata ou Ouro até quinta-feira, 12/11, e pagarem à vista ganham 12 meses de aulas do aplicativo Migra School (espanhol na prática, do dia a dia). Quem fechar e pagar a entrada até 12/11 ganha 6 meses.', conditions: '12 meses: Prata ou Ouro, pagamento à vista (valor total ou cartão em até 3x com a taxa da operadora paga pelo cliente), até 12/11, para as 20 primeiras pessoas. 6 meses: fechar hoje e pagar a entrada até 12/11, sem limite de pessoas (orientação do Marcos).', reference: 'um ano de curso de idiomas em escolas tradicionais custa, em média, de R$ 3 mil a R$ 10 mil' },
+      flashOffer: { enabled: true, validUntil: '2026-11-12', spots: 0, months: 12, groupPeople: 0, title: 'Oferta relâmpago: quem fechar com a Migra e pagar a entrada até quinta-feira, 12/11, ganha de presente 12 meses de aulas do aplicativo Migra School (espanhol na prática, do dia a dia).', conditions: 'fechar e pagar a entrada até 12/11, para todos (sem limite de pessoas), em qualquer forma de pagamento aceita (à vista, cartão ou entrada com etapas); o brinde é liberado depois que a equipe confirmar o pagamento da entrada.', reference: 'um ano de curso de idiomas em escolas tradicionais custa, em média, de R$ 3 mil a R$ 10 mil' },
       appOffer: { enabled: true, regularPrice: 59.99, discountPct: 50, months: 6, period: 'por mês', validUntil: '2026-12-25', gift: '' }, // oferta de Natal: vale até 25/12/2026
       codePrefix: 'MIG',
       fx: { USD: 5.5, PYG: 0.0007 }, // cotação usada só para somar vendas em R$ nos painéis
@@ -417,6 +417,14 @@ export class Store extends EventEmitter {
       const def3 = DEFAULT_DATA.settings?.crm?.flashOffer;
       if (fy && def3) Object.assign(fy, { title: def3.title, conditions: def3.conditions, semesterMonths: def3.semesterMonths });
       this.data.flash2026d = true;
+      this.flush();
+    }
+    // Oferta relâmpago estendida a todos (decisão da direção): quem pagar a entrada até a data ganha os 12 meses; sem limite de vagas.
+    if (!this.data.flash2026e) {
+      const fz = this.data.settings.crm?.flashOffer;
+      const def4 = DEFAULT_DATA.settings?.crm?.flashOffer;
+      if (fz && def4) Object.assign(fz, { title: def4.title, conditions: def4.conditions, spots: 0, months: 12 });
+      this.data.flash2026e = true;
       this.flush();
     }
     // Gatilhos de venda confirmados pela direção (Marcos): alta procura/fila e possibilidade de reajuste (sem data nem percentual, nada inventado).
