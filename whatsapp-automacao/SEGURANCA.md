@@ -404,3 +404,10 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Risco conhecido: com Pix comum (sem Mercado Pago), a confirmação vem da leitura do comprovante ou do administrador; o aviso ao Marcos diz como foi confirmado no recibo normal.
 - Método de vendas (`src/agent/vendas-playbook.js`): nada de urgência, escassez, desconto ou prova inventados; respeito à recusa. Versão reutilizável em `docs/prompt-especialista-vendas.md`.
 - Testes: `test/fechamentos.test.js`.
+
+## Oferta relâmpago e retorno de quem não tem condições agora
+
+- **Oferta relâmpago** (`crm.flashOffer`, padrão: até 12/11/2026, 1 ano do aplicativo de idiomas para quem fechar e pagar **à vista**): só entra no prompt enquanto a data não passou (nunca prazo inventado) e só se estiver ligada. A IA é instruída a: deixar a condição "à vista" clara, nunca prometer o brinde a quem paga entrada e parcelas, não afirmar que o aplicativo "vale" o valor de uma escola tradicional (o R$ 3 mil a R$ 10 mil é só referência de mercado informada pela direção), não prometer data de lançamento e não falar da oferta depois da data.
+- Quem diz que vai pagar à vista é anotado no prospecto ("confira o pagamento até a data para liberar o brinde"): o brinde só é liberado com o pagamento conferido pela equipe. A IA não confirma pagamento.
+- **Sem condições agora**: a IA pergunta a previsão de quando o cliente terá o valor, registra (`previsao`), agenda o retorno com dia e hora (`agendar_retorno`) e não desmerece; o Plano em PDF é oferecido uma vez, depois. O checklist de fechamentos mostra a previsão e a data de retorno.
+- Testes: `test/oferta-relampago.test.js`.

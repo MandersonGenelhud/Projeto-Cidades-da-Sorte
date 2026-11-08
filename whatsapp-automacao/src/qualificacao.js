@@ -21,6 +21,8 @@ export const QUALIFY_TOOL = {
         decisor: { type: 'string', enum: DECISOR, description: 'Quem decide: ele mesmo, cônjuge/família, outra pessoa, ou ainda não sabemos' },
         objecoes: { type: 'string', description: 'O que ainda trava (valor, prazo, segurança, família…), nas palavras dele' },
         proximo_passo: { type: 'string', description: 'O próximo passo concreto que você vai propor' },
+        previsao: { type: 'string', description: 'Quando ele acredita que terá o valor da entrada (nas palavras dele, ou a data combinada)' },
+        oferta_relampago: { type: 'string', enum: ['interessou', 'vai_a_vista', 'nao_a_vista'], description: 'Só se houver oferta relâmpago em vigor: interessou, vai pagar à vista (condição do brinde) ou não pagará à vista' },
       },
       required: ['capacidade'],
     },
@@ -32,7 +34,7 @@ export function applyQualification(conv, args = {}, { now = Date.now(), dryRun =
   const pick = (v, list, d) => (list.includes(v) ? v : d);
   const q = {
     capacidade: pick(args.capacidade, CAP, 'desconhecida'), evidencia: clip(args.evidencia), urgencia: pick(args.urgencia, URG, conv?.qualificacao?.urgencia || 'indefinida'),
-    decisor: pick(args.decisor, DECISOR, conv?.qualificacao?.decisor || 'indefinido'), objecoes: clip(args.objecoes || conv?.qualificacao?.objecoes), proximoPasso: clip(args.proximo_passo), at: now,
+    decisor: pick(args.decisor, DECISOR, conv?.qualificacao?.decisor || 'indefinido'), objecoes: clip(args.objecoes || conv?.qualificacao?.objecoes), proximoPasso: clip(args.proximo_passo), previsao: clip(args.previsao || conv?.qualificacao?.previsao, 160), oferta: ['interessou', 'vai_a_vista', 'nao_a_vista'].includes(args.oferta_relampago) ? args.oferta_relampago : (conv?.qualificacao?.oferta || ''), at: now,
   };
   // "Tem condições" sem uma frase do cliente não vale: vira desconhecida (a IA não pode supor dinheiro).
   if (q.capacidade === 'sim' && !q.evidencia) q.capacidade = 'desconhecida';
@@ -45,7 +47,7 @@ export function strategyFor(q) {
   const dec = q.decisor === 'conjuge_familia' ? ' Ele decide junto com a família: já proponha a videochamada com o casal (consultor do escritório) antes de a objeção "vou falar com minha esposa" aparecer.' : q.decisor === 'outra_pessoa' ? ' Quem decide é outra pessoa: peça para incluí-la na conversa ou na videochamada.' : '';
   if (q.capacidade === 'sim') return `TEM CONDIÇÕES: parta para o fechamento agora, sem mais rodeios. Confirme pacote e quantas pessoas, mande o orçamento (gerar_orcamento) e, ao primeiro sim, as fotos e a ficha (enviar_ficha_de_dados). Contrato e Pix o sistema envia na ordem certa.${q.urgencia === 'agora' ? ' Ele quer começar já: aproveite o momento e feche hoje.' : ''}${dec}`;
   if (q.capacidade === 'parcial') return `TEM PARTE: não perca a venda. Mostre que para começar é só a entrada (sinal + certidões) e o restante acompanha as etapas; se ainda pesar, ofereça o pacote menor para evoluir depois, ou combine a data exata em que terá a entrada (agendar_retorno). Pergunte: "Quando você consegue a entrada: esta semana ou na próxima?".${dec}`;
-  if (q.capacidade === 'nao') return `SEM CONDIÇÕES AGORA: não pressione nem fale de contrato ou Pix. Acolha, mostre que dá para começar só com a entrada quando puder, combine dia e hora exatos para retomar (agendar_retorno) e siga amigável. Dê uma dica útil para ele chegar preparado.${dec}`;
+  if (q.capacidade === 'nao') return `SEM CONDIÇÕES AGORA, MAS PODE TER DEPOIS: não pressione, não desmereça e não fale de contrato nem Pix. Acolha e pergunte com naturalidade: "já que agora não faz sentido investir, você tem uma previsão de quando consegue ter esse valor? Assim eu retorno o contato na data certa." Anote o que ele disser em "previsao" e combine dia e hora exatos para retomar (agendar_retorno). Sugira que ele reserve o valor da entrada até lá e deixe a Migra à disposição. Só depois, UMA vez, ofereça o Plano em PDF (oferecer_plano_pdf) como alternativa para começar sozinho.${q.previsao ? ` Previsão dele: ${q.previsao}.` : ''}${dec}`;
   return `AINDA NÃO SABEMOS SE ELE TEM CONDIÇÕES: descubra com naturalidade, sem parecer interrogatório. Primeiro explique o valor e a forma de pagamento (para começar é só a entrada), depois pergunte "se você fosse fechar, como preferiria pagar a entrada?". Registre a resposta em registrar_qualificacao.${dec}`;
 }
 
@@ -55,7 +57,7 @@ export function qualBlock(conv) {
   if (!q) return '';
   const cap = { sim: 'TEM condições de fechar', parcial: 'tem condições em parte', nao: 'sem condições agora', desconhecida: 'condições ainda desconhecidas' }[q.capacidade];
   return `# Termômetro de venda desta conversa (já registrado: não pergunte de novo)
-Condições: ${cap}${q.evidencia ? ` ("${q.evidencia}")` : ''}. Urgência: ${q.urgencia}. Decisão: ${q.decisor}.${q.objecoes ? ` Trava: ${q.objecoes}.` : ''}${q.proximoPasso ? ` Próximo passo planejado: ${q.proximoPasso}.` : ''}
+Condições: ${cap}${q.evidencia ? ` ("${q.evidencia}")` : ''}. Urgência: ${q.urgencia}. Decisão: ${q.decisor}.${q.objecoes ? ` Trava: ${q.objecoes}.` : ''}${q.previsao ? ` Previsão de ter o valor: ${q.previsao}.` : ''}${q.oferta ? ` Oferta relâmpago: ${q.oferta.replace(/_/g, ' ')}.` : ''}${q.proximoPasso ? ` Próximo passo planejado: ${q.proximoPasso}.` : ''}
 Estratégia: ${strategyFor(q)}`;
 }
 

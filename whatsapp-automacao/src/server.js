@@ -237,10 +237,10 @@ agent.onReplied = (conv, { handoff } = {}) => crmAi.afterReply(conv, { force: ha
 // Termômetro de venda: cada mudança de "tem condições de fechar" vira uma anotação no prospecto (a equipe vê quem está pronto).
 agent.onQualified = (conv, q) => {
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username });
-  if (!lead || !q || conv.qualNoted === `${q.capacidade}|${q.urgencia}|${q.decisor}`) return;
-  conv.qualNoted = `${q.capacidade}|${q.urgencia}|${q.decisor}`;
+  if (!lead || !q || conv.qualNoted === `${q.capacidade}|${q.urgencia}|${q.decisor}|${q.oferta}|${q.previsao}`) return;
+  conv.qualNoted = `${q.capacidade}|${q.urgencia}|${q.decisor}|${q.oferta}|${q.previsao}`;
   const cap = { sim: 'TEM condições de fechar', parcial: 'tem condições em parte', nao: 'sem condições agora', desconhecida: 'condições ainda desconhecidas' }[q.capacidade];
-  crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Termômetro de venda: ${cap}${q.evidencia ? ` ("${q.evidencia}")` : ''}. Urgência: ${q.urgencia}. Decide: ${q.decisor}.${q.objecoes ? ` Trava: ${q.objecoes}.` : ''}`);
+  crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Termômetro de venda: ${cap}${q.evidencia ? ` ("${q.evidencia}")` : ''}. Urgência: ${q.urgencia}. Decide: ${q.decisor}.${q.objecoes ? ` Trava: ${q.objecoes}.` : ''}${q.previsao ? ` Previsão de ter o valor: ${q.previsao}.` : ''}${q.oferta ? ` Oferta relâmpago: ${{ interessou: 'interessou', vai_a_vista: 'VAI PAGAR À VISTA (confira o pagamento até a data para liberar o brinde)', nao_a_vista: 'não pagará à vista (sem direito ao brinde)' }[q.oferta]}.` : ''}`);
 };
 // Peneira feita: a IA passa o cliente para o vendedor da vez (rodízio).
 const router = new LeadRouter({

@@ -5,7 +5,7 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **137** · testes automatizados (arquivos): **135** · scripts do painel: **43**
+- Módulos em `src/`: **137** · testes automatizados (arquivos): **136** · scripts do painel: **43**
 - Rotas da API em `server.js`: **505** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
@@ -29,15 +29,15 @@
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
 | `affiliates.js` | 440 | Indicadores (afiliados): pessoas comuns que indicam clientes para a Migra e | `server.js` | 3 |
-| `agent/agent.js` | 708 | Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age. | `atendimento-plano.js`, `quote-expiry.js`, `restart.js`, `server.js` | 20 |
-| `agent/calendar.js` | 231 | Agenda usada pelo agente: agenda interna (padrão) ou Cal.com. | `agent/prompt.js`, `crm-ai.js`, `crm.js`, `server.js`, `videocalls.js` | 4 |
+| `agent/agent.js` | 718 | Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age. | `atendimento-plano.js`, `quote-expiry.js`, `restart.js`, `server.js` | 21 |
+| `agent/calendar.js` | 231 | Agenda usada pelo agente: agenda interna (padrão) ou Cal.com. | `agent/prompt.js`, `crm-ai.js`, `crm.js`, `server.js`, `videocalls.js` | 5 |
 | `agent/claude.js` | 97 | Claude (Anthropic) como cérebro da atendente, pelo SDK oficial. | `agent/llm.js` | 1 |
 | `agent/greeting.js` | 43 | Saudação certa pelo horário (regra da Migra): | `agent/agent.js`, `agent/prompt.js`, `server.js` | 1 |
 | `agent/llm.js` | 181 | Cliente de IA no formato da API da OpenAI (chat completions + ferramentas). | `server.js` | 4 |
-| `agent/presets.js` | 422 | Perfis prontos de negócio. "Carregar perfil" no painel copia estes dados | `server.js`, `store.js` | 16 |
+| `agent/presets.js` | 422 | Perfis prontos de negócio. "Carregar perfil" no painel copia estes dados | `server.js`, `store.js` | 17 |
 | `agent/prompt.js` | 136 | Monta o prompt de sistema a partir da base do negócio (passo 5 do vídeo). | `agent/agent.js`, `server.js` | 8 |
 | `agent/tools.js` | 596 | Ferramentas que o agente pode usar (passo 6 do vídeo: "o agente age"). | `agent/agent.js` | 6 |
-| `agent/vendas-playbook.js` | 36 | Playbook de vendas das IAs da Migra: síntese original dos princípios de vendas consultivas (diagnóstico, escuta, objeções, decisão informada, ética), | `agent/agent.js` | 1 |
+| `agent/vendas-playbook.js` | 36 | Playbook de vendas das IAs da Migra: síntese original dos princípios de vendas consultivas (diagnóstico, escuta, objeções, decisão informada, ética), | `agent/agent.js` | 2 |
 | `ai-stalls.js` | 31 | "Por que a atendente parou de falar?": para cada conversa em que a última mensagem é do cliente e a IA não respondeu, mostra o MOTIVO. | `routes/controle.js` | 1 |
 | `alerts.js` | 38 | Avisos do painel (sininho) e resumo diário no WhatsApp do administrador: | `server.js` | 1 |
 | `ana-dates.js` | 131 | Datas e horas ditas em português ("amanhã às 14h", "dia 15", "daqui a 2 anos", "15 de dezembro de 2027"). | `ana.js`, `assistant-guard.js`, `personal.js`, `shopping.js` | 1 |
@@ -118,7 +118,7 @@
 | `pix.js` | 154 | Pix "copia e cola" (BR Code, padrão EMV do Banco Central) e recibo em PDF, | `payments.js`, `receipts.js` | 1 |
 | `plano-pdf.js` | 48 | "Plano para dar entrada sozinho": para quem não tem condições de contratar a assessoria. O cliente paga um valor simples (padrão R$ 500) | `routes/fechamentos.js`, `server.js` | 1 |
 | `portfolio.js` | 57 | Portfólio de novidades do Grupo Migra: a direção vai anotando cada coisa nova que o grupo cria ou lança, e a Maria já fica sabendo. | `maria.js`, `server.js` | 1 |
-| `qualificacao.js` | 77 | Termômetro de venda: a IA registra, ao longo da conversa, se o cliente TEM CONDIÇÕES de fechar e o que fazer com cada resposta dele. | `agent/agent.js`, `agent/tools.js`, `restart.js` | 1 |
+| `qualificacao.js` | 79 | Termômetro de venda: a IA registra, ao longo da conversa, se o cliente TEM CONDIÇÕES de fechar e o que fazer com cada resposta dele. | `agent/agent.js`, `agent/tools.js`, `restart.js` | 2 |
 | `quote-delivery.js` | 49 | Entrega do orçamento ao cliente: uma MENSAGEM DE VOZ alegre e calma (no lugar do texto que acompanhava o PDF) e o PDF timbrado, com o botão | `server.js` | 1 |
 | `quote-expiry.js` | 79 | Aviso de orçamento que vai vencer: quem recebeu a proposta e ainda não fechou é lembrado, com o prazo REAL do orçamento, | `pending.js`, `routes/controle.js` | 2 |
 | `quote-request.js` | 78 | "Dados para o orçamento": quando o cliente pede um orçamento (ou a atendente vai mandar um), ele recebe um link curto para preencher os dados básicos | `server.js` | 1 |
@@ -150,7 +150,7 @@
 | `silence.js` | 94 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 1 |
 | `site-content.js` | 90 | Conteúdo editável da página inicial do site (título, números confirmados, vídeos de depoimento e perguntas), | `server.js` | 1 |
 | `site-host.js` | 43 | Domínio próprio do site público da Migra (ex.: www.migraparaguay.com): no domínio do site só aparecem | `server.js` | 3 |
-| `store.js` | 545 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 16 |
+| `store.js` | 546 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 16 |
 | `support.js` | 135 | Suporte interno: qualquer pessoa da equipe abre um chamado (problema no sistema, dúvida, pedido), | `server.js` | 1 |
 | `tasks.js` | 65 | Tarefas da equipe: o que cada pessoa precisa fazer, com prazo e lembrete no WhatsApp (uma vez, no dia do prazo ou quando atrasar). | `server.js` | 1 |
 | `transports/cloudapi.js` | 208 | WhatsApp Cloud API (API oficial da Meta): envio via Graph API e recebimento via webhook. | `server.js` | 1 |
