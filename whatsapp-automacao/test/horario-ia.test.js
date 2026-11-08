@@ -26,7 +26,7 @@ test('horário de trabalho: todos os dias, das 7h às 23h (segunda a segunda)', 
 
 test('fora do horário a IA não responde (a mensagem fica esperando); dentro, responde; aviso opcional uma vez só', async () => {
   const store = tempStore();
-  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  store.updateSettings({ agent: { enabled: true, audience: 'all', workHours: { enabled: true } } });
   const sent = [];
   const wa = { send: async (j, p) => { sent.push(p.text); }, isConnected: () => true };
   const agent = { active: true, handleIncoming: async () => {} };
@@ -72,7 +72,7 @@ test('instalação que já rodava (7h às 21h): a migração coloca o horário d
 
 test('o horário vale para o WhatsApp de cada vendedor e para o Instagram, não só para o número principal', () => {
   const store = tempStore();
-  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  store.updateSettings({ agent: { enabled: true, audience: 'all', workHours: { enabled: true } } });
   const ar = new AutoReply({ store, wa: { send: async () => {} }, agent: { active: true } });
   const vendedor = { jid: 'l:fran:5545999990000@s.whatsapp.net', line: 'fran', phone: '5545999990000', text: 'oi', name: 'Cliente' };
   assert.equal(ar.decide(vendedor, at(9, 10, 0)).kind, 'agent', 'às 10h a IA da Franciele responde');

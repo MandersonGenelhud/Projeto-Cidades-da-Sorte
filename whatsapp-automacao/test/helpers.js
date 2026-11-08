@@ -8,7 +8,7 @@ export function tempStore() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-test-'));
   const store = new Store(dir);
   // Nos testes o agente responde na hora (o ritmo humano tem testes próprios).
-  store.updateSettings({ agent: { humanize: { enabled: false } } });
+  store.updateSettings({ agent: { humanize: { enabled: false }, workHours: { enabled: false } } }); // testes não dependem da hora do relógio (o horário 7h–23h tem testes próprios)
   return store;
 }
 
