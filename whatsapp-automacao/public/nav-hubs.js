@@ -9,7 +9,7 @@
     { id: 'clientes', label: 'Clientes', icon: 'customer360', tabs: ['leads', 'customer360', 'contacts', 'reengage', 'groupscov'] },
     { id: 'agenda', label: 'Agenda e retornos', icon: 'followups', tabs: ['followups', 'tasks', 'visits', 'agenda'] },
     { id: 'conversas', label: 'Conversas', icon: 'conversations', tabs: ['conversations', 'lines'] },
-    { id: 'vendas', label: 'Vendas e contratos', icon: 'contracts', tabs: ['sales', 'quotes', 'closings', 'contracts', 'legacy', 'documents'] },
+    { id: 'vendas', label: 'Vendas e contratos', icon: 'contracts', tabs: ['sales', 'quotes', 'sellerpipe', 'closings', 'contracts', 'legacy', 'documents'] },
     { id: 'financeiro', label: 'Financeiro', icon: 'cash', tabs: ['collections', 'payments', 'cash', 'commissions'] },
     { id: 'contabil', label: 'Migra Contábil Paraguay', icon: 'contabil', tabs: ['contabil'] },
     { id: 'servicos', label: 'Serviços e preços', icon: 'pricing', tabs: ['services', 'pricing'] },

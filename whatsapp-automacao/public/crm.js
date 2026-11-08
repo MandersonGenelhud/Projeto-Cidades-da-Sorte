@@ -1596,7 +1596,7 @@ async function loadQuoteList() {
     <tbody>${list.map((q) => `<tr><td><b>${esc(q.number)}</b></td><td>${esc(q.issued.split('-').reverse().join('/'))}</td>
       <td>${esc(q.client)}<div class="hint">${q.phone ? esc(fmtPhone(q.phone)) : ''}</div></td>
       <td class="small">${q.items.map((i) => `${esc(i.name)} × ${i.qty}`).join('<br>')}${q.custom ? '<div class="hint">parcelas personalizadas</div>' : ''}</td>
-      <td><b>${brl2(q.total)}</b></td>${admin ? `<td>${esc(q.createdBy || q.consultant)}</td>` : ''}
+      <td><b>${brl2(q.total)}</b></td>${admin ? `<td>${esc(q.seller || q.consultant || q.createdBy || 'sem vendedor')}</td>` : ''}
       <td>${q.status === 'desativado' ? `<span class="badge canceled">Desativado</span> <button type="button" class="btn small" data-react="${esc(q.id)}">Reativar</button>` : q.expired ? '<span class="badge canceled">Vencido</span>' : `<span class="badge done">até ${esc(q.validUntil.split('-').reverse().join('/'))}</span>`}</td>
       <td><a class="btn small" href="${q.url}" target="_blank" rel="noopener">Abrir PDF</a> <a class="btn small" href="${q.url}?download=1">Baixar</a>
         ${q.sale ? `<span class="badge done">${esc(q.sale)}</span>` : `<button type="button" class="btn small" data-sale="${esc(q.id)}" data-number="${esc(q.number)}">Lançar venda</button>`}

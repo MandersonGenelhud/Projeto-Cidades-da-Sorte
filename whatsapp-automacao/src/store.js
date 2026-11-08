@@ -49,7 +49,7 @@ const DEFAULT_DATA = {
       jobsContact: [{ name: 'Diego', whatsapp: '' }], // quem quer trabalhar na Migra (só o nome = WhatsApp da Equipe)
       mentoring: { enabled: true, price: 400, currency: 'USD', minutes: 60, priceBRL: 0 }, // priceBRL: valor do Pix em reais (0 = US$ × cotação do painel) // mentoria com o Marcos Miguel (único atendimento direto com ele)
       // Oferta do aplicativo de idiomas da Migra (ainda em desenvolvimento): só vale até a data que o Marcos escolher.
-      flashOffer: { enabled: true, validUntil: '2026-11-12', spots: 20, groupPeople: 0, title: 'Oferta relâmpago: 1 ano de aula do aplicativo Migra School (espanhol na prática, do dia a dia, para você já começar a falar no Paraguai) de presente para as próximas 20 pessoas que fecharem até quinta-feira, 12/11, no plano Prata ou Ouro.', conditions: 'fechar até 12/11 no plano Prata ou Ouro, pagando o valor total à vista ou em até 3x no cartão (taxa da operadora paga pelo cliente), e estar entre as vagas limitadas (as próximas 20 pessoas)', reference: 'um ano de curso de idiomas em escolas tradicionais custa, em média, de R$ 3 mil a R$ 10 mil' },
+      flashOffer: { enabled: true, validUntil: '2026-11-12', spots: 20, semesterMonths: 6, groupPeople: 0, title: 'Oferta relâmpago: as 20 primeiras pessoas que fecharem Prata ou Ouro até quinta-feira, 12/11, e pagarem à vista ganham 12 meses de aulas do aplicativo Migra School (espanhol na prática, do dia a dia). Quem fechar e pagar a entrada até 12/11 ganha 6 meses.', conditions: '12 meses: Prata ou Ouro, pagamento à vista (valor total ou cartão em até 3x com a taxa da operadora paga pelo cliente), até 12/11, para as 20 primeiras pessoas. 6 meses: fechar hoje e pagar a entrada até 12/11, sem limite de pessoas (orientação do Marcos).', reference: 'um ano de curso de idiomas em escolas tradicionais custa, em média, de R$ 3 mil a R$ 10 mil' },
       appOffer: { enabled: true, regularPrice: 59.99, discountPct: 50, months: 6, period: 'por mês', validUntil: '2026-12-25', gift: '' }, // oferta de Natal: vale até 25/12/2026
       codePrefix: 'MIG',
       fx: { USD: 5.5, PYG: 0.0007 }, // cotação usada só para somar vendas em R$ nos painéis
@@ -410,6 +410,13 @@ export class Store extends EventEmitter {
       const def2 = DEFAULT_DATA.settings?.crm?.flashOffer;
       if (fx && def2) fx.conditions = def2.conditions;
       this.data.flash2026c = true;
+      this.flush();
+    }
+    if (!this.data.flash2026d) {
+      const fy = this.data.settings.crm?.flashOffer;
+      const def3 = DEFAULT_DATA.settings?.crm?.flashOffer;
+      if (fy && def3) Object.assign(fy, { title: def3.title, conditions: def3.conditions, semesterMonths: def3.semesterMonths });
+      this.data.flash2026d = true;
       this.flush();
     }
     // Gatilhos de venda confirmados pela direção (Marcos): alta procura/fila e possibilidade de reajuste (sem data nem percentual, nada inventado).

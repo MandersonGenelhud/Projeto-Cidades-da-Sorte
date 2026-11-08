@@ -697,6 +697,12 @@
   "parseCommand",
   "parseWhen"
  ],
+ "src/seller-pipeline.js": [
+  "COLUMNS",
+  "buildSellerPipeline",
+  "makeSellerOf",
+  "stageOf"
+ ],
  "src/send-profiles.js": [
   "cleanProfile",
   "profileFor",

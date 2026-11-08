@@ -5,8 +5,8 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **141** · testes automatizados (arquivos): **139** · scripts do painel: **43**
-- Rotas da API em `server.js`: **511** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
+- Módulos em `src/`: **142** · testes automatizados (arquivos): **140** · scripts do painel: **44**
+- Rotas da API em `server.js`: **512** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
 
@@ -24,7 +24,7 @@
 - Configuração nova vai em `settings` com **valor padrão** em `store.js`; mudança em dado já existente usa **migração de uma vez** com selo (veja abaixo), nunca sobrescreve o que o painel salvou.
 - Nada de segredo no código. Dados reais ficam em `data/` e nunca no Git.
 
-## Módulos (141)
+## Módulos (142)
 | Módulo | Linhas | Para que serve | Quem usa | Testes |
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
@@ -80,7 +80,7 @@
 | `fechamentos.js` | 68 | Painel de FECHAMENTOS: quem continuou a conversa DEPOIS de receber o orçamento (todo mundo recebe orçamento, então o orçamento sozinho não mede nada). | `routes/fechamentos.js` | 1 |
 | `ficha-text.js` | 24 | A ficha de dados em TEXTO: muita gente tem medo de tocar num link, então o pedido sempre vai também escrito, para a pessoa | `maria-outbound.js`, `maria.js`, `server.js` | 1 |
 | `finance.js` | 283 | Financiamento próprio de lotes (Migra Imobiliária): simulador de parcelas com | `server.js` | 2 |
-| `flash-offer.js` | 79 | Oferta relâmpago com VAGAS LIMITADAS de verdade: só as próximas N pessoas (padrão 20), que fecharem até a data, em plano Prata ou Ouro, | `routes/fechamentos.js`, `server.js` | 1 |
+| `flash-offer.js` | 86 | Oferta relâmpago com VAGAS LIMITADAS de verdade: só as próximas N pessoas (padrão 20), que fecharem até a data, em plano Prata ou Ouro, | `routes/fechamentos.js`, `server.js` | 1 |
 | `followups-done.js` | 49 | Retornos ATRASADOS que na verdade já foram feitos: se depois da data do retorno a equipe ou a IA já falaram com o cliente, | `server.js` | 1 |
 | `followups.js` | 203 | Retorno combinado: quando o cliente pede "mais pra frente", a atendente marca dia e hora | `server.js` | 2 |
 | `group-brief.js` | 120 | Resumo AO VIVO do Grupo Migra para a Maria (a secretária da equipe): imóveis e loteamentos, financiamento de lotes, veículos, | `server.js` | 2 |
@@ -112,7 +112,7 @@
 | `partner-projects.js` | 224 | Migra Sócios de Projeto: plano de carreira em que o consultor que chegou ao topo traz um projeto novo | `server.js` | 1 |
 | `patch-baileys.js` | 23 | Correção da biblioteca do WhatsApp (Baileys 7.0.0-rc14) enquanto a versão nova não sai: | — | 1 |
 | `payment-terms.js` | 49 | Regra de vencimento das parcelas (plano padrão): 1ª com vencimento ou pagamento na primeira vinda ao Paraguai; 2ª entre 60 e 90 dias após a | `store.js` | 1 |
-| `payments.js` | 425 | Cobrança por Pix no fechamento: gera o Pix (copia e cola + QR Code), confirma o | `server.js` | 8 |
+| `payments.js` | 425 | Cobrança por Pix no fechamento: gera o Pix (copia e cola + QR Code), confirma o | `server.js` | 9 |
 | `payplan.js` | 118 | Etapas de pagamento do processo (o "fluxograma" que o cliente recebe). | `contract.js`, `quotes.js`, `server.js` | 7 |
 | `pdfdoc.js` | 268 | PDF de várias páginas, sem dependências: títulos, parágrafos com quebra de linha | `closing.js`, `contract.js`, `finance.js`, `payments.js`, `plano-pdf.js`, `quotes.js` | 2 |
 | `pending.js` | 573 | Conversas sem resposta: clientes cuja última mensagem ainda não foi respondida. | `server.js` | 3 |
@@ -147,14 +147,15 @@
 | `sectors.js` | 149 | Setores do Grupo Migra: cada assunto tem os seus atendentes (cadastrados no painel). | `server.js` | 2 |
 | `security.js` | 119 | Segurança do login: verificação em duas etapas (código do app autenticador, padrão TOTP/RFC 6238), | `server.js` | 28 |
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
+| `seller-pipeline.js` | 67 | Pipeline por vendedor: para cada pessoa da equipe (Eliezer, Giovana, Diego, Fran, Marcos…), quem ela está atendendo, quem recebeu orçamento, | `server.js` | 1 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 5493 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 5503 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
 | `site-content.js` | 90 | Conteúdo editável da página inicial do site (título, números confirmados, vídeos de depoimento e perguntas), | `server.js` | 1 |
 | `site-host.js` | 43 | Domínio próprio do site público da Migra (ex.: www.migraparaguay.com): no domínio do site só aparecem | `server.js` | 3 |
-| `store.js` | 563 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 16 |
+| `store.js` | 570 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 16 |
 | `support.js` | 135 | Suporte interno: qualquer pessoa da equipe abre um chamado (problema no sistema, dúvida, pedido), | `server.js` | 1 |
 | `tasks.js` | 65 | Tarefas da equipe: o que cada pessoa precisa fazer, com prazo e lembrete no WhatsApp (uma vez, no dia do prazo ou quando atrasar). | `server.js` | 1 |
 | `transports/cloudapi.js` | 208 | WhatsApp Cloud API (API oficial da Meta): envio via Graph API e recebimento via webhook. | `server.js` | 1 |
@@ -176,6 +177,7 @@
 - `crisisMemory2026b`
 - `flash2026b`
 - `flash2026c`
+- `flash2026d`
 - `groupMemory2026`
 - `lotsGabriel2026`
 - `ownerResume2026`
@@ -210,6 +212,7 @@
 - `documentos.js`
 - `grupos.js`
 - `fechamentos.js`
+- `pipeline-vendedores.js`
 - `tutoriais.js`
 - `cidades.js`
 - `marketing.js`
@@ -234,7 +237,7 @@
 - `contabil-painel.js`
 - `nav-hubs.js`
 
-## Rotas da API (511)
+## Rotas da API (512)
 - `GET /webhook`
 - `GET /webhook/instagram`
 - `POST /webhook/instagram`
@@ -376,6 +379,7 @@
 - `POST /api/agent/stress-test`
 - `GET /api/agent/prompt`
 - `GET /api/attendants`
+- `GET /api/sellers-pipeline`
 - `GET /api/conversations`
 - `GET /api/declined`
 - `POST /api/declined/scan`

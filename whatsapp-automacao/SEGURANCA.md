@@ -452,3 +452,11 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Pagamento da oferta**: à vista **ou** cartão em até 3x com a taxa da operadora paga pelo cliente (a Migra recebe à vista); a IA usa as taxas cadastradas (`opcoes_cartao`), nunca inventa. Outras formas (entrada e etapas) não prometem o brinde: a negociação final é do vendedor.
 - **Prioridade da fila**: cliente que acabou de chegar (últimas 3 h) passa na frente em cada número; os antigos (retomadas, recomeços, pedidos parados) saem aos poucos, 1 a cada 4 atendimentos, o mais antigo primeiro. Não muda limites por hora, horários nem intervalos de proteção dos números (`src/queue-priority.js`).
 - Testes: `test/oferta-relampago.test.js`.
+
+## Dois brindes da oferta (sem escassez falsa) e "quem atendeu" nos avisos
+
+- **Decisão de honestidade**: a oferta anuncia "as 20 primeiras pessoas que pagarem à vista levam 12 meses" e isso é cumprido pelo sistema (contador). Quem fecha hoje e paga a entrada até 12/11 ganha **6 meses** (orientação do Marcos), **sem limite de pessoas**. A IA **não diz que as vagas acabaram nem quantas restam se não for verdade**, e só oferece os 6 meses se o cliente insistir em parcelar ou quando os 12 meses esgotarem. A pergunta direta do cliente é respondida com a verdade. Não foi implementada a ideia de anunciar "só 20" e dar a todos (isso seria escassez falsa).
+- Brinde só é liberado com o pagamento conferido pela equipe (a IA não confirma pagamento).
+- **De quem é o cliente** (`src/seller-pipeline.js`): dono do prospecto, depois dono do WhatsApp por onde a conversa chegou, depois para quem foi passado, depois quem fez o orçamento. Os avisos ao Marcos (venda fechada, ficha preenchida, termo e contrato assinados) trazem "Quem atendeu: fulano" ou "ainda sem vendedor". A lista de orçamentos mostra o vendedor.
+- **Pipeline por vendedor** (`GET /api/sellers-pipeline`): administrador vê todos; vendedor só os dele (filtro no servidor). Só leitura.
+- Testes: `test/pipeline-vendedores.test.js`, `test/oferta-relampago.test.js`.

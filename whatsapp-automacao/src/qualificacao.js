@@ -22,7 +22,7 @@ export const QUALIFY_TOOL = {
         objecoes: { type: 'string', description: 'O que ainda trava (valor, prazo, segurança, família…), nas palavras dele' },
         proximo_passo: { type: 'string', description: 'O próximo passo concreto que você vai propor' },
         previsao: { type: 'string', description: 'Quando ele acredita que terá o valor da entrada (nas palavras dele, ou a data combinada)' },
-        oferta_relampago: { type: 'string', enum: ['interessou', 'vai_a_vista', 'nao_a_vista'], description: 'Só se houver oferta relâmpago em vigor: interessou, vai pagar à vista (condição do brinde) ou não pagará à vista' },
+        oferta_relampago: { type: 'string', enum: ['interessou', 'vai_a_vista', 'vai_parcelado', 'nao_a_vista'], description: 'Só se houver oferta relâmpago em vigor: interessou; vai_a_vista (à vista ou cartão em até 3x); vai_parcelado (vai fechar hoje pagando a entrada e parcelando as etapas); nao_a_vista (não vai fechar agora)' },
       },
       required: ['capacidade'],
     },
@@ -34,7 +34,7 @@ export function applyQualification(conv, args = {}, { now = Date.now(), dryRun =
   const pick = (v, list, d) => (list.includes(v) ? v : d);
   const q = {
     capacidade: pick(args.capacidade, CAP, 'desconhecida'), evidencia: clip(args.evidencia), urgencia: pick(args.urgencia, URG, conv?.qualificacao?.urgencia || 'indefinida'),
-    decisor: pick(args.decisor, DECISOR, conv?.qualificacao?.decisor || 'indefinido'), objecoes: clip(args.objecoes || conv?.qualificacao?.objecoes), proximoPasso: clip(args.proximo_passo), previsao: clip(args.previsao || conv?.qualificacao?.previsao, 160), oferta: ['interessou', 'vai_a_vista', 'nao_a_vista'].includes(args.oferta_relampago) ? args.oferta_relampago : (conv?.qualificacao?.oferta || ''), at: now,
+    decisor: pick(args.decisor, DECISOR, conv?.qualificacao?.decisor || 'indefinido'), objecoes: clip(args.objecoes || conv?.qualificacao?.objecoes), proximoPasso: clip(args.proximo_passo), previsao: clip(args.previsao || conv?.qualificacao?.previsao, 160), oferta: ['interessou', 'vai_a_vista', 'vai_parcelado', 'nao_a_vista'].includes(args.oferta_relampago) ? args.oferta_relampago : (conv?.qualificacao?.oferta || ''), at: now,
   };
   // "Tem condições" sem uma frase do cliente não vale: vira desconhecida (a IA não pode supor dinheiro).
   if (q.capacidade === 'sim' && !q.evidencia) q.capacidade = 'desconhecida';

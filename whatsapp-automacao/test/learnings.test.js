@@ -255,7 +255,7 @@ test('atendente: amarra a decisão (depende de outra pessoa → chamada de víde
   const { Agent } = await import('../src/agent/agent.js');
   const make = (validUntil, extra = {}) => {
     const store = tempStore();
-    store.updateSettings({ agent: { enabled: true, audience: 'all' }, crm: { appOffer: { enabled: true, regularPrice: 59.99, discountPct: 50, months: 6, period: 'por mês', validUntil, ...extra } } });
+    store.updateSettings({ agent: { enabled: true, audience: 'all' }, crm: { flashOffer: { enabled: false }, appOffer: { enabled: true, regularPrice: 59.99, discountPct: 50, months: 6, period: 'por mês', validUntil, ...extra } } });
     const box = { system: '' };
     const llm = { configured: true, chat: async ({ messages }) => { box.system = messages[0].content; return { content: 'Oi!', tool_calls: [] }; } };
     const agent = new Agent({ store, llm, now: () => new Date(2026, 10, 3, 10, 0) }); // 03/11/2026

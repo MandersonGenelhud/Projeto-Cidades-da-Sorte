@@ -29,21 +29,28 @@ export class FlashOffer {
   status() {
     this.#expire();
     const total = Math.max(0, Math.round(Number(this.cfg.spots)) || 0);
-    const taken = this.claims.filter((c) => ['reservada', 'confirmada'].includes(c.status)).length;
-    return { open: this.open, total, taken, left: Math.max(0, total - taken), confirmed: this.claims.filter((c) => c.status === 'confirmada').length };
+    const live = (c) => ['reservada', 'confirmada'].includes(c.status);
+    const taken = this.claims.filter((c) => live(c) && c.tier !== 'semestre').length; // só o brinde de 12 meses (à vista) é limitado
+    const semestre = this.claims.filter((c) => live(c) && c.tier === 'semestre').length;
+    return { open: this.open, total, taken, left: Math.max(0, total - taken), confirmed: this.claims.filter((c) => c.status === 'confirmada').length, semestre, months: Number(this.cfg.semesterMonths) || 6 };
   }
 
   /** O cliente disse que paga à vista: guarda uma vaga (uma por conversa). Devolve { ok, left, ... }. */
-  claim({ convKey, leadId = null, name = '', phone = '', pacote = '' }) {
+  claim({ convKey, leadId = null, name = '', phone = '', pacote = '', tier = 'ano' }) {
     const s = this.status();
     if (!s.open) return { ok: false, motivo: 'encerrada', left: 0 };
+    tier = tier === 'semestre' ? 'semestre' : 'ano';
     const mine = this.claims.find((c) => c.convKey === convKey && ['reservada', 'confirmada'].includes(c.status));
-    if (mine) return { ok: true, ja: true, left: s.left, status: mine.status };
-    if (s.left <= 0) return { ok: false, motivo: 'esgotada', left: 0 };
-    const rec = { id: crypto.randomBytes(5).toString('hex'), convKey, leadId, name: String(name || '').slice(0, 100), phone: String(phone || '').replace(/\D/g, ''), pacote: String(pacote || '').slice(0, 60), status: 'reservada', at: iso(this.now()) };
+    if (mine) {
+      // Quem tinha o brinde de 6 meses e depois fecha à vista (com vaga livre) sobe para os 12 meses.
+      if (mine.tier === 'semestre' && tier === 'ano' && s.left > 0) { mine.tier = 'ano'; this.store.save(); return { ok: true, tier: 'ano', left: s.left - 1, status: mine.status, subiu: true }; }
+      return { ok: true, ja: true, tier: mine.tier || 'ano', left: s.left, status: mine.status };
+    }
+    if (tier === 'ano' && s.left <= 0) return { ok: false, motivo: 'esgotada', left: 0 };
+    const rec = { id: crypto.randomBytes(5).toString('hex'), convKey, leadId, name: String(name || '').slice(0, 100), phone: String(phone || '').replace(/\D/g, ''), pacote: String(pacote || '').slice(0, 60), tier, status: 'reservada', at: iso(this.now()) };
     this.claims.push(rec);
     this.store.save();
-    return { ok: true, left: s.left - 1, status: 'reservada', id: rec.id };
+    return { ok: true, tier, left: tier === 'ano' ? s.left - 1 : s.left, status: 'reservada', id: rec.id };
   }
 
   #find(id) { const c = this.claims.find((x) => x.id === id); if (!c) throw Object.assign(new Error('Vaga não encontrada'), { status: 404 }); return c; }
@@ -59,20 +66,20 @@ export class FlashOffer {
 export const roundedPeople = (n) => Math.max(0, Math.floor(Number(n) / 100) * 100);
 export const peopleLabel = (n) => { const r = roundedPeople(n); return r >= 100 ? `mais de ${r.toLocaleString('pt-BR')} pessoas` : ''; };
 
-/** Legenda curta para postar a arte nos grupos, com os destaques do WhatsApp (*negrito*). */
+/** Legenda curta para postar a arte nos grupos, com os destaques do WhatsApp (*negrito*). Só afirma o que o sistema cumpre. */
 export function buildCaption({ people = 0, link = '', spots = 20, until = '2026-11-12' } = {}) {
-  const [y, m, d] = String(until).split('-');
+  const [, m, d] = String(until).split('-');
   const label = peopleLabel(people);
   return [
     `*OFERTA RELÂMPAGO ATÉ QUINTA-FEIRA, ${d}/${m}*`,
     '',
-    `${label ? `Entre ${label} dos nossos grupos, ` : 'Dos nossos grupos, '}*só ${spots}* vão ganhar *1 ano de curso de idiomas* (espanhol na prática, do dia a dia) fechando com a Migra nos planos *Prata ou Ouro*.`,
+    `${label ? `Somos ${label} nos nossos grupos, e ` : ''}*as ${spots} primeiras pessoas* que fecharem com a Migra nos planos *Prata ou Ouro* e pagarem *à vista* ganham *1 ano de curso de idiomas* (espanhol na prática, do dia a dia).`,
     '',
     'Um ano de curso de idiomas em escola tradicional custa, em média, de R$ 3 mil a R$ 10 mil.',
     '',
     '*À vista* ou em até *3x no cartão* (os juros da operadora ficam por conta do cliente).',
     '',
-    `*Quer garantir a sua vaga? Clique aqui:*`,
+    '*Quer garantir a sua vaga? Clique aqui:*',
     link,
   ].join('\n');
 }

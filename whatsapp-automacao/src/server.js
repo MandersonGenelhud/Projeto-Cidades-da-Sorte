@@ -41,6 +41,7 @@ import { planPdfPrice, loadPlanPdf } from './plano-pdf.js';
 import { registerFechamentosRoutes } from './routes/fechamentos.js';
 import { FlashOffer } from './flash-offer.js';
 import { reconcileOverdue } from './followups-done.js';
+import { makeSellerOf, buildSellerPipeline } from './seller-pipeline.js';
 import { Portfolio } from './portfolio.js';
 import { makeOutbound, findRecentQuote, filledNotice } from './maria-outbound.js';
 import { groupLiveBrief, HUB_OVERVIEW, STAFF_RULES } from './group-brief.js';
@@ -249,7 +250,7 @@ agent.onQualified = (conv, q) => {
   if (!lead || !q || conv.qualNoted === `${q.capacidade}|${q.urgencia}|${q.decisor}|${q.oferta}|${q.previsao}`) return;
   conv.qualNoted = `${q.capacidade}|${q.urgencia}|${q.decisor}|${q.oferta}|${q.previsao}`;
   const cap = { sim: 'TEM condições de fechar', parcial: 'tem condições em parte', nao: 'sem condições agora', desconhecida: 'condições ainda desconhecidas' }[q.capacidade];
-  crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Termômetro de venda: ${cap}${q.evidencia ? ` ("${q.evidencia}")` : ''}. Urgência: ${q.urgencia}. Decide: ${q.decisor}.${q.objecoes ? ` Trava: ${q.objecoes}.` : ''}${q.previsao ? ` Previsão de ter o valor: ${q.previsao}.` : ''}${q.oferta ? ` Oferta relâmpago: ${{ interessou: 'interessou', vai_a_vista: 'VAI PAGAR À VISTA (confira o pagamento até a data para liberar o brinde)', nao_a_vista: 'não pagará à vista (sem direito ao brinde)' }[q.oferta]}.` : ''}`);
+  crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Termômetro de venda: ${cap}${q.evidencia ? ` ("${q.evidencia}")` : ''}. Urgência: ${q.urgencia}. Decide: ${q.decisor}.${q.objecoes ? ` Trava: ${q.objecoes}.` : ''}${q.previsao ? ` Previsão de ter o valor: ${q.previsao}.` : ''}${q.oferta ? ` Oferta relâmpago: ${{ interessou: 'interessou', vai_a_vista: 'VAI PAGAR À VISTA (brinde de 12 meses: confira o pagamento até a data)', vai_parcelado: 'vai fechar hoje com a entrada (brinde de 6 meses: confira o pagamento da entrada até a data)', nao_a_vista: 'não vai fechar agora' }[q.oferta]}.` : ''}`);
 };
 // Peneira feita: a IA passa o cliente para o vendedor da vez (rodízio).
 const router = new LeadRouter({
@@ -2818,6 +2819,14 @@ const conversationOffice = (c) => {
 // Conta, uma vez só, as mensagens que a atendente já tinha enviado antes da medição exata (mínimo, pela memória das conversas).
 usage.backfill(Object.values(store.data.conversations || {}), conversationOffice);
 const lineOwnerOf = (key) => { const l = parseLineKey(key); const line = l && lines.get(l.id); return line ? { ownerId: line.ownerId || null, label: line.label } : null; };
+// De quem é o cliente: dono do prospecto, dono do WhatsApp por onde chegou, quem recebeu a passagem ou quem fez o orçamento (usado nos avisos ao Marcos e no pipeline).
+const sellerOf = makeSellerOf({ auth, lineOwnerOf });
+payments.sellerOf = (p) => { const lead = p.leadId ? crm.byId(p.leadId) : null; const quote = quotes.list.filter((q) => (p.leadId && q.leadId === p.leadId) || (p.convKey && q.convKey === p.convKey)).at(-1) || null; return sellerOf({ lead, convKey: p.convKey, quote }); };
+closing.sellerOf = (f) => { const lead = f.leadId ? crm.byId(f.leadId) : null; const quote = quotes.list.filter((q) => (f.leadId && q.leadId === f.leadId) || (f.convKey && q.convKey === f.convKey)).at(-1) || null; return sellerOf({ lead, convKey: f.convKey, quote }); };
+app.get('/api/sellers-pipeline', (req, res) => {
+  const days = Math.min(365, Math.max(7, Number(req.query.days) || 90));
+  res.json(buildSellerPipeline({ leads: crm.leads.filter((l) => inOffice(req, crm.officeOf(l))), quotes: quotes.list, payments: payments.list, forms: store.data.closing || [], users: auth.users, sellerOf, viewer: req.user, days }));
+});
 // Administrador: cada conversa vem com o atendente responsável, para a tela separar por pessoa.
 app.get('/api/conversations', (req, res) => {
   const ids = new Set(auth.users.map((u) => u.id));
@@ -2842,7 +2851,7 @@ const { restartAll, convOfLead, noticeQuotes, repairLeads } = registerControleRo
 });
 const flashOffer = new FlashOffer({ store });
 agent.flashStatus = () => flashOffer.status();
-agent.flashClaim = (conv) => { const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username }); return flashOffer.claim({ convKey: conv.key, leadId: lead?.id || null, name: lead?.name || conv.name, phone: conv.phone || lead?.phone || '', pacote: lead?.interest || '' }); };
+agent.flashClaim = (conv, tier = 'ano') => { const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username }); return flashOffer.claim({ convKey: conv.key, leadId: lead?.id || null, name: lead?.name || conv.name, phone: conv.phone || lead?.phone || '', pacote: lead?.interest || '', tier }); };
 registerFechamentosRoutes(app, { flashOffer, wa, needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), store, crm, quotes, payments, dataDir: DATA_DIR });
 // A IA falhou mesmo depois de tentar de novo: a mensagem do cliente continua guardada e a fila de "esperando resposta" tenta de novo em instantes,
 // sem esperar os 15 minutos da rede de segurança.
@@ -4201,7 +4210,7 @@ const quoteStatus = (q) => (sales.list.some((x) => x.quoteId === q.id && x.statu
 const quoteView = (q) => ({
   id: q.id, number: q.number, client: q.client, phone: q.phone, consultant: q.consultant, total: q.plan.total, entry: q.plan.entry,
   items: q.items.map((r) => ({ name: r.name, qty: r.qty })), issued: q.issued, validUntil: q.validUntil, leadId: q.leadId,
-  createdBy: q.createdBy?.name || '', createdAt: q.createdAt, custom: Boolean(q.plan.custom), hasContract: Boolean(q.contract), contractSigned: q.contract?.status === 'assinado', sale: sales.list.find((s) => s.quoteId === q.id && s.status !== 'cancelada')?.number || '',
+  createdBy: q.createdBy?.name || '', seller: sellerOf({ lead: q.leadId ? crm.byId(q.leadId) : null, convKey: q.convKey, quote: q })?.name || '', createdAt: q.createdAt, custom: Boolean(q.plan.custom), hasContract: Boolean(q.contract), contractSigned: q.contract?.status === 'assinado', sale: sales.list.find((s) => s.quoteId === q.id && s.status !== 'cancelada')?.number || '',
   expired: q.validUntil < new Date().toISOString().slice(0, 10),
   status: quoteStatus(q),
   url: `/api/quotes/${q.id}/pdf`, publicUrl: quoteLink(q),
@@ -4514,7 +4523,8 @@ app.post('/api/public/contrato/:id/assinar', async (req, res) => {
     // Contrato enviado sem passar pela ficha (vendedor, IA ou link do orçamento): o Pix do combinado vai agora, depois da assinatura.
     await sendContractPix(q, { client: c.client, by: 'Sistema', phase: 'assinatura' }).catch(() => {});
   }
-  const notice = `✍️ *Contrato assinado pelo cliente*\n👤 ${c.client.nome}${c.client.cpf ? ` · CPF ${c.client.cpf}` : ''}\n📄 ${ct} · R$ ${q.plan.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n🕒 ${new Date(signedAt).toLocaleString('pt-BR')}\nO PDF assinado está no painel (Orçamentos → Contrato).`;
+  const who = sellerOf({ lead: q.leadId ? crm.byId(q.leadId) : null, convKey: q.convKey, quote: q })?.name || 'ainda sem vendedor (IA)';
+  const notice = `✍️ *Contrato assinado pelo cliente*\n🧑‍💼 Quem atendeu: ${who}\n👤 ${c.client.nome}${c.client.cpf ? ` · CPF ${c.client.cpf}` : ''}\n📄 ${ct} · R$ ${q.plan.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n🕒 ${new Date(signedAt).toLocaleString('pt-BR')}\nO PDF assinado está no painel (Orçamentos → Contrato).`;
   const seller = q.createdBy?.id ? auth.get(q.createdBy.id) : null;
   if (seller?.whatsapp && seller.role !== 'admin' && wa.status === 'connected') await wa.send(seller.whatsapp, { text: notice, media, typing: false }).catch(() => {});
   await notifyAdmins(notice).catch(() => {});

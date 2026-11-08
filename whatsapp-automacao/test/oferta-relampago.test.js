@@ -22,8 +22,9 @@ test('oferta relâmpago: entra no prompt até 12/11 com a condição "à vista" 
   const dentro = await promptAt(new Date(2026, 10, 12, 20, 0)); // quinta, 12/11
   assert.match(dentro, /OFERTA RELÂMPAGO EM VIGOR/);
   assert.match(dentro, /vale até 12\/11\/2026/);
-  assert.match(dentro, /pagar à vista/);
-  assert.match(dentro, /NÃO tem direito ao brinde/);
+  assert.match(dentro, /pagarem À VISTA/);
+  assert.match(dentro, /12 MESES do aplicativo para as 20 PRIMEIRAS/);
+  assert.match(dentro, /não invente limite para o brinde de 6 meses/i);
   assert.match(dentro, /não diga que o aplicativo equivale a esse valor/);
   assert.match(dentro, /depois de 12\/11\/2026, não fale mais da oferta/);
   const fora = await promptAt(new Date(2026, 10, 13, 9, 0));
@@ -83,12 +84,14 @@ test('vagas no prompt: a IA recebe o número real e, esgotado, é mandada parar 
   const agent = new Agent({ store, llm, calendar: new LocalCalendar({ store, getConfig: () => store.settings.agenda, now: () => T }), now: () => T });
   agent.flashStatus = () => ({ open: true, total: 20, left: 7 });
   await agent.handleIncoming({ key: 'k1', phone: '5511999990001', name: 'Rita', text: 'oi' }, async () => {});
-  assert.match(system, /Restam 7 de 20 vagas/);
-  assert.match(system, /próximas 20 pessoas/);
-  assert.match(system, /nunca invente número/);
+  assert.match(system, /Restam 7 de 20 brindes de 12 meses/);
+  assert.match(system, /20 PRIMEIRAS pessoas/);
+  assert.match(system, /Nunca diga que as vagas acabaram nem quantas restam se isso não for verdade/);
+  assert.match(system, /SÓ se o cliente insistir em parcelar/);
+  assert.match(system, /6 MESES de brinde \(orientação do Marcos\)/);
   agent.flashStatus = () => ({ open: true, total: 20, left: 0 });
   await agent.handleIncoming({ key: 'k2', phone: '5511999990002', name: 'Rita', text: 'oi' }, async () => {});
-  assert.match(system, /vagas ESGOTARAM/);
+  assert.match(system, /brindes de 12 meses \(à vista\) ESGOTARAM/);
 });
 
 import { roundedPeople, peopleLabel, buildCaption } from '../src/flash-offer.js';
@@ -106,7 +109,8 @@ test('legenda dos grupos: curta, com destaques do WhatsApp, o número arredondad
   const link = 'https://wa.me/5959871015670?text=Oi';
   const t = buildCaption({ people: 1101, link });
   assert.match(t, /^\*OFERTA RELÂMPAGO ATÉ QUINTA-FEIRA, 12\/11\*/);
-  assert.match(t, /Entre mais de 1\.100 pessoas dos nossos grupos, \*só 20\*/);
+  assert.match(t, /Somos mais de 1\.100 pessoas nos nossos grupos, e \*as 20 primeiras pessoas\*/);
+  assert.doesNotMatch(t, /só 20|apenas as próximas/i, 'nada de escassez que o sistema não cumpre');
   assert.match(t, /\*1 ano de curso de idiomas\*/);
   assert.match(t, /de R\$ 3 mil a R\$ 10 mil/);
   assert.match(t, /\*À vista\* ou em até \*3x no cartão\*/);
@@ -128,4 +132,19 @@ test('fila: cliente novo passa na frente, mas os antigos saem aos poucos (1 a ca
   assert.equal(order[4], 'n2');
   assert.deepEqual(pickNext(['v1'], items, { now: NOW }), 'v1', 'sem novos, atende os antigos');
   assert.equal(pickNext([], items), null);
+});
+
+test('dois brindes: 12 meses limitado (à vista, 20 primeiras) e 6 meses sem limite (entrada hoje); esgotados os 12, o de 6 continua', () => {
+  const store = tempStore();
+  const t = Date.parse('2026-11-09T12:00:00Z');
+  const f = new FlashOffer({ store, now: () => t });
+  for (let i = 1; i <= 20; i++) assert.equal(f.claim({ convKey: `a${i}`, tier: 'ano' }).ok, true);
+  assert.deepEqual(f.claim({ convKey: 'a21', tier: 'ano' }), { ok: false, motivo: 'esgotada', left: 0 });
+  for (let i = 1; i <= 50; i++) assert.equal(f.claim({ convKey: `s${i}`, tier: 'semestre' }).ok, true, 'o de 6 meses não tem limite de pessoas');
+  const s = f.status();
+  assert.equal(s.left, 0); assert.equal(s.taken, 20); assert.equal(s.semestre, 50); assert.equal(s.months, 6);
+  // quem estava no de 6 meses e libera uma vaga de 12 (alguém desistiu) sobe
+  f.release(f.list().find((c) => c.convKey === 'a1').id);
+  const up = f.claim({ convKey: 's1', tier: 'ano' });
+  assert.equal(up.subiu, true);
 });

@@ -256,7 +256,7 @@ export class Closing {
       await this.#say(f, `É só copiar o código acima e colar no app do seu banco, na opção Pix copia e cola.${bank ? `\n\nSe preferir, os dados da conta:\n${bank}` : ''}\n\nSe preferir pagar no cartão de crédito, é só me avisar por aqui. Assim que pagar, me manda o comprovante.`);
     } else {
       await this.#say(f, 'Em instantes eu te envio os dados para o pagamento da reserva.');
-      await this.notifyAdmins(`📝 *Ficha preenchida*\n👤 ${f.data.nome} · ${f.data.whatsapp}\nO Pix automático não está configurado: envie os dados de pagamento da reserva para o cliente.`).catch(() => {});
+      await this.notifyAdmins(`📝 *Ficha preenchida*\n🧑‍💼 Quem atendeu: ${this.sellerOf?.(f)?.name || 'ainda sem vendedor (IA)'}\n👤 ${f.data.nome} · ${f.data.whatsapp}\nO Pix automático não está configurado: envie os dados de pagamento da reserva para o cliente.`).catch(() => {});
     }
     return canPix;
   }
@@ -284,12 +284,12 @@ export class Closing {
       // Ordem do Marcos: orçamento → documentos → formulário → contrato → Pix por último. O Pix sai depois da assinatura.
       f.viaContract = true;
       this.store.save();
-      await this.notifyAdmins(`📝 *Ficha de dados preenchida*\n👤 ${f.data.nome} · CPF ${f.data.cpf}\n📍 ${f.data.cidade}/${f.data.uf} · ${f.data.adultos} adulto(s)\n✍️ Contrato enviado para assinar; o Pix da reserva sai depois da assinatura.`).catch(() => {});
+      await this.notifyAdmins(`📝 *Ficha de dados preenchida*\n🧑‍💼 Quem atendeu: ${this.sellerOf?.(f)?.name || 'ainda sem vendedor (IA)'}\n👤 ${f.data.nome} · CPF ${f.data.cpf}\n📍 ${f.data.cidade}/${f.data.uf} · ${f.data.adultos} adulto(s)\n✍️ Contrato enviado para assinar; o Pix da reserva sai depois da assinatura.`).catch(() => {});
       return;
     }
     const canPix = await this.sendReservationPix(f);
     if (this.config.termAfter !== 'payment') await this.sendTerm(f);
-    await this.notifyAdmins(`📝 *Ficha de dados preenchida*\n👤 ${f.data.nome} · CPF ${f.data.cpf}\n📍 ${f.data.cidade}/${f.data.uf} · ${f.data.adultos} adulto(s)\n${canPix ? '💳 Pix da reserva enviado' : '⚠️ Enviar o pagamento manualmente'}${this.config.termAfter !== 'payment' ? ' · termo enviado para assinatura' : ''}`).catch(() => {});
+    await this.notifyAdmins(`📝 *Ficha de dados preenchida*\n🧑‍💼 Quem atendeu: ${this.sellerOf?.(f)?.name || 'ainda sem vendedor (IA)'}\n👤 ${f.data.nome} · CPF ${f.data.cpf}\n📍 ${f.data.cidade}/${f.data.uf} · ${f.data.adultos} adulto(s)\n${canPix ? '💳 Pix da reserva enviado' : '⚠️ Enviar o pagamento manualmente'}${this.config.termAfter !== 'payment' ? ' · termo enviado para assinatura' : ''}`).catch(() => {});
   }
 
   /** Pagamento confirmado: se o termo vai depois do pagamento, envia agora. */
@@ -366,7 +366,7 @@ export class Closing {
     await this.#say(f, `Termo assinado, ${f.data.nome.split(' ')[0]}! ✍️ Segue a sua via. Agora é com a gente: seu processo já está em andamento.`, { media: { path: this.termPath(f), mimetype: 'application/pdf', fileName: 'Termo-de-reserva.pdf' } });
     // Próximo passo: o passo a passo do pagamento (entrada e parcelas).
     await Promise.resolve(this.onSigned?.(f)).catch((e) => this.store.addLog({ type: 'error', message: `Etapas de pagamento: ${e.message}` }));
-    await this.notifyAdmins(`✍️ *Termo da reserva assinado*\n👤 ${f.data.nome} · CPF ${f.data.cpf}\n🕒 ${new Date(signedAt).toLocaleString('pt-BR')}\nO PDF assinado está na ficha do cliente no painel.`).catch(() => {});
+    await this.notifyAdmins(`✍️ *Termo da reserva assinado*\n🧑‍💼 Quem atendeu: ${this.sellerOf?.(f)?.name || 'ainda sem vendedor (IA)'}\n👤 ${f.data.nome} · CPF ${f.data.cpf}\n🕒 ${new Date(signedAt).toLocaleString('pt-BR')}\nO PDF assinado está na ficha do cliente no painel.`).catch(() => {});
     return { ok: true };
   }
 

@@ -21,7 +21,7 @@ def center_lines(lines,cx,y,f,fill,gap):
         w=d.textlength(ln,font=f); d.text((cx-w/2,y),ln,font=f,fill=fill); y+=gap
 # caixa 1: 20 VAGAS (texto abaixo do título)
 wipe(52,1000,372,1080,48)
-center_lines(['Apenas as próximas 20 pessoas',f'entre mais de {label} pessoas','dos nossos grupos.'],212,1006,font(19),(236,240,232),26)
+center_lines(['As 20 primeiras pessoas a fechar',f'à vista levam 12 meses. Somos','mais de '+label+' pessoas nos grupos.'],212,1006,font(19),(236,240,232),26)
 # caixa 2: À VISTA (texto abaixo do título)
 wipe(410,1000,705,1080,408)
 center_lines(['Pagamento à vista ou','em até 3x no cartão','(juros por conta do cliente).'],558,1006,font(19),(236,240,232),26)
