@@ -8,6 +8,7 @@ import { humanizeConfig, noticeDelayMs, readingTimeMs, splitIntoBubbles, typingT
 import { sleep } from '../utils.js';
 import { declineNote, detectDecline, isAck } from '../outreach-guard.js';
 import { applyQualification, qualBlock, READ_ANSWERS } from '../qualificacao.js';
+import { SALES_PLAYBOOK } from './vendas-playbook.js';
 
 const MAX_STORED_MESSAGES = 200;
 const MAX_TOOL_ROUNDS = 6;
@@ -202,7 +203,7 @@ Quem chega neste WhatsApp já foi atendido pela primeira IA, que tirou as dúvid
 2) Em seguida peça o que falta para começar: a documentação (envie a ficha de dados com enviar_ficha_de_dados) e pergunte como prefere pagar a ENTRADA, que é a reserva: no Pix ou, se ele mora longe ou não consegue pelo Pix, no cartão de crédito.
 3) Pix: o sistema envia o QR Code e o copia e cola (se houver ficha, logo depois que ele a enviar). Cartão: diga "Tudo bem! Vou gerar o link de pagamento no valor que você desejar (a partir da entrada) e te mostro as opções de parcelas de acordo com a taxa de juros da maquininha do cartão, que é paga pelo cliente, não pela Migra." Chame opcoes_cartao (com o valor que ele quiser, se disser), mostre as opções que ela devolver (parcelas, valor de cada e total) e nunca invente taxa. Deixe claro, com naturalidade: a entrada pode ser parcelada em até 12 vezes; a cada parcela a mais há uma taxa de juros do banco (da operadora do cartão), mas a Migra NÃO cobra juros nenhum, quem cobra essa taxa é o banco, para facilitar a compra dele; confirme que ele está ciente disso antes de gerar o link; quando ele escolher a parcela, use gerar_link_cartao com essa parcela e o sistema envia o link seguro do Mercado Pago (nunca peça número de cartão pela conversa). Nos dois casos diga o valor da entrada e peça: "Assim que efetuar o pagamento, me envie o comprovante, por favor, para eu dar baixa no sistema e te enviar o recibo." Nunca diga que o pagamento foi confirmado por conta própria.
 4) Pretexto ou objeção ("vou pensar", "depois", "preciso ver"): descubra o motivo real em UMA pergunta e contorne com os fatos da base, sem pressão, em até duas tentativas, voltando sempre ao fechamento (ficha e entrada).
-5) Se ele realmente NÃO tiver o dinheiro da entrada agora: não insista. Use passar_fechamento_para_humano (motivo "sem o valor da entrada agora" e o resumo) para o atendimento humano combinar a melhor forma e a data de retomar o contato, e diga que a equipe volta a falar com ele.
+5) Se ele realmente NÃO tiver o dinheiro da entrada agora: não insista. Registre em registrar_qualificacao (capacidade "nao", com a frase dele), tente o pacote menor e a data da entrada e, se continuar sem condições, diga com carinho que ele pode se preparar e que a Migra fica à disposição quando fizer sentido; depois ofereça UMA vez o Plano em PDF (oferecer_plano_pdf) para ele dar entrada sozinho. O PDF só vai depois do pagamento. Se ele insistir em falar com uma pessoa ou continuar com receio depois de tudo, use passar_fechamento_para_humano.
 6) Respostas curtas, uma pergunta por vez, sem repetir o que já foi dito.`;
     // Contexto extra (CRM, contratos, orçamentos) nunca pode calar a IA: se falhar, segue sem ele e registra o motivo.
     const safe = (name, fn) => { try { return fn ? fn.call(this, conv) || '' : ''; } catch (err) { this.store.addLog({ type: 'error', message: `Contexto "${name}" falhou e foi ignorado para a IA responder: ${err.message}` }); return ''; } };
@@ -334,7 +335,7 @@ Regras: (1) diga com clareza que o aplicativo AINDA ESTÁ EM DESENVOLVIMENTO: ao
     if (this.sendContract) system += '\n\n# Contrato (quando o cliente pedir)\nSe o cliente pedir o contrato ("me manda o contrato", "quero ver o contrato", "como fica o contrato?"), use enviar_contrato na hora. Com os dados dele já na ficha, o sistema gera o contrato preenchido com o orçamento e manda o link para assinar pelo celular; você só diz em uma frase que é só tocar, ler com calma e assinar com o dedo. Se faltarem dados, o sistema devolve o link da ficha: mande e explique que, assim que ele enviar os dados, o contrato chega aqui sozinho. Se ainda não houver orçamento, pergunte o pacote e quantas pessoas e chame enviar_contrato com esses dados. Nunca peça CPF, RG ou endereço pelo chat e nunca invente cláusulas ou condições: o contrato oficial responde por si.';
     if (this.sendPlan) system += '\n\n# Passo a passo do pagamento\nQuando o cliente perguntar como funciona o pagamento, quanto paga em cada etapa, ou logo depois de fechar, use enviar_etapas_pagamento com o pacote e o número de pessoas. O sistema manda o fluxograma com os valores e as datas de cada parcela (contando da data de hoje; sábado e domingo passam para segunda); você só comenta em uma frase e pergunta se ficou alguma dúvida. Não refaça as contas por conta própria.';
     if (pix && !closing) system += `\n\n# Pagamento da reserva por Pix\nQuando o cliente decidir fechar, peça o nome completo e o CPF de quem vai pagar e use gerar_pix com o número de adultos. O sistema envia o QR Code e o código copia e cola em mensagens separadas, logo antes da sua resposta: diga o valor, que o código está na mensagem anterior para copiar e colar no app do banco, e que o recibo em nome da empresa chega aqui assim que o pagamento for confirmado. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que o pagamento foi confirmado por conta própria.`;
-    if (closing) system += `\n\n${READ_ANSWERS}`;
+    if (closing) system += `\n\n${SALES_PLAYBOOK}\n\n${READ_ANSWERS}`;
     { const qb = qualBlock(conv); if (qb) tail.push(qb); }
     if (conv.continuity) {
       tail.push(`# Continuidade desta conversa (leia antes de responder)
@@ -404,6 +405,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       if (t.function.name === 'avisar_marcos') return Boolean(this.notifyOwner);
       if (t.function.name === 'direcionar_para_setor') return Boolean(this.routeSector);
       if (t.function.name === 'agendar_retorno') return Boolean(this.scheduleReturn);
+      if (t.function.name === 'oferecer_plano_pdf') return Boolean(this.offerPlanPdf) && closing;
       if (t.function.name === 'encaminhar_para_especialista') return specialists;
       if (t.function.name === 'enviar_ficha_de_dados') return closing;
       if (t.function.name === 'agendar_visita_escritorio') return visits;
@@ -431,6 +433,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       onPlan: this.sendPlan ? (args) => this.sendPlan(conv, args, { dryRun }) : null,
       onCloseHandoff: this.closeHandoff ? (args) => this.closeHandoff(conv, args, { dryRun }) : null,
       onQualify: (args) => { const r = applyQualification(conv, args, { dryRun }); if (!dryRun) { this.store.save(); try { this.onQualified?.(conv, conv.qualificacao); } catch { /* o CRM nunca derruba a conversa */ } } return r; },
+      onPlanPdf: this.offerPlanPdf ? (args) => this.offerPlanPdf(conv, args, { dryRun }) : null,
       onQuote: this.sendQuote ? (args) => this.sendQuote(conv, args, { dryRun }) : null,
       onMentoring: this.bookMentoring ? (args) => this.bookMentoring(conv, args, { dryRun }) : null,
       onContract: this.sendContract ? (args) => this.sendContract(conv, args, { dryRun }) : null,

@@ -1,0 +1,52 @@
+// Aba "Fechamentos" (só administrador): quem continuou depois do orçamento, quanto fecha, o que travou e o plano em PDF.
+(() => {
+  const host = document.querySelector('#tab-lots')?.parentElement;
+  if (!host) return;
+  const sec = document.createElement('section');
+  sec.id = 'tab-closings';
+  sec.className = 'tab';
+  host.appendChild(sec);
+  let days = 60;
+  async function render() {
+    sec.innerHTML = '<div class="page-head"><h1>Fechamentos</h1></div><p class="muted">Carregando…</p>';
+    let r;
+    try { r = await api(`/api/fechamentos?days=${days}`); } catch (e) { sec.innerHTML = `<div class="page-head"><h1>Fechamentos</h1></div><p class="muted">${esc(e.message)}</p>`; return; }
+    const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const when = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
+    const open = r.checklist.filter((x) => x.aberto);
+    sec.innerHTML = `<div class="page-head"><h1>Fechamentos</h1></div>
+      <p class="hint">Todo cliente recebe o orçamento em PDF, então o orçamento sozinho não mede nada. Aqui contam só os que <b>continuaram a conversa depois do orçamento</b>. O percentual de fechamento é sobre eles.</p>
+      <div class="row"><label>Período <select id="fcDays">${[30, 60, 90, 180].map((d) => `<option value="${d}" ${d === days ? 'selected' : ''}>últimos ${d} dias</option>`).join('')}</select></label></div>
+      <div class="grid2">
+        <div class="card"><div class="hint">Orçamentos enviados</div><b style="font-size:28px">${r.orcamentos}</b><div class="hint">${r.semResposta} sem nenhuma resposta depois do PDF</div></div>
+        <div class="card"><div class="hint">Continuaram depois do orçamento</div><b style="font-size:28px">${r.continuaram}</b></div>
+        <div class="card"><div class="hint">Fecharam (pagaram a entrada)</div><b style="font-size:28px">${r.pagos}</b> <span class="hint">${r.taxaFechamento}% de quem continuou</span></div>
+        <div class="card"><div class="hint">Sem condições agora</div><b style="font-size:28px">${r.semCondicoes}</b><div class="hint">${r.planoPdf} compraram o plano em PDF</div></div>
+      </div>
+      <div class="panel"><h2>Funil (sobre quem continuou)</h2>
+        ${r.funil.map((f) => `<div style="margin:8px 0"><div class="row"><span>${esc(f.label)}</span><b>${f.n} (${f.pct}%)</b></div><div class="progress"><div style="width:${Math.min(100, f.pct)}%"></div></div></div>`).join('')}</div>
+      <div class="panel"><h2>Checklist de acompanhamento <span class="badge pending">${open.length} em aberto</span></h2>
+        <p class="hint">Quem continuou depois do orçamento e ainda não fechou. O mais perto de fechar vem primeiro.</p>
+        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Orçamento</th><th>Onde está</th><th>Objeções</th><th>Próximo passo</th><th>Última msg</th></tr></thead><tbody>
+        ${r.checklist.map((x) => `<tr><td><b>${esc(x.nome || x.phone || 'Contato')}</b><div class="hint">${esc(x.phone ? `+${x.phone}` : '')}</div></td><td>${esc(x.orcamento || '')}<div class="hint">${brl(x.valor)}</div></td><td>${esc(x.etapa)}</td><td>${esc(x.objecoes.join(', ') || '—')}</td><td>${esc(x.proximo || '—')}</td><td>${esc(when(x.ultimaAt))}${x.aguardando ? ' <span class="badge pending">espera resposta</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Ninguém continuou a conversa depois do orçamento neste período.</td></tr>'}
+        </tbody></table></div></div>
+      <div class="panel"><h2>Radar de objeções</h2>
+        <p class="hint">O que os clientes dizem depois do orçamento e quanto de cada objeção acaba fechando. Objeção com taxa baixa é onde a IA precisa melhorar.</p>
+        <div class="table-wrap"><table><thead><tr><th>Objeção</th><th>Apareceu</th><th>Fecharam</th><th>Taxa</th></tr></thead><tbody>
+        ${r.radar.map((o) => `<tr><td>${esc(o.label)}</td><td>${o.total}</td><td>${o.fechou}</td><td>${o.taxa}%</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Ainda sem dados.</td></tr>'}
+        </tbody></table></div></div>
+      <div class="panel"><h2>Plano em PDF (para quem não tem condições)</h2>
+        <p class="hint">Quem realmente não tem condições de contratar a assessoria recebe, uma única vez, a oferta do plano em PDF por <b>${brl(r.planoPdf.preco)}</b>. O PDF só é enviado depois do pagamento e você é avisado. Vendidos: <b>${r.planoPdf.vendidos}</b> · aguardando pagamento: <b>${r.planoPdf.aguardando}</b>.</p>
+        <p>Arquivo usado hoje: ${r.planoPdf.oficial ? '<span class="badge ok">arquivo oficial enviado por você</span>' : '<span class="badge pending">PDF-base gerado pelo sistema (só com o que está na base oficial)</span>'}</p>
+        <div class="row"><a class="btn" href="/api/plano-pdf" target="_blank" rel="noopener">Ver o PDF atual</a>
+          <label class="btn">Enviar o PDF oficial <input type="file" id="fcFile" accept="application/pdf" hidden /></label>
+          ${r.planoPdf.oficial ? '<button class="btn danger" id="fcBase" type="button">Voltar ao PDF-base</button>' : ''}</div></div>`;
+    sec.querySelector('#fcDays').addEventListener('change', (e) => { days = Number(e.target.value); render(); });
+    sec.querySelector('#fcFile')?.addEventListener('change', async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      try { const b64 = await new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(',')[1]); fr.onerror = no; fr.readAsDataURL(f); }); await api('/api/plano-pdf', { method: 'POST', body: { base64: b64 } }); toast('PDF oficial salvo'); render(); } catch (err) { toast(err.message, true); }
+    });
+    sec.querySelector('#fcBase')?.addEventListener('click', async () => { if (!confirm('Voltar ao PDF-base gerado pelo sistema?')) return; try { await api('/api/plano-pdf', { method: 'POST', body: { remove: true } }); render(); } catch (err) { toast(err.message, true); } });
+  }
+  loaders.closings = () => render().catch((e) => toast(e.message, true));
+})();

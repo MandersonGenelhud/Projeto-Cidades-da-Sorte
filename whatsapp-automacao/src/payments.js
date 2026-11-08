@@ -231,7 +231,8 @@ export class Payments {
       `🧾 Recibo nº ${String(p.receiptNo).padStart(4, '0')} ${p.receiptSentAt ? 'enviado ao cliente' : 'gerado'} · confirmado por ${by}`,
       p.receipt?.auto ? `🔎 Confirmado pela LEITURA DO COMPROVANTE enviado pelo cliente (transação ${p.receipt.ref}), não pelo extrato. Dê uma conferida no banco; o comprovante está guardado no painel.` : '',
     ].filter(Boolean).join('\n');
-    await this.notifyAdmins(notice).catch((e) => this.store.addLog({ type: 'error', message: `Aviso de pagamento: ${e.message}` }));
+    // Plano em PDF: o aviso ao Marcos tem texto próprio (enviado ao entregar o PDF), para não chegar duas vezes.
+    if (p.purpose !== 'plano_pdf') await this.notifyAdmins(notice).catch((e) => this.store.addLog({ type: 'error', message: `Aviso de pagamento: ${e.message}` }));
     this.store.addLog({ type: 'system', message: `💰 ${p.method === 'cartao' ? 'Cartão aprovado' : 'Pix confirmado'}: ${money(p.amount)} de ${p.payerName || lead?.name || 'cliente'} (por ${by})` });
     this.notify('paymentPaid', { id: p.id, amount: p.amount, name: p.payerName || lead?.name || '', description: p.description });
     // Próximo passo do fechamento (ex.: termo da reserva depois do pagamento).

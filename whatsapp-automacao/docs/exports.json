@@ -63,6 +63,9 @@
   "TOOL_DEFINITIONS",
   "runTool"
  ],
+ "src/agent/vendas-playbook.js": [
+  "SALES_PLAYBOOK"
+ ],
  "src/ai-stalls.js": [
   "stallReport"
  ],
@@ -275,6 +278,11 @@
   "buildExecutive",
   "dayStr",
   "periods"
+ ],
+ "src/fechamentos.js": [
+  "OBJECTIONS",
+  "buildClosings",
+  "classifyObjections"
  ],
  "src/ficha-text.js": [
   "FICHA_CAMPOS",
@@ -524,6 +532,14 @@
   "simplePdf",
   "valorPorExtenso"
  ],
+ "src/plano-pdf.js": [
+  "PLAN_PDF_DEFAULT_PRICE",
+  "buildPlanPdf",
+  "hasOfficialPlanPdf",
+  "loadPlanPdf",
+  "planPdfFile",
+  "planPdfPrice"
+ ],
  "src/portfolio.js": [
   "Portfolio",
   "STATUS",
@@ -607,6 +623,9 @@
  ],
  "src/routes/controle.js": [
   "registerControleRoutes"
+ ],
+ "src/routes/fechamentos.js": [
+  "registerFechamentosRoutes"
  ],
  "src/routing.js": [
   "LeadRouter",

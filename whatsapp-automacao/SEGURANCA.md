@@ -395,3 +395,12 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - No simulador (dryRun) nada é gravado. Cada mudança vira anotação no prospecto. A retomada chama primeiro quem tem condições. O plano mostra quantos a retomar estão em cada condição.
 - Nenhum valor, preço ou promessa novo: só registro e orientação. Limite: a classificação depende do que o cliente disse; conferir nas anotações do prospecto.
 - Testes: `test/qualificacao.test.js`.
+
+## Painel de fechamentos, método de vendas e Plano em PDF (R$ 500)
+
+- **Painel** (`GET /api/fechamentos`, só administrador): mede quem continuou a conversa depois do orçamento; o percentual de fechamento é sobre eles (todo cliente recebe o PDF). Checklist de acompanhamento e radar de objeções. Só leitura; não envia nada.
+- **Plano em PDF** (dinheiro): só pode ser oferecido se a conversa estiver registrada como "sem condições" **com a frase do cliente** e se ele não tiver recusado (`agent.offerPlanPdf`). Não gera dois Pix abertos para a mesma conversa. O **PDF só é enviado depois do pagamento confirmado** (`payments.onPaid`, `purpose: 'plano_pdf'`); o Marcos recebe um único aviso. Não fecha o prospecto como venda de assessoria e **não conta como "já fechou conosco"** (Pix avulso), então a pessoa pode ser procurada depois, quando tiver condições.
+- **Arquivo do plano**: se existir `data/plano-autonomo.pdf` (enviado pelo administrador, só PDF válido, até 3,5 MB, modo 0600, fora do Git) ele é usado; senão, PDF-base feito só com fatos da base oficial. Troca e retorno registrados em segurança.
+- Risco conhecido: com Pix comum (sem Mercado Pago), a confirmação vem da leitura do comprovante ou do administrador; o aviso ao Marcos diz como foi confirmado no recibo normal.
+- Método de vendas (`src/agent/vendas-playbook.js`): nada de urgência, escassez, desconto ou prova inventados; respeito à recusa. Versão reutilizável em `docs/prompt-especialista-vendas.md`.
+- Testes: `test/fechamentos.test.js`.

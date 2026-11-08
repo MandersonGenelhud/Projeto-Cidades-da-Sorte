@@ -267,6 +267,14 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'oferecer_plano_pdf',
+      description: 'ÚLTIMO degrau, só para quem NÃO TEM condições de contratar a assessoria: depois de registrar em registrar_qualificacao que ele não tem condições (com a frase dele), de tentar o pacote menor e a data da entrada, e de dizer com carinho que ele pode se preparar e que a Migra fica à disposição. Gera o Pix do Plano em PDF (passo a passo para dar entrada sozinho, sem a assessoria) e envia o QR Code. O PDF só é enviado depois do pagamento confirmado, e o Marcos é avisado. Nunca ofereça a quem tem condições.',
+      parameters: { type: 'object', properties: { nome_pagador: { type: 'string', description: 'Nome de quem vai pagar, se ele disse' } } },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'agendar_retorno',
       description: 'Quando o cliente disser "mais pra frente", "vou pensar", "depois eu vejo" e você já tentou contornar: combine com ele um dia e horário exatos e registre aqui. No dia, o sistema retoma a conversa sozinho com o cliente. Use só depois que ele concordar com a data.',
       parameters: {
@@ -522,6 +530,10 @@ export async function runTool(name, args, ctx) {
       case 'direcionar_para_setor': {
         if (!ctx.onSector) return { erro: 'Indisponível. Use avisar_marcos.' };
         return await ctx.onSector(args);
+      }
+      case 'oferecer_plano_pdf': {
+        if (!ctx.onPlanPdf) return { erro: 'Plano em PDF indisponível. Combine o retorno com agendar_retorno.' };
+        return await ctx.onPlanPdf(args);
       }
       case 'registrar_qualificacao': {
         if (!ctx.onQualify) return { ok: true };

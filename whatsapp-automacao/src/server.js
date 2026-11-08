@@ -37,6 +37,8 @@ import { Nina } from './assistant.js';
 import { Maria, PROFILES as MARIA_PROFILES } from './maria.js';
 import { Ana } from './ana.js';
 import { Personal } from './personal.js';
+import { planPdfPrice, loadPlanPdf } from './plano-pdf.js';
+import { registerFechamentosRoutes } from './routes/fechamentos.js';
 import { Portfolio } from './portfolio.js';
 import { makeOutbound, findRecentQuote, filledNotice } from './maria-outbound.js';
 import { groupLiveBrief, HUB_OVERVIEW, STAFF_RULES } from './group-brief.js';
@@ -487,6 +489,22 @@ const closing = new Closing({
   },
 });
 payments.onPaid = (p) => {
+  if (p.purpose === 'plano_pdf') {
+    // Plano em PDF pago: só agora o PDF é enviado; o Marcos é avisado com o histórico (quem não tinha condições e comprou o plano).
+    (async () => {
+      const { buffer, official } = loadPlanPdf({ dataDir: DATA_DIR, company: store.settings.payments?.company?.name || store.settings.business?.name || 'Migra Paraguai' });
+      const file = path.join(DATA_DIR, 'payments', `plano-${p.id}.pdf`);
+      fs.writeFileSync(file, buffer);
+      const conv = p.convKey ? agent.conversation(p.convKey, { create: false }) : null;
+      const text = 'Aqui está o seu Plano em PDF, com o passo a passo para você dar entrada no processo por conta própria. Se em algum momento quiser o acompanhamento da equipe, é só me chamar. Boa jornada! 🙌';
+      if (p.convKey && !String(p.convKey).startsWith('ig:')) { await wa.send(p.convKey, { text, media: { path: file, mimetype: 'application/pdf', fileName: 'Plano-Migra-entrada-sozinho.pdf' }, typing: false }); if (conv) agent.remember(conv, 'assistant', `${text} [PDF do plano enviado]`); p.planPdfSentAt = new Date().toISOString(); }
+      const lead = p.leadId ? crm.byId(p.leadId) : null;
+      if (lead) crm.addNote({ name: 'Sistema', role: 'admin' }, lead.id, `Plano em PDF comprado por R$ ${p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}: o cliente não tinha condições de contratar a assessoria.`);
+      store.save();
+      await tellMarcos(`💡 *Plano em PDF vendido*\nFoi efetuado um pagamento de R$ ${p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} de uma pessoa que não tinha condições de contratar os planos da assessoria Migra.\n👤 ${p.payerName || lead?.name || conv?.name || 'Cliente'}${p.payerPhone ? ` · +${p.payerPhone}` : ''}\nJá verificamos as alternativas (pacote menor, data da entrada) e ela realmente não tinha condições. Ofertamos o PDF e ela comprou. O PDF ${p.planPdfSentAt ? 'foi enviado' : 'precisa ser enviado a ela'} (${official ? 'arquivo oficial' : 'PDF-base gerado pelo sistema'}).`);
+    })().catch((e) => store.addLog({ type: 'error', message: `Plano em PDF pago: ${e.message}` }));
+    return;
+  }
   if (p.purpose === 'mentoria') {
     const lead = p.leadId ? crm.byId(p.leadId) : null;
     tellMarcos(mentoringNotice(lead, { ...p.mentoring, nome: p.mentoring?.nome || p.payerName }, { phone: lead?.phone || '' }, `PAGA (R$ ${p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}): agendar`)).catch(() => {});
@@ -854,6 +872,28 @@ const tellMarcos = async (text) => {
   const owner = normalizePhone(store.settings.crm?.ownerPhone);
   if (owner && wa.status === 'connected') await wa.send(owner, { text, typing: false }).catch(() => {});
   else await notifyAdmins(text);
+};
+// Plano em PDF para quem NÃO tem condições de contratar a assessoria: só depois de registrado "sem condições" (com a frase do cliente). O PDF vai depois do pagamento.
+agent.offerPlanPdf = async (conv, args = {}, { dryRun } = {}) => {
+  const price = planPdfPrice(store.settings);
+  const money = `R$ ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  if (dryRun || String(conv.key).startsWith('sim:')) return { ok: true, simulacao: true, instrucao: `Simulação: no atendimento real, o cliente recebe o Pix de ${money} e o PDF só depois do pagamento. Diga isso em uma frase.` };
+  const q = conv.qualificacao;
+  if (!(q?.capacidade === 'nao' && q.evidencia)) return { erro: 'Só ofereça o plano em PDF depois de registrar em registrar_qualificacao que o cliente NÃO tem condições (com a frase dele) e de tentar o pacote menor e a data da entrada. Se ele tem condições, siga o fechamento.' };
+  if (conv.declined) return { erro: 'O cliente já recusou: não ofereça mais nada.' };
+  const open = payments.list.find((x) => x.purpose === 'plano_pdf' && x.convKey === conv.key && x.status === 'pending');
+  if (open) return { ok: true, jaEnviado: true, instrucao: 'O Pix do plano já foi enviado e ainda não foi pago: lembre com gentileza, em uma frase, sem gerar outro.' };
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username });
+  try {
+    const p = await payments.create({ convKey: conv.key, leadId: lead?.id || null, amount: price, description: 'Plano em PDF para dar entrada no processo por conta própria (sem a assessoria da Migra)', payerName: args.nome_pagador || conv.name || '', payerPhone: conv.phone || lead?.phone || '', by: 'IA' });
+    p.purpose = 'plano_pdf';
+    store.save();
+    await payments.sendCharge(p);
+    if (lead) crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Sem condições de contratar a assessoria ("${q.evidencia}"): ofertado o Plano em PDF por ${money}.`);
+    return { ok: true, valor: money, instrucao: `O QR Code e o Pix copia e cola do Plano em PDF (${money}) já foram enviados logo acima. Explique em poucas frases: é um passo a passo em PDF para ele dar entrada no processo por conta própria, sem a assessoria da Migra; assim que o pagamento for confirmado, o PDF chega aqui. Peça o comprovante depois de pagar. Mantenha a porta aberta: quando ele tiver o valor da entrada, a equipe fica à disposição. Nunca diga que o PDF já foi enviado antes do pagamento.` };
+  } catch (e) {
+    return { erro: `${e.message}. Combine o retorno com agendar_retorno.` };
+  }
 };
 agent.isClient = (conv) => isClientOfMigra(crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username }));
 agent.bookMentoring = async (conv, args = {}, { dryRun } = {}) => {
@@ -2791,6 +2831,7 @@ const { restartAll, convOfLead, noticeQuotes, repairLeads } = registerControleRo
   outreachFor: (c) => outreachFor(c),
   closedFor: (x) => closedIndex().closedFor(x),
 });
+registerFechamentosRoutes(app, { needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), store, crm, quotes, payments, dataDir: DATA_DIR });
 // A IA falhou mesmo depois de tentar de novo: a mensagem do cliente continua guardada e a fila de "esperando resposta" tenta de novo em instantes,
 // sem esperar os 15 minutos da rede de segurança.
 agent.onFailed = (conv) => {

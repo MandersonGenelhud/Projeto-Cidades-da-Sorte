@@ -41,7 +41,7 @@ export function buildDirectory(src = {}) {
   }
   for (const p of src.payments || []) {
     const keyPhone = p.convKey && /@s\.whatsapp\.net$/.test(String(p.convKey)) ? String(p.convKey).split('@')[0] : '';
-    add({ source: 'payment', names: [p.payerName], docs: [p.payerDoc], phones: [p.payerPhone, keyPhone], convKeys: [p.convKey], items: [{ kind: 'Pix', number: p.id, status: p.status === 'paid' ? 'pago' : p.status === 'pending' ? 'em aberto' : p.status, total: cents(p.amount), description: p.description || '' }] });
+    add({ source: 'payment', names: [p.payerName], docs: [p.payerDoc], phones: [p.payerPhone, keyPhone], convKeys: [p.convKey], items: [{ kind: p.purpose ? 'Pix avulso' : 'Pix', number: p.id, status: p.status === 'paid' ? 'pago' : p.status === 'pending' ? 'em aberto' : p.status, total: cents(p.amount), description: p.description || '' }] });
   }
   for (const r of src.legacyContracts || []) add({ source: 'legacyContract', names: [r.client], docs: [r.doc], phones: [r.phone], emails: [r.email], items: [{ kind: 'contrato do sistema antigo', number: String(r.number || ''), status: r.status || '', total: r.value ?? null, paid: r.paid ?? null }] });
   for (const c of src.legacyClients || []) add({ source: 'legacyClient', names: [c.name], docs: [c.doc], phones: [c.phone], emails: [c.email], items: [{ kind: 'cliente do sistema antigo', number: '', status: '' }] });
@@ -118,7 +118,7 @@ export const fmtFone = (d) => (/^55\d{10,11}$/.test(d) ? `+55 ${d.slice(2, 4)} $
 export function describePerson(p, { maxItems = 6 } = {}) {
   const lines = [`*${p.name || 'Sem nome'}*${p.phones[0] ? ` · ${fmtFone(p.phones[0])}` : ''}${p.cpfs[0] ? ` · CPF ${fmtCpf(p.cpfs[0])}` : ''}${p.instagram ? ` · @${p.instagram}` : ''}`];
   const keep = p.items.filter((i) => !['conversa no Instagram', 'conversa no WhatsApp', 'cliente do sistema antigo', 'documento'].includes(i.kind) || true);
-  const rank = (i) => ['contrato', 'venda', 'venda do sistema antigo', 'contrato do sistema antigo', 'orçamento', 'Pix', 'ficha de cadastro', 'prospecto'].indexOf(i.kind);
+  const rank = (i) => ['contrato', 'venda', 'venda do sistema antigo', 'contrato do sistema antigo', 'orçamento', 'Pix', 'Pix avulso', 'ficha de cadastro', 'prospecto'].indexOf(i.kind);
   const shown = keep.filter((i) => rank(i) >= 0).sort((a, b) => rank(a) - rank(b)).slice(0, maxItems);
   for (const i of shown) {
     const bits = [i.number && `${i.number}`, i.status, i.total != null && i.total !== '' ? money(i.total) : '', i.paid != null && i.paid !== '' && ['venda', 'venda do sistema antigo', 'contrato do sistema antigo'].includes(i.kind) ? `pago ${money(i.paid)}` : '', i.description].filter(Boolean);
