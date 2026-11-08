@@ -882,7 +882,7 @@ $('#formCloud').addEventListener('submit', withBusy($('#formCloud'), async (e) =
 
 // ---------- Agente IA ----------
 const BUSINESS_FIELDS = ['name', 'segment', 'description', 'services', 'prices', 'hours', 'address', 'faq', 'policies', 'schedulingRules', 'knowledge',
-  'story', 'socialProof', 'offer', 'offerUntil', 'priceIncrease', 'marketPrices', 'reservation', 'contractData'];
+  'story', 'socialProof', 'offer', 'offerUntil', 'priceIncrease', 'demand', 'marketPrices', 'reservation', 'contractData'];
 
 /** Aviso no topo quando a IA não está pronta para responder, com o que falta e o botão para resolver. */
 function renderAiBanner(st) {

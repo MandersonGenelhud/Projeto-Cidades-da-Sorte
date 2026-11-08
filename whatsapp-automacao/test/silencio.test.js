@@ -41,15 +41,21 @@ test('não incomoda: pessoa assumiu, bloqueado, cliente fechado ou perdido, grup
 test('textos: pedem retorno com gentileza, explicam a fila e o prazo de 24 h, sem pedir desculpas', () => {
   const noite = new Date(2026, 10, 10, 22, 0); // hora local, para não depender do fuso da máquina
   const n = buildSilenceText('nudge', { name: 'ana souza', now: noite });
-  assert.match(n, /^Boa noite, Ana!/);
-  assert.match(n, /Você ainda está por aí/);
-  assert.match(n, /realmente tem interesse em iniciar o seu processo de migração/);
+  assert.match(n, /^Boa noite, Ana! Estou entrando em contato para dar continuidade ao seu atendimento\./);
+  assert.match(n, /Caso você não tenha mais interesse, já se manifeste/);
+  assert.match(n, /demanda está alta/);
   assert.match(n, /fila de espera/);
   assert.match(n, /24 horas/);
-  assert.match(n, /encerramento do seu atendimento/);
+  assert.match(n, /finalizar o seu atendimento/);
+  // Gatilhos de oportunidade, sempre no condicional: nada de "vai aumentar", data, percentual ou desconto inventado.
+  assert.match(n, /é possível que taxas e valores sejam reajustados/);
+  assert.match(n, /A oportunidade bate à porta/);
+  assert.doesNotMatch(n, /vai aumentar|vão aumentar|\d+ ?%|desconto|últimas vagas|até (hoje|amanhã|sexta)/i);
+  assert.match(n, /"sim"/);
   const e = buildSilenceText('encerramento', { name: '', now: new Date(2026, 10, 10, 9, 0) });
   assert.match(e, /^Bom dia\. Como não tive retorno/);
   assert.match(e, /final da fila/);
+  assert.match(e, /podem não ser os mesmos/);
   assert.doesNotMatch(n + e, /desculp|perdão/i);
   assert.equal(buildSilenceText('nudge', { name: 'Ana', now: noite, cfg: { nudgeText: 'Oi {nome}, tudo bem?' } }), 'Oi Ana, tudo bem?', 'o texto pode ser trocado pelo painel');
   assert.ok(NUDGE_TEXT.includes('{saudacao}'));
@@ -159,4 +165,28 @@ test('relatório "por que parou": cada conversa sem resposta mostra o motivo', (
   assert.equal(r.total, 4, 'quem já foi respondido não aparece');
   const sem = stallReport({ conversations: [c('5545900000009@s.whatsapp.net')], agentCfg: { workHours: { enabled: false } }, now: NOW });
   assert.equal(sem.rows[0].codigo, 'sem_motivo');
+});
+
+import { buildSystemPrompt } from '../src/agent/prompt.js';
+import { Store } from '../src/store.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+test('gatilhos confirmados pela direção: alta procura e possibilidade de reajuste entram nos argumentos de venda, sem data nem percentual; o que a direção escreveu não é trocado', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-gatilho-'));
+  const a = new Store(dir);
+  assert.match(a.settings.business.demand, /fila de espera/);
+  assert.match(a.settings.business.priceIncrease, /é possível que taxas e valores sejam reajustados/);
+  assert.match(a.settings.business.priceIncrease, /nunca "vai aumentar"/);
+  assert.doesNotMatch(a.settings.business.priceIncrease, /\d{1,2}\/\d{1,2}|\d+ ?%/);
+  const prompt = buildSystemPrompt(a.settings, { now: new Date('2026-11-10T12:00:00Z') });
+  assert.match(prompt, /Alta procura e fila de espera \(confirmado pela direção\)/);
+  assert.match(prompt, /Reajuste previsto \(confirmado pela direção\)/);
+  // Instalação em que o Marcos já escreveu o próprio texto: não é sobrescrito.
+  a.updateSettings({ business: { priceIncrease: 'Reajuste de 10% em janeiro (texto do Marcos)' } });
+  a.data.triggers2026 = false; a.flush();
+  const b = new Store(dir);
+  assert.equal(b.settings.business.priceIncrease, 'Reajuste de 10% em janeiro (texto do Marcos)');
+  assert.equal(b.data.triggers2026, true);
 });

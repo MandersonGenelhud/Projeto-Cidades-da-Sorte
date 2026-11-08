@@ -147,6 +147,7 @@ Use quando o cliente ficar com receio, principalmente antes da ficha de dados ou
     offer: '',
     offerUntil: '',
     priceIncrease: '',
+    demand: '',
     marketPrices: '',
     reservation: `Para reservar e iniciar o processo: fotos (meio corpo e RG), formulário de reserva preenchido pelo celular, contrato assinado no celular e, por último, o Pix da reserva. R$ 1.000,00 de entrada (sinal que garante o início do processo e a reserva do atendimento) e R$ 800,00 por adulto, das certidões do Paraguai. O restante é pago nas etapas: 50% com vencimento ou pagamento na primeira vinda ao Paraguai, 30% entre 60 e 90 dias após a primeira vinda e 20% 30 dias após o pagamento da segunda parcela.`,
     contractData: `Os dados (nome completo, CPF, RG, nascimento, estado civil e endereço) são preenchidos pelo cliente na ficha de dados, pelo link que você envia. Explique que eles já serão usados para dar entrada no processo e ficam guardados com segurança (LGPD), só para isso.`,

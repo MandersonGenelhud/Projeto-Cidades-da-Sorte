@@ -394,6 +394,17 @@ export class Store extends EventEmitter {
       this.data.ownerResume2026 = true;
       this.flush();
     }
+    // Gatilhos de venda confirmados pela direção (Marcos): alta procura/fila e possibilidade de reajuste (sem data nem percentual, nada inventado).
+    // Só preenche se o campo estiver vazio; o que a direção escreveu depois não é tocado.
+    if (!this.data.triggers2026) {
+      const bizG = this.data.settings.business;
+      if (bizG && /migra/i.test(bizG.name || '')) {
+        if (!String(bizG.demand || '').trim()) bizG.demand = 'A procura está alta: trabalhamos com fila de espera e há muitas pessoas querendo mudar de vida e aproveitando essa oportunidade para fazer a migração.';
+        if (!String(bizG.priceIncrease || '').trim()) bizG.priceIncrease = 'Por causa da alta procura, é possível que taxas e valores sejam reajustados no futuro. Não há data nem percentual definidos: diga sempre "é possível", nunca "vai aumentar", e nunca cite data ou valor de reajuste.';
+      }
+      this.data.triggers2026 = true;
+      this.flush();
+    }
     const agDays = this.data.settings.agent;
     if (agDays && !agDays.pendingDays2026) {
       if (!(Number(agDays.pendingMaxDays) > 30)) agDays.pendingMaxDays = 30;

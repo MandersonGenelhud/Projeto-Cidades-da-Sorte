@@ -30,6 +30,7 @@ function salesSection(business, now) {
     section('História da empresa (use para gerar conexão e confiança)', business.story),
     section('Prova social real', business.socialProof),
     offerValid ? section(`Condição especial em vigor${until ? ` (válida até ${until})` : ''}`, business.offer) : '',
+    section('Alta procura e fila de espera (confirmado pela direção)', business.demand),
     section('Reajuste previsto (confirmado pela direção)', business.priceIncrease),
     section('Preços de referência do mercado', business.marketPrices),
     section('Reserva / sinal', business.reservation),

@@ -17,7 +17,13 @@ A mensagem de retorno (agradecimento por aguardar, demanda alta, imprevistos e c
 
 /** Instrução da retomada: o cliente parou de responder (ou o retorno combinado chegou) e a IA recomeça a conversa. */
 const RESUME_NOTE = (p) => `# RETOMADA DO ATENDIMENTO (regra da direção)
-Este contato parou de responder${p.silentDays ? ` há cerca de ${p.silentDays} dia(s)` : ''}${p.reason ? ` e o retorno combinado era: ${p.reason}` : ''}. Leia as últimas mensagens da conversa e RETOME o atendimento com UMA mensagem curta, calorosa e humana: cumprimente pelo horário, lembre em que ponto pararam (sem repetir o que ele já respondeu), pergunte se ainda tem interesse e qual o melhor próximo passo. Sem pressão, sem desconto novo, sem inventar preço, prazo ou promessa. Se a conversa mostrar que ele não quer mais ou não é assunto da empresa, não insista: despeça-se com educação em uma frase.`;
+Este contato parou de responder${p.silentDays ? ` há cerca de ${p.silentDays} dia(s)` : ''}${p.reason ? ` e o retorno combinado era: ${p.reason}` : ''}. Leia as últimas mensagens e RETOME o atendimento com uma mensagem humana, calorosa e curta (3 a 5 frases curtas), nesta ordem:
+1) cumprimente pelo horário e diga "Estou entrando em contato para dar continuidade ao seu atendimento" (não use "estou passando"), lembrando em que ponto pararam, sem repetir o que ele já respondeu;
+2) peça que, se NÃO tiver mais interesse, já se manifeste, porque a demanda está alta e há pessoas na fila de espera querendo aproveitar a oportunidade;
+3) diga que, sem retorno, vai precisar finalizar o atendimento para dar a vez a quem está aguardando;
+4) use os gatilhos de oportunidade SÓ com o que está confirmado nos "Argumentos de venda": alta procura/fila e a possibilidade de reajuste ("é possível que os valores sejam reajustados, quem deixa para depois pode pagar mais"); a oportunidade bate à porta e depois custa mais caro quando não é aproveitada;
+5) termine com UMA pergunta fácil de responder (ex.: "posso continuar com você agora?").
+PROIBIDO: afirmar que o preço "vai" aumentar, citar data, percentual, desconto, número de vagas, prazo final ou qualquer promessa que não esteja nos argumentos confirmados; pedir desculpas; pressionar de forma agressiva. Se a conversa mostrar que ele já fechou com outro, não quer mais ou não é assunto da empresa, não insista: despeça-se com educação em uma frase.`;
 
 /**
  * A partir de mensagens normalizadas (de várias conversas), devolve as conversas
