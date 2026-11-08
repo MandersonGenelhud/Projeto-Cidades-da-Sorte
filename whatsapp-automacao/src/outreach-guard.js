@@ -3,6 +3,7 @@
 // 1) detectDecline: lê a fala do cliente ("já fechei com um amigo", "não tenho mais interesse", "não me chame mais").
 // 2) scanDeclined: faz a mesma leitura em TODAS as conversas antigas.
 // 3) buildClosedIndex: lê o banco (índice de clientes) e diz se aquele número/CPF já fechou conosco.
+import { detectClosedByMessages } from './closed-signals.js';
 const fold = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9?!. ]+/g, ' ').replace(/\s+/g, ' ').trim();
 const clip = (s, n = 160) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
 const DAY = 86_400_000;
@@ -124,9 +125,11 @@ export const isProactive = (p) => Boolean(p) && (p.restart === true || ['retomar
  * Decide se podemos procurar o cliente. Devolve '' (pode) ou o motivo: 'recusou', 'fechou_conosco' ou 'recente'.
  * getClosed() → índice de buildClosedIndex (montado e guardado pelo chamador).
  */
-export function outreachBlock({ conv, item, getClosed = () => null, now = Date.now(), minGapHours = 12 }) {
+export function outreachBlock({ conv, item, getClosed = () => null, now = Date.now(), minGapHours = 12, paused = false }) {
   if (conv?.declined) return 'recusou';
   if (!isProactive(item)) return '';
+  if (paused) return 'pausado';
+  if (detectClosedByMessages(conv)) return 'fechou_conosco';
   if (conv?.lastProactiveAt && now - conv.lastProactiveAt < minGapHours * HOUR) return 'recente';
   const idx = getClosed();
   const why = idx?.closedFor({ phone: conv?.phone || item?.phone || '', key: conv?.key || item?.jid || '' });

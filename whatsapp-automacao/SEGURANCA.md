@@ -377,3 +377,13 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Sem valores em texto**: a IA não escreve o orçamento; o PDF só sai depois dos dados. O convite "vamos dar entrada?" leva à ficha, que leva ao documento para assinar; o Pix só vem depois da assinatura (regra anterior mantida).
 - **Voz em espera**: nenhuma voz sai até o administrador ligar no perfil do WhatsApp (`voiceOn`); a voz escolhida só aceita nomes da lista. A amostra (`/api/voice-sample`) é só do administrador. Falha de voz nunca bloqueia o PDF.
 - Testes: `test/orcamento-dados.test.js`, `test/orcamento-voz.test.js`.
+
+## Passo a passo do atendimento: quem NUNCA é chamado, e a pausa geral
+
+- **Risco**: chamar de novo quem já é cliente (conflito de interesse; o cliente acha que é golpe) ou quem recusou.
+- **Proteção em camadas** (chamada de iniciativa nossa): (1) recusou (`conv.declined`); (2) já fechou, lido do banco (contrato assinado, venda, Pix pago, cliente ganho); (3) NOVO: as últimas 20 mensagens mostram pagamento confirmado, comprovante recebido, contrato assinado ou "vamos dar continuidade ao seu processo" (`src/closed-signals.js`); (4) pausa geral `agent.outreachPaused`; (5) intervalo mínimo de 12 h entre chamadas.
+- Resposta a quem escreveu agora NÃO é bloqueada por esses filtros (conversa nova ou cliente falando continua sendo atendida).
+- **Plano antes de agir**: `GET /api/atendimento/plano` só conta; `POST /api/atendimento/comecar` (só administrador, registrado em segurança) marca recusas, retoma e avisa orçamentos vencendo; recusa se a pausa estiver ligada. `POST /api/atendimento/pausa` pausa/continua e esvazia a fila.
+- Grupos: a conferência mostra também quem já é cliente (`closed`), para chamar depois só quem ainda não fechou.
+- Limite conhecido: a leitura das 20 mensagens é por frases; fraseado diferente não é reconhecido (nesse caso vale o banco de dados e a triagem da IA).
+- Testes: `test/atendimento-plano.test.js`.

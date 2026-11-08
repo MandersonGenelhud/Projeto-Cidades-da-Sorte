@@ -2512,13 +2512,14 @@ app.get('/api/groups/:id/coverage', async (req, res) => {
   if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador');
   const phones = [...new Set((await wa.getGroupParticipants(req.params.id)).map(digitsOf))].filter(Boolean);
   const have = attendedPhones();
-  const members = phones.map((p) => ({ phone: p, attended: have.has(p), via: have.get(p) || '' }));
+  const idx = closedIndex();
+  const members = phones.map((p) => ({ phone: p, attended: have.has(p), via: have.get(p) || '', closed: idx.closedFor({ phone: p }) || '' }));
   const unattended = members.filter((x) => !x.attended);
   if (req.query.format === 'csv') {
     const cell = (v) => `"${String(v).replace(/"/g, '""')}"`;
     return res.type('text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="grupo-nao-atendidos.csv"').send(`﻿telefone\r\n${unattended.map((x) => cell(`+${x.phone}`)).join('\r\n')}`);
   }
-  res.json({ total: members.length, attended: members.length - unattended.length, unattended: unattended.length, members: members.slice(0, 2000) });
+  res.json({ total: members.length, attended: members.length - unattended.length, unattended: unattended.length, closed: members.filter((x) => x.closed).length, members: members.slice(0, 2000) });
 });
 app.post('/api/groups/:id/import', async (req, res) => {
   const phones = await wa.getGroupParticipants(req.params.id);
@@ -2780,6 +2781,7 @@ const { restartAll, convOfLead, noticeQuotes, repairLeads } = registerControleRo
   store, auth, crm, agent, pending, lines, wa, sales, quotes, legacy,
   directory: { build: (v) => directory.build(v), search: (...a) => directory.search(...a) },
   outreachFor: (c) => outreachFor(c),
+  closedFor: (x) => closedIndex().closedFor(x),
 });
 // A IA falhou mesmo depois de tentar de novo: a mensagem do cliente continua guardada e a fila de "esperando resposta" tenta de novo em instantes,
 // sem esperar os 15 minutos da rede de segurança.
@@ -2789,8 +2791,8 @@ agent.onFailed = (conv) => {
 // Guarda de contato: não procura quem já recusou nem quem já fechou conosco (lido do banco, índice guardado por 5 minutos).
 let closedCache = { at: 0, idx: null };
 const closedIndex = () => { if (!closedCache.idx || Date.now() - closedCache.at > 5 * 60_000) closedCache = { at: Date.now(), idx: buildClosedIndex(directory.build({ role: 'admin' })) }; return closedCache.idx; };
-pending.outreachBlock = (jid, item) => guardOutreach({ conv: agent.conversation(jid, { create: false }), item: { ...item, jid }, getClosed: closedIndex });
-const outreachFor = (conv) => guardOutreach({ conv, item: { restart: true, jid: conv.key, phone: conv.phone }, getClosed: closedIndex });
+pending.outreachBlock = (jid, item) => guardOutreach({ conv: agent.conversation(jid, { create: false }), item: { ...item, jid }, getClosed: closedIndex, paused: store.settings.agent?.outreachPaused === true });
+const outreachFor = (conv) => guardOutreach({ conv, item: { restart: true, jid: conv.key, phone: conv.phone }, getClosed: closedIndex, paused: store.settings.agent?.outreachPaused === true });
 autoReply.onDecline = (msg, dc) => {
   const conv = agent.conversation(msg.jid);
   conv.phone ||= msg.phone || null;

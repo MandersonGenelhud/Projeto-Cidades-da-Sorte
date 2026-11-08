@@ -271,7 +271,7 @@ export class PendingInbox {
     const allowed = [];
     const blocked = [];
     // Por que alguém ficou de fora (cada canal segue a sua regra: só o Instagram tem a janela de 24 horas).
-    const reasons = { teste: 0, instagram24h: 0, desconectado: 0, recusou: 0, fechouConosco: 0, recente: 0 };
+    const reasons = { teste: 0, instagram24h: 0, desconectado: 0, recusou: 0, fechouConosco: 0, recente: 0, pausado: 0 };
     const isConnected = (jid) => (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected');
     for (const jid of jids) {
       const p = this.items[jid];
@@ -284,7 +284,7 @@ export class PendingInbox {
       const guard = this.outreachBlock ? this.outreachBlock(jid, p) : '';
       if (guard) {
         blocked.push(jid);
-        reasons[guard === 'recusou' ? 'recusou' : guard === 'fechou_conosco' ? 'fechouConosco' : 'recente'] += 1;
+        reasons[guard === 'recusou' ? 'recusou' : guard === 'fechou_conosco' ? 'fechouConosco' : guard === 'pausado' ? 'pausado' : 'recente'] += 1;
         if ((isProactive(p) && !(p.texts || []).length) || guard === 'recusou') delete this.items[jid]; // não fica pendurado em "esperando resposta"
         continue;
       }

@@ -3,6 +3,7 @@
 // (3) o retorno combinado chegou, (4) a conversa ficou pausada por "o dono respondeu pelo celular" ou marcada como "do Marcos".
 // A IA lê as últimas 20 mensagens, só segue se o assunto for de algum serviço da Migra e retoma de onde parou, no ritmo seguro de cada número.
 import { OWNER_PAUSE } from './agent/agent.js';
+import { detectClosedByMessages } from './closed-signals.js';
 
 const DAY = 86_400_000;
 const CLOSED = new Set(['ganho', 'perdido']);
@@ -21,6 +22,7 @@ export function collectStalled({ conversations, now = Date.now(), days = 30, min
     if (conv.phone && isBlocked(conv.phone)) continue;
     const lead = leadOf(conv);
     if (lead && CLOSED.has(lead.stage)) continue; // já fechou ou já foi dado como perdido: não incomoda
+    if (conv.declined || detectClosedByMessages(conv)) continue; // recusou, ou a conversa mostra pagamento/contrato: conflito de interesse
     const item = { key: conv.key, conv, lead, lastAt, handoff: '', kind: '', reason: '' };
     if (conv.handoff) {
       const why = conv.handoffReason || '';

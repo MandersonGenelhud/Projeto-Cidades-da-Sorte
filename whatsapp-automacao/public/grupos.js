@@ -20,9 +20,9 @@
     try {
       const r = await api(`/api/groups/${encodeURIComponent(t.dataset.id)}/coverage`);
       const pct = r.total ? Math.round((r.attended / r.total) * 100) : 0;
-      out.innerHTML = `<div class="panel"><h2>${esc(t.dataset.n)}</h2><div class="grid2"><div class="card"><div class="hint">No grupo</div><b style="font-size:28px">${r.total}</b></div><div class="card"><div class="hint">Já atendidos</div><b style="font-size:28px">${r.attended}</b> <span class="hint">${pct}%</span></div><div class="card"><div class="hint">Ainda não atendidos</div><b style="font-size:28px">${r.unattended}</b></div></div>
+      out.innerHTML = `<div class="panel"><h2>${esc(t.dataset.n)}</h2><div class="grid2"><div class="card"><div class="hint">No grupo</div><b style="font-size:28px">${r.total}</b></div><div class="card"><div class="hint">Já atendidos</div><b style="font-size:28px">${r.attended}</b> <span class="hint">${pct}%</span></div><div class="card"><div class="hint">Já fecharam conosco</div><b style="font-size:28px">${r.closed || 0}</b></div><div class="card"><div class="hint">Ainda não atendidos</div><b style="font-size:28px">${r.unattended}</b></div></div>
         <div class="row"><a class="btn" href="/api/groups/${encodeURIComponent(t.dataset.id)}/coverage?format=csv">Baixar quem ainda não foi atendido</a></div>
-        <div class="table-wrap"><table><thead><tr><th>Telefone</th><th>Situação</th></tr></thead><tbody>${r.members.map((m) => `<tr><td>+${esc(m.phone)}</td><td>${m.attended ? `<span class="chip">Atendido (${esc(m.via)})</span>` : 'Ainda não atendido'}</td></tr>`).join('')}</tbody></table></div></div>`;
+        <div class="table-wrap"><table><thead><tr><th>Telefone</th><th>Situação</th></tr></thead><tbody>${r.members.map((m) => `<tr><td>+${esc(m.phone)}</td><td>${m.closed ? `<span class="chip">Já é cliente (${esc(m.closed)})</span>` : m.attended ? `<span class="chip">Atendido (${esc(m.via)})</span>` : 'Ainda não atendido'}</td></tr>`).join('')}</tbody></table></div></div>`;
     } catch (err) { out.innerHTML = ''; toast(err.message, true); }
   });
   loaders.groupscov = () => render().catch((e) => toast(e.message, true));

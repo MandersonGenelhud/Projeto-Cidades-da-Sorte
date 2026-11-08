@@ -9,6 +9,16 @@
   box.id = 'restartPanel';
   box.hidden = true;
   box.innerHTML = `<h2>Recomeçar atendimentos parados</h2>
+    <div class="panel" id="stepsBox">
+      <h3>Passo a passo (comece por aqui)</h3>
+      <ol class="hint">
+        <li><b>Ver o plano</b>: o sistema separa todas as conversas dos últimos dias em: já são clientes (banco de dados ou pagamento/contrato nas últimas 20 mensagens), recusaram, conversa pessoal ou de outro assunto, com atendente humano, e <b>a retomar</b>.</li>
+        <li><b>Começar o atendimento</b>: lê as conversas antigas, marca quem recusou e chama de volta <u>somente</u> quem ficou sem continuidade e fala de serviço da Migra, no ritmo seguro de cada número. Também avisa os orçamentos que estão vencendo. Quem já é cliente nunca é chamado.</li>
+        <li>Acompanhe em <b>Clientes esperando resposta</b> (logo abaixo). Para parar tudo de iniciativa nossa, use <b>Pausar</b>; para voltar, <b>Continuar</b>. Cliente novo que escrever continua sendo atendido normalmente.</li>
+      </ol>
+      <div class="row"><button class="btn" id="stPlan" type="button">1. Ver o plano</button> <button class="btn primary" id="stStart" type="button">2. Começar o atendimento</button> <button class="btn danger" id="stPause" type="button">Pausar</button></div>
+      <p id="stState" class="hint"></p><div id="stPlanOut" class="muted"></div>
+    </div>
     <p class="hint">Procura nos últimos dias, em todos os números e no Instagram, quem ficou sem continuidade: cliente esperando resposta, cliente que parou de responder, retorno combinado que chegou e conversa pausada. A IA lê as últimas 20 mensagens, só retoma o que é assunto de algum serviço da Migra e escreve de onde parou. Cada número responde no seu ritmo (limite por hora de cada um), das 7h às 23h. Quem já fechou ou foi dado como perdido não é incomodado.</p>
     <div class="row"><label>Últimos <select id="rsDays"><option value="15">15 dias</option><option value="30" selected>30 dias</option><option value="45">45 dias</option><option value="60">60 dias</option></select></label>
       <label class="check"><input type="checkbox" id="rsSilent" checked /> Incluir quem parou de responder e retornos combinados</label>
@@ -38,6 +48,15 @@
     $('#rsOut').textContent = txt(r);
     if (!dryRun) { toast('Atendimentos recomeçados'); if (typeof loaders !== 'undefined') loaders.conversations?.(); }
   };
+  const planTxt = (p) => `Nos últimos ${p.days} dias: ${p.total} conversas. <b>${p.retomar} a retomar</b> · ${p.fechados} já são clientes (não serão chamados) · ${p.recusaram} recusaram (não serão chamados) · ${p.marcos} pessoais ou de outro assunto (a IA só confere) · ${p.comHumano} com atendente humano · ${p.emDia} em dia${p.bloqueados ? ` · ${p.bloqueados} bloqueados` : ''}.`;
+  const showState = (paused) => {
+    $('#stState').innerHTML = paused ? '<b>Situação: PAUSADO.</b> Nenhuma mensagem de iniciativa nossa sai. Cliente que escreve continua sendo atendido.' : '<b>Situação: liberado.</b> As chamadas de iniciativa nossa saem no ritmo seguro de cada número.';
+    $('#stPause').textContent = paused ? 'Continuar' : 'Pausar';
+    $('#stPause').className = paused ? 'btn primary' : 'btn danger';
+    $('#stStart').disabled = paused;
+    box.dataset.paused = paused ? '1' : '';
+  };
+  const loadPlan = async () => { const p = await api('/api/atendimento/plano'); $('#stPlanOut').innerHTML = planTxt(p); showState(p.paused); return p; };
   const loadTpl = async () => {
     const o = (await api('/api/settings')).agent?.backlogOpening || {};
     $('#rsOn').checked = o.enabled !== false; $('#rsHours').value = o.minHours ?? 6; $('#rsT1').value = o.template || ''; $('#rsT2').value = o.templateNoDate || '';
@@ -45,6 +64,26 @@
   $('#rsTpl').addEventListener('toggle', (e) => { if (e.target.open) loadTpl().catch(() => {}); });
   box.addEventListener('click', async (e) => {
     const id = e.target.id;
+    if (id === 'stPlan') { try { await loadPlan(); } catch (err) { toast(err.message, true); } return; }
+    if (id === 'stPause') {
+      try {
+        const paused = box.dataset.paused !== '1';
+        if (paused && !confirm('Pausar? Nenhuma mensagem de iniciativa nossa vai sair e a fila de chamadas será esvaziada. Quem escrever continua sendo atendido.')) return;
+        const r = await api('/api/atendimento/pausa', { method: 'POST', body: { paused } });
+        showState(r.paused); toast(r.paused ? 'Atendimento de iniciativa nossa pausado' : 'Atendimento liberado'); if (typeof loaders !== 'undefined') loaders.conversations?.();
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
+    if (id === 'stStart') {
+      try {
+        const p = await loadPlan();
+        if (!confirm(`Começar agora? Serão chamados ${p.retomar} atendimentos parados. NÃO serão chamados: ${p.fechados} que já são clientes e ${p.recusaram} que recusaram. Cada número sai no seu ritmo seguro.`)) return;
+        const r = await api('/api/atendimento/comecar', { method: 'POST', body: {} });
+        $('#stPlanOut').innerHTML = `${planTxt(r.plano)}<br><b>Feito:</b> ${r.recusasMarcadas} recusas marcadas · ${r.retomada.queued} entraram na fila da IA · ${r.orcamentos.queued} avisos de orçamento vencendo.`;
+        toast('Atendimento começado'); if (typeof loaders !== 'undefined') loaders.conversations?.();
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
     if (id === 'rsSave') {
       try { await api('/api/settings', { method: 'PUT', body: { agent: { backlogOpening: { enabled: $('#rsOn').checked, minHours: Math.max(0, Number($('#rsHours').value) || 0), template: $('#rsT1').value.trim(), templateNoDate: $('#rsT2').value.trim() } } } }); toast('Mensagem de retorno salva'); } catch (err) { toast(err.message, true); }
       return;
@@ -82,7 +121,7 @@
   let slLoaded = false;
   const show = () => {
     box.hidden = window.currentUser?.role !== 'admin';
-    if (!box.hidden && !slLoaded) { slLoaded = true; api('/api/silence').then((r) => { $('#slOn').checked = r.config.enabled !== false; $('#slHours').value = r.config.nudgeHours; }).catch(() => { slLoaded = false; }); }
+    if (!box.hidden && !slLoaded) { slLoaded = true; loadPlan().catch(() => {}); api('/api/silence').then((r) => { $('#slOn').checked = r.config.enabled !== false; $('#slHours').value = r.config.nudgeHours; }).catch(() => { slLoaded = false; }); }
   };
   new MutationObserver(show).observe(tab, { attributes: true, attributeFilter: ['class'] });
   show();

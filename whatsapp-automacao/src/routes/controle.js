@@ -12,6 +12,8 @@ import { stallReport } from '../ai-stalls.js';
 import { repairMissingLeads, dataHealth } from '../lead-repair.js';
 import crypto from 'node:crypto';
 import { restartStalled } from '../restart.js';
+import { buildPlan } from '../atendimento-plano.js';
+import { scanDeclined } from '../outreach-guard.js';
 
 /** ctx: { needAdmin, httpError, inOffice, store, auth, crm, agent, pending, lines, wa, sales, quotes, legacy, securityEvent, conversationOffice, convLabel, lineOwnerOf } */
 export function registerControleRoutes(app, ctx) {
@@ -111,6 +113,33 @@ app.post('/api/restart-stalled', (req, res) => {
   const r = restartAll({ days: Math.min(60, Math.max(1, Number(b.days) || 30)), includeSilent: b.includeSilent !== false, dryRun: b.dryRun === true });
   if (!r.dryRun) securityEvent('recomecar_atendimentos', req.user, req, `${r.total} conversa(s) paradas: ${r.queued} entraram na fila da IA`);
   res.json(r);
+});
+// Passo a passo do atendimento (um botão): 1) conferir o plano, 2) ler as conversas antigas e marcar quem recusou, 3) recomeçar só quem ficou sem continuidade
+// e avisar os orçamentos que vencem. Quem já é cliente (banco de dados ou últimas 20 mensagens) nunca é chamado. Pausa geral: agent.outreachPaused.
+const planOf = (days) => buildPlan({ store, now: Date.now(), days, leadOf: (c) => crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }), closedFor: (x) => ctx.closedFor?.(x) || '', isBlocked: (p) => store.isBlacklisted(p) });
+app.get('/api/atendimento/plano', (req, res) => {
+  needAdmin(req);
+  const days = Math.min(60, Math.max(1, Number(req.query.days) || 30));
+  res.json({ ...planOf(days), paused: store.settings.agent?.outreachPaused === true, queue: pending.status().queue });
+});
+app.post('/api/atendimento/comecar', (req, res) => {
+  needAdmin(req);
+  if (store.settings.agent?.outreachPaused === true) throw httpError(409, 'O atendimento de iniciativa nossa está pausado. Clique em "Continuar" antes de começar.');
+  const days = Math.min(60, Math.max(1, Number(req.body?.days) || 30));
+  const recusas = scanDeclined({ store, crm, days: 180 });
+  const plano = planOf(days);
+  const retomada = restartAll({ days, includeSilent: true });
+  const orcamentos = noticeQuotes({ dryRun: false });
+  securityEvent('comecar_atendimento', req.user, req, `${plano.retomar} para retomar (${retomada.queued} na fila), ${plano.fechados} já clientes e ${plano.recusaram} que recusaram ficaram de fora; ${recusas.marked} recusas marcadas; ${orcamentos.queued} avisos de orçamento`);
+  res.json({ plano, recusasMarcadas: recusas.marked, retomada, orcamentos: { total: orcamentos.total, queued: orcamentos.queued } });
+});
+app.post('/api/atendimento/pausa', (req, res) => {
+  needAdmin(req);
+  const paused = req.body?.paused === true;
+  store.updateSettings({ agent: { outreachPaused: paused } });
+  if (paused) pending.cancel(); // esvazia a fila de iniciativa nossa que ainda não saiu
+  securityEvent(paused ? 'pausar_atendimento' : 'continuar_atendimento', req.user, req, paused ? 'Atendimento de iniciativa nossa pausado (a fila foi esvaziada)' : 'Atendimento de iniciativa nossa liberado');
+  res.json({ paused });
 });
 // Baixas de pagamento feitas pela Maria a partir do comprovante (só administrador): quem mandou, de quem era, e se foi baixa direta ou ficou para conferir.
 app.get('/api/maria-receipts', (req, res) => {

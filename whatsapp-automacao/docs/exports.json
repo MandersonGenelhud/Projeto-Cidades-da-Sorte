@@ -108,6 +108,9 @@
   "quickParse",
   "scopeOf"
  ],
+ "src/atendimento-plano.js": [
+  "buildPlan"
+ ],
  "src/attendants.js": [
   "attendantOf",
   "byAttendant",
@@ -161,6 +164,9 @@
  "src/cities.js": [
   "CATEGORIES",
   "Cities"
+ ],
+ "src/closed-signals.js": [
+  "detectClosedByMessages"
  ],
  "src/closing.js": [
   "Closing",
