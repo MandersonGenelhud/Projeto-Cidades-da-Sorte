@@ -161,6 +161,21 @@ export class Quotes {
     return rec;
   }
 
+  /**
+   * Texto curto que acompanha o PDF (o orçamento vai em PDF timbrado, não escrito). Instagram não recebe arquivo: vai o link do PDF.
+   */
+  caption(rec, { link = '', name = '' } = {}) {
+    const first = String(name || rec.client || '').trim().split(/\s+/)[0];
+    const nome = first && first.length > 1 && !/^[+@\d]/.test(first) && first.toLowerCase() !== 'cliente' ? `, ${first.charAt(0).toUpperCase()}${first.slice(1)}` : '';
+    return [`Olá${nome}! Segue o seu orçamento ${rec.number} em PDF, preparado pela Migra Paraguai. Ele vale até ${fmtBr(rec.validUntil)}. Qualquer dúvida é só me chamar.`, link ? `Abra o PDF aqui: ${link}` : ''].filter(Boolean).join('\n');
+  }
+
+  /** Registro curto para a memória da atendente (ela precisa saber o que foi enviado, sem repetir os valores ao cliente). */
+  memo(rec) {
+    const p = rec.plan;
+    return `[PDF do orçamento ${rec.number} enviado: ${rec.items.map((r) => `${r.name}${r.qty > 1 ? ` × ${r.qty}` : ''}`).join(', ')} · total ${money(p.total)} · entrada ${money(p.entry)} · válido até ${fmtBr(rec.validUntil)}]`;
+  }
+
   /** Mensagem do WhatsApp no formato que a equipe já usa. */
   message(rec, link = '') {
     const p = rec.plan;

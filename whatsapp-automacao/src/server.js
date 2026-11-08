@@ -637,12 +637,13 @@ const salesOnPaid = (p) => {
 const quoteLink = (q) => (publicBase() ? `${publicBase()}/orcamento/${q.id}?t=${quotes.token(q.id)}` : '');
 async function sendQuote({ convKey, lead, items, adults, client, consultant, start, discountPct = 0 }) {
   const q = quotes.create({ items, adults, discountPct, ...(/^\d{4}-\d{2}-\d{2}$/.test(String(start || '')) ? { start } : {}), client: client || lead?.name || '', phone: lead?.phone || '', consultant, leadId: lead?.id || null, convKey });
-  const text = quotes.message(q, quoteLink(q));
   if (convKey) {
+    // O orçamento vai em PDF timbrado (não escrito): só uma frase curta acompanha o arquivo. No Instagram, que não recebe arquivo, vai o link do PDF.
     const ig = String(convKey).startsWith('ig:');
-    await wa.send(convKey, ig ? { text, typing: false } : { text, media: { path: quotes.file(q), mimetype: 'application/pdf', fileName: `${q.number}.pdf` }, typing: false });
+    const caption = quotes.caption(q, { link: ig ? quoteLink(q) : '', name: client || lead?.name });
+    await wa.send(convKey, ig ? { text: caption, typing: false } : { text: caption, media: { path: quotes.file(q), mimetype: 'application/pdf', fileName: `Orçamento ${q.number}.pdf` }, typing: false });
     const conv = agent.conversation(convKey, { create: false });
-    if (conv) agent.remember(conv, 'assistant', text);
+    if (conv) agent.remember(conv, 'assistant', `${caption}\n${quotes.memo(q)}`);
   }
   if (lead) {
     const main = q.items[0];
@@ -660,7 +661,7 @@ agent.sendQuote = async (conv, args, { dryRun } = {}) => {
     const preview = new Quotes({ store: { settings: { ...store.settings, quotes: { ...store.settings.quotes } }, data: { quotes: [] }, save() {} }, dataDir: path.join(DATA_DIR, 'tmp'), secret: auth.secret, matchPackage: matchAnyPackage });
     try {
       const q = preview.create({ items, adults: args.adultos, client: args.nome || conv.name });
-      return { ok: true, simulacao: true, enviado: preview.message(q), instrucao: 'O orçamento (PDF + resumo) já foi enviado logo acima. Comente em uma frase curta e conduza para garantir a reserva.' };
+      return { ok: true, simulacao: true, enviado: preview.message(q), instrucao: 'Simulação: no atendimento real o orçamento vai ao cliente em PDF timbrado (não escrito), com uma frase curta. Comente em uma frase e conduza para garantir a reserva.' };
     } catch (e) {
       return { erro: e.message };
     }
@@ -671,7 +672,7 @@ agent.sendQuote = async (conv, args, { dryRun } = {}) => {
   const owner = parsed ? auth.get(lines.get(parsed.id)?.ownerId) : (lead?.ownerId ? auth.get(lead.ownerId) : null);
   try {
     const q = await sendQuote({ convKey: conv.key, lead, items, adults: args.adultos, client: args.nome, consultant: owner?.name?.split(' ')[0] });
-    return { ok: true, numero: q.number, total: q.plan.total, instrucao: 'O orçamento (PDF + resumo com entrada e parcelas) já foi enviado logo acima. Comente em uma frase curta e conduza para garantir a reserva (ficha de dados). Não repita os valores.' };
+    return { ok: true, numero: q.number, total: q.plan.total, instrucao: 'O orçamento já foi enviado ao cliente em PDF timbrado, logo acima (não escreva o orçamento em texto). Comente em uma frase curta que o PDF tem os valores, a entrada e as parcelas, e conduza para garantir a reserva (ficha de dados). Não repita os valores.' };
   } catch (e) {
     return { erro: e.message };
   }
@@ -4136,8 +4137,11 @@ app.post('/api/quotes', async (req, res) => {
     createdBy: { id: req.user.id, name: req.user.name },
   });
   if (key) {
-    const text = quotes.message(q, quoteLink(q));
-    await wa.send(key, { text, media: { path: quotes.file(q), mimetype: 'application/pdf', fileName: `${q.number}.pdf` }, typing: false });
+    const ig = String(key).startsWith('ig:');
+    const caption = quotes.caption(q, { link: ig ? quoteLink(q) : '', name: q.client });
+    await wa.send(key, ig ? { text: caption, typing: false } : { text: caption, media: { path: quotes.file(q), mimetype: 'application/pdf', fileName: `Orçamento ${q.number}.pdf` }, typing: false });
+    const convQ = agent.conversation(key, { create: false });
+    if (convQ) agent.remember(convQ, 'assistant', `${caption}\n${quotes.memo(q)}`);
   }
   if (lead) crm.addNote(req.user, lead.id, `🧾 Orçamento ${q.number} · R$ ${q.plan.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
   securityEvent('orcamento_criado', req.user, req, `${q.number} · ${q.client} · R$ ${q.plan.total}`);
@@ -4420,7 +4424,7 @@ app.post('/api/conversations/:key/closing/:action', async (req, res) => {
   const filled = form?.status === 'preenchida' ? form.data : null;
   if (act === 'quote') {
     if (!quote) throw httpError(400, 'Ainda não há orçamento para este cliente. Faça na aba Orçamentos com o WhatsApp dele.');
-    await sayTo(conv, quotes.message(quote, quoteLink(quote)), { path: quotes.file(quote), mimetype: 'application/pdf', fileName: `${quote.number}.pdf` });
+    await sayTo(conv, `${quotes.caption(quote, { link: String(conv.key).startsWith('ig:') ? quoteLink(quote) : '', name: quote.client })}`, { path: quotes.file(quote), mimetype: 'application/pdf', fileName: `Orçamento ${quote.number}.pdf` });
   } else if (act === 'ficha') {
     if (!publicBase()) throw httpError(400, 'O sistema ainda não tem endereço na internet (aba Conexões → criar endereço, ou a VPS).');
     const f = closing.createForm({ convKey: conv.key, lead, servico: quote ? quote.items.map((r) => `${r.name} × ${r.qty}`).join(', ') : '' });

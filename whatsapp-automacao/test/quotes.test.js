@@ -168,3 +168,21 @@ test('orçamento com parcelas combinadas pelo vendedor continua com data fixa', 
   assert.match(msg, /10\/12\/2026/);
   assert.doesNotMatch(msg, /1ª vinda ao Paraguai/);
 });
+
+test('orçamento vai em PDF: a frase que acompanha o arquivo é curta, sem valores escritos, e o Instagram recebe o link do PDF', () => {
+  const { quotes } = setup();
+  const q = quotes.create({ items: [{ pacote: 'Ouro', quantidade: 1 }], adults: 1, client: 'ana souza', start: '2026-10-29' });
+  const c = quotes.caption(q, { name: 'ana souza' });
+  assert.match(c, /^Olá, Ana! Segue o seu orçamento ORC-\d{4}-\d+ em PDF, preparado pela Migra Paraguai\. Ele vale até 05\/11\/2026\./);
+  assert.doesNotMatch(c, /R\$|Entrada|parcela|Total/i, 'os valores ficam só no PDF');
+  assert.ok(c.split('\n').length === 1 && c.length < 220);
+  const ig = quotes.caption(q, { name: 'Ana', link: 'https://painel/orcamento/x?t=y' });
+  assert.match(ig, /\nAbra o PDF aqui: https:\/\/painel\/orcamento\/x\?t=y$/);
+  assert.match(quotes.caption({ ...q, client: 'Cliente' }, { name: '' }), /^Olá! Segue/, 'sem nome conhecido, sem inventar');
+  assert.match(quotes.caption({ ...q, client: '@tati.costa' }, { name: '@tati.costa' }), /^Olá! Segue/);
+  const memo = quotes.memo(q);
+  assert.match(memo, /^\[PDF do orçamento ORC-.* enviado: PACOTE OURO|\[PDF do orçamento .* Pacote Ouro/i);
+  assert.match(memo, /total R\$ 12\.997,00/);
+  assert.match(memo, /entrada R\$ 1\.800,00/);
+  assert.ok(fs.readFileSync(quotes.file(q)).subarray(0, 5).toString() === '%PDF-', 'o PDF existe');
+});

@@ -114,7 +114,7 @@
 | `pix.js` | 154 | Pix "copia e cola" (BR Code, padrão EMV do Banco Central) e recibo em PDF, | `payments.js`, `receipts.js` | 1 |
 | `portfolio.js` | 57 | Portfólio de novidades do Grupo Migra: a direção vai anotando cada coisa nova que o grupo cria ou lança, e a Maria já fica sabendo. | `maria.js`, `server.js` | 1 |
 | `quote-expiry.js` | 79 | Aviso de orçamento que vai vencer: quem recebeu a proposta e ainda não fechou é lembrado, com o prazo REAL do orçamento, | `pending.js`, `routes/controle.js` | 2 |
-| `quotes.js` | 454 | Orçamentos da Migra (ORC-AAAA-NNNNN): PDF com a marca + mensagem de WhatsApp no formato da equipe. | `server.js` | 4 |
+| `quotes.js` | 469 | Orçamentos da Migra (ORC-AAAA-NNNNN): PDF com a marca + mensagem de WhatsApp no formato da equipe. | `server.js` | 4 |
 | `ranking.js` | 93 | Ranking da equipe: pontos, metas do mês, níveis de bonificação e conquistas. | `server.js` | 1 |
 | `realty.js` | 273 | Migra Imóveis: imóveis avulsos (casas, terrenos, galpões…) e loteamentos com | `server.js` | 3 |
 | `receipts.js` | 179 | Comprovante de pagamento enviado pelo cliente na conversa: a IA abre o arquivo, lê, confere com a cobrança | `server.js` | 1 |
@@ -135,7 +135,7 @@
 | `security.js` | 119 | Segurança do login: verificação em duas etapas (código do app autenticador, padrão TOTP/RFC 6238), | `server.js` | 28 |
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 5340 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 5344 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 94 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 1 |
