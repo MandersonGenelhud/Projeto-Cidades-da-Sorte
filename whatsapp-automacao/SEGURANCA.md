@@ -301,3 +301,4 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 ## Contrato: vencimento das parcelas (plano padrão)
 
 - No plano padrão de 3 parcelas, o contrato (`src/contract.js`) diz: 1ª com vencimento ou data de pagamento na primeira vinda ao Paraguai; 2ª entre 60 e 90 dias após a primeira vinda; 3ª 30 dias após o pagamento da 2ª. Plano combinado pelo vendedor mantém data fixa. Teste: `test/contract.test.js`. Contratos já assinados não são alterados; só os gerados depois.
+- O orçamento (mensagem do WhatsApp e PDF) segue a mesma regra do contrato no plano padrão: só o texto dos vencimentos muda; preços, entrada e valores das parcelas são os mesmos (teste em `test/quotes.test.js`). Parcelas combinadas pelo vendedor continuam com data fixa. As datas internas do plano continuam existindo para cobrança e previsão.

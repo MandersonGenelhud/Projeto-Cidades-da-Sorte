@@ -33,6 +33,10 @@ export function packageInfo(name) {
   return { category: 'SERVIÇO', subtitle: '', includes: [] };
 }
 
+/** Plano padrão (3 parcelas): o vencimento acompanha a 1ª vinda ao Paraguai e o pagamento anterior, não uma data fixa. Valores não mudam. */
+const byTrips = (p) => !p.custom && p.parcels.length === 3;
+const RULE = ['com vencimento ou data de pagamento na 1ª vinda ao Paraguai', 'vencimento previsto entre 60 e 90 dias após a 1ª vinda ao Paraguai', 'vencimento 30 dias após o pagamento da 2ª parcela'];
+const RULE_SHORT = ['na 1ª vinda ao Paraguai', 'de 60 a 90 dias após a 1ª vinda', '30 dias após pagar a 2ª parcela'];
 const err = (status, message) => Object.assign(new Error(message), { status });
 const clean = (s, max = 80) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 const addDays = (iso, d) => {
@@ -171,7 +175,7 @@ export class Quotes {
       '*Pagamento no PIX*',
       `• Entrada: ${money(p.entry)}`,
       `   ${money(p.base)} de sinal de contratação dos serviços + ${money(p.perAdult * p.adults)} (${money(p.perAdult)} × ${p.adults} adulto${p.adults > 1 ? 's' : ''}) das certidões da Interpol e da Polícia Nacional do Paraguai`,
-      ...p.parcels.map((x) => `• ${x.label} (${x.pct}%) · ${fmtBr(x.date)}: ${money(x.value)}`),
+      ...p.parcels.map((x, k) => (byTrips(p) ? `• ${x.label} (${x.pct}%): ${money(x.value)}\n   ${RULE[k][0].toUpperCase()}${RULE[k].slice(1)}` : `• ${x.label} (${x.pct}%) · ${fmtBr(x.date)}: ${money(x.value)}`)),
       '',
       `Válido até ${fmtBr(rec.validUntil)}`,
       link ? `\n*PDF do orçamento:* ${link}` : '',
@@ -299,8 +303,7 @@ export class Quotes {
     c.text(`${money(p.perAdult * p.adults)} certidões Interpol e Polícia Nacional`, fx + 26, fy + 5, { size: 6.8, color: '#cfe0d7' });
     c.text(`(${money(p.perAdult)} por adulto)`, fx + 26, fy + 14, { size: 6.8, color: '#cfe0d7' });
     fy += 28;
-    const trip = p.custom ? [] : ['1ª vinda ao Paraguai', '2ª vinda ao Paraguai', 'retirada dos documentos'];
-    p.parcels.forEach((x, k) => row(`${x.label} (${x.pct}%)`, `${x.weekday.replace('-feira', '')}, ${fmtBr(x.date)} · ${trip[k] || x.note}`, x.value));
+    p.parcels.forEach((x, k) => row(`${x.label} (${x.pct}%)`, byTrips(p) ? RULE_SHORT[k] : `${x.weekday.replace('-feira', '')}, ${fmtBr(x.date)} · ${x.note}`, x.value));
 
     const lw = fx - M - 14;
     c.rect(M, y, lw, 104, { stroke: C.line, radius: 12, lineWidth: 0.8 });
@@ -348,7 +351,7 @@ export class Quotes {
     let y2 = 86;
     c.text('COMO FUNCIONA O SEU PROCESSO', M, y2, { size: 9, bold: true, color: C.green, spacing: 1.2 });
     y2 += 20;
-    const par = (k) => (p.parcels[k] ? `${p.parcels[k].label}: ${money(p.parcels[k].value)} · ${fmtBr(p.parcels[k].date)}` : '');
+    const par = (k) => (p.parcels[k] ? `${p.parcels[k].label}: ${money(p.parcels[k].value)} · ${byTrips(p) ? RULE_SHORT[k] : fmtBr(p.parcels[k].date)}` : '');
     const timeline = [
       ['Reserva', 'Ficha de dados pelo celular, Pix da entrada e termo da reserva assinado no celular.', `Entrada: ${money(p.entry)} · ${fmtBr(rec.issued)}`],
       ['Certidões no Paraguai', 'Emitimos as certidões da Interpol e da Informática da Polícia Nacional (de 7 a 15 dias). Enquanto isso, você organiza os documentos no Brasil com a nossa orientação.', ''],

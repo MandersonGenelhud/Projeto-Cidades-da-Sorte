@@ -33,7 +33,7 @@ test('orçamento ORC: mesmos valores do orçamento da Migra (Ouro + Inicial, 2 a
   assert.match(msg, /\*Total: R\$ 23\.994,00\*/);
   assert.match(msg, /\*Pagamento no PIX\*\n• Entrada: R\$ 2\.600,00/);
   assert.match(msg, /sinal de contratação dos serviços/);
-  assert.match(msg, /1ª parcela \(50%\) · 13\/11\/2026: R\$ 10\.697,00/);
+  assert.match(msg, /1ª parcela \(50%\): R\$ 10\.697,00\n   Com vencimento ou data de pagamento na 1ª vinda ao Paraguai/);
   assert.match(msg, /Válido até 05\/11\/2026/);
   assert.match(msg, /\*PDF do orçamento:\* https:\/\/painel/);
   // Sequência e quantidade agrupada.
@@ -141,4 +141,30 @@ test('memória da atendente: crise do Paraguai (nov/2026) com cautela, sem afirm
   assert.doesNotMatch(up, /texto antigo/);
   assert.match(up, /# Outro assunto\nConteúdo que precisa ficar\./);
   assert.equal((up.match(/Momento político e bancário/g) || []).length, 1);
+});
+
+test('orçamento, plano padrão: valores iguais, e o vencimento acompanha a 1ª vinda ao Paraguai e o pagamento anterior (sem data fixa)', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { store, quotes } = setup();
+  const q = quotes.create({ items: [{ pacote: 'Ouro', quantidade: 1 }], adults: 1, client: 'Ana', consultant: 'Marcos', start: '2026-10-29' });
+  assert.deepEqual(q.plan.parcels.map((x) => x.value).reduce((a, b) => a + b, q.plan.entry), q.plan.total, 'os valores seguem fechando o total');
+  const msg = quotes.message(q);
+  assert.match(msg, /Com vencimento ou data de pagamento na 1ª vinda ao Paraguai/);
+  assert.match(msg, /Vencimento previsto entre 60 e 90 dias após a 1ª vinda ao Paraguai/);
+  assert.match(msg, /Vencimento 30 dias após o pagamento da 2ª parcela/);
+  for (const x of q.plan.parcels) assert.ok(msg.includes(`R$ ${x.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`), 'cada valor continua na mensagem');
+  for (const x of q.plan.parcels) assert.ok(!msg.includes(`· ${x.date.split('-').reverse().join('/')}:`), 'sem data fixa nas parcelas');
+  let text;
+  try { text = execFileSync('pdftotext', ['-layout', quotes.file(q), '-'], { encoding: 'utf8' }).replace(/\s+/g, ' '); } catch { return; }
+  assert.match(text, /na 1ª vinda ao Paraguai/);
+  assert.match(text, /de 60 a 90 dias após a 1ª vinda/);
+  assert.match(text, /30 dias após pagar a 2ª parcela/);
+});
+
+test('orçamento com parcelas combinadas pelo vendedor continua com data fixa', () => {
+  const { quotes } = setup();
+  const q = quotes.create({ items: [{ pacote: 'Ouro', quantidade: 1 }], adults: 1, client: 'Ana', start: '2026-10-29', parcels: [{ pct: 50, date: '2026-12-10' }, { pct: 50, date: '2027-01-10' }] });
+  const msg = quotes.message(q);
+  assert.match(msg, /10\/12\/2026/);
+  assert.doesNotMatch(msg, /1ª vinda ao Paraguai/);
 });
