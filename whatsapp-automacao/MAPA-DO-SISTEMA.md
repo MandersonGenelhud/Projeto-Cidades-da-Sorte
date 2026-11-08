@@ -5,7 +5,7 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **122** · testes automatizados (arquivos): **124** · scripts do painel: **41**
+- Módulos em `src/`: **123** · testes automatizados (arquivos): **125** · scripts do painel: **41**
 - Rotas da API em `server.js`: **486** · tarefas agendadas (`setInterval`): **20** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
@@ -24,7 +24,7 @@
 - Configuração nova vai em `settings` com **valor padrão** em `store.js`; mudança em dado já existente usa **migração de uma vez** com selo (veja abaixo), nunca sobrescreve o que o painel salvou.
 - Nada de segredo no código. Dados reais ficam em `data/` e nunca no Git.
 
-## Módulos (122)
+## Módulos (123)
 | Módulo | Linhas | Para que serve | Quem usa | Testes |
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
@@ -45,7 +45,7 @@
 | `assistant.js` | 449 | Nina: a secretária financeira do Marcos (e dos administradores liberados no Caixa). | `ana.js`, `server.js` | 1 |
 | `attendants.js` | 122 | Visão por atendente: separa as conversas e os prospectos de cada pessoa (e do | `routes/controle.js`, `server.js` | 1 |
 | `audit.js` | 125 | Trilha de auditoria: registra QUEM criou, alterou ou excluiu cada coisa | `server.js` | 1 |
-| `auth.js` | 265 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 48 |
+| `auth.js` | 265 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 49 |
 | `autocontract.js` | 90 | Contrato automático pela atendente de IA: o cliente pede o contrato na conversa. | `server.js` | 2 |
 | `autoreply.js` | 244 | Chatbot de respostas automáticas por palavra-chave. | `server.js` | 6 |
 | `backup.js` | 111 | Backup automático e criptografado dos dados do painel (clientes, conversas, vendas, configurações). | `server.js` | 1 |
@@ -63,7 +63,7 @@
 | `contract.js` | 341 | Contrato de prestação de serviços de assessoria migratória, preenchido sozinho com os dados | `server.js` | 3 |
 | `convsearch.js` | 37 | Busca por palavra nas conversas guardadas (WhatsApp e Instagram, de todos os números): ignora acentos e maiúsculas. | `server.js` | 1 |
 | `crm-ai.js` | 99 | IA a serviço do CRM: lê as conversas para preencher os prospectos e | `agent/agent.js`, `ana.js`, `assistant.js`, `maria.js`, `receipts.js`, `server.js` | 1 |
-| `crm.js` | 672 | CRM de vendas: prospectos (leads), funil, histórico, retornos agendados e números. | `attendants.js`, `server.js` | 26 |
+| `crm.js` | 672 | CRM de vendas: prospectos (leads), funil, histórico, retornos agendados e números. | `attendants.js`, `server.js` | 27 |
 | `csrf.js` | 16 | Segunda trava contra pedidos forjados por outros sites (CSRF). O cookie de sessão já é SameSite=Lax; | `server.js` | 1 |
 | `csv.js` | 16 | Planilhas (CSV para Excel brasileiro): ponto e vírgula, acentos corretos e proteção contra "fórmula" injetada no texto | `reports-csv.js` | 1 |
 | `customer360.js` | 136 | Ficha única do cliente (visão 360): tudo o que existe sobre uma pessoa em um lugar só, em ordem de data. | `server.js` | 1 |
@@ -77,6 +77,7 @@
 | `followups.js` | 203 | Retorno combinado: quando o cliente pede "mais pra frente", a atendente marca dia e hora | `server.js` | 2 |
 | `group-brief.js` | 120 | Resumo AO VIVO do Grupo Migra para a Maria (a secretária da equipe): imóveis e loteamentos, financiamento de lotes, veículos, | `server.js` | 2 |
 | `humanize.js` | 65 | Ritmo humano: quanto tempo uma pessoa levaria para ver, ler e digitar. | `agent/agent.js`, `server.js` | 1 |
+| `lead-brief.js` | 77 | Ficha do vendedor: a conversa COMPLETA que o cliente teve antes de chegar a ele (Instagram, site ou WhatsApp, em ordem de tempo) e um resumo | `server.js` | 1 |
 | `lead-repair.js` | 44 | Conversas que a atendente respondeu mas não viraram prospecto no CRM (nada gravado para o vendedor ver): cria o prospecto que faltou. | `routes/controle.js` | 1 |
 | `learnings.js` | 90 | Aprendizados de vendas: a cada venda confirmada, a IA lê a conversa e anota o que funcionou | `server.js` | 1 |
 | `legacy-extras.js` | 78 | O que mais veio da cópia do sistema antigo: modelos de contrato (Migra Paraguai, Migra Med, Migra Brasil, RUC), | `server.js` | 1 |
@@ -127,15 +128,15 @@
 | `scheduler.js` | 117 | Mensagens agendadas (única vez, diária, semanal ou mensal). | `server.js` | 1 |
 | `school.js` | 91 | Migra School: alunos de idiomas, etapa em que estão e frequência de acesso. | `server.js` | 1 |
 | `sectors.js` | 149 | Setores do Grupo Migra: cada assunto tem os seus atendentes (cadastrados no painel). | `server.js` | 2 |
-| `security.js` | 119 | Segurança do login: verificação em duas etapas (código do app autenticador, padrão TOTP/RFC 6238), | `server.js` | 27 |
+| `security.js` | 119 | Segurança do login: verificação em duas etapas (código do app autenticador, padrão TOTP/RFC 6238), | `server.js` | 28 |
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 5241 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 5242 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `site-content.js` | 90 | Conteúdo editável da página inicial do site (título, números confirmados, vídeos de depoimento e perguntas), | `server.js` | 1 |
 | `site-host.js` | 43 | Domínio próprio do site público da Migra (ex.: www.migraparaguay.com): no domínio do site só aparecem | `server.js` | 3 |
-| `store.js` | 519 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 12 |
+| `store.js` | 519 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 13 |
 | `support.js` | 135 | Suporte interno: qualquer pessoa da equipe abre um chamado (problema no sistema, dúvida, pedido), | `server.js` | 1 |
 | `tasks.js` | 65 | Tarefas da equipe: o que cada pessoa precisa fazer, com prazo e lembrete no WhatsApp (uma vez, no dia do prazo ou quando atrasar). | `server.js` | 1 |
 | `transports/cloudapi.js` | 208 | WhatsApp Cloud API (API oficial da Meta): envio via Graph API e recebimento via webhook. | `server.js` | 1 |

@@ -515,9 +515,28 @@ function fillLead(l) {
       <div><div class="tl-text">${esc(t.text)}</div><div class="tl-meta">${esc(t.by)} · ${fmtDate(t.at)}</div></div></li>`).join('')
     || '<li class="muted">O histórico aparece aqui depois de salvar.</li>';
 
+  // Ficha do vendedor: "Conheça o cliente" (só fatos registrados) e a conversa COMPLETA, dia a dia, com o canal de cada mensagem.
+  const b = l.brief;
+  $('#leadBrief').hidden = !b || !(b.facts.length || b.status.length || b.qa.length);
+  if (b && !$('#leadBrief').hidden) {
+    $('#leadBrief').innerHTML = `<b>Conheça o cliente</b>
+      ${b.status.length ? `<ul class="brief-status">${b.status.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      ${b.facts.length ? `<dl>${b.facts.map((x) => `<dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd>`).join('')}</dl>` : ''}
+      ${b.qa.length ? `<b>O que ele respondeu quando perguntamos</b><ul class="brief-qa">${b.qa.map((x) => `<li><span class="muted">${esc(x.question)}</span><br><i>"${esc(x.answer)}"</i></li>`).join('')}</ul>` : ''}
+      <p class="hint">Tudo isto vem da conversa e dos registros do sistema; nada é inventado. A conversa completa está logo abaixo, em "Conversa completa com o cliente".</p>`;
+  }
   const conv = l.conversation || [];
-  $('#leadConvWrap').hidden = !l.conversationKey;
-  $('#leadConv').innerHTML = conv.map((m) => chatBubble(m.role, m.content, m.at)).join('') || '<p class="muted">Sem mensagens.</p>';
+  $('#leadConvWrap').hidden = !l.conversationKey && !conv.length;
+  const total = l.conversationTotal || conv.length;
+  $('#leadConvTitle').textContent = `Conversa completa com o cliente (${total} mensagem${total === 1 ? '' : 's'}${b?.channels?.length ? ` · ${b.channels.join(' e ')}` : ''})`;
+  let lastDay = '';
+  $('#leadConv').innerHTML = conv.map((m) => {
+    const day = m.at ? new Date(m.at).toLocaleDateString('pt-BR') : '';
+    const sep = day && day !== lastDay ? `<div class="muted" style="text-align:center;margin:8px 0 2px">${esc(day)}</div>` : '';
+    lastDay = day || lastDay;
+    return sep + chatBubble(m.role, m.content, m.at);
+  }).join('') || '<p class="muted">Sem mensagens.</p>';
+  const box = $('#leadConv'); if (box) box.scrollTop = box.scrollHeight;
 }
 
 async function openLead(id) {

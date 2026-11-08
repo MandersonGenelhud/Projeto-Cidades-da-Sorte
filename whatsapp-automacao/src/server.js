@@ -48,6 +48,7 @@ import { byAttendant, attendantOf } from './attendants.js';
 import { registerControleRoutes } from './routes/controle.js';
 import { makeContractorSigner } from './routes/assinatura-contratada.js';
 import { makeContractPix } from './contract-pix.js';
+import { fullConversation, clientBrief } from './lead-brief.js';
 import { fichaPedido } from './ficha-text.js';
 import { slaCheck } from './distribution.js';
 import { moveOldCorretorLeads } from './maintenance.js';
@@ -3845,9 +3846,9 @@ app.get('/api/leads/:id', (req, res) => {
       throw httpError(404, t ? `Este prospecto (${t.name || t.code}) foi apagado por ${t.by || 'alguém'} em ${new Date(t.at).toLocaleDateString('pt-BR')}.` : 'Prospecto não encontrado. Procure pelo nome, @ ou código (MIG-...) na lista de Prospectos: se a conversa existir, o sistema cria o registro sozinho em até 30 minutos.');
     }
   }
-  const lead = crm.get(req.user, ref);
-  const conv = lead.conversationKey ? agent.conversation(lead.conversationKey, { create: false }) : null;
-  res.json({ ...lead, conversation: conv ? conv.messages.slice(-40) : [] });
+  const lead = crm.get(req.user, ref); // quem pode ver o prospecto (dono, administrador do escritório, administrador) já foi decidido aqui
+  const full = fullConversation(lead, (k) => agent.conversation(k, { create: false }));
+  res.json({ ...lead, conversation: full.messages, conversationTotal: full.total, brief: clientBrief({ lead, messages: full.messages, quotes: quotes.list, payments: payments.list }) });
 });
 app.patch('/api/leads/:id', (req, res) => res.json(crm.update(req.user, req.params.id, req.body)));
 app.post('/api/leads/:id/notes', (req, res) => res.json(crm.addNote(req.user, req.params.id, req.body.text)));

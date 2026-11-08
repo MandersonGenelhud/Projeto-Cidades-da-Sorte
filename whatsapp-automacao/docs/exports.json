@@ -295,6 +295,11 @@
   "splitIntoBubbles",
   "typingTimeMs"
  ],
+ "src/lead-brief.js": [
+  "clientBrief",
+  "fullConversation",
+  "questionAnswers"
+ ],
  "src/lead-repair.js": [
   "dataHealth",
   "repairMissingLeads"

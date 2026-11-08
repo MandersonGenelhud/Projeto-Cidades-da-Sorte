@@ -1624,6 +1624,7 @@
           </div>
         </div>
         <div class="form">
+          <div id="leadBrief" class="qual-box" hidden></div>
           <div id="leadQual" class="qual-box" hidden></div>
           <div id="leadClosing" class="qual-box" hidden></div>
           <div id="leadAi" class="ai-box" hidden></div>
@@ -1633,7 +1634,7 @@
           </div>
           <h3>Histórico</h3>
           <ul class="timeline" id="leadTimeline"></ul>
-          <details id="leadConvWrap" hidden><summary>Conversa no WhatsApp/Instagram</summary><div class="chat small" id="leadConv"></div>
+          <details id="leadConvWrap" hidden open><summary id="leadConvTitle">Conversa completa com o cliente</summary><div class="chat small" id="leadConv" style="height:420px"></div>
             <button type="button" class="btn small" id="btnLeadAi">IA: ler a conversa de novo</button></details>
         </div>
       </div>

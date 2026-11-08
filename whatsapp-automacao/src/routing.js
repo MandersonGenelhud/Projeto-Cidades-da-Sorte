@@ -63,7 +63,7 @@ export class LeadRouter {
       tips.sugestao ? `🏁 Sugestão para finalizar: ${tips.sugestao}` : '',
       preview ? `\n💬 Prévia da conversa:\n${preview}` : '',
       `\nO cliente vai te chamar no WhatsApp com o código *${lead.code}*.`,
-      link ? `Ficha completa e conversa: ${link}` : 'Veja a ficha completa no painel (Prospectos → buscar pelo código).',
+      link ? `🔎 Abra a ficha para ler a conversa COMPLETA, o que ele respondeu e conhecer o cliente antes de falar com ele:\n${link}` : 'Veja a ficha completa no painel (Prospectos → buscar pelo código): lá está a conversa completa.',
     ].filter(Boolean).join('\n');
   }
 
