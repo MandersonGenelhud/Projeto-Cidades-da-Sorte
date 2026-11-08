@@ -235,6 +235,13 @@ const crm = new Crm({ store, auth, notify });
 const crmAi = new CrmAi({ store, llm, crm });
 // Depois de cada resposta do agente, a IA lê a conversa e atualiza o prospecto.
 agent.onReplied = (conv, { handoff } = {}) => crmAi.afterReply(conv, { force: handoff });
+// Cliente antigo que respondeu a uma chamada automática: o banco de dados (contratos, vendas, Pix pago, cliente ganho) decide se já é cliente; a equipe é avisada.
+agent.closedClientWhy = (conv) => { const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username }); return (lead?.stage === 'ganho' && 'cliente fechado no CRM') || closedIndex().closedFor({ phone: conv.phone, key: conv.key }) || ''; };
+agent.onClosedClientReply = (conv, why) => {
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username });
+  if (lead) crm.addNote({ name: 'Sistema', role: 'admin' }, lead.id, `Respondeu a uma chamada automática nossa. Já é cliente (${why}). Enviado pedido de desculpas e a conversa foi para a equipe.`);
+  notifyAdmins(`Cliente antigo respondeu a uma chamada automática: ${conv.name || conv.phone || conv.key}. Já é cliente (${why}). O sistema pediu perdão e a conversa ficou com a equipe; confira se há dúvida sobre o processo.`).catch(() => {});
+};
 // Termômetro de venda: cada mudança de "tem condições de fechar" vira uma anotação no prospecto (a equipe vê quem está pronto).
 agent.onQualified = (conv, q) => {
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username });

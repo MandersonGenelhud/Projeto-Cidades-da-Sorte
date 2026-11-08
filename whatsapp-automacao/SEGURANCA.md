@@ -419,3 +419,12 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - O texto fala em "milhares de pessoas" (já na base) e só cita o total dos grupos se ele tiver sido contado. A IA não diz que o aplicativo é "melhor que qualquer curso" nem critica cursos pelo nome.
 - A IA não confirma pagamento: o brinde só vale com a confirmação da equipe.
 - Testes: `test/oferta-relampago.test.js`.
+
+## Cliente antigo que responde a uma chamada automática (pedido de desculpas)
+
+- **Risco**: cliente que já fechou recebe "dar continuidade ao seu atendimento", acha que é golpe e denuncia a empresa.
+- **Proteção 1 (antes)**: chamadas de iniciativa nossa não saem para quem já é cliente: banco de dados (contratos, vendas, Pix pago, cliente ganho), pagamento/contrato nas últimas 20 mensagens e **documentos já enviados para o contrato** (foto/documento depois de pedirmos RG, meio corpo, ficha ou contrato).
+- **Proteção 2 (depois)**: se mesmo assim o cliente responder a uma chamada nossa e for comprovadamente cliente (mesmos critérios, em 40 mensagens), a resposta **não é da IA de vendas**: sai um pedido de desculpas fixo ("estamos automatizando o sistema... desconsidere a mensagem, você já é um dos nossos clientes"), sem preço, orçamento ou venda; a conversa vai para a equipe (IA não responde mais), o prospecto recebe anotação e o administrador é avisado. Um pedido de desculpas por conversa.
+- **Proteção 3 (sem prova)**: se não há prova de que é cliente, a IA responde, mas recebe a ordem de ler as 20 mensagens e, se mostrarem que é cliente, pedir perdão em uma frase e transferir para a equipe.
+- **Limites honestos**: não há garantia de 100%. Cliente fechado fora do sistema e sem frases de pagamento/documentos na conversa não é reconhecido pelo código; nesse caso só a leitura das 20 mensagens pela IA protege. A resposta de quem não respondeu a nenhuma chamada nossa não dispara o pedido de desculpas.
+- Testes: `test/cliente-antigo.test.js`.

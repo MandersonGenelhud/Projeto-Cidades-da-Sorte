@@ -466,6 +466,12 @@
   "openingConfig",
   "wantsOpening"
  ],
+ "src/outreach-apology.js": [
+  "READ_BEFORE_CONTINUING",
+  "answeredOurOutreach",
+  "apologyText",
+  "detectDocsSent"
+ ],
  "src/outreach-guard.js": [
   "DECLINE_LABEL",
   "buildClosedIndex",

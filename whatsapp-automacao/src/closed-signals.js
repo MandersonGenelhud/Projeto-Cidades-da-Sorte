@@ -2,6 +2,7 @@
 // O banco de dados já diz quem tem contrato, venda ou Pix pago; mas muita venda foi fechada pelo celular, sem lançamento. Nesses casos a conversa
 // tem frases como "pagamento confirmado", "recebemos o comprovante", "bem-vindo à Migra", "vamos dar continuidade ao seu processo".
 // Quem tem esses sinais NUNCA recebe chamada de iniciativa nossa: seria conflito de interesse e o cliente acharia que é golpe.
+import { detectDocsSent } from './outreach-apology.js';
 const fold = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 // Frases fortes: sozinhas já indicam venda fechada.
@@ -34,5 +35,5 @@ export function detectClosedByMessages(conv, { last = 20 } = {}) {
     for (const r of FORTES) if (r.test(t)) return 'a conversa mostra pagamento ou contrato fechado';
     FRACAS.forEach((r, i) => { if (r.test(t)) weak.add(i); });
   }
-  return weak.size >= 2 ? 'a conversa mostra que o atendimento já avançou (documentos/comprovante)' : '';
+  return weak.size >= 2 ? 'a conversa mostra que o atendimento já avançou (documentos/comprovante)' : detectDocsSent(conv);
 }

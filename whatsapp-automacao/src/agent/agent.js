@@ -9,6 +9,8 @@ import { sleep } from '../utils.js';
 import { declineNote, detectDecline, isAck } from '../outreach-guard.js';
 import { applyQualification, qualBlock, READ_ANSWERS } from '../qualificacao.js';
 import { SALES_PLAYBOOK } from './vendas-playbook.js';
+import { answeredOurOutreach, detectDocsSent, apologyText, READ_BEFORE_CONTINUING } from '../outreach-apology.js';
+import { detectClosedByMessages } from '../closed-signals.js';
 
 const MAX_STORED_MESSAGES = 200;
 const MAX_TOOL_ROUNDS = 6;
@@ -599,6 +601,25 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
           conv.handoffReason = '';
           this.store.addLog({ type: 'system', phone: conv.phone || key, message: `▶️ A IA retomou ${conv.name || conv.phone || key}: você não falou com ele há mais de ${hours} h` });
         }
+      }
+      // Cliente que JÁ FECHOU respondeu a uma chamada automática nossa: pedido de desculpas fixo (nunca a IA de vendas) e a conversa vai para a equipe.
+      if (texts.length && !conv.handoff && !conv.declined && !conv.clientApologyAt && answeredOurOutreach(conv)) {
+        let why = '';
+        try { why = this.closedClientWhy?.(conv) || detectClosedByMessages(conv, { last: 40 }) || detectDocsSent(conv) || ''; } catch { why = ''; }
+        if (why) {
+          const text = apologyText(conv.name);
+          await send(text, human ? { typingMs: Math.max(1500, typingTimeMs(text, h)) } : {});
+          this.remember(conv, 'assistant', text);
+          conv.clientApologyAt = Date.now();
+          conv.handoff = true;
+          conv.handoffReason = `Cliente da Migra respondeu a uma chamada automática por engano (${why}): a equipe atende`;
+          this.store.addLog({ type: 'system', phone: conv.phone || key, message: `Pedido de desculpas enviado a ${conv.name || conv.phone || key}: já é cliente (${why}). A equipe assume a conversa.` });
+          this.store.save();
+          this.notify('conversation', { key, handoff: true });
+          try { this.onClosedClientReply?.(conv, why); } catch { /* o aviso nunca derruba o atendimento */ }
+          continue;
+        }
+        resumeNote = `${resumeNote}\n${READ_BEFORE_CONTINUING}`.trim();
       }
       if (conv.handoff) continue; // um humano está atendendo
 
