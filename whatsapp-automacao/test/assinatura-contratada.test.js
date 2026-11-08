@@ -88,3 +88,75 @@ test('contrato: cláusula DOS DEPENDENTES lista quem são (ou diz que não há) 
   const vazio = contractPdf({ client: base, quote });
   assert.match(txt(vazio), /n.o h. dependentes inclu.dos/);
 });
+
+test('contrato com dois responsáveis: as duas assinaturas, nomes e registros aparecem; com um só, só ele', () => {
+  const c1 = { image: JPEG, name: 'Eliezer Teste Silva', role: 'Responsável do escritório Migra', authorizedAt: '2026-11-07T12:00:00Z' };
+  const c2 = { image: JPEG, name: 'Marcos Teste Souza', role: 'Diretor', authorizedAt: '2026-11-08T12:00:00Z' };
+  const txt = (b) => b.toString('latin1');
+  const um = contractPdf({ client: { nome: 'Ana Souza', cpf: '529.982.247-25' }, quote, contractors: [c1] });
+  const dois = contractPdf({ client: { nome: 'Ana Souza', cpf: '529.982.247-25' }, quote, contractors: [c1, c2] });
+  assert.match(txt(um), /Eliezer Teste Silva/);
+  assert.doesNotMatch(txt(um), /Marcos Teste Souza/);
+  assert.match(txt(dois), /Eliezer Teste Silva/);
+  assert.match(txt(dois), /Marcos Teste Souza/);
+  assert.ok(dois.length > um.length + JPEG.length / 2, 'a 2ª imagem entrou no PDF');
+  const velho = contractPdf({ client: { nome: 'Ana Souza', cpf: '529.982.247-25' }, quote, contractor: c1 });
+  assert.match(txt(velho), /Eliezer Teste Silva/, 'o parâmetro antigo (um só) continua valendo');
+});
+
+test('dois responsáveis pelo painel: só administrador; cada um tem a sua imagem, autorização e liga/desliga; ao cadastrar, os contratos não assinados são refeitos e os assinados não mudam', async (t) => {
+  const { Store } = await import('../src/store.js');
+  const { Quotes } = await import('../src/quotes.js');
+  const { presetSettings } = await import('../src/agent/presets.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-sign2-'));
+  const store = new Store(dir);
+  store.updateSettings(presetSettings('migra-paraguai'));
+  const quotes = new Quotes({ store, dataDir: dir, secret: 's', matchPackage: () => ({ name: 'Pacote Ouro', price: 12997 }) });
+  const mk = (n) => quotes.create({ items: [{ pacote: 'Ouro', quantidade: 1 }], adults: 1, client: n, start: '2026-10-29' });
+  const aberto = mk('Aberto'); const assinado = mk('Assinado');
+  fs.mkdirSync(path.join(dir, 'contratos'), { recursive: true });
+  const cf = (q) => path.join(dir, 'contratos', `CT-${q.number.replace(/^ORC-/, '')}.pdf`);
+  const cl = (nome) => ({ nome, nacionalidade: 'Brasileira', estadoCivil: 'Solteiro(a)', cpf: '529.982.247-25', rg: '1', rua: 'A', numero: '1', cidade: 'C', uf: 'PR' });
+  for (const [q, nome, st] of [[aberto, 'Aberto', 'enviado'], [assinado, 'Assinado', 'assinado']]) { fs.writeFileSync(cf(q), Buffer.from(`%PDF-VELHO-${st}`)); q.contract = { client: cl(nome), at: '2026-10-30T10:00:00Z', status: st }; }
+  store.data.termsPdf2026 = true; // só interessa a atualização feita pela assinatura
+  store.flush();
+
+  const port = 39950 + Math.floor(Math.random() * 40);
+  const base = `http://127.0.0.1:${port}`;
+  const proc = spawn(process.execPath, ['src/server.js'], { cwd: ROOT, env: { ...process.env, DATA_DIR: dir, PORT: String(port), TUNNEL: 'off', OPEN_BROWSER: '' }, stdio: 'ignore' });
+  t.after(() => proc.kill());
+  for (let i = 0; i < 60; i++) { try { await fetch(`${base}/api/auth/state`); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
+  const login = async (user, first) => {
+    const body = JSON.stringify({ name: user, login: user, password: 'segredo123', whatsapp: '595987101567' });
+    const r = first ? await fetch(`${base}/api/auth/setup`, { method: 'POST', headers: J, body }) : await fetch(`${base}/api/auth/login`, { method: 'POST', headers: J, body });
+    let cookie = ck(r);
+    const call = (u, m = 'GET', b) => fetch(base + u, { method: m, headers: { cookie, ...J }, body: b ? JSON.stringify(b) : undefined });
+    const sec = await (await call('/api/security/2fa/setup')).json();
+    cookie = ck(await call('/api/security/2fa/enable', 'POST', { code: totpCode(sec.secret) })) || cookie;
+    return call;
+  };
+  const marcos = await login('marcos', true);
+  await marcos('/api/users', 'POST', { name: 'Ana', login: 'ana', password: 'segredo123', role: 'seller' });
+  const ana = await login('ana');
+  const image = `data:image/jpeg;base64,${JPEG.toString('base64')}`;
+  for (const [m, u, b] of [['GET', '/api/contract-signers'], ['GET', '/api/contract-signer/2'], ['PUT', '/api/contract-signer/2', { name: 'Marcos Teste Souza', image, authorize: true }], ['DELETE', '/api/contract-signer/2'], ['GET', '/api/contract-signer/2/image']]) assert.equal((await ana(u, m, b)).status, 403, `${m} ${u}`);
+  const todos = await (await marcos('/api/contract-signers')).json();
+  assert.deepEqual(todos.map((x) => [x.slot, x.active]), [[1, false], [2, false]]);
+  assert.equal((await marcos('/api/contract-signer', 'PUT', { name: 'Eliezer Teste Silva', role: 'Responsável do escritório Migra', image })).status, 400, 'sem a autorização da pessoa');
+  assert.equal((await marcos('/api/contract-signer', 'PUT', { name: 'Eliezer Teste Silva', role: 'Responsável do escritório Migra', image, authorize: true })).status, 200);
+  const novo = fs.readFileSync(cf(aberto));
+  assert.equal(novo.subarray(0, 8).toString(), '%PDF-1.4', 'o contrato não assinado foi refeito');
+  assert.match(novo.toString('latin1'), /Eliezer Teste Silva/);
+  assert.equal(fs.readFileSync(cf(assinado)).toString(), '%PDF-VELHO-assinado', 'o contrato já assinado pelo cliente não muda');
+  const depois = await (await marcos('/api/contract-signers')).json();
+  assert.deepEqual(depois.map((x) => x.active), [true, false], 'o 2º ainda não foi cadastrado');
+  assert.equal(fs.existsSync(path.join(dir, 'contract-signer-2.jpg')), false);
+  // O 2º (Marcos) entra depois, sem mexer no 1º.
+  assert.equal((await marcos('/api/contract-signer/2', 'PUT', { name: 'Marcos Teste Souza', role: 'Diretor', image, authorize: true })).status, 200);
+  assert.match(fs.readFileSync(cf(aberto)).toString('latin1'), /Marcos Teste Souza/);
+  assert.equal((await (await marcos('/api/contract-signers')).json()).every((x) => x.active), true);
+  assert.equal((await marcos('/api/contract-signer/2', 'DELETE')).status, 200);
+  assert.doesNotMatch(fs.readFileSync(cf(aberto)).toString('latin1'), /Marcos Teste Souza/, 'removido: sai do contrato');
+  assert.match(fs.readFileSync(cf(aberto)).toString('latin1'), /Eliezer Teste Silva/);
+  assert.equal((await (await marcos('/api/contract-signer')).json()).active, true, 'o 1º continua');
+});

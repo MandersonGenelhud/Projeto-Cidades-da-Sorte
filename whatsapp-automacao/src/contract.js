@@ -90,7 +90,10 @@ export function fullAddress(d = {}) {
  * contractor (opcional): assinatura da CONTRATADA, só quando a pessoa cadastrou e autorizou a própria assinatura
  * { image: JPEG, name, role, authorizedAt }. Nunca é desenhada nem imitada pelo sistema.
  */
-export function contractPdf({ client = {}, quote, cfg = {}, issued, sign = null, contractor = null }) {
+export function contractPdf({ client = {}, quote, cfg = {}, issued, sign = null, contractor = null, contractors = null }) {
+  // Um ou dois responsáveis pela empresa, cada um com a própria assinatura autorizada.
+  const signers = (contractors || (contractor ? [contractor] : [])).filter((x) => x?.image).slice(0, 2);
+  contractor = signers[0] || contractor;
   const K = { ...CONTRACT_DEFAULTS, ...Object.fromEntries(Object.entries(cfg).filter(([, v]) => v)) };
   const p = quote.plan;
   const date = issued || new Date().toISOString().slice(0, 10);
@@ -261,22 +264,23 @@ export function contractPdf({ client = {}, quote, cfg = {}, issued, sign = null,
   para(`${K.city}, ${longDate(date)}.`, { bold: true, gap: 14 });
 
   // Assinaturas (sem nomes de pessoas pela contratada)
-  need(sign || contractor?.image ? 220 : 170);
+  need(sign || signers.length ? 220 : 170);
   y += 26;
   const sw = (maxW - 40) / 2;
   const sx = M + sw + 40;
-  if (sign?.image || contractor?.image) y += 48; // espaço para as assinaturas, sem cobrir a data
+  if (sign?.image || signers.length) y += 48; // espaço para as assinaturas, sem cobrir a data
   let sigExtra = 0;
   if (sign?.image) {
     // A assinatura feita com o dedo, em cima da linha do contratante.
     const h = c.image(sign.image, M + 6, y - 58, Math.min(170, sw));
     if (h > 58) sigExtra = Math.max(sigExtra, h - 58);
   }
-  if (contractor?.image) {
-    // A assinatura da contratada (cadastrada e autorizada pelo próprio responsável), em cima da linha da contratada.
-    const h = c.image(contractor.image, sx + 6, y - 58, Math.min(150, sw));
+  signers.forEach((who, i) => {
+    // A assinatura da contratada (cadastrada e autorizada pelo próprio responsável), em cima da linha da contratada; com dois responsáveis, lado a lado.
+    const slot = sw / signers.length;
+    const h = c.image(who.image, sx + 6 + i * slot, y - 58, Math.min(150, slot - 8));
     if (h > 58) sigExtra = Math.max(sigExtra, h - 58);
-  }
+  });
   y += sigExtra;
   c.line(M, y, M + sw, y, { color: '#8a948f', width: 0.8 });
   c.line(sx, y, sx + sw, y, { color: '#8a948f', width: 0.8 });
@@ -285,18 +289,19 @@ export function contractPdf({ client = {}, quote, cfg = {}, issued, sign = null,
   c.text('CONTRATANTE', M, y + 30, { size: 7.5, bold: true, color: C.green });
   c.text(K.company, sx, y + 6, { size: 8.5, bold: true, color: C.ink });
   c.text(`RUC: ${K.ruc}`, sx, y + 18, { size: 8, color: C.gray });
-  c.text(`Responsável: ${contractor?.name || K.signer}${contractor?.role ? ` · ${contractor.role}` : ''}`, sx, y + 30, { size: 8, color: C.gray });
-  c.text('CONTRATADA', sx, y + 42, { size: 7.5, bold: true, color: C.green });
-  y += 92;
+  const people = signers.length ? signers : [null];
+  people.forEach((who, i) => c.text(`Responsável: ${who?.name || K.signer}${who?.role ? ` · ${who.role}` : ''}`.slice(0, 62), sx, y + 30 + i * 11, { size: 8, color: C.gray }));
+  c.text('CONTRATADA', sx, y + 42 + (people.length - 1) * 11, { size: 7.5, bold: true, color: C.green });
+  y += 92 + (people.length - 1) * 11;
   c.line(M, y, M + sw, y, { color: '#8a948f', width: 0.8 });
   c.line(sx, y, sx + sw, y, { color: '#8a948f', width: 0.8 });
   c.text('Testemunha 1 – Nome / CPF', M, y + 6, { size: 8, color: C.gray });
   c.text('Testemunha 2 – Nome / CPF', sx, y + 6, { size: 8, color: C.gray });
   y += 30;
-  if (contractor?.image) {
+  for (const who of signers) {
     need(26);
-    const when = contractor.authorizedAt ? new Date(contractor.authorizedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Asuncion' }) : '';
-    for (const line of c.lines(`Assinatura da CONTRATADA aplicada eletronicamente por ${contractor.name}${when ? `, que autorizou o uso da própria assinatura nos contratos da empresa em ${when}` : ''}.`, maxW, { size: 7.5 })) {
+    const when = who.authorizedAt ? new Date(who.authorizedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Asuncion' }) : '';
+    for (const line of c.lines(`Assinatura da CONTRATADA aplicada eletronicamente por ${who.name}${when ? `, que autorizou o uso da própria assinatura nos contratos da empresa em ${when}` : ''}.`, maxW, { size: 7.5 })) {
       c.text(line, M, y, { size: 7.5, color: C.gray });
       y += 11;
     }

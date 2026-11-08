@@ -4104,25 +4104,27 @@ app.post('/api/contract/extract', async (req, res) => {
   res.json({ client: pickClient(found), ai: llm.configured });
 });
 // Assinatura da empresa (CONTRATADA) nos contratos: src/routes/assinatura-contratada.js
-const contractorSigner = makeContractorSigner({ store, dataDir: DATA_DIR, needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), notifyAdmins: (t) => notifyAdmins(t) });
-const contractorSign = () => contractorSigner.contractorSign();
+const contractorSigner = makeContractorSigner({ store, dataDir: DATA_DIR, needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), notifyAdmins: (t) => notifyAdmins(t), onChange: () => { const d = refreshUnsignedContracts(); store.addLog({ type: 'system', message: `Assinatura da empresa atualizada: ${d.contracts} contrato(s) ainda não assinados pelo cliente foram refeitos; ${d.signedKept} já assinados ficaram como estavam.` }); } });
 contractorSigner.register(app);
-// Regra nova de vencimento das parcelas (valores iguais): refaz, uma vez, os PDFs de orçamento e os contratos que AINDA NÃO foram assinados.
-// Contrato assinado nunca é alterado (é o que o cliente leu e assinou).
-if (!store.data.termsPdf2026) {
+// Refaz os PDFs dos contratos que AINDA NÃO foram assinados pelo cliente (e, se pedido, os de orçamento): assim o texto novo e a assinatura da empresa
+// aparecem em todo contrato emitido. Contrato assinado pelo cliente nunca é alterado (é o que ele leu e assinou).
+function refreshUnsignedContracts({ withQuotes = false } = {}) {
   const done = { quotes: 0, contracts: 0, signedKept: 0, failed: 0 };
   for (const q of quotes.list) {
     try {
-      fs.mkdirSync(quotes.dir, { recursive: true });
-      fs.writeFileSync(quotes.file(q), quotes.pdf(q));
-      done.quotes += 1;
+      if (withQuotes) { fs.mkdirSync(quotes.dir, { recursive: true }); fs.writeFileSync(quotes.file(q), quotes.pdf(q)); done.quotes += 1; }
       if (q.contract?.status === 'assinado') { done.signedKept += 1; continue; }
       if (q.contract?.client?.nome && fs.existsSync(contractFile(q))) {
-        fs.writeFileSync(contractFile(q), contractPdf({ client: q.contract.client, quote: q, cfg: store.settings.contract || {}, issued: String(q.contract.at || '').slice(0, 10) || undefined, contractor: contractorSign() }));
+        fs.writeFileSync(contractFile(q), contractPdf({ client: q.contract.client, quote: q, cfg: store.settings.contract || {}, issued: String(q.contract.at || '').slice(0, 10) || undefined, contractors: contractorSigner.contractorSigns() }));
         done.contracts += 1;
       }
     } catch { done.failed += 1; }
   }
+  return done;
+}
+// Regra nova de vencimento das parcelas (valores iguais): refaz, uma vez, os PDFs de orçamento e os contratos não assinados.
+if (!store.data.termsPdf2026) {
+  const done = refreshUnsignedContracts({ withQuotes: true });
   store.data.termsPdf2026 = true;
   store.save();
   store.addLog({ type: 'system', message: `Nova regra de vencimento das parcelas aplicada: ${done.quotes} orçamento(s) e ${done.contracts} contrato(s) não assinados refeitos; ${done.signedKept} contrato(s) já assinados mantidos como estavam${done.failed ? `; ${done.failed} falharam` : ''}.` });
@@ -4134,7 +4136,7 @@ app.post('/api/quotes/:id/contract', (req, res) => {
   if (!client.nome) throw httpError(400, 'Informe o nome completo do contratante');
   if (q.contract?.status === 'assinado') throw httpError(400, 'Este contrato já foi assinado pelo cliente e não pode ser alterado. Para mudar algo, faça um novo orçamento.');
   fs.mkdirSync(contractDir, { recursive: true });
-  fs.writeFileSync(contractFile(q), contractPdf({ client, quote: q, cfg: store.settings.contract || {}, contractor: contractorSign() }));
+  fs.writeFileSync(contractFile(q), contractPdf({ client, quote: q, cfg: store.settings.contract || {}, contractors: contractorSigner.contractorSigns() }));
   q.contract = { ...(q.contract || {}), client, at: new Date().toISOString(), by: req.user.name, status: q.contract?.status || 'gerado' };
   store.save();
   if (q.leadId) crm.addNote(req.user, q.leadId, `📝 Contrato CT-${q.number.replace(/^ORC-/, '')} gerado`);
@@ -4157,7 +4159,7 @@ function prepareContractSign(q, client, user) {
   if (!publicBase()) throw httpError(400, 'O sistema ainda não tem endereço na internet (aba Conexões → criar endereço, ou a VPS).');
   if (client) {
     fs.mkdirSync(contractDir, { recursive: true });
-    fs.writeFileSync(contractFile(q), contractPdf({ client, quote: q, cfg: store.settings.contract || {}, contractor: contractorSign() }));
+    fs.writeFileSync(contractFile(q), contractPdf({ client, quote: q, cfg: store.settings.contract || {}, contractors: contractorSigner.contractorSigns() }));
     q.contract = { ...(q.contract || {}), client, at: new Date().toISOString(), by: user?.name || 'Sistema', status: 'enviado', signedAt: null };
     store.save();
   }
@@ -4258,7 +4260,7 @@ app.post('/api/public/contrato/:id/assinar', async (req, res) => {
   const meta = clientMeta(req);
   const hash = crypto.createHash('sha256').update(JSON.stringify({ n: q.number, c: c.client, t: q.plan.total, p: q.plan.parcels, at: signedAt })).update(sig).digest('hex');
   const sign = { image: sig, signedAt, ip: meta.ip || '', ua: String(meta.ua || '').slice(0, 300), hash, imageConsent: b.imagem };
-  fs.writeFileSync(signedFile(q), contractPdf({ client: c.client, quote: q, cfg: store.settings.contract || {}, issued: c.at?.slice(0, 10), sign, contractor: contractorSign() }));
+  fs.writeFileSync(signedFile(q), contractPdf({ client: c.client, quote: q, cfg: store.settings.contract || {}, issued: c.at?.slice(0, 10), sign, contractors: contractorSigner.contractorSigns() }));
   fs.writeFileSync(path.join(contractDir, `assinatura-${q.id}.jpg`), sig);
   Object.assign(c, { status: 'assinado', signedAt, ip: sign.ip, ua: sign.ua, hash, imageConsent: b.imagem });
   store.save();
