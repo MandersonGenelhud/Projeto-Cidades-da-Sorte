@@ -31,9 +31,19 @@ app.get('/api/health/data', (req, res) => {
 });
 app.post('/api/leads-repair', (req, res) => {
   needAdmin(req);
-  const r = repairLeads({ days: Math.min(30, Math.max(1, Number(req.body?.days) || 3)), dryRun: req.body?.dryRun === true });
+  const r = repairLeads({ days: Math.min(365, Math.max(1, Number(req.body?.days) || 3)), limit: Math.min(2000, Math.max(1, Number(req.body?.limit) || 200)), dryRun: req.body?.dryRun === true });
   if (!req.body?.dryRun) securityEvent('reparar_prospectos', req.user, req, `${r.created} prospecto(s) criados para conversas sem registro, ${r.linked} ligados`);
   res.json(r);
+});
+// Busca em tudo o que a empresa sabe de cada pessoa (nome, CPF, telefone, número de contrato). Só administrador; devolve também a cobertura do índice.
+app.get('/api/directory', (req, res) => {
+  needAdmin(req);
+  const dir = ctx.directory.build(req.user);
+  const q = String(req.query.q || '').trim();
+  res.json({
+    coverage: { people: dir.count, records: dir.records, bySource: dir.bySource },
+    results: q ? ctx.directory.search(req.user, q, { limit: 10 }).map((r) => ({ score: r.score, why: r.why, name: r.person.name, cpfs: r.person.cpfs, phones: r.person.phones, emails: r.person.emails, instagram: r.person.instagram, sources: r.person.sources, items: r.person.items.slice(0, 30) })) : [],
+  });
 });
 // Telefones sem o +55: ver quantos cadastros seriam corrigidos (GET) e corrigir (POST). Cada mudança fica registrada (antes e depois).
 app.get('/api/phones-fix', (req, res) => { needAdmin(req); res.json(fixPhones(store, { dryRun: true })); });

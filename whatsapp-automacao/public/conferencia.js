@@ -11,7 +11,10 @@
   box.id = 'cfPanel';
   box.innerHTML = `<h2>Conferência dos contratos e do dinheiro</h2>
     <p class="hint">Confere se os contratos, as parcelas e os totais fecham: acha contratos repetidos (provavelmente da cópia do sistema antigo), valores que não batem e diferenças com a última cópia do sistema antigo. Nada é apagado nem enviado: você decide o que arquivar. Para comparar com o sistema antigo de novo, rode a cópia dos contratos (ferramenta em Contratos antigos) e depois clique em Conferir.</p>
-    <div class="row"><button class="btn primary" id="cfGo" type="button">Conferir agora</button></div><div id="cfOut"></div>`;
+    <div class="row"><button class="btn primary" id="cfGo" type="button">Conferir agora</button></div><div id="cfOut"></div>
+    <h3>Conversas antigas sem registro de cliente</h3>
+    <p class="hint">A Maria e a busca já leem todo o histórico que está no sistema. Este botão cria o registro de cliente (prospecto) das conversas dos últimos 12 meses que a atendente respondeu e ficaram sem cadastro, para nenhum cliente que conversou ficar de fora. Nada é apagado nem enviado ao cliente.</p>
+    <div class="row"><button class="btn" id="cfOld" type="button">Ver quantas são</button> <button class="btn primary" id="cfOldGo" type="button">Criar os registros que faltam</button></div><div id="cfOldOut" class="muted"></div>`;
   const place = () => { if (!sec.querySelector('#cfPanel')) { const head = sec.querySelector('.page-head'); if (head) head.insertAdjacentElement('afterend', box); else sec.prepend(box); } };
   new MutationObserver(place).observe(sec, { childList: true });
   place();
@@ -35,6 +38,12 @@
   box.addEventListener('click', async (e) => {
     try {
       if (e.target.id === 'cfGo') await run();
+      if (e.target.id === 'cfOld' || e.target.id === 'cfOldGo') {
+        const dry = e.target.id === 'cfOld';
+        if (!dry && !confirm('Criar o registro de cliente de todas as conversas antigas que ficaram sem cadastro? Nada é enviado aos clientes.')) return;
+        const r = await api('/api/leads-repair', { method: 'POST', body: { days: 365, limit: 2000, dryRun: dry } });
+        $('#cfOldOut').textContent = dry ? `${r.missing} conversa(s) antiga(s) sem registro de cliente (de ${r.checked} conversas respondidas pela atendente).` : `${r.created} registro(s) criados${r.linked ? `, ${r.linked} ligados a conversas` : ''}.`;
+      }
       if (e.target.id === 'cfArchive') {
         const ids = [...box.querySelectorAll('input[data-id]:checked')].map((i) => i.dataset.id);
         if (!ids.length) { toast('Marque os contratos repetidos que quer arquivar', true); return; }

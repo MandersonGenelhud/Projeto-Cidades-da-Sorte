@@ -241,6 +241,13 @@
   "collectHandoffs",
   "digestMessage"
  ],
+ "src/directory.js": [
+  "buildDirectory",
+  "describePerson",
+  "fmtCpf",
+  "fmtFone",
+  "searchDirectory"
+ ],
  "src/distribution.js": [
   "VIA_LABEL",
   "assignments",

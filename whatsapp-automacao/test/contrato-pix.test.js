@@ -148,3 +148,16 @@ test('diagnóstico por número: mostra quantas conversas cada WhatsApp (principa
   assert.equal(h.byNumber.instagram.last24h, 0);
   assert.ok(h.byNumber.instagram.newestClientMessageAt);
 });
+
+test('reparo histórico: conversas de até 12 meses atrás também ganham registro, respeitando o limite pedido', () => {
+  const { store, crm } = crmSetup();
+  for (let i = 1; i <= 5; i++) {
+    const key = `55459000000${i}0@s.whatsapp.net`;
+    store.data.conversations[key] = { key, phone: `55459000000${i}0`, name: `Cliente ${i}`, messages: [msg('user', 'oi'), msg('assistant', 'olá')], updatedAt: new Date(Date.now() - 200 * 86_400_000).toISOString() };
+  }
+  assert.equal(repairMissingLeads({ store, crm, dryRun: true, days: 30 }).missing, 0, 'padrão de 30 dias não pega as antigas');
+  assert.equal(repairMissingLeads({ store, crm, dryRun: true, days: 365 }).missing, 5);
+  assert.equal(repairMissingLeads({ store, crm, days: 365, limit: 3 }).created, 3, 'respeita o limite');
+  assert.equal(repairMissingLeads({ store, crm, days: 365, limit: 3 }).created, 2, 'a segunda rodada termina o resto');
+  assert.equal(crm.leads.length, 5);
+});

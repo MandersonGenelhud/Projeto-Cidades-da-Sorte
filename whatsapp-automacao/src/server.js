@@ -49,6 +49,7 @@ import { registerControleRoutes } from './routes/controle.js';
 import { makeContractorSigner } from './routes/assinatura-contratada.js';
 import { makeContractPix } from './contract-pix.js';
 import { fullConversation, clientBrief } from './lead-brief.js';
+import { buildDirectory, searchDirectory } from './directory.js';
 import { fichaPedido } from './ficha-text.js';
 import { slaCheck } from './distribution.js';
 import { moveOldCorretorLeads } from './maintenance.js';
@@ -2739,6 +2740,7 @@ const { restartAll, convOfLead, noticeQuotes, repairLeads } = registerControleRo
   needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), inOffice: (...x) => inOffice(...x), securityEvent: (...x) => securityEvent(...x),
   conversationOffice: (...x) => conversationOffice(...x), convLabel: (...x) => convLabel(...x), lineOwnerOf: (...x) => lineOwnerOf(...x),
   store, auth, crm, agent, pending, lines, wa, sales, quotes, legacy,
+  directory: { build: (v) => directory.build(v), search: (...a) => directory.search(...a) },
 });
 // Busca por palavra em todas as conversas (só administrador; respeita o escritório escolhido no alto da tela).
 app.get('/api/search/conversations', (req, res) => {
@@ -4616,13 +4618,42 @@ const ana = new Ana({
   audit: (text) => securityEvent('ana_whatsapp', { name: 'Ana' }, null, text),
   log: (l) => store.addLog(l),
 });
+// Índice de tudo o que a empresa sabe de cada pessoa (src/directory.js), lendo TODO o histórico, já filtrado pelo que quem pergunta pode ver:
+// administrador vê tudo; vendedor vê só os próprios clientes (prospectos, vendas, orçamentos, fichas, Pix e conversas ligados a ele).
+const directorySourcesFor = (viewer) => {
+  const admin = viewer?.role === 'admin';
+  const leads = crm.leads.filter((l) => admin || crm.canSee(viewer, l));
+  const leadKeys = new Set(leads.flatMap((l) => [l.conversationKey, l.whatsappKey].filter(Boolean)));
+  const leadIds = new Set(leads.map((l) => l.id));
+  const docOfSale = (sale) => quotes.list.find((q) => q.id === sale.quoteId)?.contract?.client?.cpf || closing.list.find((f) => f.leadId && f.leadId === sale.leadId && f.status === 'preenchida')?.data?.cpf || sale.client?.doc || '';
+  return {
+    sales: sales.list.filter((s) => admin || sales.canSee(viewer, s)),
+    quotes: quotes.list.filter((q) => canSeeQuote(viewer, q)),
+    leads: leads.map((l) => ({ ...l, ownerName: crm.ownerName(l.ownerId) })),
+    conversations: Object.values(store.data.conversations || {}).filter((c) => c && !c.simulation && !String(c.key).includes('@g.us') && (admin || leadKeys.has(c.key))),
+    closing: closing.list.filter((f) => admin || (f.leadId && leadIds.has(f.leadId))),
+    payments: payments.list.filter((p) => admin || (p.leadId && leadIds.has(p.leadId))),
+    legacyContracts: admin ? legacy.list : [], legacyClients: admin ? legacy.clients : [], documents: admin ? documents.all : [],
+    docOf: docOfSale,
+  };
+};
+const directory = { build: (viewer) => buildDirectory(directorySourcesFor(viewer)), search: (viewer, q, opts) => searchDirectory(buildDirectory(directorySourcesFor(viewer)), q, opts) };
 const maria = new Maria({
-  ana, portfolio, crm, restartAll, receiptReader: { read: (b, m) => receipts.read(b, m), receiverOk: (r) => receipts.receiverOk(r), get maxAuto() { return receipts.maxAuto; } }, payments, saleDoc: (sale) => quotes.list.find((q) => q.id === sale.quoteId)?.contract?.client?.cpf || closing.list.find((f) => f.leadId && f.leadId === sale.leadId && f.status === 'preenchida')?.data?.cpf || '', store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
+  directory, ana, portfolio, crm, restartAll, receiptReader: { read: (b, m) => receipts.read(b, m), receiverOk: (r) => receipts.receiverOk(r), get maxAuto() { return receipts.maxAuto; } }, payments, saleDoc: (sale) => quotes.list.find((q) => q.id === sale.quoteId)?.contract?.client?.cpf || closing.list.find((f) => f.leadId && f.leadId === sale.leadId && f.status === 'preenchida')?.data?.cpf || '', store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
   lineIdByName: (name) => lines.list().find((l) => String(l.agentName || '').trim().toLowerCase() === String(name).trim().toLowerCase())?.id || '',
   isConnected: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected'),
   stt: nina.stt, tts: nina.tts,
   send: (jid, payload) => wa.send(jid, payload),
   downloadAudio: (m) => wa.downloadAudio(m),
+  // Contrato que existe só como contrato do orçamento (ainda sem venda lançada): a Maria acha pelo número do orçamento.
+  quoteContractFile: (quoteId) => {
+    const q = quotes.list.find((x) => x.id === quoteId);
+    if (!q || !q.contract) return null;
+    const signed = q.contract?.status === 'assinado' && fs.existsSync(signedFile(q));
+    const file = signed ? signedFile(q) : contractFile(q);
+    if (!fs.existsSync(file)) return null;
+    return { buffer: fs.readFileSync(file), name: `Contrato ${q.number.replace(/^ORC-/, 'CT-')}${signed ? ' assinado' : ''}.pdf`, signed };
+  },
   contractFile: (sale) => {
     const q = sale && quotes.list.find((x) => x.id === sale.quoteId);
     if (!q) return null;

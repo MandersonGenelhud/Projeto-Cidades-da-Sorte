@@ -20,6 +20,7 @@ import { speakable, MARIA_VOICE_STYLE } from './voice.js';
 import { accessExpired } from './auth.js';
 import { fichaMensagens } from './ficha-text.js';
 import * as bx from './maria-baixa.js';
+import { describePerson } from './directory.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -180,7 +181,9 @@ export function quickIntent(text) {
     const m = n.match(/\b(?:cliente|prospecto|lead|com|do|da|pro|pra|para)\s+(?:(?:o|a)\s+)?(?:(?:cliente|prospecto|lead)\s+)?([a-z][a-z .-]{2,})$/);
     return { acao: 'coach_cliente', termo: m ? m[1].replace(/\b(por favor|agora|hoje|ai)\b/g, '').replace(/\s+/g, ' ').trim().slice(0, 60) : '' };
   }
-  const termoContrato = bareName(stripPeriod(termOf(/(?:contrato|contratos|via)\s+(?:d[aeo]s?\b|do cliente|da cliente)?\s*([a-z0-9][a-z0-9 .@-]{2,})$/)));
+  // Número de contrato dito por inteiro (CT-2026-09767, ORC-..., ANT-1500): vale como está (o ano dentro do número não é período).
+  const numContrato = n.match(/\b((?:ct|orc|ant)[- ]?\d{2,4}[- ]\d{2,6}|(?:ct|orc|ant)[- ]?\d{3,6})\b/)?.[1]?.replace(/\s+/g, '-');
+  const termoContrato = numContrato || bareName(stripPeriod(termOf(/(?:contrato|contratos|via)\s+(?:d[aeo]s?\b|do cliente|da cliente)?\s*([a-z0-9][a-z0-9 .@-]{2,})$/)));
   const pediuEnvio = /\b(manda|mande|envia|envie|segunda via|2a via|2 via|pdf|me passa)\b/.test(n);
   if (/\b(contratos?|fechamos|fechei|fechados|fechadas|vendas fechadas)\b/.test(n) && !termoContrato && (!pediuEnvio || /\bcontratos\b/.test(n)) && !/\b(segunda via|2a via|2 via)\b/.test(n)) {
     return { acao: 'relatorio_contratos', periodo: periodFrom(n, 'mes') };
@@ -192,6 +195,8 @@ export function quickIntent(text) {
   if (/\b(caixa|saldo|entradas e saidas)\b/.test(n)) return { acao: 'caixa', periodo };
   if (/\b(faturamento|faturei|vendi|vendemos|vendas|recebi|recebemos|recebimento|comissao)\b/.test(n)) return { acao: 'faturamento', periodo };
   if (/\b(resumo|pendencia|o que tem pra hoje|avisos)\b/.test(n)) return { acao: 'resumo_dia' };
+  // "quem é o CPF 529.982.247-25", "acha o 44 99999-1111", "procura o 09767": pergunta por CPF, telefone ou número, sem dizer o nome.
+  if (/\b(cpf|rg|quem e|de quem e|procur|ache|acha|encontr|busca|consulta)/.test(n) && /\d[\d .()+-]{3,}\d/.test(n)) return { acao: 'cliente', termo: n.match(/(\d[\d .()+-]{3,}\d)/)[1].trim() };
   if (/\b(cliente|ficha|telefone d)/.test(n)) return { acao: 'cliente', termo: termOf(/(?:cliente|ficha|telefone)\s+(?:d[aeo]s?\s+)?([a-z0-9][a-z0-9 .@-]{2,})$/) };
   return null;
 }
@@ -203,8 +208,8 @@ export class Maria {
    * lineName(id) devolve o nome da atendente cadastrado no número (para achar o número da Maria).
    * contracts: { packages, fields, required, ready, findQuote, createQuote, clientFor, prepare, formLink, summary, audit } (gerar contrato).
    */
-  constructor({ store, auth, sales, customers, collections, cash, contracts = null, outbound = null, crm = null, ana = null, portfolio = null, restartAll = null, receiptReader = null, payments = null, saleDoc = () => '', adminActor = null, knowledge = () => '', lineIdByName = () => '', isConnected = () => true, llm = null, stt = null, tts = null, send, downloadAudio = async () => null, contractFile = () => null, digest = () => '', health = () => '', lineName = () => '', marcosPhone = () => '', audit = () => {}, log = () => {}, now = () => new Date() }) {
-    Object.assign(this, { restartAll, receiptReader, payments, saleDoc, adminActor, store, auth, sales, customers, collections, cash, contracts, outbound, crm, ana, portfolio, knowledge, lineIdByName, isConnected, llm, stt, tts, send, downloadAudio, contractFile, digest, health, lineName, marcosPhone, audit, log, now });
+  constructor({ directory = null, quoteContractFile = null, store, auth, sales, customers, collections, cash, contracts = null, outbound = null, crm = null, ana = null, portfolio = null, restartAll = null, receiptReader = null, payments = null, saleDoc = () => '', adminActor = null, knowledge = () => '', lineIdByName = () => '', isConnected = () => true, llm = null, stt = null, tts = null, send, downloadAudio = async () => null, contractFile = () => null, digest = () => '', health = () => '', lineName = () => '', marcosPhone = () => '', audit = () => {}, log = () => {}, now = () => new Date() }) {
+    Object.assign(this, { directory, quoteContractFile, restartAll, receiptReader, payments, saleDoc, adminActor, store, auth, sales, customers, collections, cash, contracts, outbound, crm, ana, portfolio, knowledge, lineIdByName, isConnected, llm, stt, tts, send, downloadAudio, contractFile, digest, health, lineName, marcosPhone, audit, log, now });
     this.focus = new Map(); // telefone → { nome, telefone, at }: o cliente de que a pessoa está falando agora
     this.focusUsed = new Map(); // telefone → nome (quando o cliente veio do foco, a resposta avisa)
     this.context = new Map(); // telefone → { saleIds, at } (para "manda o contrato dele")
@@ -614,7 +619,7 @@ export class Maria {
       case 'coach_cliente': return this.#coach(user, viewer, it, t, phone, profile);
       case 'contrato': return this.#contract(viewer, profile, it, phone);
       case 'relatorio_contratos': return this.#contractsReport(viewer, profile, it, phone);
-      case 'cliente': return this.#client(viewer, profile, it);
+      case 'cliente': return this.#client(viewer, profile, it, phone);
       case 'faturamento': return this.#revenue(viewer, profile, it);
       case 'atrasos': return this.#overdue(viewer, profile);
       case 'caixa': return this.#cash(it);
@@ -662,7 +667,22 @@ export class Maria {
     if (it.termo) list = this.sales.listFor(viewer, { q: it.termo, status: '' });
     else if (it.enviar && ctx && Date.now() - ctx.at < CONTEXT_MS) list = ctx.saleIds.map((id) => this.sales.get(id)).filter((s) => s && this.sales.canSee(viewer, s)).map((s) => this.sales.view(s));
     if (!it.termo && !list.length) return `De qual cliente é o contrato? Me diga o nome, o telefone ou o número do contrato, chamando por mim (por exemplo: "${this.name}, o contrato da Ana Souza").`;
-    if (!list.length) return `Não encontrei contrato para "${it.termo}". Confira o nome ou me passe o telefone.${scoped(profile) ? ' (Eu só mostro os contratos que você cadastrou.)' : ''}`;
+    if (!list.length && it.termo && this.directory) {
+      // Contrato que ainda não virou venda (só existe como contrato do orçamento), contrato do sistema antigo, ficha ou Pix: a Maria diz onde está.
+      const found = this.directory.search(viewer, it.termo, { limit: 4 }).filter((f) => f.person.items.some((i) => ['contrato', 'venda', 'venda do sistema antigo', 'contrato do sistema antigo', 'orçamento'].includes(i.kind)));
+      if (found.length === 1) {
+        const person = found[0].person;
+        const withFile = person.items.filter((i) => i.kind === 'contrato' && i.quoteId);
+        const text = describePerson(person, { maxItems: 8 });
+        if (it.enviar && withFile.length === 1 && this.quoteContractFile) {
+          const file = this.quoteContractFile(withFile[0].quoteId);
+          if (file) return { text: `${text}\n\n${file.signed ? 'Segue o contrato assinado. ✅' : 'Segue o contrato (ainda sem assinatura do cliente).'}`, file: { buffer: file.buffer, mimetype: 'application/pdf', fileName: file.name } };
+        }
+        return `${text}${withFile.length === 1 && this.quoteContractFile && !it.enviar ? '\n\nQuer que eu envie o PDF do contrato? É só pedir.' : ''}`;
+      }
+      if (found.length > 1) return `Achei ${found.length} pessoas com contrato para "${it.termo}". Qual delas? (me passe o telefone ou o CPF)\n\n${found.map((f) => describePerson(f.person, { maxItems: 2 })).join('\n\n')}`;
+    }
+    if (!list.length) return `Não encontrei contrato para "${it.termo}". Confira o nome ou me passe o telefone, o CPF ou o número do contrato.${scoped(profile) ? ' (Eu só mostro os contratos que você cadastrou.)' : ''}`;
     this.context.set(phone, { saleIds: list.slice(0, 5).map((s) => s.id), at: Date.now() });
     if (list.length === 1) this.#setFocus(phone, { nome: list[0].client?.nome, telefone: list[0].client?.phone });
     if (list.length > 1) return `Achei ${list.length} contratos${it.termo ? ` para "${it.termo}"` : ''}. Qual deles?\n${list.slice(0, 5).map((s) => this.#saleLine(s)).join('\n')}${list.length > 5 ? `\n…e mais ${list.length - 5}.` : ''}\nMe diga o número, começando pelo meu nome (ex.: "${this.name}, o ${list[0].number}").`;
@@ -1067,8 +1087,9 @@ export class Maria {
       const lista = open.slice(0, 4).map((o) => `${o.parcel.label} ${bx.money(o.parcel.value)} (${o.sale.number})`).join('; ');
       const charges = bx.openChargesOf({ payments, leadOf: (p) => this.#leadOfPayment(p), hints });
       const pix = charges.slice(0, 3).map((p) => `${p.description || 'Pix'} de ${bx.money(p.amount)}`).join('; ');
+      const dirFound = this.directory ? this.directory.search(viewer, hints.cpf || hints.phone, { limit: 1 })[0] : null;
       const found = lista || pix;
-      return `${head}\n\nNão achei parcela ou Pix de ${bx.money(rec.valor)} em aberto para esse cliente${found ? `. O que ele tem em aberto: ${[lista && `parcelas: ${lista}`, pix && `Pix: ${pix}`].filter(Boolean).join(' · ')}. O valor do comprovante é diferente do que está em aberto` : ' (não achei nenhum contrato, parcela ou Pix em aberto com esse telefone ou CPF nas suas vendas; confira se o número é o mesmo do cadastro do cliente)'}. Guardei o comprovante e *avisei a administração para conferir*; nada foi lançado.`;
+      return `${dirFound && !found ? `${head}\n\nEsse cliente existe no sistema, mas sem parcela ou Pix em aberto:\n${describePerson(dirFound.person, { maxItems: 5 })}\n\n` : `${head}`}\n\nNão achei parcela ou Pix de ${bx.money(rec.valor)} em aberto para esse cliente${found ? `. O que ele tem em aberto: ${[lista && `parcelas: ${lista}`, pix && `Pix: ${pix}`].filter(Boolean).join(' · ')}. O valor do comprovante é diferente do que está em aberto` : ' (não achei nenhum contrato, parcela ou Pix em aberto com esse telefone ou CPF nas suas vendas; confira se o número é o mesmo do cadastro do cliente)'}. Guardei o comprovante e *avisei a administração para conferir*; nada foi lançado.`;
     }
     if (cands.length > 1 || (cands.length === 1)) {
       this.baixas.set(phone, { stage: 'quem', rec, until: Date.now() + 15 * 60_000 });
@@ -1488,8 +1509,16 @@ ${CONTRACT_BRIEF}`;
     return { text: lines.filter((l) => l !== undefined && !(l === '' && false)).join('\n').replace(/\n{3,}/g, '\n\n'), spoken };
   }
 
-  async #client(viewer, profile, it) {
-    if (!it.termo) return `De qual cliente? Me diga o nome ou o telefone, chamando por mim (ex.: "${this.name}, o telefone da Ana Souza").`;
+  async #client(viewer, profile, it, phone) {
+    if (!it.termo) return `De qual cliente? Me diga o nome, o telefone, o CPF ou o número do contrato, chamando por mim (ex.: "${this.name}, o telefone da Ana Souza").`;
+    // Índice de tudo o que a empresa sabe (todo o histórico): nome, CPF, telefone e número de contrato. Vendedor só vê os próprios clientes.
+    if (this.directory) {
+      const found = this.directory.search(viewer, it.termo, { limit: 5 });
+      if (!found.length) return `Não achei "${it.termo}" ${scoped(profile) ? 'entre os seus clientes' : 'em nenhum cadastro, contrato, ficha, Pix ou conversa'}. Confira o nome ou me passe o telefone, o CPF ou o número do contrato.`;
+      if (found.length === 1) this.#setFocus(phone, { nome: found[0].person.name, telefone: found[0].person.phones[0] || '' });
+      const many = found.length > 1;
+      return `${many ? `Achei ${found.length} pessoas com "${it.termo}" (se forem homônimas, me passe o telefone ou o CPF):` : 'Achei:'}\n\n${found.map((f) => describePerson(f.person, { maxItems: many ? 3 : 8 })).join('\n\n')}${found.length === 1 ? '\n\nQuer o contrato em PDF? É só pedir.' : ''}`;
+    }
     if (scoped(profile)) {
       const list = this.sales.listFor(viewer, { q: it.termo });
       if (!list.length) return `Não achei "${it.termo}" entre os seus clientes.`;
