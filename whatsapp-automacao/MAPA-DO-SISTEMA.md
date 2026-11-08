@@ -5,7 +5,7 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **128** · testes automatizados (arquivos): **130** · scripts do painel: **42**
+- Módulos em `src/`: **129** · testes automatizados (arquivos): **131** · scripts do painel: **42**
 - Rotas da API em `server.js`: **495** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
@@ -24,7 +24,7 @@
 - Configuração nova vai em `settings` com **valor padrão** em `store.js`; mudança em dado já existente usa **migração de uma vez** com selo (veja abaixo), nunca sobrescreve o que o painel salvou.
 - Nada de segredo no código. Dados reais ficam em `data/` e nunca no Git.
 
-## Módulos (128)
+## Módulos (129)
 | Módulo | Linhas | Para que serve | Quem usa | Testes |
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
@@ -34,7 +34,7 @@
 | `agent/claude.js` | 97 | Claude (Anthropic) como cérebro da atendente, pelo SDK oficial. | `agent/llm.js` | 1 |
 | `agent/greeting.js` | 43 | Saudação certa pelo horário (regra da Migra): | `agent/agent.js`, `agent/prompt.js`, `server.js` | 1 |
 | `agent/llm.js` | 181 | Cliente de IA no formato da API da OpenAI (chat completions + ferramentas). | `server.js` | 4 |
-| `agent/presets.js` | 422 | Perfis prontos de negócio. "Carregar perfil" no painel copia estes dados | `server.js`, `store.js` | 15 |
+| `agent/presets.js` | 422 | Perfis prontos de negócio. "Carregar perfil" no painel copia estes dados | `server.js`, `store.js` | 16 |
 | `agent/prompt.js` | 136 | Monta o prompt de sistema a partir da base do negócio (passo 5 do vídeo). | `agent/agent.js`, `server.js` | 8 |
 | `agent/tools.js` | 577 | Ferramentas que o agente pode usar (passo 6 do vídeo: "o agente age"). | `agent/agent.js` | 4 |
 | `ai-stalls.js` | 31 | "Por que a atendente parou de falar?": para cada conversa em que a última mensagem é do cliente e a IA não respondeu, mostra o MOTIVO. | `routes/controle.js` | 1 |
@@ -113,8 +113,9 @@
 | `phone-fix.js` | 48 | Telefones de clientes já gravados sem o +55 (só DDD + número): acrescenta o 55 do Brasil, só quando o número é claramente brasileiro | `routes/controle.js`, `store.js` | 1 |
 | `pix.js` | 154 | Pix "copia e cola" (BR Code, padrão EMV do Banco Central) e recibo em PDF, | `payments.js`, `receipts.js` | 1 |
 | `portfolio.js` | 57 | Portfólio de novidades do Grupo Migra: a direção vai anotando cada coisa nova que o grupo cria ou lança, e a Maria já fica sabendo. | `maria.js`, `server.js` | 1 |
+| `quote-delivery.js` | 35 | Entrega do orçamento ao cliente: uma MENSAGEM DE VOZ alegre e calma (no lugar do texto que acompanhava o PDF) e o PDF timbrado, com o botão | `server.js` | 1 |
 | `quote-expiry.js` | 79 | Aviso de orçamento que vai vencer: quem recebeu a proposta e ainda não fechou é lembrado, com o prazo REAL do orçamento, | `pending.js`, `routes/controle.js` | 2 |
-| `quotes.js` | 483 | Orçamentos da Migra (ORC-AAAA-NNNNN): PDF com a marca + mensagem de WhatsApp no formato da equipe. | `server.js` | 5 |
+| `quotes.js` | 505 | Orçamentos da Migra (ORC-AAAA-NNNNN): PDF com a marca + mensagem de WhatsApp no formato da equipe. | `server.js` | 6 |
 | `ranking.js` | 93 | Ranking da equipe: pontos, metas do mês, níveis de bonificação e conquistas. | `server.js` | 1 |
 | `realty.js` | 273 | Migra Imóveis: imóveis avulsos (casas, terrenos, galpões…) e loteamentos com | `server.js` | 3 |
 | `receipts.js` | 179 | Comprovante de pagamento enviado pelo cliente na conversa: a IA abre o arquivo, lê, confere com a cobrança | `server.js` | 1 |
@@ -135,7 +136,7 @@
 | `security.js` | 119 | Segurança do login: verificação em duas etapas (código do app autenticador, padrão TOTP/RFC 6238), | `server.js` | 28 |
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 5390 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 5380 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 94 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 1 |
@@ -154,7 +155,7 @@
 | `utils.js` | 224 | Funções utilitárias compartilhadas pelos módulos. | `affiliates.js`, `agent/agent.js`, `agent/calendar.js`, `ai-stalls.js`, `assistant.js`, `auth.js`, `autoreply.js`, `campaigns.js`, `closing.js`, `crm.js`, `humanize.js`, `legacy-import.js`, `maria-baixa.js`, `maria.js`, `pending.js`, `phone-fix.js`, `quotes.js`, `recordings.js`, `reengage.js`, `scheduler.js`, `sectors.js`, `send-profiles.js`, `server.js`, `transports/cloudapi.js`, `transports/whatsapp-web.js`, `videocalls.js` | 6 |
 | `videocalls.js` | 228 | Agenda de videochamadas com a equipe: a IA marca quando o cliente diz que vai falar com marido, esposa ou família. | `server.js` | 1 |
 | `visits.js` | 235 | Visitas ao escritório da Migra no Paraguai (consultoria presencial com a equipe). | `server.js` | 3 |
-| `voice.js` | 232 | Voz da Nina: clientes HTTP para o serviço de voz local (deploy/voz): faster-whisper entende o áudio | `assistant.js`, `maria.js`, `server.js` | 2 |
+| `voice.js` | 234 | Voz da Nina: clientes HTTP para o serviço de voz local (deploy/voz): faster-whisper entende o áudio | `assistant.js`, `maria.js`, `server.js` | 3 |
 
 ## Migrações de uma vez (selos em `store.js`)
 - `cnhMemory2026`

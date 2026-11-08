@@ -523,6 +523,10 @@
   "STATUS",
   "statusOf"
  ],
+ "src/quote-delivery.js": [
+  "DEFAULT_QUOTE_VOICE",
+  "makeQuoteDelivery"
+ ],
  "src/quote-expiry.js": [
   "expiringQuotes",
   "noticeExpiringQuotes",
@@ -774,6 +778,7 @@
   "HttpStt",
   "HttpTts",
   "MARIA_VOICE_STYLE",
+  "QUOTE_VOICE_STYLE",
   "numberToWords",
   "speakable",
   "toOpus"

@@ -174,6 +174,28 @@ export class Quotes {
     ].filter(Boolean).join('\n');
   }
 
+  /**
+   * O que a mensagem de VOZ diz ao entregar o orçamento (no lugar do texto que acompanha o PDF). Frases curtas e pausas (vírgulas e pontos) para a voz
+   * respirar; sem números nem valores (isso está no PDF); sem falar em contrato; sem prometer nada.
+   */
+  voiceScript(rec, { name = '' } = {}) {
+    const first = String(name || rec.client || '').trim().split(/\s+/)[0];
+    const nome = first && first.length > 1 && !/^[+@\d]/.test(first) && first.toLowerCase() !== 'cliente' ? ` ${first.charAt(0).toUpperCase()}${first.slice(1).toLowerCase()}` : '';
+    return [
+      `Oi${nome}! Tudo bem?`,
+      'Preparei o seu orçamento com muito carinho.',
+      'Ele está aí no PDF, com tudo explicadinho: o investimento, a entrada e as parcelas.',
+      'Se estiver tudo certo para você, é só clicar no botão que está no PDF, ou no link logo abaixo, e a gente já dá entrada na sua reserva.',
+      'É bem simples, você só completa os dados que faltam.',
+      'Qualquer dúvida, pode me chamar por aqui, tá? Um abraço!',
+    ].join(' ');
+  }
+
+  /** Legenda curta do PDF quando a voz já explicou: só o convite para dar entrada, com o botão escrito. */
+  captionShort(rec, { reserveLink = '' } = {}) {
+    return reserveLink ? `Pronto para dar entrada? Clique aqui para dar início à sua reserva: ${reserveLink}` : `Orçamento ${rec.number} · válido até ${fmtBr(rec.validUntil)}`;
+  }
+
   /** Registro curto para a memória da atendente (ela precisa saber o que foi enviado, sem repetir os valores ao cliente). */
   memo(rec) {
     const p = rec.plan;
