@@ -74,8 +74,8 @@ export class Agent {
     return all[key];
   }
 
-  remember(conv, role, content) {
-    conv.messages.push({ role, content, at: new Date().toISOString() });
+  remember(conv, role, content, meta = null) {
+    conv.messages.push({ role, content, at: new Date().toISOString(), ...(meta || {}) });
     if (conv.messages.length > MAX_STORED_MESSAGES) conv.messages.splice(0, conv.messages.length - MAX_STORED_MESSAGES);
     conv.updatedAt = new Date().toISOString();
     this.store.save();
@@ -159,7 +159,7 @@ export class Agent {
       const lastAi = [...(conv.messages || [])].reverse().find((m) => m.role === 'assistant');
       if (lastAi && Date.now() - Date.parse(lastAi.at) < 30_000) return conv;
     }
-    if (text) this.remember(conv, 'assistant', text);
+    if (text) this.remember(conv, 'assistant', text, { by: 'owner' });
     conv.ownerRepliedAt = Date.now();
     if (this.config.pauseOnOwnerReply !== false && !conv.handoff) {
       conv.handoff = true;
@@ -688,7 +688,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
    * Devolve { tipo, responder, motivo, continuidade }.
    */
   async triageBacklog(conv, texts = [], { restart = false } = {}) {
-    const lines = conv.messages.slice(-20).map((m) => `${m.role === 'user' ? 'CONTATO' : 'MARCOS/EQUIPE'}: ${String(m.content || '').replace(/\s+/g, ' ').slice(0, 400)}`);
+    const lines = conv.messages.slice(-30).map((m) => `${m.role === 'user' ? 'CONTATO' : 'MARCOS/EQUIPE'}: ${String(m.content || '').replace(/\s+/g, ' ').slice(0, 400)}`);
     const waiting = texts.map((t) => `CONTATO (sem resposta): ${String(t).replace(/\s+/g, ' ').slice(0, 400)}`);
     const business = this.store.settings.business?.name || 'a empresa';
     const system = `Você analisa conversas antigas do WhatsApp do Marcos Miguel, dono da ${business} (assessoria para brasileiros morarem, investirem e empreenderem no Paraguai). As linhas "MARCOS/EQUIPE" foram escritas por ele ou pela equipe, pessoalmente; "CONTATO" é a outra pessoa.
@@ -699,7 +699,7 @@ responder = false quando:
 - é fornecedor, parceiro, funcionário, cobrança, outro negócio ou assunto que não é cliente da empresa;
 - não dá para entender o contexto e a entrada da atendente seria estranha.
 responder = true quando é cliente (ou interessado nos serviços) esperando resposta, sem negociação pessoal do Marcos em andamento.
-${restart ? 'MODO RECOMEÇAR (ordem da direção; vale acima das regras anteriores): o Marcos quer que TODA conversa dos últimos 30 dias que trate de qualquer serviço ou produto da empresa (residência e cédula paraguaia, RUC e empresa, imóveis e terrenos, veículos, Migra School, câmbio e outros do grupo) seja retomada, mesmo que ele já tenha falado pessoalmente com a pessoa. Use responder = true sempre que o contato for cliente ou interessado em comprar ou saber de algum serviço do grupo. Use responder = false SÓ para conversa claramente pessoal (família, amigos, igreja), fornecedor, funcionário ou assunto sem relação com os serviços da empresa.' : 'Na dúvida, responder = false.'}
+${restart ? 'MODO RECOMEÇAR (ordem da direção; vale acima das regras anteriores): só retome quem AINDA NÃO FOI ATENDIDO e fala de algum serviço ou produto da empresa (residência e cédula paraguaia, RUC e empresa, imóveis e terrenos, veículos, Migra School, câmbio e outros do grupo). Use responder = false se, nas últimas 30 mensagens, o Marcos ou a equipe já responderam de verdade (conversa pessoal, intimidade, negociação, valores combinados, pagamento, documentos, venda já fechada ou "já é cliente"), ou se a pessoa só cumprimentou o Marcos de forma pessoal (por exemplo "Boa tarde, Marcos") sem pedir serviço. Mensagens automáticas da atendente virtual ("agradecemos por aguardar", "dar continuidade") NÃO contam como atendimento humano.': 'Na dúvida, responder = false.'}
 Responda só com JSON: {"tipo":"cliente_novo|cliente_em_atendimento|negociacao_do_marcos|pessoal|outro_assunto","responder":true,"motivo":"uma frase","continuidade":"em até 3 frases: em que ponto a conversa parou, o que já foi dito ou combinado e qual o próximo passo natural"}`;
     const user = `Contato: ${conv.name || conv.phone || 'sem nome'}\n\n${[...lines, ...waiting].join('\n') || '(sem mensagens anteriores)'}`;
     const reply = await this.llm.chat({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], tools: [] });

@@ -5,7 +5,7 @@ const fold = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toL
 const DAY = 86_400_000;
 
 // Frases das nossas chamadas de iniciativa (retorno automático, "você está aí?", encerramento, orçamento vencendo, recomeço).
-const OUTREACH = /(dar continuidade (ao|no) seu atendimento|agradecemos muito por aguardar|voce ainda esta por ai|vou precisar finalizar o seu atendimento|dar a vez a quem esta aguardando|seu orcamento (vence|esta (perto de )?vencer)|retomando (a nossa|nossa) conversa|estou entrando em contato)/;
+const OUTREACH = /(dar continuidade (ao|no) seu atendimento|agradecemos muito por aguardar|agradeco por aguardar|bora dar continuidade|voce ainda esta por ai|vou precisar finalizar o seu atendimento|dar a vez a quem esta aguardando|seu orcamento (vence|esta (perto de )?vencer)|retomando (a nossa|nossa) conversa|estou entrando em contato)/;
 
 /** A mensagem do cliente respondeu a uma chamada de iniciativa nossa (últimos `days` dias)? */
 export function answeredOurOutreach(conv, { now = Date.now(), days = 7 } = {}) {

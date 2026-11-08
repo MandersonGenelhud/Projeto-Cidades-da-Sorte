@@ -92,3 +92,26 @@ test('detecção da resposta a uma chamada nossa e o texto do pedido de desculpa
   assert.match(apologyText('@fulano'), /^Olá! /);
   assert.match(apologyText('Ana Maria'), /^Olá, Ana!/);
 });
+
+import { humanReplied, collectStalled } from '../src/restart.js';
+
+test('cliente que respondeu à nossa mensagem inicial: a IA CONTINUA a conversa (não para depois da primeira mensagem)', async () => {
+  const { agent, calls, sent, reply } = setup('');
+  const c = agent.conversation('k9');
+  c.messages.push({ role: 'user', content: 'quero saber da residência', at: iso(60) }, { role: 'assistant', content: 'Bom dia! Aqui é do atendimento da Migra Paraguai. Me conta: o que te fez pensar no Paraguai?', at: iso(50) });
+  await reply('k9', 'Quero morar aí com a minha família');
+  assert.equal(calls.length, 1, 'a IA respondeu');
+  assert.ok(sent.length >= 1);
+  assert.equal(agent.conversation('k9', { create: false }).handoff, false);
+});
+
+test('regra do Marcos: quem ele já respondeu pelo celular fica de fora do recomeçar; quem recebeu nossa chamada e não respondeu não recebe outra', () => {
+  const NOW = T.getTime();
+  const mk = (key, msgs, extra = {}) => ({ key, phone: key, name: 'X', messages: msgs.map(([role, content, h, by]) => ({ role, content, at: iso(h), ...(by ? { by } : {}) })), ...extra });
+  const marcos = mk('5511900000101', [['user', 'Boa tarde, Marcos', 30], ['assistant', 'Fala, meu amigo! Tudo certo', 29, 'owner'], ['user', 'e aí?', 26]]);
+  assert.equal(humanReplied(marcos), true);
+  const naoAtendido = mk('5511900000102', [['user', 'Quanto custa a cédula?', 30]]);
+  const semResposta = mk('5511900000103', [['user', 'oi', 100], ['assistant', 'Boa tarde! Agradecemos muito por aguardar o nosso contato. Estamos aqui para dar continuidade ao seu atendimento.', 30]]);
+  const r = collectStalled({ conversations: [marcos, naoAtendido, semResposta], now: NOW, days: 30 }).map((x) => x.key);
+  assert.deepEqual(r, ['5511900000102'], 'só o que ainda não foi atendido; quem já recebeu retorno e calou não é chamado de novo');
+});

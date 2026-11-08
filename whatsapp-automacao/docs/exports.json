@@ -621,6 +621,7 @@
  ],
  "src/restart.js": [
   "collectStalled",
+  "humanReplied",
   "restartStalled"
  ],
  "src/resumes.js": [

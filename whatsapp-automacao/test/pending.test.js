@@ -428,11 +428,11 @@ test('fila: conversa "retomar" (cliente parou) manda a mensagem de retomada pelo
   await waitFor(() => !inbox.running);
   assert.equal(wa.sent.length >= 1, true);
   assert.match(wa.sent[0].text, /Agradecemos muito por aguardar/, 'primeiro o retorno automático');
-  assert.ok(wa.sent.some((m) => /Passando para saber/.test(m.text)), 'depois a retomada da IA');
+  assert.equal(wa.sent.at(-1).text, 'Bora dar continuidade?', 'depois só o convite curto, sem repetir nome nem apresentação');
+  assert.ok(!wa.sent.some((m) => /Passando para saber/.test(m.text)), 'a IA não manda uma segunda mensagem repetitiva');
   assert.ok(wa.sent.every((m) => m.to === jid), 'tudo sai pelo mesmo número da conversa');
   assert.equal(c.messages.filter((m) => m.role === 'user').length, 1, 'nenhuma fala inventada do cliente');
   assert.ok(prompts.some((p) => /MODO RECOMEÇAR/.test(p)), 'a triagem usou a regra de venda');
-  assert.ok(prompts.some((p) => /RETORNO JÁ ENVIADO[\s\S]*retome o assunto de onde pararam/.test(p)), 'e a IA retoma o assunto sem repetir o agradecimento');
   assert.equal(Object.keys(inbox.items).length, 0, 'saiu da lista de espera');
 });
 

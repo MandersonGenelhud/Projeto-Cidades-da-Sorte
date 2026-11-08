@@ -5,7 +5,7 @@
 //  comHumano  → uma pessoa da equipe assumiu de propósito. Não mexe.
 //  retomar    → ficaram sem continuidade: o cliente esperando resposta, que sumiu ou com retorno combinado. São os que o botão chama.
 //  emDia      → já foram respondidos recentemente; nada a fazer agora.
-import { collectStalled } from './restart.js';
+import { collectStalled, humanReplied } from './restart.js';
 import { detectClosedByMessages } from './closed-signals.js';
 import { OWNER_PAUSE } from './agent/agent.js';
 
@@ -23,6 +23,7 @@ export function buildPlan({ store, leadOf = () => null, closedFor = () => '', is
     if (c.declined || lead?.stage === 'perdido') { out.recusaram += 1; continue; }
     if (c.phone && isBlocked(c.phone)) { out.bloqueados += 1; continue; }
     if (c.handoff && c.handoffReason !== OWNER_PAUSE) { if (/^Conversa do Marcos/.test(c.handoffReason || '')) out.marcos += 1; else out.comHumano += 1; continue; }
+    if (humanReplied(c)) { out.marcos += 1; continue; } // o Marcos ou a equipe já responderam: não é cliente "não atendido"
     if (stalled.has(c.key)) { out.retomar += 1; out.retomarPorCondicao[c.qualificacao?.capacidade || 'desconhecida'] += 1; } else out.emDia += 1;
   }
   return out;

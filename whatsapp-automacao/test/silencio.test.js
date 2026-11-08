@@ -7,7 +7,8 @@ import { tempStore } from './helpers.js';
 const NOW = Date.parse('2026-11-10T15:00:00Z');
 const h = (n) => new Date(NOW - n * 3_600_000).toISOString();
 const conv = (key, msgs, extra = {}) => ({ key, phone: key.replace(/\D/g, '') || null, name: 'Ana Souza', messages: msgs.map(([role, hours]) => ({ role, content: `${role} ${hours}`, at: h(hours) })), ...extra });
-const cfg = silenceConfig({});
+const cfg = silenceConfig({ silence: { nudge: true } }); // modo com segunda chamada (opcional)
+const cfgPadrao = silenceConfig({});
 
 test('quem sumiu: chamada de volta depois de 4 h sem resposta; encerramento 24 h depois do aviso; cada fase uma vez só', () => {
   const convs = [
@@ -53,9 +54,11 @@ test('textos: pedem retorno com gentileza, explicam a fila e o prazo de 24 h, se
   assert.doesNotMatch(n, /vai aumentar|vão aumentar|\d+ ?%|desconto|últimas vagas|até (hoje|amanhã|sexta)/i);
   assert.match(n, /"sim"/);
   const e = buildSilenceText('encerramento', { name: '', now: new Date(2026, 10, 10, 9, 0) });
-  assert.match(e, /^Bom dia\. Como não tive retorno/);
-  assert.match(e, /final da fila/);
-  assert.match(e, /podem não ser os mesmos/);
+  assert.match(e, /^Bom dia\. Como não tivemos retorno, vou encerrar o seu atendimento por aqui\./);
+  assert.match(e, /Agradeço por ter entrado em contato e pelo seu interesse/);
+  assert.match(e, /não faz sentido para você neste momento/);
+  assert.match(e, /Continuo à disposição para tirar qualquer dúvida/);
+  assert.match(e, /os preços podem ser reajustados/);
   assert.doesNotMatch(n + e, /desculp|perdão/i);
   assert.equal(buildSilenceText('nudge', { name: 'Ana', now: noite, cfg: { nudgeText: 'Oi {nome}, tudo bem?' } }), 'Oi Ana, tudo bem?', 'o texto pode ser trocado pelo painel');
   assert.ok(NUDGE_TEXT.includes('{saudacao}'));
@@ -63,6 +66,7 @@ test('textos: pedem retorno com gentileza, explicam a fila e o prazo de 24 h, se
 
 test('enfileirar: cria os itens certos, respeita desligado e simulação (dryRun só conta); item que não entrou na fila não fica pendurado', () => {
   const store = tempStore();
+  store.updateSettings({ agent: { silence: { nudge: true } } });
   const convs = [conv('5545900000001@s.whatsapp.net', [['user', 6], ['assistant', 5]]), conv('5545900000003@s.whatsapp.net', [['user', 40], ['assistant', 30]], { silence: { nudgeAt: NOW - 26 * 3_600_000 } })];
   const pending = { queue: [], items: {}, enqueue(keys) { this.queue.push(...keys); return { queued: keys.length }; } };
   const dry = enqueueSilence({ store, pending, conversations: convs, now: NOW, dryRun: true });
@@ -76,7 +80,7 @@ test('enfileirar: cria os itens certos, respeita desligado e simulação (dryRun
   store.updateSettings({ agent: { silence: { enabled: false } } });
   assert.equal(enqueueSilence({ store, pending: { queue: [], items: {}, enqueue: () => ({}) }, conversations: convs, now: NOW }).off, true);
   const recusa = { queue: [], items: {}, enqueue: () => ({ queued: 0 }) }; // número desconectado: nada entra
-  store.updateSettings({ agent: { silence: { enabled: true } } });
+  store.updateSettings({ agent: { silence: { enabled: true, nudge: true } } });
   enqueueSilence({ store, pending: recusa, conversations: convs, now: NOW });
   assert.equal(Object.keys(recusa.items).length, 0);
 });
@@ -189,4 +193,16 @@ test('gatilhos confirmados pela direção: alta procura e possibilidade de reaju
   const b = new Store(dir);
   assert.equal(b.settings.business.priceIncrease, 'Reajuste de 10% em janeiro (texto do Marcos)');
   assert.equal(b.data.triggers2026, true);
+});
+
+test('padrão da direção: sem mensagens repetidas. Quem não responde recebe UM aviso de encerramento depois de 24 h, nunca uma segunda chamada', () => {
+  const convs = [
+    conv('5545900000031@s.whatsapp.net', [['user', 40], ['assistant', 30]]),   // 30 h sem resposta: encerramento
+    conv('5545900000032@s.whatsapp.net', [['user', 12], ['assistant', 10]]),   // só 10 h: espera, e NÃO recebe chamada de volta
+    conv('5545900000033@s.whatsapp.net', [['user', 60], ['assistant', 50]], { silence: { closeAt: NOW - 10 * 3_600_000 } }), // já encerrado: nada
+  ];
+  const r = collectSilent({ conversations: convs, now: NOW, cfg: cfgPadrao });
+  assert.deepEqual(r.nudges, []);
+  assert.deepEqual(r.closings.map((c) => c.phone), ['5545900000031']);
+  assert.equal(cfgPadrao.nudge, false);
 });

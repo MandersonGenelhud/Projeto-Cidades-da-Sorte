@@ -10,11 +10,12 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const CLOSED = new Set(['ganho', 'perdido']);
 
-export const DEFAULT_SILENCE = { enabled: true, nudgeHours: 4, closeHours: 24, closing: true };
+// Sem mensagens repetidas: por padrão NÃO há segunda chamada (nudge). Quem não responde recebe, depois de closeHours, um único aviso de encerramento.
+export const DEFAULT_SILENCE = { enabled: true, nudge: false, nudgeHours: 4, closeHours: 24, closing: true };
 export const silenceConfig = (agentCfg) => ({ ...DEFAULT_SILENCE, ...(agentCfg?.silence || {}) });
 
 export const NUDGE_TEXT = '{saudacao}, {nome}! Estou entrando em contato para dar continuidade ao seu atendimento. Caso você não tenha mais interesse, já se manifeste, por favor: a nossa demanda está alta e existem muitas pessoas na fila de espera que realmente querem mudar de vida e estão aproveitando essa oportunidade. Se eu não tiver retorno em até 24 horas, vou precisar finalizar o seu atendimento para dar a vez a quem está aguardando. Outra coisa: com tanta gente procurando o serviço, é possível que taxas e valores sejam reajustados, então quem deixa para depois pode acabar pagando mais pelo mesmo serviço. A oportunidade bate à porta e, quando a gente não aproveita, depois acaba pagando mais caro por ela. Você já deve ter passado por algo parecido, não é? Se ainda faz sentido para você, me responde aqui com um "sim" que eu continuo agora mesmo com o seu atendimento.';
-export const CLOSING_TEXT = '{saudacao}, {nome}. Como não tive retorno ao meu último contato, vou dar início ao encerramento do seu atendimento: eu invisto o meu tempo em cada pessoa e há muitas outras na fila de espera. Com isso, você volta para o final da fila. Se mudar de ideia, é só me responder por aqui que eu retomo, mas, com a alta procura, as condições e os valores podem não ser os mesmos de hoje. Agradeço pela atenção e desejo tudo de bom.';
+export const CLOSING_TEXT = '{saudacao}, {nome}. Como não tivemos retorno, vou encerrar o seu atendimento por aqui. Agradeço por ter entrado em contato e pelo seu interesse, mas, pelo visto, não faz sentido para você neste momento. Continuo à disposição para tirar qualquer dúvida. Só lembro que, com a alta procura pelo serviço, os preços podem ser reajustados. Se mudar de ideia, é só me chamar por aqui.';
 
 const firstName = (name) => {
   const n = String(name || '').trim().split(/\s+/)[0];
@@ -54,7 +55,10 @@ export function collectSilent({ conversations, now = Date.now(), cfg = DEFAULT_S
     const userAt = Date.parse(lastUser.at) || 0;
     const ig = String(conv.key).startsWith('ig:');
     const s = conv.silence || {};
-    if (!s.nudgeAt) {
+    if (cfg.nudge === false) {
+      // Sem segunda chamada: só o encerramento, uma vez, depois de closeHours sem resposta.
+      if (cfg.closing !== false && !s.closeAt && now - ours >= cfg.closeHours * HOUR && now - ours <= maxAgeDays * DAY && !(ig && now - userAt > 23 * HOUR)) out.closings.push(conv);
+    } else if (!s.nudgeAt) {
       if (now - ours >= cfg.nudgeHours * HOUR && now - ours <= maxAgeDays * DAY && !(ig && now - userAt > 23 * HOUR)) out.nudges.push(conv);
     } else if (cfg.closing !== false && !s.closeAt && now - s.nudgeAt >= cfg.closeHours * HOUR) {
       out.closings.push(conv);

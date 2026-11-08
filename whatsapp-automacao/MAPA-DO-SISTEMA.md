@@ -45,7 +45,7 @@
 | `app-signups.js` | 109 | Cadastros de aplicativos da Migra (hoje: Migra Devocional) chegando no Migra Hub para acompanhar quantos usuários há. | `server.js` | 1 |
 | `assistant-guard.js` | 42 | Trava de segurança da Maria e da Ana: elas só CRIAM (cadastro novo, orçamento, contrato) e ENVIAM. Nunca excluem nem alteram | `maria.js` | 1 |
 | `assistant.js` | 449 | Nina: a secretária financeira do Marcos (e dos administradores liberados no Caixa). | `ana.js`, `server.js` | 1 |
-| `atendimento-plano.js` | 30 | Plano de atendimento: separa TODAS as conversas dos últimos dias em grupos claros, para o administrador saber o que o botão "Começar" vai fazer. | `routes/controle.js` | 2 |
+| `atendimento-plano.js` | 31 | Plano de atendimento: separa TODAS as conversas dos últimos dias em grupos claros, para o administrador saber o que o botão "Começar" vai fazer. | `routes/controle.js` | 2 |
 | `attendants.js` | 122 | Visão por atendente: separa as conversas e os prospectos de cada pessoa (e do | `routes/controle.js`, `server.js` | 1 |
 | `audit.js` | 125 | Trilha de auditoria: registra QUEM criou, alterou ou excluiu cada coisa | `server.js` | 1 |
 | `auth.js` | 265 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 53 |
@@ -106,7 +106,7 @@
 | `motors.js` | 137 | Migra Motors: estoque de veículos + simulador de financiamento por banco/financeira | `server.js` | 2 |
 | `offices.js` | 17 | Escritórios: o mesmo sistema atende dois escritórios separados (Paraguai e Paraná). | `auth.js`, `crm.js`, `sales.js`, `sectors.js`, `server.js` | 1 |
 | `opening.js` | 40 | Mensagem de retorno para quem ficou esperando: agradece por aguardar, diz que a demanda está alta mas todos estão sendo atendidos, que o | `pending.js`, `silence.js` | 2 |
-| `outreach-apology.js` | 41 | Cliente ANTIGO que recebeu, sem precisar, uma chamada automática nossa ("dar continuidade ao seu atendimento"…) e respondeu. | `agent/agent.js`, `closed-signals.js` | 2 |
+| `outreach-apology.js` | 41 | Cliente ANTIGO que recebeu, sem precisar, uma chamada automática nossa ("dar continuidade ao seu atendimento"…) e respondeu. | `agent/agent.js`, `closed-signals.js`, `restart.js` | 2 |
 | `outreach-guard.js` | 138 | Guarda de contato: o sistema NÃO procura de novo quem já disse que fechou com outra pessoa, que não quer mais, que pediu para não ser chamado, | `agent/agent.js`, `autoreply.js`, `pending.js`, `routes/controle.js`, `server.js` | 3 |
 | `partner-projects.js` | 224 | Migra Sócios de Projeto: plano de carreira em que o consultor que chegou ao topo traz um projeto novo | `server.js` | 1 |
 | `patch-baileys.js` | 23 | Correção da biblioteca do WhatsApp (Baileys 7.0.0-rc14) enquanto a versão nova não sai: | — | 1 |
@@ -114,7 +114,7 @@
 | `payments.js` | 425 | Cobrança por Pix no fechamento: gera o Pix (copia e cola + QR Code), confirma o | `server.js` | 8 |
 | `payplan.js` | 118 | Etapas de pagamento do processo (o "fluxograma" que o cliente recebe). | `contract.js`, `quotes.js`, `server.js` | 7 |
 | `pdfdoc.js` | 268 | PDF de várias páginas, sem dependências: títulos, parágrafos com quebra de linha | `closing.js`, `contract.js`, `finance.js`, `payments.js`, `plano-pdf.js`, `quotes.js` | 2 |
-| `pending.js` | 557 | Conversas sem resposta: clientes cuja última mensagem ainda não foi respondida. | `server.js` | 3 |
+| `pending.js` | 568 | Conversas sem resposta: clientes cuja última mensagem ainda não foi respondida. | `server.js` | 3 |
 | `personal.js` | 475 | Agenda e financeiro PESSOAL de cada pessoa (a assistente pessoal "Ana"). Fica separado da empresa: não entra no Caixa Migra, | `ana.js`, `server.js` | 3 |
 | `phone-fix.js` | 48 | Telefones de clientes já gravados sem o +55 (só DDD + número): acrescenta o 55 do Brasil, só quando o número é claramente brasileiro | `routes/controle.js`, `store.js` | 1 |
 | `pix.js` | 154 | Pix "copia e cola" (BR Code, padrão EMV do Banco Central) e recibo em PDF, | `payments.js`, `receipts.js` | 1 |
@@ -132,7 +132,7 @@
 | `recordings.js` | 38 | Reuniões gravadas: biblioteca de links (Drive, YouTube, Meet) com título, data e assunto. Não guarda vídeo, só o endereço. | `server.js` | 1 |
 | `reengage.js` | 272 | Retomada de contatos: pessoas que pediram atendimento (Instagram, Facebook, site, quiz) e ainda não | `server.js` | 2 |
 | `reports-csv.js` | 56 | Relatórios em planilha (CSV): vendas, parcelas em aberto, contratos cancelados e auditoria. Só administrador. | `server.js` | 1 |
-| `restart.js` | 83 | Recomeçar os atendimentos parados: varre as conversas guardadas dos últimos 30 dias (de todos os números e do Instagram) e põe na fila da IA | `atendimento-plano.js`, `routes/controle.js` | 2 |
+| `restart.js` | 90 | Recomeçar os atendimentos parados: varre as conversas guardadas dos últimos 30 dias (de todos os números e do Instagram) e põe na fila da IA | `atendimento-plano.js`, `routes/controle.js` | 3 |
 | `resumes.js` | 108 | Banco de currículos: quem pergunta por vaga ou manda currículo fica guardado aqui (com o arquivo), | `server.js` | 1 |
 | `routes/assinatura-contratada.js` | 88 | Assinatura da empresa (CONTRATADA) nos contratos: a própria pessoa cadastra a imagem da assinatura e autoriza o uso (nunca é desenhada nem imitada). | `server.js` | **0** |
 | `routes/controle.js` | 206 | Rotas de CONTROLE das conversas e do atendimento (só administrador): quadros por pessoa, auditoria dos números, envio por número, | `server.js` | **0** |
@@ -149,7 +149,7 @@
 | `server.js` | 5484 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
-| `silence.js` | 94 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
+| `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
 | `site-content.js` | 90 | Conteúdo editável da página inicial do site (título, números confirmados, vídeos de depoimento e perguntas), | `server.js` | 1 |
 | `site-host.js` | 43 | Domínio próprio do site público da Migra (ex.: www.migraparaguay.com): no domínio do site só aparecem | `server.js` | 3 |
 | `store.js` | 556 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 16 |

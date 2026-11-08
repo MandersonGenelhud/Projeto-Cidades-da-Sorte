@@ -29,7 +29,7 @@ test('classifica o que está parado: esperando, silenciou, reagendado, pausas; i
     conv('55119000000013@s.whatsapp.net', [['user', 30]]), // bloqueado
     conv('ig:abc', [['user', 100], ['assistant', 90]]), // Instagram só responde em 24 h: silencioso não entra
   ];
-  const r = collectStalled({ conversations: convs, now: NOW, days: 30, leadOf: (c) => leads[c.key] || null, isBlocked: (p) => p.endsWith('0013') });
+  const r = collectStalled({ conversations: convs, now: NOW, days: 30, leadOf: (c) => leads[c.key] || null, isBlocked: (p) => p.endsWith('0013'), skipHumanReplied: false, includeMarcos: true });
   const by = Object.fromEntries(r.map((x) => [x.key, x]));
   assert.equal(by['55119000000001@s.whatsapp.net'].kind, 'esperando');
   assert.equal(by['55119000000002@s.whatsapp.net'].kind, 'silenciou');
@@ -40,6 +40,11 @@ test('classifica o que está parado: esperando, silenciou, reagendado, pausas; i
   assert.equal(by['55119000000007@s.whatsapp.net'].handoff, 'marcos');
   assert.ok(!by['55119000000008@s.whatsapp.net']);
   for (const k of ['c-fechado@s.whatsapp.net', 'c-perdido@s.whatsapp.net', '55119000000011@s.whatsapp.net', '1203@g.us', '55119000000012@s.whatsapp.net', '55119000000013@s.whatsapp.net', 'ig:abc']) assert.ok(!by[k], k);
+  // Regra nova da direção: no "recomeçar" normal, quem o Marcos/equipe já respondeu fica de fora.
+  const novo = collectStalled({ conversations: convs, now: NOW, days: 30, leadOf: (c) => leads[c.key] || null, isBlocked: (p) => p.endsWith('0013') });
+  assert.ok(!novo.some((x) => x.key === '55119000000005@s.whatsapp.net'), 'o Marcos já respondeu: não retoma');
+  assert.ok(!novo.some((x) => x.key === '55119000000007@s.whatsapp.net'), 'conversa do Marcos não entra');
+  assert.ok(novo.some((x) => x.key === '55119000000001@s.whatsapp.net'), 'quem não foi atendido continua entrando');
   const auto = collectStalled({ conversations: convs, now: NOW, includeSilent: false, includeMarcos: false, leadOf: () => null, isBlocked: () => false });
   assert.ok(auto.every((x) => x.kind === 'esperando') && !auto.some((x) => x.handoff === 'marcos'), 'o modo automático não escreve para quem parou de responder nem reavalia conversa do Marcos');
 });
@@ -53,10 +58,10 @@ test('recomeçar: põe cada conversa na fila com o tipo certo, destrava a pausa 
   store.data.conversations = Object.fromEntries([c1, c2, c5, c7].map((c) => [c.key, c]));
   const calls = [];
   const pending = { queue: [], items: {}, enqueue: (keys) => { calls.push(keys); return { queued: keys.length, blocked: 0, reasons: {} }; } };
-  const dry = restartStalled({ store, agent: {}, pending, leadOf: () => null, isBlocked: () => false, now: NOW, dryRun: true });
+  const dry = restartStalled({ store, agent: {}, pending, leadOf: () => null, isBlocked: () => false, now: NOW, dryRun: true, skipHumanReplied: false, includeMarcos: true });
   assert.equal(dry.total, 4); assert.deepEqual(Object.keys(pending.items), []); assert.equal(calls.length, 0);
   assert.equal(c5.handoff, true, 'o ensaio não mexe em nada');
-  const r = restartStalled({ store, agent: {}, pending, leadOf: () => null, isBlocked: () => false, now: NOW });
+  const r = restartStalled({ store, agent: {}, pending, leadOf: () => null, isBlocked: () => false, now: NOW, skipHumanReplied: false, includeMarcos: true });
   assert.deepEqual([r.esperando, r.silenciou, r.pausadasDono, r.pausadasMarcos, r.queued], [3, 1, 1, 1, 4]);
   assert.deepEqual(pending.items['55119000000001@s.whatsapp.net'].texts, ['user 8'], 'só a mensagem que ficou sem resposta');
   assert.equal(pending.items['55119000000002@s.whatsapp.net'].kind, 'retomar');
@@ -85,7 +90,7 @@ test('a IA retoma uma conversa em que o cliente parou: nenhuma mensagem nova "de
   assert.ok(prompts.some((p) => /RETOMADA DO ATENDIMENTO/.test(p)));
 });
 
-test('triagem no modo recomeçar: qualquer serviço da Migra volta para a IA, mesmo com negociação pessoal do Marcos', async () => {
+test('triagem no modo recomeçar: só quem ainda não foi atendido; se o Marcos ou a equipe já responderam, não retoma', async () => {
   const store = tempStore();
   const seen = [];
   const llm = { configured: true, chat: async ({ messages }) => { seen.push(messages[0].content); return { content: '{"tipo":"cliente_em_atendimento","responder":true,"motivo":"quer residência","continuidade":"parou no orçamento"}', tool_calls: [] }; } };
@@ -95,7 +100,9 @@ test('triagem no modo recomeçar: qualquer serviço da Migra volta para a IA, me
   await agent.triageBacklog(c, ['e a residência?']);
   await agent.triageBacklog(c, ['e a residência?'], { restart: true });
   assert.doesNotMatch(seen[0], /MODO RECOMEÇAR/);
-  assert.match(seen[1], /MODO RECOMEÇAR[\s\S]*mesmo que ele já tenha falado pessoalmente/);
+  assert.match(seen[1], /MODO RECOMEÇAR[\s\S]*AINDA NÃO FOI ATENDIDO/);
+  assert.match(seen[1], /Boa tarde, Marcos/);
+  assert.match(seen[1], /últimas 30 mensagens/);
 });
 
 test('Gabriel → Diego: os atendimentos em aberto passam para o Diego, uma vez, só quando o Diego existe', () => {

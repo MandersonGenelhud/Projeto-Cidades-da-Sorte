@@ -12,7 +12,7 @@
     <div class="panel" id="stepsBox">
       <h3>Passo a passo (comece por aqui)</h3>
       <ol class="hint">
-        <li><b>Ver o plano</b>: o sistema separa todas as conversas dos últimos dias em: já são clientes (banco de dados ou pagamento/contrato nas últimas 20 mensagens), recusaram, conversa pessoal ou de outro assunto, com atendente humano, e <b>a retomar</b>.</li>
+        <li><b>Ver o plano</b>: o sistema separa todas as conversas dos últimos dias em: já são clientes (banco de dados ou pagamento/contrato nas últimas 20 mensagens), recusaram, já atendidas pelo Marcos ou pessoais, com atendente humano, e <b>a retomar</b>.</li>
         <li><b>Começar o atendimento</b>: lê as conversas antigas, marca quem recusou e chama de volta <u>somente</u> quem ficou sem continuidade e fala de serviço da Migra, no ritmo seguro de cada número. Também avisa os orçamentos que estão vencendo. Quem já é cliente nunca é chamado.</li>
         <li>Acompanhe em <b>Clientes esperando resposta</b> (logo abaixo). Para parar tudo de iniciativa nossa, use <b>Pausar</b>; para voltar, <b>Continuar</b>. Cliente novo que escrever continua sendo atendido normalmente.</li>
       </ol>
@@ -48,7 +48,7 @@
     $('#rsOut').textContent = txt(r);
     if (!dryRun) { toast('Atendimentos recomeçados'); if (typeof loaders !== 'undefined') loaders.conversations?.(); }
   };
-  const planTxt = (p) => `Nos últimos ${p.days} dias: ${p.total} conversas. <b>${p.retomar} a retomar</b>${p.retomarPorCondicao ? ` (${p.retomarPorCondicao.sim} com condições de fechar, ${p.retomarPorCondicao.parcial} em parte, ${p.retomarPorCondicao.nao} sem condições agora, ${p.retomarPorCondicao.desconhecida} ainda não sabemos)` : ''} · ${p.fechados} já são clientes (não serão chamados) · ${p.recusaram} recusaram (não serão chamados) · ${p.marcos} pessoais ou de outro assunto (a IA só confere) · ${p.comHumano} com atendente humano · ${p.emDia} em dia${p.bloqueados ? ` · ${p.bloqueados} bloqueados` : ''}.`;
+  const planTxt = (p) => `Nos últimos ${p.days} dias: ${p.total} conversas. <b>${p.retomar} a retomar</b>${p.retomarPorCondicao ? ` (${p.retomarPorCondicao.sim} com condições de fechar, ${p.retomarPorCondicao.parcial} em parte, ${p.retomarPorCondicao.nao} sem condições agora, ${p.retomarPorCondicao.desconhecida} ainda não sabemos)` : ''} · ${p.fechados} já são clientes (não serão chamados) · ${p.recusaram} recusaram (não serão chamados) · ${p.marcos} já atendidas pelo Marcos/equipe ou pessoais (não serão chamadas) · ${p.comHumano} com atendente humano · ${p.emDia} em dia${p.bloqueados ? ` · ${p.bloqueados} bloqueados` : ''}.`;
   const showState = (paused) => {
     $('#stState').innerHTML = paused ? '<b>Situação: PAUSADO.</b> Nenhuma mensagem de iniciativa nossa sai. Cliente que escreve continua sendo atendido.' : '<b>Situação: liberado.</b> As chamadas de iniciativa nossa saem no ritmo seguro de cada número.';
     $('#stPause').textContent = paused ? 'Continuar' : 'Pausar';

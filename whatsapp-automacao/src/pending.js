@@ -485,7 +485,18 @@ export class PendingInbox {
               this.store.addLog({ type: 'error', phone: p.phone || jid, message: `Retorno automático: ${err.message}` });
             }
           }
-          await this.agent.handleIncoming(
+          if (opened && !(p.texts || []).length) {
+            // Quem não tinha escrito nada pendente já recebeu o retorno: a continuação é só um convite curto, sem repetir o nome nem a apresentação.
+            try {
+              const c2 = this.agent.conversation(jid);
+              await this.wa.send(jid, { text: 'Bora dar continuidade?' });
+              this.agent.remember(c2, 'assistant', 'Bora dar continuidade?');
+              this.lastSentAt = Date.now();
+              this.store.addLog({ type: 'autoreply', phone: p.phone || jid, message: 'Bora dar continuidade?', rule: 'Retorno automático (convite curto)' });
+            } catch (err) {
+              this.store.addLog({ type: 'error', phone: p.phone || jid, message: `Convite curto: ${err.message}` });
+            }
+          } else await this.agent.handleIncoming(
             { key: jid, phone: p.phone, name: p.name, text: p.texts.join('\n'), delayed: true, resume: p.kind === 'orcamento' ? quoteNote(p) : opened ? OPENED_NOTE(p) : p.kind === 'retomar' ? RESUME_NOTE(p) : '' },
             async (text, { typingMs } = {}) => {
               try {

@@ -428,3 +428,11 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Proteção 3 (sem prova)**: se não há prova de que é cliente, a IA responde, mas recebe a ordem de ler as 20 mensagens e, se mostrarem que é cliente, pedir perdão em uma frase e transferir para a equipe.
 - **Limites honestos**: não há garantia de 100%. Cliente fechado fora do sistema e sem frases de pagamento/documentos na conversa não é reconhecido pelo código; nesse caso só a leitura das 20 mensagens pela IA protege. A resposta de quem não respondeu a nenhuma chamada nossa não dispara o pedido de desculpas.
 - Testes: `test/cliente-antigo.test.js`.
+
+## Menos mensagens repetidas e quem o Marcos já atendeu
+
+- **Sem repetição**: por padrão não há mais "segunda chamada" (`silence.nudge: false`). Quem não responde recebe **um único** aviso de encerramento, 24 h depois da nossa última mensagem, agradecendo o contato e o interesse, dizendo que está à disposição e que os preços podem ser reajustados (condicional, sem número). Quem já recebeu retorno automático e calou não é recomeçado de novo.
+- **Convite curto**: depois do retorno automático, quem não tinha mensagem pendente recebe só "Bora dar continuidade?", sem repetir nome nem apresentação (a IA não manda uma segunda mensagem parecida).
+- **Quem o Marcos já atendeu**: no "recomeçar" normal ficam de fora as conversas em que o dono ou a equipe responderam pelo celular (`by: 'owner'`/`ownerRepliedAt`) e as marcadas "Conversa do Marcos". A triagem lê 30 mensagens e não retoma quem só cumprimentou o Marcos de forma pessoal. Mensagens automáticas não contam como atendimento humano. As rotinas automáticas de recuperação de falha da IA continuam valendo para quem está esperando resposta.
+- **Limite**: conversas antigas do celular, importadas sem marca de "dono respondeu", dependem da triagem da IA (30 mensagens) para serem reconhecidas.
+- Testes: `test/silencio.test.js`, `test/restart.test.js`, `test/pending.test.js`, `test/cliente-antigo.test.js`.
