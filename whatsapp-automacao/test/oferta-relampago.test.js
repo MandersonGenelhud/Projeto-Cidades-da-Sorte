@@ -90,3 +90,42 @@ test('vagas no prompt: a IA recebe o número real e, esgotado, é mandada parar 
   await agent.handleIncoming({ key: 'k2', phone: '5511999990002', name: 'Rita', text: 'oi' }, async () => {});
   assert.match(system, /vagas ESGOTARAM/);
 });
+
+import { roundedPeople, peopleLabel, buildCaption } from '../src/flash-offer.js';
+import { pickNext, isFresh } from '../src/queue-priority.js';
+
+test('"mais de X pessoas": arredonda para baixo na centena, como o Manderson pediu', () => {
+  const casos = [[2050, 2000], [1500, 1500], [1000, 1000], [999, 900], [990, 900], [1001, 1000], [1099, 1000], [1101, 1100], [1100, 1100], [87, 0]];
+  for (const [n, esperado] of casos) assert.equal(roundedPeople(n), esperado, `${n} → ${esperado}`);
+  assert.equal(peopleLabel(1101), 'mais de 1.100 pessoas');
+  assert.equal(peopleLabel(999), 'mais de 900 pessoas');
+  assert.equal(peopleLabel(50), '', 'sem número redondo confiável, não cita');
+});
+
+test('legenda dos grupos: curta, com destaques do WhatsApp, o número arredondado, "à vista ou até 3x" e o link', () => {
+  const link = 'https://wa.me/5959871015670?text=Oi';
+  const t = buildCaption({ people: 1101, link });
+  assert.match(t, /^\*OFERTA RELÂMPAGO ATÉ QUINTA-FEIRA, 12\/11\*/);
+  assert.match(t, /Entre mais de 1\.100 pessoas dos nossos grupos, \*só 20\*/);
+  assert.match(t, /\*1 ano de curso de idiomas\*/);
+  assert.match(t, /de R\$ 3 mil a R\$ 10 mil/);
+  assert.match(t, /\*À vista\* ou em até \*3x no cartão\*/);
+  assert.match(t, /Quer garantir a sua vaga\? Clique aqui:\*\nhttps:\/\/wa\.me\//);
+  assert.ok(t.length < 700, 'texto curto');
+  assert.doesNotMatch(buildCaption({ people: 0, link }), /mais de/);
+});
+
+test('fila: cliente novo passa na frente, mas os antigos saem aos poucos (1 a cada 4)', () => {
+  const NOW = Date.parse('2026-11-09T12:00:00Z');
+  const h = (n) => NOW - n * 3_600_000;
+  const items = { n1: { at: h(0.2) }, n2: { at: h(0.5) }, n3: { at: h(1) }, n4: { at: h(2) }, n5: { at: h(2.5) }, v1: { at: h(100), kind: 'retomar', restart: true }, v2: { at: h(200) } };
+  assert.equal(isFresh(items.n1, NOW), true);
+  assert.equal(isFresh(items.v1, NOW), false);
+  assert.equal(isFresh(items.v2, NOW), false);
+  const q = Object.keys(items); const state = { n: 0 }; const order = [];
+  while (q.length) { const j = pickNext(q, items, { now: NOW, state }); order.push(j); q.splice(q.indexOf(j), 1); }
+  assert.deepEqual(order.slice(0, 4), ['n5', 'n4', 'n3', 'v2'], 'novos primeiro; o 4º atendimento é um antigo (o mais antigo)');
+  assert.equal(order[4], 'n2');
+  assert.deepEqual(pickNext(['v1'], items, { now: NOW }), 'v1', 'sem novos, atende os antigos');
+  assert.equal(pickNext([], items), null);
+});

@@ -10,6 +10,7 @@ import { quoteNote } from './quote-expiry.js';
 import { buildSilenceText, silenceConfig } from './silence.js';
 import { isProactive } from './outreach-guard.js';
 import { sendInBubbles } from './humanize.js';
+import { pickNext } from './queue-priority.js';
 export { senderOf };
 
 /** A mensagem de retorno (agradecimento, demanda alta, imprevistos) já foi enviada: a IA não repete e segue direto ao assunto. */
@@ -117,6 +118,7 @@ export class PendingInbox {
     this.waitingBy = {}; // número → por que ele está esperando (aparece no painel)
     this.sentDay = {}; // número → { day, n }: respostas de hoje (limite diário por número)
     this.queue = [];
+    this.pickState = {};
     this.workers = new Map(); // número → true: cada número tem a sua própria fila andando, sem esperar pelos outros
     this.wakeUps = new Map();
     this.backoffN = {};
@@ -361,7 +363,10 @@ export class PendingInbox {
    */
   async #gate(sender) {
     const mine = () => this.queue.filter((j) => senderOf(j) === sender);
-    if (!this.careful) return mine()[0] || null;
+    // Quem acabou de chegar passa na frente; os antigos saem aos poucos (a cada 4 atendimentos, um antigo).
+    const state = (this.pickState[sender] ||= { n: 0 });
+    const next = () => pickNext(mine(), this.items, { now: this.now().getTime(), state }) || null;
+    if (!this.careful) return next();
     for (;;) {
       if (!mine().length) return null;
       const prof = this.profile(sender);
@@ -378,7 +383,7 @@ export class PendingInbox {
         this.sentAt = this.sentAt.filter((t) => ms - t < 3_600_000);
         this.sentBy[sender] = (this.sentBy[sender] || []).filter((t) => ms - t < 3_600_000);
         const hourFull = this.sentBy[sender].length >= prof.perHour;
-        if (!hourFull && (this.nextBy[sender] || 0) <= ms) { delete this.waitingBy[sender]; return mine()[0]; }
+        if (!hourFull && (this.nextBy[sender] || 0) <= ms) { delete this.waitingBy[sender]; return next(); }
         const free = hourFull ? this.sentBy[sender][0] + 3_600_000 : this.nextBy[sender];
         waitMs = Math.min(60_000, Math.max(1000, free - ms));
         this.waitingBy[sender] = hourFull ? `limite de ${prof.perHour} respostas por hora atingido; continua sozinho em alguns minutos` : 'intervalo entre uma resposta e outra (para proteger o número)';

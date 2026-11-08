@@ -39,9 +39,9 @@
       ${fo ? `<div class="panel"><h2>Oferta relâmpago: vagas</h2>
         <p class="hint">${esc(fo.config.title || '')}</p>
         <p>${fo.open ? '<span class="badge ok">no ar</span>' : '<span class="badge paused">encerrada</span>'} Vagas: <b>${fo.left}</b> livres de <b>${fo.total}</b> (${fo.taken} ocupadas, ${fo.confirmed} com pagamento confirmado) · vale até ${esc(String(fo.config.validUntil || '').split('-').reverse().join('/'))}.
-          ${fo.config.groupPeople ? `Pessoas nos grupos: <b>${Number(fo.config.groupPeople).toLocaleString('pt-BR')}</b>.` : ''}</p>
+          ${fo.config.groupPeople ? `Pessoas nos grupos: <b>${Number(fo.config.groupPeople).toLocaleString('pt-BR')}</b> (na arte e na legenda: <b>mais de ${Number(fo.config.groupPeopleRounded).toLocaleString('pt-BR')}</b>).` : ''}</p>
         <p class="hint">A reserva vale 48 h. Confirme quando o pagamento à vista cair; sem pagamento, a vaga volta sozinha (ou libere agora). A IA só fala o número real de vagas.</p>
-        <div class="row"><button class="btn" id="foGroups" type="button">Contar pessoas nos grupos</button></div>
+        <div class="row"><button class="btn" id="foGroups" type="button">Contar pessoas nos grupos</button> <button class="btn primary" id="foCaption" type="button">Legenda para postar nos grupos</button></div><div id="foCaptionBox"></div>
         <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Pacote</th><th>Situação</th><th>Quando</th><th></th></tr></thead><tbody>
         ${fo.claims.map((c) => `<tr data-id="${esc(c.id)}"><td><b>${esc(c.name || c.phone || 'Cliente')}</b><div class="hint">${esc(c.phone ? `+${c.phone}` : '')}</div></td><td>${esc(c.pacote || '—')}</td><td>${esc({ reservada: 'reservada (aguardando pagamento à vista)', confirmada: 'confirmada (pagou)', expirada: 'expirada', liberada: 'liberada' }[c.status] || c.status)}</td><td>${esc(when(c.at))}</td><td class="row">${c.status === 'reservada' ? '<button class="btn small primary" data-fo="confirm">Pagou à vista</button><button class="btn small" data-fo="release">Liberar</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhuma vaga reservada ainda.</td></tr>'}
         </tbody></table></div></div>` : ''}
@@ -51,6 +51,13 @@
         <div class="row"><a class="btn" href="/api/plano-pdf" target="_blank" rel="noopener">Ver o PDF atual</a>
           <label class="btn">Enviar o PDF oficial <input type="file" id="fcFile" accept="application/pdf" hidden /></label>
           ${r.planoPdf.oficial ? '<button class="btn danger" id="fcBase" type="button">Voltar ao PDF-base</button>' : ''}</div></div>`;
+    sec.querySelector('#foCaption')?.addEventListener('click', async () => {
+      try {
+        const r = await api('/api/flash-offer/legenda');
+        sec.querySelector('#foCaptionBox').innerHTML = `${r.contadoGrupos ? '' : '<p class="hint"><b>Atenção:</b> ainda não contei as pessoas dos grupos; a legenda sai sem o número. Clique em "Contar pessoas nos grupos" primeiro.</p>'}<textarea id="foCaptionText" rows="12" style="width:100%">${esc(r.text)}</textarea><div class="row"><button class="btn primary" id="foCopy" type="button">Copiar legenda</button> <a class="btn" href="${esc(r.link)}" target="_blank" rel="noopener">Testar o link</a></div>`;
+        sec.querySelector('#foCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(sec.querySelector('#foCaptionText').value); toast('Legenda copiada'); } catch { sec.querySelector('#foCaptionText').select(); toast('Selecione e copie (Ctrl+C)'); } });
+      } catch (err) { toast(err.message, true); }
+    });
     sec.querySelector('#foGroups')?.addEventListener('click', async (e) => { e.target.disabled = true; e.target.textContent = 'Contando…'; try { const r = await api('/api/flash-offer/count-groups', { method: 'POST', body: {} }); toast(`${r.people.toLocaleString('pt-BR')} pessoas em ${r.groups} grupos`); render(); } catch (err) { toast(err.message, true); e.target.disabled = false; e.target.textContent = 'Contar pessoas nos grupos'; } });
     sec.querySelectorAll('[data-fo]').forEach((b) => b.addEventListener('click', async () => { const id = b.closest('tr').dataset.id; try { await api(`/api/flash-offer/claims/${id}/${b.dataset.fo}`, { method: 'POST', body: {} }); render(); } catch (err) { toast(err.message, true); } }));
     sec.querySelector('#fcDays').addEventListener('change', (e) => { days = Number(e.target.value); render(); });

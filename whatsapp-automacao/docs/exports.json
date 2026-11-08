@@ -302,7 +302,10 @@
   "simulate"
  ],
  "src/flash-offer.js": [
-  "FlashOffer"
+  "FlashOffer",
+  "buildCaption",
+  "peopleLabel",
+  "roundedPeople"
  ],
  "src/followups-done.js": [
   "brDate",
@@ -566,6 +569,10 @@
   "qualBlock",
   "qualRank",
   "strategyFor"
+ ],
+ "src/queue-priority.js": [
+  "isFresh",
+  "pickNext"
  ],
  "src/quote-delivery.js": [
   "DEFAULT_QUOTE_VOICE",

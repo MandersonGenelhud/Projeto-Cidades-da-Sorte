@@ -54,3 +54,25 @@ export class FlashOffer {
 
   list() { this.#expire(); return [...this.claims].reverse(); }
 }
+
+/** "Mais de X pessoas": arredonda PARA BAIXO para a centena (1.101 → 1.100; 1.099 → 1.000; 999 → 900), para nunca prometer mais do que existe. */
+export const roundedPeople = (n) => Math.max(0, Math.floor(Number(n) / 100) * 100);
+export const peopleLabel = (n) => { const r = roundedPeople(n); return r >= 100 ? `mais de ${r.toLocaleString('pt-BR')} pessoas` : ''; };
+
+/** Legenda curta para postar a arte nos grupos, com os destaques do WhatsApp (*negrito*). */
+export function buildCaption({ people = 0, link = '', spots = 20, until = '2026-11-12' } = {}) {
+  const [y, m, d] = String(until).split('-');
+  const label = peopleLabel(people);
+  return [
+    `*OFERTA RELÂMPAGO ATÉ QUINTA-FEIRA, ${d}/${m}*`,
+    '',
+    `${label ? `Entre ${label} dos nossos grupos, ` : 'Dos nossos grupos, '}*só ${spots}* vão ganhar *1 ano de curso de idiomas* (espanhol na prática, do dia a dia) fechando com a Migra nos planos *Prata ou Ouro*.`,
+    '',
+    'Um ano de curso de idiomas em escola tradicional custa, em média, de R$ 3 mil a R$ 10 mil.',
+    '',
+    '*À vista* ou em até *3x no cartão* (os juros da operadora ficam por conta do cliente).',
+    '',
+    `*Quer garantir a sua vaga? Clique aqui:*`,
+    link,
+  ].join('\n');
+}

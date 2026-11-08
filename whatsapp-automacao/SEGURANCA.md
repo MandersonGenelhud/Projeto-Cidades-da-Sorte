@@ -444,3 +444,11 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - A equipe decide: "Vai continuar" (sai do quadro) ou "Não vai continuar" (perdido, com o motivo digitado). Vendedor só decide os próprios prospectos.
 - Limite: depende de a conversa estar ligada ao prospecto (chave da conversa ou telefone com os 9 últimos dígitos). Conversa por outro número não é vista.
 - Testes: `test/retornos-atrasados.test.js`.
+
+## Arte da oferta nos grupos, legenda, prioridade da fila e cartão em até 3x
+
+- **Número de pessoas nos grupos**: a contagem (somente leitura) guarda só o total; na arte e na legenda aparece sempre "mais de X" arredondado **para baixo** na centena (1.101 → 1.100; 999 → 900), para nunca prometer mais do que existe. O número só entra depois de contado.
+- **Legenda** (`GET /api/flash-offer/legenda`, só administrador): curta, com destaques do WhatsApp, link `wa.me` do número do Marcos (cadastrado em `crm.ownerPhone`) com a frase da oferta já escrita. Sai um aviso se o número do dono não estiver cadastrado.
+- **Pagamento da oferta**: à vista **ou** cartão em até 3x com a taxa da operadora paga pelo cliente (a Migra recebe à vista); a IA usa as taxas cadastradas (`opcoes_cartao`), nunca inventa. Outras formas (entrada e etapas) não prometem o brinde: a negociação final é do vendedor.
+- **Prioridade da fila**: cliente que acabou de chegar (últimas 3 h) passa na frente em cada número; os antigos (retomadas, recomeços, pedidos parados) saem aos poucos, 1 a cada 4 atendimentos, o mais antigo primeiro. Não muda limites por hora, horários nem intervalos de proteção dos números (`src/queue-priority.js`).
+- Testes: `test/oferta-relampago.test.js`.

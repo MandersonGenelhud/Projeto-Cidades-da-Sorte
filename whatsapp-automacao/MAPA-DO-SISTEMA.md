@@ -5,8 +5,8 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **140** · testes automatizados (arquivos): **139** · scripts do painel: **43**
-- Rotas da API em `server.js`: **510** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
+- Módulos em `src/`: **141** · testes automatizados (arquivos): **139** · scripts do painel: **43**
+- Rotas da API em `server.js`: **511** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
 
@@ -24,7 +24,7 @@
 - Configuração nova vai em `settings` com **valor padrão** em `store.js`; mudança em dado já existente usa **migração de uma vez** com selo (veja abaixo), nunca sobrescreve o que o painel salvou.
 - Nada de segredo no código. Dados reais ficam em `data/` e nunca no Git.
 
-## Módulos (140)
+## Módulos (141)
 | Módulo | Linhas | Para que serve | Quem usa | Testes |
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
@@ -80,7 +80,7 @@
 | `fechamentos.js` | 68 | Painel de FECHAMENTOS: quem continuou a conversa DEPOIS de receber o orçamento (todo mundo recebe orçamento, então o orçamento sozinho não mede nada). | `routes/fechamentos.js` | 1 |
 | `ficha-text.js` | 24 | A ficha de dados em TEXTO: muita gente tem medo de tocar num link, então o pedido sempre vai também escrito, para a pessoa | `maria-outbound.js`, `maria.js`, `server.js` | 1 |
 | `finance.js` | 283 | Financiamento próprio de lotes (Migra Imobiliária): simulador de parcelas com | `server.js` | 2 |
-| `flash-offer.js` | 57 | Oferta relâmpago com VAGAS LIMITADAS de verdade: só as próximas N pessoas (padrão 20), que fecharem até a data, em plano Prata ou Ouro, | `server.js` | 1 |
+| `flash-offer.js` | 79 | Oferta relâmpago com VAGAS LIMITADAS de verdade: só as próximas N pessoas (padrão 20), que fecharem até a data, em plano Prata ou Ouro, | `routes/fechamentos.js`, `server.js` | 1 |
 | `followups-done.js` | 49 | Retornos ATRASADOS que na verdade já foram feitos: se depois da data do retorno a equipe ou a IA já falaram com o cliente, | `server.js` | 1 |
 | `followups.js` | 203 | Retorno combinado: quando o cliente pede "mais pra frente", a atendente marca dia e hora | `server.js` | 2 |
 | `group-brief.js` | 120 | Resumo AO VIVO do Grupo Migra para a Maria (a secretária da equipe): imóveis e loteamentos, financiamento de lotes, veículos, | `server.js` | 2 |
@@ -115,13 +115,14 @@
 | `payments.js` | 425 | Cobrança por Pix no fechamento: gera o Pix (copia e cola + QR Code), confirma o | `server.js` | 8 |
 | `payplan.js` | 118 | Etapas de pagamento do processo (o "fluxograma" que o cliente recebe). | `contract.js`, `quotes.js`, `server.js` | 7 |
 | `pdfdoc.js` | 268 | PDF de várias páginas, sem dependências: títulos, parágrafos com quebra de linha | `closing.js`, `contract.js`, `finance.js`, `payments.js`, `plano-pdf.js`, `quotes.js` | 2 |
-| `pending.js` | 568 | Conversas sem resposta: clientes cuja última mensagem ainda não foi respondida. | `server.js` | 3 |
+| `pending.js` | 573 | Conversas sem resposta: clientes cuja última mensagem ainda não foi respondida. | `server.js` | 3 |
 | `personal.js` | 475 | Agenda e financeiro PESSOAL de cada pessoa (a assistente pessoal "Ana"). Fica separado da empresa: não entra no Caixa Migra, | `ana.js`, `server.js` | 3 |
 | `phone-fix.js` | 48 | Telefones de clientes já gravados sem o +55 (só DDD + número): acrescenta o 55 do Brasil, só quando o número é claramente brasileiro | `routes/controle.js`, `store.js` | 1 |
 | `pix.js` | 154 | Pix "copia e cola" (BR Code, padrão EMV do Banco Central) e recibo em PDF, | `payments.js`, `receipts.js` | 1 |
 | `plano-pdf.js` | 48 | "Plano para dar entrada sozinho": para quem não tem condições de contratar a assessoria. O cliente paga um valor simples (padrão R$ 500) | `routes/fechamentos.js`, `server.js` | 1 |
 | `portfolio.js` | 57 | Portfólio de novidades do Grupo Migra: a direção vai anotando cada coisa nova que o grupo cria ou lança, e a Maria já fica sabendo. | `maria.js`, `server.js` | 1 |
 | `qualificacao.js` | 79 | Termômetro de venda: a IA registra, ao longo da conversa, se o cliente TEM CONDIÇÕES de fechar e o que fazer com cada resposta dele. | `agent/agent.js`, `agent/tools.js`, `restart.js` | 2 |
+| `queue-priority.js` | 25 | Prioridade da fila de atendimento: quem acabou de chegar (cliente novo escrevendo agora) passa na frente; os antigos (retomadas, recomeços, | `pending.js` | 1 |
 | `quote-delivery.js` | 49 | Entrega do orçamento ao cliente: uma MENSAGEM DE VOZ alegre e calma (no lugar do texto que acompanhava o PDF) e o PDF timbrado, com o botão | `server.js` | 1 |
 | `quote-expiry.js` | 79 | Aviso de orçamento que vai vencer: quem recebeu a proposta e ainda não fechou é lembrado, com o prazo REAL do orçamento, | `pending.js`, `routes/controle.js` | 2 |
 | `quote-request.js` | 78 | "Dados para o orçamento": quando o cliente pede um orçamento (ou a atendente vai mandar um), ele recebe um link curto para preencher os dados básicos | `server.js` | 1 |
@@ -137,7 +138,7 @@
 | `resumes.js` | 108 | Banco de currículos: quem pergunta por vaga ou manda currículo fica guardado aqui (com o arquivo), | `server.js` | 1 |
 | `routes/assinatura-contratada.js` | 88 | Assinatura da empresa (CONTRATADA) nos contratos: a própria pessoa cadastra a imagem da assinatura e autoriza o uso (nunca é desenhada nem imitada). | `server.js` | **0** |
 | `routes/controle.js` | 206 | Rotas de CONTROLE das conversas e do atendimento (só administrador): quadros por pessoa, auditoria dos números, envio por número, | `server.js` | **0** |
-| `routes/fechamentos.js` | 57 | Rotas do painel de FECHAMENTOS (só administrador): funil depois do orçamento, checklist de acompanhamento, radar de objeções | `server.js` | **0** |
+| `routes/fechamentos.js` | 67 | Rotas do painel de FECHAMENTOS (só administrador): funil depois do orçamento, checklist de acompanhamento, radar de objeções | `server.js` | **0** |
 | `routing.js` | 165 | Encaminhamento: a IA fez a peneira no Direct/WhatsApp, o cliente está pronto | `digest.js`, `sectors.js`, `server.js` | 2 |
 | `sales-coach.js` | 77 | A Maria como vendedora da equipe: roteiro de venda (o mesmo espírito do atendente de IA) e leitura do CRM para dizer | `maria.js` | 1 |
 | `sales.js` | 310 | Contratos e vendas: cada venda fechada (a partir do orçamento), as parcelas com o que já entrou, | `server.js` | 10 |
@@ -153,7 +154,7 @@
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
 | `site-content.js` | 90 | Conteúdo editável da página inicial do site (título, números confirmados, vídeos de depoimento e perguntas), | `server.js` | 1 |
 | `site-host.js` | 43 | Domínio próprio do site público da Migra (ex.: www.migraparaguay.com): no domínio do site só aparecem | `server.js` | 3 |
-| `store.js` | 556 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 16 |
+| `store.js` | 563 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 16 |
 | `support.js` | 135 | Suporte interno: qualquer pessoa da equipe abre um chamado (problema no sistema, dúvida, pedido), | `server.js` | 1 |
 | `tasks.js` | 65 | Tarefas da equipe: o que cada pessoa precisa fazer, com prazo e lembrete no WhatsApp (uma vez, no dia do prazo ou quando atrasar). | `server.js` | 1 |
 | `transports/cloudapi.js` | 208 | WhatsApp Cloud API (API oficial da Meta): envio via Graph API e recebimento via webhook. | `server.js` | 1 |
@@ -174,6 +175,7 @@
 - `crisisMemory2026`
 - `crisisMemory2026b`
 - `flash2026b`
+- `flash2026c`
 - `groupMemory2026`
 - `lotsGabriel2026`
 - `ownerResume2026`
@@ -232,7 +234,7 @@
 - `contabil-painel.js`
 - `nav-hubs.js`
 
-## Rotas da API (510)
+## Rotas da API (511)
 - `GET /webhook`
 - `GET /webhook/instagram`
 - `POST /webhook/instagram`
@@ -743,3 +745,4 @@
 - `GET /api/flash-offer`
 - `POST /api/flash-offer/claims/:id/:action`
 - `POST /api/flash-offer/count-groups`
+- `GET /api/flash-offer/legenda`
