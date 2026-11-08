@@ -504,6 +504,14 @@
   "AUTO_MAX_DEFAULT",
   "ReceiptReader"
  ],
+ "src/reconcile.js": [
+  "findDuplicates",
+  "findIssues",
+  "identityOf",
+  "legacyDiff",
+  "reconcile",
+  "totals"
+ ],
  "src/recordings.js": [
   "Recordings"
  ],

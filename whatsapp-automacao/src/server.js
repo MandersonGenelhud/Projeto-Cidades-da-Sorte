@@ -2733,7 +2733,7 @@ const { restartAll, convOfLead, noticeQuotes } = registerControleRoutes(app, {
   // Funções definidas mais adiante no arquivo entram por "ponte" (só são chamadas quando chega um pedido).
   needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), inOffice: (...x) => inOffice(...x), securityEvent: (...x) => securityEvent(...x),
   conversationOffice: (...x) => conversationOffice(...x), convLabel: (...x) => convLabel(...x), lineOwnerOf: (...x) => lineOwnerOf(...x),
-  store, auth, crm, agent, pending, lines, wa, sales,
+  store, auth, crm, agent, pending, lines, wa, sales, quotes, legacy,
 });
 // Busca por palavra em todas as conversas (só administrador; respeita o escritório escolhido no alto da tela).
 app.get('/api/search/conversations', (req, res) => {

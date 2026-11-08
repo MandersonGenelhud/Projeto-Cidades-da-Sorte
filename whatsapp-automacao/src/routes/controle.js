@@ -6,11 +6,12 @@ import { auditMessaging } from '../messaging-audit.js';
 import { cleanProfile, profileFor } from '../send-profiles.js';
 import { distributionReport } from '../distribution.js';
 import { noticeExpiringQuotes } from '../quote-expiry.js';
+import { reconcile } from '../reconcile.js';
 import { restartStalled } from '../restart.js';
 
-/** ctx: { needAdmin, httpError, inOffice, store, auth, crm, agent, pending, lines, wa, sales, quotes, securityEvent, conversationOffice, convLabel, lineOwnerOf } */
+/** ctx: { needAdmin, httpError, inOffice, store, auth, crm, agent, pending, lines, wa, sales, quotes, legacy, securityEvent, conversationOffice, convLabel, lineOwnerOf } */
 export function registerControleRoutes(app, ctx) {
-  const { needAdmin, httpError, inOffice, store, auth, crm, agent, pending, lines, wa, sales, securityEvent, conversationOffice, convLabel, lineOwnerOf } = ctx;
+  const { needAdmin, httpError, inOffice, store, auth, crm, agent, pending, lines, wa, sales, quotes, legacy, securityEvent, conversationOffice, convLabel, lineOwnerOf } = ctx;
 // Quadros: um por pessoa da equipe, um da IA ainda sem direcionar e um por número da equipe sem dono, com "como está respondendo" (só administrador).
 app.get('/api/conversations-boards', (req, res) => {
   needAdmin(req);
@@ -18,6 +19,33 @@ app.get('/api/conversations-boards', (req, res) => {
   res.json({ boards: conversationBoards({ conversations: convs.map((c) => ({ ...c, channelLabel: convLabel(c.key) })), users: auth.users, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) }) });
 });
 // Recomeçar os atendimentos parados dos últimos 30 dias (todos os números): a IA lê as últimas 20 mensagens, confere se é assunto da Migra e retoma.
+// Conferência dos contratos e do dinheiro (só administrador): repetidos, valores que não fecham, diferenças com o sistema antigo e totais.
+const scopedSales = (req) => sales.list.filter((s) => inOffice(req, sales.officeOf(s)));
+app.get('/api/reconcile', (req, res) => {
+  needAdmin(req);
+  res.json(reconcile({ sales: scopedSales(req), legacy: legacy.list }));
+});
+app.post('/api/reconcile/archive', (req, res) => {
+  needAdmin(req);
+  const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(String))].slice(0, 100);
+  const groups = reconcile({ sales: scopedSales(req), legacy: [] }).duplicates;
+  const out = { archived: 0, skipped: [] };
+  for (const id of ids) {
+    const g = groups.find((x) => x.extras.some((e) => e.id === id));
+    const e = g?.extras.find((x) => x.id === id);
+    if (!e) { out.skipped.push({ id, motivo: 'não é mais repetido' }); continue; }
+    if (!e.canArchive) { out.skipped.push({ id, number: e.number, motivo: e.whyNot }); continue; }
+    try { sales.archiveDuplicate(req.user, id, sales.get(g.keep.id)); out.archived += 1; } catch (err) { out.skipped.push({ id, number: e.number, motivo: err.message }); }
+  }
+  securityEvent('arquivar_contratos_repetidos', req.user, req, `${out.archived} contrato(s) arquivado(s) como repetidos, ${out.skipped.length} ficaram de fora`);
+  res.json(out);
+});
+app.post('/api/reconcile/restore', (req, res) => {
+  needAdmin(req);
+  const sale = sales.restoreDuplicate(req.user, String(req.body?.id || ''));
+  securityEvent('restaurar_contrato_repetido', req.user, req, `contrato ${sale.legacyNumber || sale.number} restaurado`);
+  res.json({ ok: true });
+});
 // Orçamentos que vencem hoje ou amanhã: ver quem seria avisado (GET) e avisar pela fila da IA (POST). Cada orçamento é avisado uma vez só.
 const noticeQuotes = (opts = {}) => noticeExpiringQuotes({
   store, agent, pending, quotes: quotes.list, sales: sales.list, now: Date.now(),

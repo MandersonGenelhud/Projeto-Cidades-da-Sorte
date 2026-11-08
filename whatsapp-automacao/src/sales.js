@@ -221,6 +221,34 @@ export class Sales {
     return sale;
   }
 
+  /** Tira da cobrança e dos totais um contrato do sistema antigo que é cópia repetida de outro. Não apaga nada: dá para restaurar. */
+  archiveDuplicate(user, id, keep) {
+    this.#admin(user);
+    const sale = this.#mustSee(user, id);
+    if (sale.status === 'cancelada') throw err(400, 'Este contrato já está cancelado/arquivado');
+    if (!sale.legacy) throw err(400, 'Só contrato copiado do sistema antigo pode ser arquivado como repetido');
+    if ((sale.parcels || []).some((p) => p.status === 'pago' && p.confirmedBy && p.confirmedBy !== 'Importação')) throw err(400, 'Este contrato tem baixa feita por uma pessoa aqui: confira à mão antes');
+    if (!keep || keep.id === sale.id) throw err(400, 'Informe qual contrato fica');
+    sale.status = 'cancelada';
+    sale.duplicateOf = keep.id;
+    this.#log(sale, user, `Arquivado como repetido do contrato ${keep.legacyNumber || keep.number}`);
+    this.store.save();
+    this.notify('sales', { id });
+    return sale;
+  }
+
+  restoreDuplicate(user, id) {
+    this.#admin(user);
+    const sale = this.#mustSee(user, id);
+    if (!sale.duplicateOf) throw err(400, 'Este contrato não foi arquivado como repetido');
+    sale.status = (sale.parcels || []).every((x) => x.status === 'pago') ? 'concluida' : 'ativa';
+    delete sale.duplicateOf;
+    this.#log(sale, user, 'Restaurado: não era repetido');
+    this.store.save();
+    this.notify('sales', { id });
+    return sale;
+  }
+
   view(sale) {
     const t = today();
     const received = cents(sale.parcels.filter((p) => p.status === 'pago').reduce((s, p) => s + p.value, 0));

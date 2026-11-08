@@ -302,3 +302,9 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 - No plano padrão de 3 parcelas, o contrato (`src/contract.js`) diz: 1ª com vencimento ou data de pagamento na primeira vinda ao Paraguai; 2ª entre 60 e 90 dias após a primeira vinda; 3ª 30 dias após o pagamento da 2ª. Plano combinado pelo vendedor mantém data fixa. Teste: `test/contract.test.js`. Contratos já assinados não são alterados; só os gerados depois.
 - O orçamento (mensagem do WhatsApp e PDF) segue a mesma regra do contrato no plano padrão: só o texto dos vencimentos muda; preços, entrada e valores das parcelas são os mesmos (teste em `test/quotes.test.js`). Parcelas combinadas pelo vendedor continuam com data fixa. As datas internas do plano continuam existindo para cobrança e previsão.
+
+## Conferência dos contratos e do dinheiro (dinheiro e dado de cliente)
+
+- Risco: contrato repetido inflando "a receber" e "em atraso" e gerando cobrança em dobro; arquivar o contrato errado; vendedor ver ou mexer.
+- Controles (`src/reconcile.js`, `src/sales.js`, rotas em `src/routes/controle.js`, testes em `test/reconcile.test.js`): a conferência só LÊ; só administrador acessa (vendedor recebe 403) e respeita o escritório escolhido. Arquivar é manual, um grupo por vez: só contrato copiado do sistema antigo, nunca o criado aqui (com comissão), e nunca o que tem baixa feita por uma pessoa neste sistema. Não apaga nada (vira "cancelada" com `duplicateOf` e histórico) e tem "restaurar". Cada arquivamento/restauração é registrado como evento de segurança. Os totais mostram o valor com e sem os repetidos prováveis para o Marcos ver o efeito antes de decidir.
+- Limite honesto: a comparação com o sistema antigo usa a ÚLTIMA CÓPIA guardada (ferramenta de captura rodada pelo administrador na máquina dele). O sistema não entra na conta do sistema antigo nem guarda a senha dele.
