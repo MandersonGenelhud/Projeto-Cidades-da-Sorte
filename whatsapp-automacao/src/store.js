@@ -49,7 +49,7 @@ const DEFAULT_DATA = {
       jobsContact: [{ name: 'Diego', whatsapp: '' }], // quem quer trabalhar na Migra (só o nome = WhatsApp da Equipe)
       mentoring: { enabled: true, price: 400, currency: 'USD', minutes: 60, priceBRL: 0 }, // priceBRL: valor do Pix em reais (0 = US$ × cotação do painel) // mentoria com o Marcos Miguel (único atendimento direto com ele)
       // Oferta do aplicativo de idiomas da Migra (ainda em desenvolvimento): só vale até a data que o Marcos escolher.
-      flashOffer: { enabled: true, validUntil: '2026-11-12', title: 'Quem fechar até quinta-feira, 12/11, e pagar à vista ganha de presente 1 ano do aplicativo de curso de idiomas do dia a dia.', conditions: 'fechar até 12/11 e pagar o valor total à vista', reference: 'um ano de curso de idiomas em escolas tradicionais custa, em média, de R$ 3 mil a R$ 10 mil' },
+      flashOffer: { enabled: true, validUntil: '2026-11-12', spots: 20, groupPeople: 0, title: 'Oferta relâmpago: 1 ano de aula do aplicativo Migra School (espanhol na prática, do dia a dia, para você já começar a falar no Paraguai) de presente para as próximas 20 pessoas que fecharem até quinta-feira, 12/11, no plano Prata ou Ouro.', conditions: 'fechar até 12/11 no plano Prata ou Ouro, pagando o valor total à vista, e estar entre as vagas limitadas (as próximas 20 pessoas)', reference: 'um ano de curso de idiomas em escolas tradicionais custa, em média, de R$ 3 mil a R$ 10 mil' },
       appOffer: { enabled: true, regularPrice: 59.99, discountPct: 50, months: 6, period: 'por mês', validUntil: '2026-12-25', gift: '' }, // oferta de Natal: vale até 25/12/2026
       codePrefix: 'MIG',
       fx: { USD: 5.5, PYG: 0.0007 }, // cotação usada só para somar vendas em R$ nos painéis
@@ -393,6 +393,16 @@ export class Store extends EventEmitter {
       const agOwner = this.data.settings.agent;
       if (agOwner && Number(agOwner.resumeAfterOwnerHours) === 6) agOwner.resumeAfterOwnerHours = 2;
       this.data.ownerResume2026 = true;
+      this.flush();
+    }
+    // Oferta relâmpago com vagas limitadas (20, Prata ou Ouro, à vista): troca uma vez o texto da versão anterior, sem mexer no que a direção já tiver ajustado nas datas e vagas.
+    if (!this.data.flash2026b) {
+      const crmF = this.data.settings.crm;
+      if (crmF?.flashOffer && !crmF.flashOffer.spots) {
+        const def = DEFAULT_DATA.settings?.crm?.flashOffer;
+        if (def) crmF.flashOffer = { ...crmF.flashOffer, spots: def.spots, groupPeople: crmF.flashOffer.groupPeople || 0, title: def.title, conditions: def.conditions };
+      }
+      this.data.flash2026b = true;
       this.flush();
     }
     // Gatilhos de venda confirmados pela direção (Marcos): alta procura/fila e possibilidade de reajuste (sem data nem percentual, nada inventado).

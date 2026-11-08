@@ -6,7 +6,7 @@ import { planPdfPrice, loadPlanPdf, hasOfficialPlanPdf, planPdfFile } from '../p
 
 /** ctx: { needAdmin, httpError, securityEvent, store, crm, quotes, payments, dataDir } */
 export function registerFechamentosRoutes(app, ctx) {
-  const { needAdmin, httpError, securityEvent, store, crm, quotes, payments, dataDir } = ctx;
+  const { needAdmin, httpError, securityEvent, store, crm, quotes, payments, dataDir, flashOffer, wa } = ctx;
   app.get('/api/fechamentos', (req, res) => {
     needAdmin(req);
     const days = Math.min(180, Math.max(7, Number(req.query.days) || 60));
@@ -30,5 +30,27 @@ export function registerFechamentosRoutes(app, ctx) {
     fs.writeFileSync(planPdfFile(dataDir), buf, { mode: 0o600 });
     securityEvent('plano_pdf_oficial', req.user, req, `Arquivo oficial do plano em PDF cadastrado (${Math.round(buf.length / 1024)} KB)`);
     res.json({ oficial: true });
+  });
+  // Oferta relâmpago: vagas reais, quem reservou, confirmar (pagamento à vista recebido) ou liberar; contar as pessoas dos grupos (só leitura).
+  app.get('/api/flash-offer', (req, res) => {
+    needAdmin(req);
+    res.json({ ...flashOffer.status(), config: { validUntil: flashOffer.cfg.validUntil, spots: flashOffer.cfg.spots, groupPeople: flashOffer.cfg.groupPeople || 0, title: flashOffer.cfg.title }, claims: flashOffer.list().slice(0, 100) });
+  });
+  app.post('/api/flash-offer/claims/:id/:action', (req, res) => {
+    needAdmin(req);
+    const a = req.params.action;
+    if (!['confirm', 'release'].includes(a)) throw httpError(404, 'Ação desconhecida');
+    const c = a === 'confirm' ? flashOffer.confirm(req.params.id, req.user.name) : flashOffer.release(req.params.id, req.user.name);
+    securityEvent(a === 'confirm' ? 'oferta_vaga_confirmada' : 'oferta_vaga_liberada', req.user, req, `${a === 'confirm' ? 'Pagamento à vista confirmado' : 'Vaga liberada'}: ${c.name || c.phone}`);
+    res.json(c);
+  });
+  app.post('/api/flash-offer/count-groups', async (req, res) => {
+    needAdmin(req);
+    const groups = await wa.getGroups();
+    const all = new Set();
+    for (const g of groups) { try { for (const p of await wa.getGroupParticipants(g.id)) { const d = String(p).replace(/\D/g, ''); if (d.length >= 8) all.add(d); } } catch { /* grupo que não abriu: segue */ } }
+    store.updateSettings({ crm: { flashOffer: { groupPeople: all.size } } });
+    securityEvent('oferta_contar_grupos', req.user, req, `${all.size} pessoas únicas em ${groups.length} grupos`);
+    res.json({ groups: groups.length, people: all.size });
   });
 }

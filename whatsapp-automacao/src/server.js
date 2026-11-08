@@ -39,6 +39,7 @@ import { Ana } from './ana.js';
 import { Personal } from './personal.js';
 import { planPdfPrice, loadPlanPdf } from './plano-pdf.js';
 import { registerFechamentosRoutes } from './routes/fechamentos.js';
+import { FlashOffer } from './flash-offer.js';
 import { Portfolio } from './portfolio.js';
 import { makeOutbound, findRecentQuote, filledNotice } from './maria-outbound.js';
 import { groupLiveBrief, HUB_OVERVIEW, STAFF_RULES } from './group-brief.js';
@@ -2831,7 +2832,10 @@ const { restartAll, convOfLead, noticeQuotes, repairLeads } = registerControleRo
   outreachFor: (c) => outreachFor(c),
   closedFor: (x) => closedIndex().closedFor(x),
 });
-registerFechamentosRoutes(app, { needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), store, crm, quotes, payments, dataDir: DATA_DIR });
+const flashOffer = new FlashOffer({ store });
+agent.flashStatus = () => flashOffer.status();
+agent.flashClaim = (conv) => { const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username }); return flashOffer.claim({ convKey: conv.key, leadId: lead?.id || null, name: lead?.name || conv.name, phone: conv.phone || lead?.phone || '', pacote: lead?.interest || '' }); };
+registerFechamentosRoutes(app, { flashOffer, wa, needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), store, crm, quotes, payments, dataDir: DATA_DIR });
 // A IA falhou mesmo depois de tentar de novo: a mensagem do cliente continua guardada e a fila de "esperando resposta" tenta de novo em instantes,
 // sem esperar os 15 minutos da rede de segurança.
 agent.onFailed = (conv) => {

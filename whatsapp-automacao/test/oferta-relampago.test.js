@@ -46,3 +46,47 @@ test('sem condições agora: a IA pergunta a previsão, agenda o retorno e não 
   assert.equal(applyQualification(c, { capacidade: 'sim', evidencia: 'x', oferta_relampago: 'invalida' }).ok, true);
   assert.equal(c.qualificacao.oferta, 'vai_a_vista', 'valor inválido não apaga o que já estava');
 });
+
+import { FlashOffer } from '../src/flash-offer.js';
+
+test('vagas reais da oferta: conta as 20 vagas, uma por conversa, expira reserva sem pagamento, confirma e libera', () => {
+  const store = tempStore();
+  let t = Date.parse('2026-11-09T12:00:00Z');
+  const f = new FlashOffer({ store, now: () => t });
+  assert.deepEqual([f.status().total, f.status().left, f.status().open], [20, 20, true]);
+  const a = f.claim({ convKey: 'c1', name: 'Ana', phone: '5511900000001' });
+  assert.equal(a.ok, true); assert.equal(a.left, 19);
+  assert.equal(f.claim({ convKey: 'c1' }).ja, true, 'a mesma conversa não ocupa duas vagas');
+  assert.equal(f.status().left, 19);
+  for (let i = 2; i <= 20; i++) f.claim({ convKey: `c${i}` });
+  assert.equal(f.status().left, 0);
+  assert.deepEqual(f.claim({ convKey: 'c99' }), { ok: false, motivo: 'esgotada', left: 0 });
+  f.confirm(a.id, 'Marcos');
+  assert.throws(() => f.release(a.id), /já foi confirmada/);
+  t += 49 * 3_600_000; // as reservas sem pagamento expiram em 48 h e as vagas voltam (a confirmada fica)
+  assert.equal(f.status().left, 19);
+  assert.equal(f.status().confirmed, 1);
+  const rel = f.list().find((c) => c.status === 'expirada');
+  assert.ok(rel);
+  t = Date.parse('2026-11-13T09:00:00Z'); // depois do dia 12 a oferta encerra
+  assert.equal(f.status().open, false);
+  assert.deepEqual(f.claim({ convKey: 'novo' }), { ok: false, motivo: 'encerrada', left: 0 });
+});
+
+test('vagas no prompt: a IA recebe o número real e, esgotado, é mandada parar de falar da oferta', async () => {
+  const T = new Date(2026, 10, 10, 10, 0);
+  const store = tempStore();
+  store.updateSettings(presetSettings('clinica-sorriso'));
+  store.updateSettings({ agent: { enabled: true, audience: 'all' } });
+  let system = '';
+  const llm = { configured: true, async chat({ messages }) { system = messages.map((m) => m.content).join('\n'); return { content: 'ok', tool_calls: [] }; } };
+  const agent = new Agent({ store, llm, calendar: new LocalCalendar({ store, getConfig: () => store.settings.agenda, now: () => T }), now: () => T });
+  agent.flashStatus = () => ({ open: true, total: 20, left: 7 });
+  await agent.handleIncoming({ key: 'k1', phone: '5511999990001', name: 'Rita', text: 'oi' }, async () => {});
+  assert.match(system, /Restam 7 de 20 vagas/);
+  assert.match(system, /próximas 20 pessoas/);
+  assert.match(system, /nunca invente número/);
+  agent.flashStatus = () => ({ open: true, total: 20, left: 0 });
+  await agent.handleIncoming({ key: 'k2', phone: '5511999990002', name: 'Rita', text: 'oi' }, async () => {});
+  assert.match(system, /vagas ESGOTARAM/);
+});

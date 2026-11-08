@@ -411,3 +411,11 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Quem diz que vai pagar à vista é anotado no prospecto ("confira o pagamento até a data para liberar o brinde"): o brinde só é liberado com o pagamento conferido pela equipe. A IA não confirma pagamento.
 - **Sem condições agora**: a IA pergunta a previsão de quando o cliente terá o valor, registra (`previsao`), agenda o retorno com dia e hora (`agendar_retorno`) e não desmerece; o Plano em PDF é oferecido uma vez, depois. O checklist de fechamentos mostra a previsão e a data de retorno.
 - Testes: `test/oferta-relampago.test.js`.
+
+## Oferta relâmpago com vagas limitadas (escassez verdadeira)
+
+- As vagas (padrão 20, Prata ou Ouro, à vista, até a data) são **contadas pelo sistema** (`src/flash-offer.js`): uma vaga por conversa, reserva de 48 h que volta sozinha se não houver pagamento, e confirmação/liberação pela equipe (registradas em segurança). A IA só cita quantas vagas restam com o número real e, esgotada ou encerrada, é instruída a não falar mais da oferta nem prometer o brinde.
+- A contagem de pessoas dos grupos é só leitura (não envia nada) e guarda apenas o total, nunca os números.
+- O texto fala em "milhares de pessoas" (já na base) e só cita o total dos grupos se ele tiver sido contado. A IA não diz que o aplicativo é "melhor que qualquer curso" nem critica cursos pelo nome.
+- A IA não confirma pagamento: o brinde só vale com a confirmação da equipe.
+- Testes: `test/oferta-relampago.test.js`.

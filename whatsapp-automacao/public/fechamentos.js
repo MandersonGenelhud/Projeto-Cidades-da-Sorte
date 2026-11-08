@@ -11,6 +11,7 @@
     sec.innerHTML = '<div class="page-head"><h1>Fechamentos</h1></div><p class="muted">Carregando…</p>';
     let r;
     try { r = await api(`/api/fechamentos?days=${days}`); } catch (e) { sec.innerHTML = `<div class="page-head"><h1>Fechamentos</h1></div><p class="muted">${esc(e.message)}</p>`; return; }
+    let fo = null; try { fo = await api('/api/flash-offer'); } catch { /* sem oferta */ }
     const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const when = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
     const open = r.checklist.filter((x) => x.aberto);
@@ -35,12 +36,23 @@
         <div class="table-wrap"><table><thead><tr><th>Objeção</th><th>Apareceu</th><th>Fecharam</th><th>Taxa</th></tr></thead><tbody>
         ${r.radar.map((o) => `<tr><td>${esc(o.label)}</td><td>${o.total}</td><td>${o.fechou}</td><td>${o.taxa}%</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Ainda sem dados.</td></tr>'}
         </tbody></table></div></div>
+      ${fo ? `<div class="panel"><h2>Oferta relâmpago: vagas</h2>
+        <p class="hint">${esc(fo.config.title || '')}</p>
+        <p>${fo.open ? '<span class="badge ok">no ar</span>' : '<span class="badge paused">encerrada</span>'} Vagas: <b>${fo.left}</b> livres de <b>${fo.total}</b> (${fo.taken} ocupadas, ${fo.confirmed} com pagamento confirmado) · vale até ${esc(String(fo.config.validUntil || '').split('-').reverse().join('/'))}.
+          ${fo.config.groupPeople ? `Pessoas nos grupos: <b>${Number(fo.config.groupPeople).toLocaleString('pt-BR')}</b>.` : ''}</p>
+        <p class="hint">A reserva vale 48 h. Confirme quando o pagamento à vista cair; sem pagamento, a vaga volta sozinha (ou libere agora). A IA só fala o número real de vagas.</p>
+        <div class="row"><button class="btn" id="foGroups" type="button">Contar pessoas nos grupos</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Pacote</th><th>Situação</th><th>Quando</th><th></th></tr></thead><tbody>
+        ${fo.claims.map((c) => `<tr data-id="${esc(c.id)}"><td><b>${esc(c.name || c.phone || 'Cliente')}</b><div class="hint">${esc(c.phone ? `+${c.phone}` : '')}</div></td><td>${esc(c.pacote || '—')}</td><td>${esc({ reservada: 'reservada (aguardando pagamento à vista)', confirmada: 'confirmada (pagou)', expirada: 'expirada', liberada: 'liberada' }[c.status] || c.status)}</td><td>${esc(when(c.at))}</td><td class="row">${c.status === 'reservada' ? '<button class="btn small primary" data-fo="confirm">Pagou à vista</button><button class="btn small" data-fo="release">Liberar</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhuma vaga reservada ainda.</td></tr>'}
+        </tbody></table></div></div>` : ''}
       <div class="panel"><h2>Plano em PDF (para quem não tem condições)</h2>
         <p class="hint">Quem realmente não tem condições de contratar a assessoria recebe, uma única vez, a oferta do plano em PDF por <b>${brl(r.planoPdf.preco)}</b>. O PDF só é enviado depois do pagamento e você é avisado. Vendidos: <b>${r.planoPdf.vendidos}</b> · aguardando pagamento: <b>${r.planoPdf.aguardando}</b>.</p>
         <p>Arquivo usado hoje: ${r.planoPdf.oficial ? '<span class="badge ok">arquivo oficial enviado por você</span>' : '<span class="badge pending">PDF-base gerado pelo sistema (só com o que está na base oficial)</span>'}</p>
         <div class="row"><a class="btn" href="/api/plano-pdf" target="_blank" rel="noopener">Ver o PDF atual</a>
           <label class="btn">Enviar o PDF oficial <input type="file" id="fcFile" accept="application/pdf" hidden /></label>
           ${r.planoPdf.oficial ? '<button class="btn danger" id="fcBase" type="button">Voltar ao PDF-base</button>' : ''}</div></div>`;
+    sec.querySelector('#foGroups')?.addEventListener('click', async (e) => { e.target.disabled = true; e.target.textContent = 'Contando…'; try { const r = await api('/api/flash-offer/count-groups', { method: 'POST', body: {} }); toast(`${r.people.toLocaleString('pt-BR')} pessoas em ${r.groups} grupos`); render(); } catch (err) { toast(err.message, true); e.target.disabled = false; e.target.textContent = 'Contar pessoas nos grupos'; } });
+    sec.querySelectorAll('[data-fo]').forEach((b) => b.addEventListener('click', async () => { const id = b.closest('tr').dataset.id; try { await api(`/api/flash-offer/claims/${id}/${b.dataset.fo}`, { method: 'POST', body: {} }); render(); } catch (err) { toast(err.message, true); } }));
     sec.querySelector('#fcDays').addEventListener('change', (e) => { days = Number(e.target.value); render(); });
     sec.querySelector('#fcFile')?.addEventListener('change', async (e) => {
       const f = e.target.files[0]; if (!f) return;

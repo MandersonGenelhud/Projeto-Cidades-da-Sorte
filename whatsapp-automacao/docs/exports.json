@@ -301,6 +301,9 @@
   "schedule",
   "simulate"
  ],
+ "src/flash-offer.js": [
+  "FlashOffer"
+ ],
  "src/followups.js": [
   "AutoFollowUps",
   "isAck"
