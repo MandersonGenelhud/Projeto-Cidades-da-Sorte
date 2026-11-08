@@ -198,6 +198,9 @@
  "src/contract-cards.js": [
   "ContractCards"
  ],
+ "src/contract-pix.js": [
+  "makeContractPix"
+ ],
  "src/contract.js": [
   "CONTRACT_DEFAULTS",
   "contractPdf",
@@ -291,6 +294,10 @@
   "readingTimeMs",
   "splitIntoBubbles",
   "typingTimeMs"
+ ],
+ "src/lead-repair.js": [
+  "dataHealth",
+  "repairMissingLeads"
  ],
  "src/learnings.js": [
   "Learnings"

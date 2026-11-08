@@ -408,9 +408,36 @@ export class Crm {
 
   remove(user, id) {
     if (user.role !== 'admin') throw err(403, 'Só o administrador pode excluir prospectos');
+    // Guarda um registro de quem apagou e quando: se alguém abrir o link de um prospecto apagado, o sistema explica em vez de só dizer "não encontrado".
+    const gone = this.leads.find((l) => l.id === id);
+    if (gone) {
+      const tombs = (this.store.data.leadTombstones ||= []);
+      tombs.push({ id: gone.id, code: gone.code || '', name: gone.name || '', instagram: gone.instagram || '', phone: gone.phone || '', by: user.name || '', at: new Date().toISOString() });
+      if (tombs.length > 500) tombs.splice(0, tombs.length - 500);
+    }
     this.store.data.leads = this.leads.filter((l) => l.id !== id);
     this.store.save();
     this.notify('crm', {});
+  }
+
+  /** Acha o prospecto pelo que vier no link ou na busca: id, código (MIG-XXXX), chave da conversa, @instagram ou telefone. */
+  resolveRef(ref) {
+    const r = String(ref || '').trim();
+    if (!r) return null;
+    const low = r.toLowerCase().replace(/^@/, '');
+    const digits = r.replace(/\D/g, '');
+    return this.leads.find((l) => l.id === r)
+      || this.leads.find((l) => l.code && l.code.toLowerCase() === low)
+      || this.leads.find((l) => l.conversationKey === r || l.whatsappKey === r)
+      || this.leads.find((l) => l.instagram && l.instagram.toLowerCase() === low)
+      || (digits.length >= 8 ? this.leads.find((l) => l.phone && l.phone.endsWith(digits.slice(-9))) : null)
+      || null;
+  }
+
+  /** Quando um prospecto não existe mais: o que se sabe sobre ele (foi apagado por quem e quando). */
+  tombstoneFor(ref) {
+    const r = String(ref || '').trim().toLowerCase();
+    return (this.store.data.leadTombstones || []).find((t) => t.id === ref || (t.code && t.code.toLowerCase() === r)) || null;
   }
 
   // ---------- Integração com as conversas ----------

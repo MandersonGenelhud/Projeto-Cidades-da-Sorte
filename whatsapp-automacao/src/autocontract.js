@@ -13,13 +13,15 @@ const ct = (q) => `CT-${q.number.replace(/^ORC-/, '')}`;
  * say(convKey, texto), audit(texto).
  */
 export function makeContractFlow(deps) {
-  const { store, crm, closing, auth, lines, parseLineKey, samePhone, pickClient, publicBase, quotes, prepare, makeQuote, say, audit = () => {} } = deps;
+  const { store, crm, closing, auth, lines, parseLineKey, samePhone, pickClient, publicBase, quotes, prepare, makeQuote, say, audit = () => {}, afterSend = null } = deps;
 
   /** Gera o contrato com os dados do cliente e manda o link de assinatura no WhatsApp dele. */
   async function sendContractTo({ convKey, lead, quote, client }) {
     if (!quote.convKey) quote.convKey = convKey;
     const r = prepare(quote, client);
     await say(convKey, r.text);
+    // Regra: o contrato vai com o Pix do combinado (a falha do Pix nunca derruba o envio do contrato).
+    if (afterSend) { try { r.pix = await afterSend(quote, client); } catch { /* o motivo já fica no registro do sistema */ } }
     if (lead) {
       lead.contractRequested = false;
       crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `✍️ Contrato ${ct(quote)} gerado e enviado pela IA para assinatura pelo celular`);

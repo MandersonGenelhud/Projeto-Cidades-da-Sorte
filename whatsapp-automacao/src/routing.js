@@ -137,7 +137,7 @@ export class LeadRouter {
     }
     lead.routedAt = new Date().toISOString();
     conv.routedTo = seller.id;
-    this.store.save();
+    this.store.flush(); // grava na hora, antes de avisar o vendedor: o link do aviso tem de abrir o prospecto
 
     const text = this.sellerMessage(lead, conv, args);
     let warned = false;

@@ -47,6 +47,7 @@ import { Audit } from './audit.js';
 import { byAttendant, attendantOf } from './attendants.js';
 import { registerControleRoutes } from './routes/controle.js';
 import { makeContractorSigner } from './routes/assinatura-contratada.js';
+import { makeContractPix } from './contract-pix.js';
 import { fichaPedido } from './ficha-text.js';
 import { slaCheck } from './distribution.js';
 import { moveOldCorretorLeads } from './maintenance.js';
@@ -975,6 +976,9 @@ agent.createPix = async (conv, args, { dryRun } = {}) => {
   }
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone })
     || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, username: conv.username, channel: String(conv.key).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+  // Não duplica: se já há um Pix em aberto para esta conversa (do mesmo valor, ou o que foi enviado junto com o contrato) nas últimas 24 h, não gera outro.
+  const open = payments.list.find((x) => x.convKey === conv.key && x.status === 'pending' && Date.now() - Date.parse(x.createdAt) < 86_400_000 && (Math.abs(x.amount - amount) < 0.005 || /contrato/i.test(x.description || '')));
+  if (open) return { ok: true, jaEnviado: true, valor: money(open.amount), instrucao: `O Pix de ${money(open.amount)} (${open.description}) JÁ foi enviado a este cliente e está em aberto. NÃO gere outro: lembre o valor, diga que é só copiar o código e colar no app do banco e peça o comprovante aqui na conversa.` };
   const desc = `${store.settings.payments?.reservation?.description || 'reserva'} - ${adults} adulto(s)`;
   const p = await payments.create({ convKey: conv.key, leadId: lead?.id, amount, description: desc, payerName: args.nome_pagador, payerDoc: args.cpf_pagador, by: 'IA' });
   await payments.sendCharge(p);
@@ -2729,7 +2733,7 @@ app.get('/api/conversations', (req, res) => {
   }));
 });
 // Rotas de controle (quadros, auditoria dos números, envio por número, rodízio e fechamentos, baixas da Maria, recomeçar parados): src/routes/controle.js
-const { restartAll, convOfLead, noticeQuotes } = registerControleRoutes(app, {
+const { restartAll, convOfLead, noticeQuotes, repairLeads } = registerControleRoutes(app, {
   // Funções definidas mais adiante no arquivo entram por "ponte" (só são chamadas quando chega um pedido).
   needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), inOffice: (...x) => inOffice(...x), securityEvent: (...x) => securityEvent(...x),
   conversationOffice: (...x) => conversationOffice(...x), convLabel: (...x) => convLabel(...x), lineOwnerOf: (...x) => lineOwnerOf(...x),
@@ -3831,7 +3835,17 @@ app.post('/api/leads/from-conversation', (req, res) => {
   res.json(crm.get(req.user, lead.id));
 });
 app.get('/api/leads/:id', (req, res) => {
-  const lead = crm.get(req.user, req.params.id);
+  // O link do aviso traz o id; se o id não existir, tenta pelo código (MIG-XXXX), pela conversa ou pelo @instagram, e explica quando foi apagado.
+  let ref = req.params.id;
+  if (!crm.leads.some((l) => l.id === ref)) {
+    const found = crm.resolveRef(ref);
+    if (found) ref = found.id;
+    else {
+      const t = crm.tombstoneFor(ref);
+      throw httpError(404, t ? `Este prospecto (${t.name || t.code}) foi apagado por ${t.by || 'alguém'} em ${new Date(t.at).toLocaleDateString('pt-BR')}.` : 'Prospecto não encontrado. Procure pelo nome, @ ou código (MIG-...) na lista de Prospectos: se a conversa existir, o sistema cria o registro sozinho em até 30 minutos.');
+    }
+  }
+  const lead = crm.get(req.user, ref);
   const conv = lead.conversationKey ? agent.conversation(lead.conversationKey, { create: false }) : null;
   res.json({ ...lead, conversation: conv ? conv.messages.slice(-40) : [] });
 });
@@ -4135,6 +4149,7 @@ app.post('/api/quotes/:id/contract', (req, res) => {
   const client = pickClient(req.body?.client || {});
   if (!client.nome) throw httpError(400, 'Informe o nome completo do contratante');
   if (q.contract?.status === 'assinado') throw httpError(400, 'Este contrato já foi assinado pelo cliente e não pode ser alterado. Para mudar algo, faça um novo orçamento.');
+  setAgreedPix(q, req.body?.pixAmount, req.user.name);
   fs.mkdirSync(contractDir, { recursive: true });
   fs.writeFileSync(contractFile(q), contractPdf({ client, quote: q, cfg: store.settings.contract || {}, contractors: contractorSigner.contractorSigns() }));
   q.contract = { ...(q.contract || {}), client, at: new Date().toISOString(), by: req.user.name, status: q.contract?.status || 'gerado' };
@@ -4169,11 +4184,15 @@ function prepareContractSign(q, client, user) {
   const ct = `CT-${q.number.replace(/^ORC-/, '')}`;
   return { url, text: `${first}, preparei o seu contrato (${ct}) com os seus dados e as condições combinadas. É só tocar no link, ler com calma e assinar pelo celular mesmo, com o dedo:\n\n${url}\n\nNo final, você recebe aqui a sua via assinada. Qualquer dúvida, me chama. 😊` };
 }
+// REGRA: todo contrato que vai para o cliente leva junto o Pix do combinado (src/contract-pix.js).
+const contractPix = makeContractPix({ store, payments, wa, agent, crm, httpError: (...x) => httpError(...x) });
+const { sendContractPix, setAgreedPix } = contractPix;
 // ---------- Contrato automático pela atendente de IA ----------
 const contractFlow = makeContractFlow({
   store, crm, closing, auth, lines, parseLineKey, samePhone, pickClient, publicBase,
   quotes: () => quotes.list,
   prepare: (q, client) => prepareContractSign(q, client, { name: 'IA' }),
+  afterSend: (q, client) => sendContractPix(q, { client, by: 'IA' }),
   makeQuote: (args) => sendQuote(args),
   say: async (convKey, text) => {
     await wa.send(convKey, { text, typing: false });
@@ -4209,16 +4228,19 @@ const sellerCommands = makeSellerCommands({
 app.post('/api/quotes/:id/contract/sign-link', async (req, res) => {
   const q = quotes.list.find((x) => x.id === req.params.id);
   if (!q || !canSeeQuote(req.user, q)) throw httpError(404, 'Orçamento não encontrado');
+  setAgreedPix(q, req.body?.pixAmount, req.user.name);
   const r = prepareContractSign(q, req.body?.client ? pickClient(req.body.client) : null, req.user);
   let sent = false;
+  let pix = null;
   if (req.body?.send && q.convKey && (wa.isConnected ? wa.isConnected(q.convKey) : wa.status === 'connected')) {
     await wa.send(q.convKey, { text: r.text, typing: false });
     const conv = agent.conversation(q.convKey, { create: false });
     if (conv) agent.remember(conv, 'assistant', r.text);
     sent = true;
+    pix = await sendContractPix(q, { client: q.contract?.client, by: req.user.name });
   }
-  if (q.leadId) crm.addNote(req.user, q.leadId, '✍️ Contrato enviado para assinatura pelo celular');
-  res.json({ ...r, sent });
+  if (q.leadId) crm.addNote(req.user, q.leadId, `✍️ Contrato enviado para assinatura pelo celular${pix?.sent ? ` · Pix de ${pix.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} enviado junto` : ''}`);
+  res.json({ ...r, sent, pix });
 });
 app.get('/contrato/:id', sitePage('contrato'));
 app.get('/api/public/contrato/:id', (req, res) => {
@@ -4344,6 +4366,8 @@ app.post('/api/conversations/:key/closing/:action', async (req, res) => {
     const r = prepareContractSign(quote, client, req.user);
     await sayTo(conv, r.text);
     securityEvent('contrato_enviado', req.user, req, `CT-${quote.number.replace(/^ORC-/, '')} · ${client.nome}`);
+    const pixOut = await sendContractPix(quote, { client, by: req.user.name });
+    if (!pixOut.sent && pixOut.why && !/já|desligado/.test(pixOut.why)) crm.addNote(req.user, lead.id, `⚠️ O Pix não saiu junto com o contrato: ${pixOut.why}. Envie o Pix pelo botão.`);
   } else if (act === 'pix') {
     const c = store.settings.payments || {};
     if (c.enabled === false || !(c.pixKey || c.mercadopago?.accessToken)) throw httpError(400, 'O Pix não está configurado (Configurações → Pagamentos).');
@@ -5198,6 +5222,8 @@ if (process.env.NODE_ENV !== 'test') {
   setInterval(() => { try { if (agent.active && isWithinWorkHours(store.settings.agent?.workHours)) restartAll({ days: Number(store.settings.agent?.pendingMaxDays) || 30, includeSilent: false, includeMarcos: false }); } catch (e) { store.addLog({ type: 'error', message: `Recomeçar parados: ${e.message}` }); } }, 15 * 60_000).unref();
   // Orçamento a vencer (hoje ou amanhã): avisa uma vez, no horário de trabalho, pela conversa do cliente. Desligue com quoteExpiry.auto = false.
   setInterval(() => { try { if (agent.active && store.settings.agent?.quoteExpiry?.auto !== false && isWithinWorkHours(store.settings.agent?.workHours)) { const r = noticeQuotes({}); if (r.queued) store.addLog({ type: 'system', message: `Orçamentos a vencer: ${r.queued} cliente(s) avisados pela fila da IA.` }); } } catch (e) { store.addLog({ type: 'error', message: `Aviso de orçamento a vencer: ${e.message}` }); } }, 30 * 60_000).unref();
+  // Conversa que a atendente respondeu e ficou sem prospecto no CRM: cria o que faltou (últimos 3 dias), a cada 30 minutos.
+  setInterval(() => { try { if (agent.active) { const r = repairLeads({}); if (r.created) store.addLog({ type: 'system', message: `Prospectos que faltavam: ${r.created} conversa(s) respondida(s) pela IA ganharam registro no CRM.` }); } } catch (e) { store.addLog({ type: 'error', message: `Reparo de prospectos: ${e.message}` }); } }, 30 * 60_000).unref();
   setInterval(() => slaTick().catch((e) => store.addLog({ type: 'error', message: `Cliente parado: ${e.message}` })), 10 * 60_000).unref();
   // Ana: resumo da manhã (04:30) e lembretes pessoais na hora marcada.
   setInterval(() => ana.tick().catch((e) => store.addLog({ type: 'error', message: `Ana: ${e.message}` })), 60_000).unref();

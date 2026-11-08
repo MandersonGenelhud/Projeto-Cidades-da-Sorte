@@ -7,6 +7,8 @@ import { cleanProfile, profileFor } from '../send-profiles.js';
 import { distributionReport } from '../distribution.js';
 import { noticeExpiringQuotes } from '../quote-expiry.js';
 import { reconcile } from '../reconcile.js';
+import { repairMissingLeads, dataHealth } from '../lead-repair.js';
+import crypto from 'node:crypto';
 import { restartStalled } from '../restart.js';
 
 /** ctx: { needAdmin, httpError, inOffice, store, auth, crm, agent, pending, lines, wa, sales, quotes, legacy, securityEvent, conversationOffice, convLabel, lineOwnerOf } */
@@ -19,6 +21,19 @@ app.get('/api/conversations-boards', (req, res) => {
   res.json({ boards: conversationBoards({ conversations: convs.map((c) => ({ ...c, channelLabel: convLabel(c.key) })), users: auth.users, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) }) });
 });
 // Recomeçar os atendimentos parados dos últimos 30 dias (todos os números): a IA lê as últimas 20 mensagens, confere se é assunto da Migra e retoma.
+// Gravação das conversas e dos prospectos: diagnóstico (mostra qual cópia do sistema respondeu e quantos registros existem) e reparo.
+const INSTANCE = { id: crypto.randomBytes(3).toString('hex'), pid: process.pid, startedAt: new Date().toISOString() };
+const repairLeads = (opts = {}) => repairMissingLeads({ store, crm, isBlocked: (p) => store.isBlacklisted(p), ...opts });
+app.get('/api/health/data', (req, res) => {
+  needAdmin(req);
+  res.json({ ...dataHealth({ store, crm, instance: INSTANCE }), repair: repairLeads({ dryRun: true, days: Number(req.query.days) || 3 }) });
+});
+app.post('/api/leads-repair', (req, res) => {
+  needAdmin(req);
+  const r = repairLeads({ days: Math.min(30, Math.max(1, Number(req.body?.days) || 3)), dryRun: req.body?.dryRun === true });
+  if (!req.body?.dryRun) securityEvent('reparar_prospectos', req.user, req, `${r.created} prospecto(s) criados para conversas sem registro, ${r.linked} ligados`);
+  res.json(r);
+});
 // Conferência dos contratos e do dinheiro (só administrador): repetidos, valores que não fecham, diferenças com o sistema antigo e totais.
 const scopedSales = (req) => sales.list.filter((s) => inOffice(req, sales.officeOf(s)));
 app.get('/api/reconcile', (req, res) => {
@@ -132,5 +147,5 @@ app.put('/api/send-profiles/:key', (req, res) => {
   securityEvent('envio_por_numero', req.user, req, `${pending.senderLabel(key)}: ${Object.keys(own).length ? JSON.stringify(own) : 'voltou ao padrão geral'}`);
   res.json({ key, own, effective: profileFor(store.settings, key, { delay: pending.delay }) });
 });
-  return { restartAll, convOfLead, noticeQuotes };
+  return { restartAll, convOfLead, noticeQuotes, repairLeads };
 }
