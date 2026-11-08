@@ -529,6 +529,14 @@
   "STATUS",
   "statusOf"
  ],
+ "src/qualificacao.js": [
+  "QUALIFY_TOOL",
+  "READ_ANSWERS",
+  "applyQualification",
+  "qualBlock",
+  "qualRank",
+  "strategyFor"
+ ],
  "src/quote-delivery.js": [
   "DEFAULT_QUOTE_VOICE",
   "makeQuoteDelivery"

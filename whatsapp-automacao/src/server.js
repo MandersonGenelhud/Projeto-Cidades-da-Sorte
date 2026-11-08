@@ -232,6 +232,14 @@ const crm = new Crm({ store, auth, notify });
 const crmAi = new CrmAi({ store, llm, crm });
 // Depois de cada resposta do agente, a IA lê a conversa e atualiza o prospecto.
 agent.onReplied = (conv, { handoff } = {}) => crmAi.afterReply(conv, { force: handoff });
+// Termômetro de venda: cada mudança de "tem condições de fechar" vira uma anotação no prospecto (a equipe vê quem está pronto).
+agent.onQualified = (conv, q) => {
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username });
+  if (!lead || !q || conv.qualNoted === `${q.capacidade}|${q.urgencia}|${q.decisor}`) return;
+  conv.qualNoted = `${q.capacidade}|${q.urgencia}|${q.decisor}`;
+  const cap = { sim: 'TEM condições de fechar', parcial: 'tem condições em parte', nao: 'sem condições agora', desconhecida: 'condições ainda desconhecidas' }[q.capacidade];
+  crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Termômetro de venda: ${cap}${q.evidencia ? ` ("${q.evidencia}")` : ''}. Urgência: ${q.urgencia}. Decide: ${q.decisor}.${q.objecoes ? ` Trava: ${q.objecoes}.` : ''}`);
+};
 // Peneira feita: a IA passa o cliente para o vendedor da vez (rodízio).
 const router = new LeadRouter({
   store,

@@ -5,7 +5,7 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **132** · testes automatizados (arquivos): **133** · scripts do painel: **42**
+- Módulos em `src/`: **133** · testes automatizados (arquivos): **134** · scripts do painel: **42**
 - Rotas da API em `server.js`: **502** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
@@ -24,19 +24,19 @@
 - Configuração nova vai em `settings` com **valor padrão** em `store.js`; mudança em dado já existente usa **migração de uma vez** com selo (veja abaixo), nunca sobrescreve o que o painel salvou.
 - Nada de segredo no código. Dados reais ficam em `data/` e nunca no Git.
 
-## Módulos (132)
+## Módulos (133)
 | Módulo | Linhas | Para que serve | Quem usa | Testes |
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
 | `affiliates.js` | 440 | Indicadores (afiliados): pessoas comuns que indicam clientes para a Migra e | `server.js` | 3 |
-| `agent/agent.js` | 701 | Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age. | `atendimento-plano.js`, `quote-expiry.js`, `restart.js`, `server.js` | 20 |
+| `agent/agent.js` | 705 | Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age. | `atendimento-plano.js`, `quote-expiry.js`, `restart.js`, `server.js` | 20 |
 | `agent/calendar.js` | 231 | Agenda usada pelo agente: agenda interna (padrão) ou Cal.com. | `agent/prompt.js`, `crm-ai.js`, `crm.js`, `server.js`, `videocalls.js` | 4 |
 | `agent/claude.js` | 97 | Claude (Anthropic) como cérebro da atendente, pelo SDK oficial. | `agent/llm.js` | 1 |
 | `agent/greeting.js` | 43 | Saudação certa pelo horário (regra da Migra): | `agent/agent.js`, `agent/prompt.js`, `server.js` | 1 |
 | `agent/llm.js` | 181 | Cliente de IA no formato da API da OpenAI (chat completions + ferramentas). | `server.js` | 4 |
 | `agent/presets.js` | 422 | Perfis prontos de negócio. "Carregar perfil" no painel copia estes dados | `server.js`, `store.js` | 16 |
 | `agent/prompt.js` | 136 | Monta o prompt de sistema a partir da base do negócio (passo 5 do vídeo). | `agent/agent.js`, `server.js` | 8 |
-| `agent/tools.js` | 577 | Ferramentas que o agente pode usar (passo 6 do vídeo: "o agente age"). | `agent/agent.js` | 4 |
+| `agent/tools.js` | 584 | Ferramentas que o agente pode usar (passo 6 do vídeo: "o agente age"). | `agent/agent.js` | 5 |
 | `ai-stalls.js` | 31 | "Por que a atendente parou de falar?": para cada conversa em que a última mensagem é do cliente e a IA não respondeu, mostra o MOTIVO. | `routes/controle.js` | 1 |
 | `alerts.js` | 38 | Avisos do painel (sininho) e resumo diário no WhatsApp do administrador: | `server.js` | 1 |
 | `ana-dates.js` | 131 | Datas e horas ditas em português ("amanhã às 14h", "dia 15", "daqui a 2 anos", "15 de dezembro de 2027"). | `ana.js`, `assistant-guard.js`, `personal.js`, `shopping.js` | 1 |
@@ -44,7 +44,7 @@
 | `app-signups.js` | 109 | Cadastros de aplicativos da Migra (hoje: Migra Devocional) chegando no Migra Hub para acompanhar quantos usuários há. | `server.js` | 1 |
 | `assistant-guard.js` | 42 | Trava de segurança da Maria e da Ana: elas só CRIAM (cadastro novo, orçamento, contrato) e ENVIAM. Nunca excluem nem alteram | `maria.js` | 1 |
 | `assistant.js` | 449 | Nina: a secretária financeira do Marcos (e dos administradores liberados no Caixa). | `ana.js`, `server.js` | 1 |
-| `atendimento-plano.js` | 30 | Plano de atendimento: separa TODAS as conversas dos últimos dias em grupos claros, para o administrador saber o que o botão "Começar" vai fazer. | `routes/controle.js` | 1 |
+| `atendimento-plano.js` | 30 | Plano de atendimento: separa TODAS as conversas dos últimos dias em grupos claros, para o administrador saber o que o botão "Começar" vai fazer. | `routes/controle.js` | 2 |
 | `attendants.js` | 122 | Visão por atendente: separa as conversas e os prospectos de cada pessoa (e do | `routes/controle.js`, `server.js` | 1 |
 | `audit.js` | 125 | Trilha de auditoria: registra QUEM criou, alterou ou excluiu cada coisa | `server.js` | 1 |
 | `auth.js` | 265 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 53 |
@@ -115,6 +115,7 @@
 | `phone-fix.js` | 48 | Telefones de clientes já gravados sem o +55 (só DDD + número): acrescenta o 55 do Brasil, só quando o número é claramente brasileiro | `routes/controle.js`, `store.js` | 1 |
 | `pix.js` | 154 | Pix "copia e cola" (BR Code, padrão EMV do Banco Central) e recibo em PDF, | `payments.js`, `receipts.js` | 1 |
 | `portfolio.js` | 57 | Portfólio de novidades do Grupo Migra: a direção vai anotando cada coisa nova que o grupo cria ou lança, e a Maria já fica sabendo. | `maria.js`, `server.js` | 1 |
+| `qualificacao.js` | 77 | Termômetro de venda: a IA registra, ao longo da conversa, se o cliente TEM CONDIÇÕES de fechar e o que fazer com cada resposta dele. | `agent/agent.js`, `agent/tools.js`, `restart.js` | 1 |
 | `quote-delivery.js` | 49 | Entrega do orçamento ao cliente: uma MENSAGEM DE VOZ alegre e calma (no lugar do texto que acompanhava o PDF) e o PDF timbrado, com o botão | `server.js` | 1 |
 | `quote-expiry.js` | 79 | Aviso de orçamento que vai vencer: quem recebeu a proposta e ainda não fechou é lembrado, com o prazo REAL do orçamento, | `pending.js`, `routes/controle.js` | 2 |
 | `quote-request.js` | 78 | "Dados para o orçamento": quando o cliente pede um orçamento (ou a atendente vai mandar um), ele recebe um link curto para preencher os dados básicos | `server.js` | 1 |
@@ -126,7 +127,7 @@
 | `recordings.js` | 38 | Reuniões gravadas: biblioteca de links (Drive, YouTube, Meet) com título, data e assunto. Não guarda vídeo, só o endereço. | `server.js` | 1 |
 | `reengage.js` | 272 | Retomada de contatos: pessoas que pediram atendimento (Instagram, Facebook, site, quiz) e ainda não | `server.js` | 2 |
 | `reports-csv.js` | 56 | Relatórios em planilha (CSV): vendas, parcelas em aberto, contratos cancelados e auditoria. Só administrador. | `server.js` | 1 |
-| `restart.js` | 81 | Recomeçar os atendimentos parados: varre as conversas guardadas dos últimos 30 dias (de todos os números e do Instagram) e põe na fila da IA | `atendimento-plano.js`, `routes/controle.js` | 2 |
+| `restart.js` | 83 | Recomeçar os atendimentos parados: varre as conversas guardadas dos últimos 30 dias (de todos os números e do Instagram) e põe na fila da IA | `atendimento-plano.js`, `routes/controle.js` | 2 |
 | `resumes.js` | 108 | Banco de currículos: quem pergunta por vaga ou manda currículo fica guardado aqui (com o arquivo), | `server.js` | 1 |
 | `routes/assinatura-contratada.js` | 88 | Assinatura da empresa (CONTRATADA) nos contratos: a própria pessoa cadastra a imagem da assinatura e autoriza o uso (nunca é desenhada nem imitada). | `server.js` | **0** |
 | `routes/controle.js` | 206 | Rotas de CONTROLE das conversas e do atendimento (só administrador): quadros por pessoa, auditoria dos números, envio por número, | `server.js` | **0** |
@@ -139,7 +140,7 @@
 | `security.js` | 119 | Segurança do login: verificação em duas etapas (código do app autenticador, padrão TOTP/RFC 6238), | `server.js` | 28 |
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 5424 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 5432 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 94 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 1 |

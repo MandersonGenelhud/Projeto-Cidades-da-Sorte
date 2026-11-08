@@ -4,6 +4,7 @@
 // A IA lê as últimas 20 mensagens, só segue se o assunto for de algum serviço da Migra e retoma de onde parou, no ritmo seguro de cada número.
 import { OWNER_PAUSE } from './agent/agent.js';
 import { detectClosedByMessages } from './closed-signals.js';
+import { qualRank } from './qualificacao.js';
 
 const DAY = 86_400_000;
 const CLOSED = new Set(['ganho', 'perdido']);
@@ -49,7 +50,8 @@ export function collectStalled({ conversations, now = Date.now(), days = 30, min
  */
 export function restartStalled({ store, agent, pending, leadOf, isBlocked, now = Date.now(), days = 30, includeSilent = true, includeMarcos = true, onlyKeys = null, minSilentHours = 24, resumeOwnerPauseHours = 2, dryRun = false, limit = 2000 }) {
   const conversations = Object.values(store.data.conversations || {});
-  const found = collectStalled({ conversations, now, days, includeSilent, includeMarcos, onlyKeys, minSilentHours, resumeOwnerPauseHours, leadOf, isBlocked }).slice(0, limit);
+  // Quem está mais perto de fechar (tem condições) é chamado primeiro; quem não tem condições agora, por último.
+  const found = collectStalled({ conversations, now, days, includeSilent, includeMarcos, onlyKeys, minSilentHours, resumeOwnerPauseHours, leadOf, isBlocked }).sort((a, b) => qualRank(a.conv) - qualRank(b.conv)).slice(0, limit);
   const counts = { esperando: 0, silenciou: 0, reagendado: 0, pausadasDono: 0, pausadasMarcos: 0 };
   const keys = [];
   for (const it of found) {

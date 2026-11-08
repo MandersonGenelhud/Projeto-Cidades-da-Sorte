@@ -387,3 +387,11 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Grupos: a conferência mostra também quem já é cliente (`closed`), para chamar depois só quem ainda não fechou.
 - Limite conhecido: a leitura das 20 mensagens é por frases; fraseado diferente não é reconhecido (nesse caso vale o banco de dados e a triagem da IA).
 - Testes: `test/atendimento-plano.test.js`.
+
+## Termômetro de venda (a IA sabe se o cliente tem condições de fechar)
+
+- A IA registra por conversa (`registrar_qualificacao`): capacidade de pagar a entrada (sim, parcial, não, desconhecida), urgência, quem decide, objeções e próximo passo. **"Tem condições" só é aceito com a frase do cliente**; sem ela vira "desconhecida" (a IA não pode supor dinheiro).
+- Estratégia automática: tem condições → fechamento (orçamento, ficha, contrato, Pix, nessa ordem de segurança já existente); parcial → entrada/pacote menor/data exata; não → sem pressão e retorno com dia e hora.
+- No simulador (dryRun) nada é gravado. Cada mudança vira anotação no prospecto. A retomada chama primeiro quem tem condições. O plano mostra quantos a retomar estão em cada condição.
+- Nenhum valor, preço ou promessa novo: só registro e orientação. Limite: a classificação depende do que o cliente disse; conferir nas anotações do prospecto.
+- Testes: `test/qualificacao.test.js`.

@@ -1,6 +1,9 @@
 // Ferramentas que o agente pode usar (passo 6 do vídeo: "o agente age").
 
+import { QUALIFY_TOOL } from '../qualificacao.js';
+
 export const TOOL_DEFINITIONS = [
+  QUALIFY_TOOL,
   {
     type: 'function',
     function: {
@@ -519,6 +522,10 @@ export async function runTool(name, args, ctx) {
       case 'direcionar_para_setor': {
         if (!ctx.onSector) return { erro: 'Indisponível. Use avisar_marcos.' };
         return await ctx.onSector(args);
+      }
+      case 'registrar_qualificacao': {
+        if (!ctx.onQualify) return { ok: true };
+        return ctx.onQualify(args);
       }
       case 'agendar_retorno': {
         if (!ctx.onReturn) return { erro: 'Indisponível. Use passar_fechamento_para_humano.' };

@@ -48,7 +48,7 @@
     $('#rsOut').textContent = txt(r);
     if (!dryRun) { toast('Atendimentos recomeçados'); if (typeof loaders !== 'undefined') loaders.conversations?.(); }
   };
-  const planTxt = (p) => `Nos últimos ${p.days} dias: ${p.total} conversas. <b>${p.retomar} a retomar</b> · ${p.fechados} já são clientes (não serão chamados) · ${p.recusaram} recusaram (não serão chamados) · ${p.marcos} pessoais ou de outro assunto (a IA só confere) · ${p.comHumano} com atendente humano · ${p.emDia} em dia${p.bloqueados ? ` · ${p.bloqueados} bloqueados` : ''}.`;
+  const planTxt = (p) => `Nos últimos ${p.days} dias: ${p.total} conversas. <b>${p.retomar} a retomar</b>${p.retomarPorCondicao ? ` (${p.retomarPorCondicao.sim} com condições de fechar, ${p.retomarPorCondicao.parcial} em parte, ${p.retomarPorCondicao.nao} sem condições agora, ${p.retomarPorCondicao.desconhecida} ainda não sabemos)` : ''} · ${p.fechados} já são clientes (não serão chamados) · ${p.recusaram} recusaram (não serão chamados) · ${p.marcos} pessoais ou de outro assunto (a IA só confere) · ${p.comHumano} com atendente humano · ${p.emDia} em dia${p.bloqueados ? ` · ${p.bloqueados} bloqueados` : ''}.`;
   const showState = (paused) => {
     $('#stState').innerHTML = paused ? '<b>Situação: PAUSADO.</b> Nenhuma mensagem de iniciativa nossa sai. Cliente que escreve continua sendo atendido.' : '<b>Situação: liberado.</b> As chamadas de iniciativa nossa saem no ritmo seguro de cada número.';
     $('#stPause').textContent = paused ? 'Continuar' : 'Pausar';

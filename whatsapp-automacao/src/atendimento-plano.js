@@ -15,7 +15,7 @@ export function buildPlan({ store, leadOf = () => null, closedFor = () => '', is
   const convs = Object.values(store.data.conversations || {}).filter((c) => c?.key && !c.simulation && !String(c.key).startsWith('sim:') && !String(c.key).includes('@g.us'));
   const recentConvs = convs.filter((c) => c.messages?.length && now - (Date.parse(c.messages.at(-1).at) || 0) <= days * DAY);
   const stalled = new Set(collectStalled({ conversations: recentConvs, now, days, includeSilent, leadOf, isBlocked }).map((x) => x.key));
-  const out = { days, total: recentConvs.length, fechados: 0, recusaram: 0, marcos: 0, comHumano: 0, retomar: 0, emDia: 0, bloqueados: 0, porMotivoFechado: {} };
+  const out = { days, total: recentConvs.length, fechados: 0, recusaram: 0, marcos: 0, comHumano: 0, retomar: 0, emDia: 0, bloqueados: 0, retomarPorCondicao: { sim: 0, parcial: 0, nao: 0, desconhecida: 0 }, porMotivoFechado: {} };
   for (const c of recentConvs) {
     const lead = leadOf(c);
     const why = (lead?.stage === 'ganho' && 'cliente fechado no CRM') || closedFor({ phone: c.phone, key: c.key }) || (c.declined?.kind === 'fechou_conosco' && 'disse que já fechou conosco') || detectClosedByMessages(c);
@@ -23,7 +23,7 @@ export function buildPlan({ store, leadOf = () => null, closedFor = () => '', is
     if (c.declined || lead?.stage === 'perdido') { out.recusaram += 1; continue; }
     if (c.phone && isBlocked(c.phone)) { out.bloqueados += 1; continue; }
     if (c.handoff && c.handoffReason !== OWNER_PAUSE) { if (/^Conversa do Marcos/.test(c.handoffReason || '')) out.marcos += 1; else out.comHumano += 1; continue; }
-    if (stalled.has(c.key)) out.retomar += 1; else out.emDia += 1;
+    if (stalled.has(c.key)) { out.retomar += 1; out.retomarPorCondicao[c.qualificacao?.capacidade || 'desconhecida'] += 1; } else out.emDia += 1;
   }
   return out;
 }

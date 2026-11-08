@@ -7,6 +7,7 @@ import { senderOf, profileFor } from '../send-profiles.js';
 import { humanizeConfig, noticeDelayMs, readingTimeMs, splitIntoBubbles, typingTimeMs } from '../humanize.js';
 import { sleep } from '../utils.js';
 import { declineNote, detectDecline, isAck } from '../outreach-guard.js';
+import { applyQualification, qualBlock, READ_ANSWERS } from '../qualificacao.js';
 
 const MAX_STORED_MESSAGES = 200;
 const MAX_TOOL_ROUNDS = 6;
@@ -333,6 +334,8 @@ Regras: (1) diga com clareza que o aplicativo AINDA ESTÁ EM DESENVOLVIMENTO: ao
     if (this.sendContract) system += '\n\n# Contrato (quando o cliente pedir)\nSe o cliente pedir o contrato ("me manda o contrato", "quero ver o contrato", "como fica o contrato?"), use enviar_contrato na hora. Com os dados dele já na ficha, o sistema gera o contrato preenchido com o orçamento e manda o link para assinar pelo celular; você só diz em uma frase que é só tocar, ler com calma e assinar com o dedo. Se faltarem dados, o sistema devolve o link da ficha: mande e explique que, assim que ele enviar os dados, o contrato chega aqui sozinho. Se ainda não houver orçamento, pergunte o pacote e quantas pessoas e chame enviar_contrato com esses dados. Nunca peça CPF, RG ou endereço pelo chat e nunca invente cláusulas ou condições: o contrato oficial responde por si.';
     if (this.sendPlan) system += '\n\n# Passo a passo do pagamento\nQuando o cliente perguntar como funciona o pagamento, quanto paga em cada etapa, ou logo depois de fechar, use enviar_etapas_pagamento com o pacote e o número de pessoas. O sistema manda o fluxograma com os valores e as datas de cada parcela (contando da data de hoje; sábado e domingo passam para segunda); você só comenta em uma frase e pergunta se ficou alguma dúvida. Não refaça as contas por conta própria.';
     if (pix && !closing) system += `\n\n# Pagamento da reserva por Pix\nQuando o cliente decidir fechar, peça o nome completo e o CPF de quem vai pagar e use gerar_pix com o número de adultos. O sistema envia o QR Code e o código copia e cola em mensagens separadas, logo antes da sua resposta: diga o valor, que o código está na mensagem anterior para copiar e colar no app do banco, e que o recibo em nome da empresa chega aqui assim que o pagamento for confirmado. Se o cliente disser que pagou, use cliente_informou_pagamento. Nunca diga que o pagamento foi confirmado por conta própria.`;
+    if (closing) system += `\n\n${READ_ANSWERS}`;
+    { const qb = qualBlock(conv); if (qb) tail.push(qb); }
     if (conv.continuity) {
       tail.push(`# Continuidade desta conversa (leia antes de responder)
 As mensagens anteriores do lado da empresa foram escritas pelo Marcos ou pela equipe, pessoalmente. Continue de onde a conversa parou: não recomece a apresentação, não repita perguntas já respondidas e não contradiga o que já foi combinado.
@@ -427,6 +430,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       onVisit: this.requestVisit ? (args) => this.requestVisit(conv, args, { dryRun }) : null,
       onPlan: this.sendPlan ? (args) => this.sendPlan(conv, args, { dryRun }) : null,
       onCloseHandoff: this.closeHandoff ? (args) => this.closeHandoff(conv, args, { dryRun }) : null,
+      onQualify: (args) => { const r = applyQualification(conv, args, { dryRun }); if (!dryRun) { this.store.save(); try { this.onQualified?.(conv, conv.qualificacao); } catch { /* o CRM nunca derruba a conversa */ } } return r; },
       onQuote: this.sendQuote ? (args) => this.sendQuote(conv, args, { dryRun }) : null,
       onMentoring: this.bookMentoring ? (args) => this.bookMentoring(conv, args, { dryRun }) : null,
       onContract: this.sendContract ? (args) => this.sendContract(conv, args, { dryRun }) : null,
