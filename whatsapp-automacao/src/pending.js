@@ -400,6 +400,7 @@ export class PendingInbox {
       while (this.queue.some((j) => senderOf(j) === sender)) {
         let failedJid = this.queue.find((j) => senderOf(j) === sender);
         try {
+        for (let w = 0; w < 40 && this.holdWhile?.(); w++) await this.#wait(1500, sender);
         const chosen = await this.#gate(sender);
         if (!this.queue.length || !chosen) break;
         failedJid = chosen;

@@ -40,6 +40,7 @@ import { Personal } from './personal.js';
 import { planPdfPrice, loadPlanPdf } from './plano-pdf.js';
 import { registerFechamentosRoutes } from './routes/fechamentos.js';
 import { FlashOffer } from './flash-offer.js';
+import { GroupBroadcasts } from './group-broadcast.js';
 import { reconcileOverdue } from './followups-done.js';
 import { makeSellerOf, buildSellerPipeline } from './seller-pipeline.js';
 import { Portfolio } from './portfolio.js';
@@ -2852,6 +2853,22 @@ const { restartAll, convOfLead, noticeQuotes, repairLeads } = registerControleRo
 const flashOffer = new FlashOffer({ store });
 agent.flashStatus = () => flashOffer.status();
 agent.flashClaim = (conv, tier = 'ano') => { const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username }); return flashOffer.claim({ convKey: conv.key, leadId: lead?.id || null, name: lead?.name || conv.name, phone: conv.phone || lead?.phone || '', pacote: lead?.interest || '', tier }); };
+// Envio da mesma postagem para vários grupos, um de cada vez (src/group-broadcast.js). A IA e a fila esperam enquanto cada grupo recebe, e o envio espera a IA ficar livre.
+const groupHold = { on: false };
+agent.holdWhile = () => groupHold.on;
+pending.holdWhile = () => groupHold.on;
+const groupBroadcasts = new GroupBroadcasts({ store, wa, resolveMedia: (id) => resolveMedia(id), isBusy: () => agent.busy(), setHold: (v) => { groupHold.on = v; }, log: (l) => store.addLog(l) });
+app.get('/api/group-broadcasts', (req, res) => { needAdmin(req); res.json(groupBroadcasts.list.map((b) => groupBroadcasts.summary(b)).reverse()); });
+app.post('/api/group-broadcasts', (req, res) => { needAdmin(req); const b = groupBroadcasts.create(req.body || {}); securityEvent('envio_grupos_criado', req.user, req, `"${b.name}" para ${b.items.length} grupo(s)`); res.json(groupBroadcasts.summary(b)); });
+app.post('/api/group-broadcasts/:id/:action', (req, res) => {
+  needAdmin(req);
+  const a = req.params.action;
+  if (!['start', 'pause', 'cancel'].includes(a)) throw httpError(404, 'Ação desconhecida');
+  const b = groupBroadcasts[a](req.params.id);
+  securityEvent(`envio_grupos_${a}`, req.user, req, `"${b.name}"`);
+  res.json(groupBroadcasts.summary(b));
+});
+app.delete('/api/group-broadcasts/:id', (req, res) => { needAdmin(req); groupBroadcasts.remove(req.params.id); res.json({ ok: true }); });
 registerFechamentosRoutes(app, { flashOffer, wa, needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), store, crm, quotes, payments, dataDir: DATA_DIR });
 // A IA falhou mesmo depois de tentar de novo: a mensagem do cliente continua guardada e a fila de "esperando resposta" tenta de novo em instantes,
 // sem esperar os 15 minutos da rede de segurança.

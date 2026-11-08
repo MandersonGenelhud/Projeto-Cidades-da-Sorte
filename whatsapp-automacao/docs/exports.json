@@ -321,6 +321,9 @@
   "financeLines",
   "groupLiveBrief"
  ],
+ "src/group-broadcast.js": [
+  "GroupBroadcasts"
+ ],
  "src/humanize.js": [
   "DEFAULT_HUMANIZE",
   "humanizeConfig",

@@ -467,3 +467,12 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - A IA é instruída a **não dizer "vagas limitadas", "últimas vagas" nem "só X pessoas"**: o único limite verdadeiro é o prazo, e o brinde só é liberado depois que a equipe confirmar o pagamento da entrada. Com `crm.flashOffer.spots` maior que zero o contador volta a limitar (opcional).
 - A legenda e a arte nova (`docs/oferta-relampago-arte.md`) deixam de falar em "20 vagas". A arte antiga (com "20 VAGAS" e "À VISTA" desenhados) fica desatualizada.
 - Testes: `test/oferta-relampago.test.js`.
+
+## Envio da mesma postagem para vários grupos ("Enviar aos grupos")
+
+- **Risco**: mandar a mesma postagem a muitos grupos pelo número do Marcos (WhatsApp não oficial) pode fazer o WhatsApp restringir ou banir o número; e mensagens simultâneas à resposta da IA confundem os clientes.
+- **Proteções** (`src/group-broadcast.js`): um grupo de cada vez, intervalo aleatório (mínimo de 45 s, padrão 90 a 240 s), só das 8h às 21h, limite de 60 grupos por dia (`groupBroadcast.maxPerDay`), nunca envia enquanto a IA atende alguém no número principal (espera ficar livre) e a IA/fila esperam alguns segundos enquanto cada grupo recebe. Cada grupo recebe uma vez por envio; falha em um grupo não derruba os outros; só imagem ou vídeo com o texto como legenda.
+- **Controle**: só administrador; nada sai sem clicar em Iniciar; pausar e cancelar; depois de reiniciar o sistema o envio fica **pausado** (não retoma sozinho). Criação, início, pausa e cancelamento ficam registrados em segurança.
+- **Limite honesto**: não há como garantir que o WhatsApp não restrinja o número: o risco existe mesmo com os cuidados. Recomenda-se testar com um grupo e usar intervalos longos.
+- **Limite da oferta**: `crm.flashOffer.spots` (painel Fechamentos): 0 = sem limite; maior que 0 = limite real contado pelo sistema, e a IA só fala de vagas com o número real. A arte e a legenda devem dizer o mesmo que o sistema.
+- Testes: `test/envio-grupos.test.js`.
