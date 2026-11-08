@@ -217,12 +217,20 @@ export function contractPdf({ client = {}, quote, cfg = {}, issued, sign = null,
 
   // Cláusula 4 – preço e pagamento
   const entryParts = `${money(p.base)} de sinal de contratação dos serviços e ${money(p.perAdult * p.adults)} (${money(p.perAdult)} por adulto) referentes às certidões da Interpol e da Informática da Polícia Nacional do Paraguai`;
-  const trips = p.custom ? [] : ['na primeira vinda ao Paraguai', 'na segunda vinda ao Paraguai', 'na retirada dos documentos'];
+  // Plano padrão (3 parcelas ligadas às vindas ao Paraguai): o vencimento acompanha a primeira vinda e o pagamento anterior, não uma data fixa.
+  const byTrips = !p.custom && p.parcels.length === 3;
+  const TRIPS = [
+    'com vencimento ou com data de pagamento na primeira vinda ao Paraguai',
+    'com vencimento previsto entre 60 (sessenta) e 90 (noventa) dias após a primeira vinda ao Paraguai',
+    'com vencimento 30 (trinta) dias após o pagamento da segunda parcela',
+  ];
   clause('CLÁUSULA @ – DO PREÇO E DAS CONDIÇÕES DE PAGAMENTO', [
     `O valor total deste contrato é de ${money(p.total)} (${moneyWords(p.total)}), a ser pago via Pix na conta indicada pela CONTRATADA (${K.payee}), da seguinte forma:`,
     `a) Entrada de ${money(p.entry)} (${moneyWords(p.entry)}), na assinatura, composta de ${entryParts};`,
-    ...p.parcels.map((x, k) => `${String.fromCharCode(98 + k)}) ${x.label} de ${money(x.value)} (${moneyWords(x.value)}), com vencimento previsto em ${fmtBr(x.date)}${trips[k] ? `, ${trips[k]}` : ''};`),
-    'Parágrafo primeiro. A entrada é descontada do valor total. As datas das parcelas são estimadas a partir da assinatura e acompanham as etapas do processo; quando a etapa ocorrer em outra data, a parcela correspondente vence na data da etapa, conforme informado pela CONTRATADA.',
+    ...p.parcels.map((x, k) => `${String.fromCharCode(98 + k)}) ${x.label} de ${money(x.value)} (${moneyWords(x.value)}), ${byTrips ? TRIPS[k] : `com vencimento previsto em ${fmtBr(x.date)}`};`),
+    byTrips
+      ? 'Parágrafo primeiro. A entrada é descontada do valor total. O vencimento de cada parcela acompanha as etapas do processo (a primeira vinda ao Paraguai e o pagamento da parcela anterior) e não uma data fixa; a CONTRATADA informará ao(à) CONTRATANTE, por escrito, a data da primeira vinda e as datas de vencimento que daí resultarem.'
+      : 'Parágrafo primeiro. A entrada é descontada do valor total. As datas das parcelas são estimadas a partir da assinatura e acompanham as etapas do processo; quando a etapa ocorrer em outra data, a parcela correspondente vence na data da etapa, conforme informado pela CONTRATADA.',
     'Parágrafo segundo. O valor ajustado em reais é fixo e não sofre alteração por oscilações cambiais. Aumentos de taxas públicas, novos impostos ou gastos extraordinários causados pelo(a) CONTRATANTE (como novas fotos ou segundas vias de documentos perdidos) serão repassados ao(à) CONTRATANTE mediante comprovante, sob pena de suspensão dos serviços.',
     'Parágrafo terceiro. Este contrato somente produz efeitos após a confirmação do pagamento da entrada.',
   ]);

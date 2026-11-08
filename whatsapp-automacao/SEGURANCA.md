@@ -297,3 +297,7 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 - Risco: cobrar/pressionar cliente com promessa falsa, avisar quem já fechou, avisar duas vezes, escrever para número que nunca falou conosco ou para quem pediu para não ser incomodado.
 - Controles (`src/quote-expiry.js`, testes em `test/quote-expiry.test.js` e `test/pending.test.js`): só orçamentos que vencem hoje ou amanhã, sem contrato e sem venda; cada orçamento é avisado uma única vez (`expiryNoticeAt`, só marcado quando entrou mesmo na fila); não avisa lista de bloqueio, lead ganho/perdido, conversa assumida por pessoa; quem não tem conversa guardada não recebe mensagem do nada (aparece no relatório); a IA só pode citar o prazo real, é proibida de inventar desconto, bônus ou vaga limitada, e se o cliente pedir prazo/desconto vai para humano. Rotas só para administrador, com registro de segurança. Ritmo por número e horário de trabalho valem como em toda a fila.
+
+## Contrato: vencimento das parcelas (plano padrão)
+
+- No plano padrão de 3 parcelas, o contrato (`src/contract.js`) diz: 1ª com vencimento ou data de pagamento na primeira vinda ao Paraguai; 2ª entre 60 e 90 dias após a primeira vinda; 3ª 30 dias após o pagamento da 2ª. Plano combinado pelo vendedor mantém data fixa. Teste: `test/contract.test.js`. Contratos já assinados não são alterados; só os gerados depois.

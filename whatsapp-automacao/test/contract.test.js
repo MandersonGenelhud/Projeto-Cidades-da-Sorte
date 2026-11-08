@@ -64,3 +64,28 @@ test('contrato assinado pelo celular: assinatura, escolha do uso de imagem e com
   assert.match(flat, /Assinado eletronicamente pelo\(a\) contratante/);
   assert.match(flat, /ABC123DEF456/);
 });
+
+function contractText(plan) {
+  const quote = { number: 'ORC-2026-09999', items: [{ name: 'Pacote Ouro', qty: 1, price: 12997, total: 12997 }], plan };
+  const client = { nome: 'Maria Teste', nacionalidade: 'Brasileira', estadoCivil: 'Solteiro(a)', cpf: '529.982.247-25', rg: '123', rua: 'Rua A', numero: '10', cidade: 'Cascavel', uf: 'PR' };
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-')), 'c.pdf');
+  fs.writeFileSync(file, contractPdf({ client, quote, issued: '2026-10-30' }));
+  try { return execFileSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf8' }).replace(/\s+/g, ' '); } catch { return null; }
+}
+
+test('contrato, pagamento padrão: parcelas ligadas à primeira vinda ao Paraguai e ao pagamento da parcela anterior', () => {
+  const flat = contractText(paymentPlan({ total: 12997, people: 1, adults: 1, start: '2026-10-30' }));
+  if (!flat) return;
+  assert.match(flat, /com vencimento ou com data de pagamento na primeira vinda ao Paraguai/);
+  assert.match(flat, /com vencimento previsto entre 60 \(sessenta\) e 90 \(noventa\) dias após a primeira vinda ao Paraguai/);
+  assert.match(flat, /com vencimento 30 \(trinta\) dias após o pagamento da segunda parcela/);
+  assert.doesNotMatch(flat, /na segunda vinda ao Paraguai|na retirada dos documentos/);
+});
+
+test('contrato, parcelas combinadas pelo vendedor: continuam com data fixa', () => {
+  const plan = paymentPlan({ total: 12997, people: 1, adults: 1, start: '2026-10-30', steps: [{ pct: 50, days: 30, note: 'x' }, { pct: 50, days: 60, note: 'y' }] });
+  const flat = contractText({ ...plan, custom: true });
+  if (!flat) return;
+  assert.match(flat, /com vencimento previsto em \d{2}\/\d{2}\/\d{4}/);
+  assert.doesNotMatch(flat, /primeira vinda ao Paraguai/);
+});
