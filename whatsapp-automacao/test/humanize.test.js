@@ -14,9 +14,9 @@ test('tempos de leitura e digitação crescem com o texto e têm limites', () =>
   assert.equal(typingTimeMs('x'.repeat(5000)), 25_000);
 });
 
-test('resposta com parágrafos vira mensagens separadas (no máximo 3)', () => {
+test('resposta com parágrafos vira mensagens separadas (até 6)', () => {
   assert.deepEqual(splitIntoBubbles('Oi! Tudo bem?\n\nSou a assistente da Migra.'), ['Oi! Tudo bem?', 'Sou a assistente da Migra.']);
-  assert.deepEqual(splitIntoBubbles('a\n\nb\n\nc\n\nd\n\ne'), ['a', 'b', 'c', 'd\n\ne']);
+  assert.deepEqual(splitIntoBubbles('a\n\nb\n\nc\n\nd\n\ne'), ['a', 'b', 'c', 'd', 'e']);
   // Parágrafo comprido vira duas mensagens, quebrando no fim de uma frase.
   const long = 'Entendo totalmente, é uma decisão importante e faz sentido pensar com calma. Quem tenta sozinho costuma perder viagens por causa de um documento errado, e cada ida ao Paraguai custa passagem, hotel e dias de trabalho. Com a gente você vai só duas vezes.';
   const parts = splitIntoBubbles(long);

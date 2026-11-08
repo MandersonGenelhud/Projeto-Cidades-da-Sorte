@@ -35,17 +35,20 @@ export function typingTimeMs(text, cfg) {
   return Math.min(c.maxTypingSeconds * 1000, Math.max(1500, Math.round(base + jitter)));
 }
 
-/** Parágrafo comprido vira duas mensagens, quebrando no fim de uma frase. */
+/**
+ * Parágrafo comprido vira várias mensagens curtas (no máximo ~4 linhas de celular, 200 letras cada), sempre quebrando no fim de uma frase.
+ * Parágrafo com link, código ou número de Pix nunca é cortado.
+ */
 function splitLong(p, limit = 200) {
-  if (p.length <= limit || p.includes('http')) return [p];
+  if (p.length <= limit || /https?:|www\./i.test(p)) return [p];
   const sentences = p.match(/[^.!?…]+[.!?…]+["”)]*\s*|[^.!?…]+$/g) || [p];
-  if (sentences.length < 2) return [p];
-  let first = '';
-  let i = 0;
-  while (i < sentences.length - 1 && (first + sentences[i]).length <= p.length / 2 + 40) first += sentences[i++];
-  if (!first) first = sentences[i++];
-  const rest = sentences.slice(i).join('').trim();
-  return rest ? [first.trim(), rest] : [first.trim()];
+  const chunks = [];
+  let cur = '';
+  for (const sent of sentences) {
+    if (cur && (cur + sent).length > limit) { chunks.push(cur.trim()); cur = sent; } else cur += sent;
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks.length ? chunks : [p];
 }
 
 /**
@@ -53,7 +56,7 @@ function splitLong(p, limit = 200) {
  * cada parágrafo (separado por linha em branco) vira uma mensagem, e parágrafo
  * comprido é quebrado no fim de uma frase. No máximo `max` mensagens.
  */
-export function splitIntoBubbles(text, max = 4) {
+export function splitIntoBubbles(text, max = 6) {
   const parts = String(text || '')
     .split(/\n\s*\n/)
     .map((p) => p.trim())
@@ -61,4 +64,17 @@ export function splitIntoBubbles(text, max = 4) {
     .flatMap((p) => splitLong(p));
   if (parts.length <= max) return parts.length ? parts : [String(text || '').trim()];
   return [...parts.slice(0, max - 1), parts.slice(max - 1).join('\n\n')];
+}
+
+/**
+ * Envia um texto fixo comprido em mensagens curtas (até ~4 linhas cada), com uma pausa entre elas, como uma pessoa digitando.
+ * send(texto) envia uma mensagem; wait(ms) espera. Devolve as mensagens enviadas. Não corta link, código nem Pix.
+ */
+export async function sendInBubbles(send, text, { wait = (ms) => new Promise((r) => setTimeout(r, ms)), max = 8, pause = () => randomBetween(1200, 2800) } = {}) {
+  const bubbles = splitIntoBubbles(text, max);
+  for (const [i, b] of bubbles.entries()) {
+    await send(b);
+    if (i < bubbles.length - 1) await wait(process.env.NODE_TEST_CONTEXT ? 0 : pause());
+  }
+  return bubbles;
 }

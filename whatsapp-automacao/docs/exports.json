@@ -319,6 +319,7 @@
   "humanizeConfig",
   "noticeDelayMs",
   "readingTimeMs",
+  "sendInBubbles",
   "splitIntoBubbles",
   "typingTimeMs"
  ],

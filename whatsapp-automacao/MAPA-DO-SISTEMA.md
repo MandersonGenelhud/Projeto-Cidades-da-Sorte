@@ -5,7 +5,7 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **139** · testes automatizados (arquivos): **137** · scripts do painel: **43**
+- Módulos em `src/`: **139** · testes automatizados (arquivos): **138** · scripts do painel: **43**
 - Rotas da API em `server.js`: **508** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
@@ -83,7 +83,7 @@
 | `flash-offer.js` | 57 | Oferta relâmpago com VAGAS LIMITADAS de verdade: só as próximas N pessoas (padrão 20), que fecharem até a data, em plano Prata ou Ouro, | `server.js` | 1 |
 | `followups.js` | 203 | Retorno combinado: quando o cliente pede "mais pra frente", a atendente marca dia e hora | `server.js` | 2 |
 | `group-brief.js` | 120 | Resumo AO VIVO do Grupo Migra para a Maria (a secretária da equipe): imóveis e loteamentos, financiamento de lotes, veículos, | `server.js` | 2 |
-| `humanize.js` | 65 | Ritmo humano: quanto tempo uma pessoa levaria para ver, ler e digitar. | `agent/agent.js`, `server.js` | 1 |
+| `humanize.js` | 81 | Ritmo humano: quanto tempo uma pessoa levaria para ver, ler e digitar. | `agent/agent.js`, `pending.js`, `server.js` | 2 |
 | `lead-brief.js` | 77 | Ficha do vendedor: a conversa COMPLETA que o cliente teve antes de chegar a ele (Instagram, site ou WhatsApp, em ordem de tempo) e um resumo | `server.js` | 1 |
 | `lead-repair.js` | 56 | Conversas que a atendente respondeu mas não viraram prospecto no CRM (nada gravado para o vendedor ver): cria o prospecto que faltou. | `routes/controle.js` | 1 |
 | `learnings.js` | 90 | Aprendizados de vendas: a cada venda confirmada, a IA lê a conversa e anota o que funcionou | `server.js` | 1 |
@@ -105,8 +105,8 @@
 | `migratech.js` | 197 | Migratech Soluções: clientes, contratos e serviços prestados, separados da Migra. | `server.js` | 1 |
 | `motors.js` | 137 | Migra Motors: estoque de veículos + simulador de financiamento por banco/financeira | `server.js` | 2 |
 | `offices.js` | 17 | Escritórios: o mesmo sistema atende dois escritórios separados (Paraguai e Paraná). | `auth.js`, `crm.js`, `sales.js`, `sectors.js`, `server.js` | 1 |
-| `opening.js` | 40 | Mensagem de retorno para quem ficou esperando: agradece por aguardar, diz que a demanda está alta mas todos estão sendo atendidos, que o | `pending.js`, `silence.js` | 1 |
-| `outreach-apology.js` | 41 | Cliente ANTIGO que recebeu, sem precisar, uma chamada automática nossa ("dar continuidade ao seu atendimento"…) e respondeu. | `agent/agent.js`, `closed-signals.js` | 1 |
+| `opening.js` | 40 | Mensagem de retorno para quem ficou esperando: agradece por aguardar, diz que a demanda está alta mas todos estão sendo atendidos, que o | `pending.js`, `silence.js` | 2 |
+| `outreach-apology.js` | 41 | Cliente ANTIGO que recebeu, sem precisar, uma chamada automática nossa ("dar continuidade ao seu atendimento"…) e respondeu. | `agent/agent.js`, `closed-signals.js` | 2 |
 | `outreach-guard.js` | 138 | Guarda de contato: o sistema NÃO procura de novo quem já disse que fechou com outra pessoa, que não quer mais, que pediu para não ser chamado, | `agent/agent.js`, `autoreply.js`, `pending.js`, `routes/controle.js`, `server.js` | 3 |
 | `partner-projects.js` | 224 | Migra Sócios de Projeto: plano de carreira em que o consultor que chegou ao topo traz um projeto novo | `server.js` | 1 |
 | `patch-baileys.js` | 23 | Correção da biblioteca do WhatsApp (Baileys 7.0.0-rc14) enquanto a versão nova não sai: | — | 1 |
@@ -114,7 +114,7 @@
 | `payments.js` | 425 | Cobrança por Pix no fechamento: gera o Pix (copia e cola + QR Code), confirma o | `server.js` | 8 |
 | `payplan.js` | 118 | Etapas de pagamento do processo (o "fluxograma" que o cliente recebe). | `contract.js`, `quotes.js`, `server.js` | 7 |
 | `pdfdoc.js` | 268 | PDF de várias páginas, sem dependências: títulos, parágrafos com quebra de linha | `closing.js`, `contract.js`, `finance.js`, `payments.js`, `plano-pdf.js`, `quotes.js` | 2 |
-| `pending.js` | 556 | Conversas sem resposta: clientes cuja última mensagem ainda não foi respondida. | `server.js` | 3 |
+| `pending.js` | 557 | Conversas sem resposta: clientes cuja última mensagem ainda não foi respondida. | `server.js` | 3 |
 | `personal.js` | 475 | Agenda e financeiro PESSOAL de cada pessoa (a assistente pessoal "Ana"). Fica separado da empresa: não entra no Caixa Migra, | `ana.js`, `server.js` | 3 |
 | `phone-fix.js` | 48 | Telefones de clientes já gravados sem o +55 (só DDD + número): acrescenta o 55 do Brasil, só quando o número é claramente brasileiro | `routes/controle.js`, `store.js` | 1 |
 | `pix.js` | 154 | Pix "copia e cola" (BR Code, padrão EMV do Banco Central) e recibo em PDF, | `payments.js`, `receipts.js` | 1 |
@@ -149,7 +149,7 @@
 | `server.js` | 5484 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
-| `silence.js` | 94 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 1 |
+| `silence.js` | 94 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
 | `site-content.js` | 90 | Conteúdo editável da página inicial do site (título, números confirmados, vídeos de depoimento e perguntas), | `server.js` | 1 |
 | `site-host.js` | 43 | Domínio próprio do site público da Migra (ex.: www.migraparaguay.com): no domínio do site só aparecem | `server.js` | 3 |
 | `store.js` | 556 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 16 |

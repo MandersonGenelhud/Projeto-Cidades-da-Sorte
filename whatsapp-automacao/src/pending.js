@@ -9,6 +9,7 @@ import { buildOpening, wantsOpening } from './opening.js';
 import { quoteNote } from './quote-expiry.js';
 import { buildSilenceText, silenceConfig } from './silence.js';
 import { isProactive } from './outreach-guard.js';
+import { sendInBubbles } from './humanize.js';
 export { senderOf };
 
 /** A mensagem de retorno (agradecimento, demanda alta, imprevistos) já foi enviada: a IA não repete e segue direto ao assunto. */
@@ -454,7 +455,7 @@ export class PendingInbox {
             if (p.kind === 'encerramento' && String(jid).startsWith('ig:') && this.now().getTime() - (Date.parse([...(c.messages || [])].reverse().find((m) => m.role === 'user')?.at) || 0) > 23 * 3_600_000) {
               this.store.addLog({ type: 'system', phone: p.phone || jid, message: 'Encerramento por silêncio: Instagram fora das 24 h, o aviso não pôde ser enviado; o cliente foi para o fim da fila mesmo assim.' });
             } else {
-              await this.wa.send(jid, { text });
+              await sendInBubbles((b) => this.wa.send(jid, { text: b }), text);
               this.agent.remember(c, 'assistant', text);
               this.lastSentAt = Date.now();
               answered = true;
@@ -474,7 +475,7 @@ export class PendingInbox {
             const c = this.agent.conversation(jid);
             const text = buildOpening({ name: p.name || c.name, date: p.scheduledFor || '', now: this.now(), cfg: cfgAg.backlogOpening });
             try {
-              await this.wa.send(jid, { text });
+              await sendInBubbles((b) => this.wa.send(jid, { text: b }), text);
               this.agent.remember(c, 'assistant', text);
               c.openingSentAt = this.now().getTime();
               opened = true; answered = true;

@@ -4,7 +4,7 @@ import { parseJsonObject } from '../crm-ai.js';
 import { buildSystemPrompt, canSchedule } from './prompt.js';
 import { TOOL_DEFINITIONS, runTool } from './tools.js';
 import { senderOf, profileFor } from '../send-profiles.js';
-import { humanizeConfig, noticeDelayMs, readingTimeMs, splitIntoBubbles, typingTimeMs } from '../humanize.js';
+import { humanizeConfig, noticeDelayMs, readingTimeMs, splitIntoBubbles, typingTimeMs, sendInBubbles } from '../humanize.js';
 import { sleep } from '../utils.js';
 import { declineNote, detectDecline, isAck } from '../outreach-guard.js';
 import { applyQualification, qualBlock, READ_ANSWERS } from '../qualificacao.js';
@@ -608,7 +608,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
         try { why = this.closedClientWhy?.(conv) || detectClosedByMessages(conv, { last: 40 }) || detectDocsSent(conv) || ''; } catch { why = ''; }
         if (why) {
           const text = apologyText(conv.name);
-          await send(text, human ? { typingMs: Math.max(1500, typingTimeMs(text, h)) } : {});
+          await sendInBubbles((b) => send(b, human ? { typingMs: Math.max(1500, typingTimeMs(b, h)) } : {}), text, { wait: (ms) => this.wait(ms) });
           this.remember(conv, 'assistant', text);
           conv.clientApologyAt = Date.now();
           conv.handoff = true;

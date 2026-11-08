@@ -32,18 +32,20 @@ test('cliente antigo (banco de dados) responde à chamada automática: pedido de
   agent.onClosedClientReply = (c, why) => { told = why; };
   await reply('k1', 'Como assim? Eu já sou cliente');
   assert.equal(calls.length, 0, 'a IA de vendas nem foi chamada');
-  assert.equal(sent.length, 1);
-  assert.match(sent[0], /^Olá, Carlos! Peço perdão pela mensagem que você recebeu/);
-  assert.match(sent[0], /você já é um dos nossos clientes/);
-  assert.match(sent[0], /desconsidere essa mensagem/);
-  assert.doesNotMatch(sent[0], /orçamento|contrato|R\$/i);
+  const apology = sent.join(' ');
+  assert.ok(sent.length >= 2 && sent.every((b) => b.length <= 330), 'pedido de desculpas em mensagens curtas');
+  assert.match(apology, /^Olá, Carlos! Peço perdão pela mensagem que você recebeu/);
+  assert.match(apology, /você já é um dos nossos clientes/);
+  assert.match(apology, /desconsidere essa mensagem/);
+  assert.doesNotMatch(apology, /orçamento|contrato|R\$/i);
+  const n = sent.length;
   const c = agent.conversation('k1', { create: false });
   assert.equal(c.handoff, true);
   assert.match(c.handoffReason, /Cliente da Migra respondeu/);
   assert.equal(told, 'contrato assinado');
   // próxima fala do cliente: continua com a equipe, a IA não responde e não pede desculpas de novo
   await reply('k1', 'Preciso de uma informação sobre o meu processo');
-  assert.equal(sent.length, 1);
+  assert.equal(sent.length, n);
   assert.equal(calls.length, 0);
   store.flush?.();
 });
@@ -54,7 +56,7 @@ test('pagamento confirmado ou documentos enviados nas últimas mensagens também
   c.messages.push({ role: 'assistant', content: 'Pagamento confirmado! Recebemos o seu pix.', at: iso(200) }, nudge(1));
   await a.reply('k2', 'oi?');
   assert.equal(a.calls.length, 0);
-  assert.match(a.sent[0], /Peço perdão/);
+  assert.match(a.sent.join(' '), /Peço perdão/);
   const b = setup('');
   const d = b.agent.conversation('k3');
   d.messages.push({ role: 'assistant', content: 'Para o contrato preciso do seu RG e da foto de meio corpo', at: iso(120) }, { role: 'user', content: '[foto enviada]', at: iso(119) }, nudge(1));
@@ -62,7 +64,7 @@ test('pagamento confirmado ou documentos enviados nas últimas mensagens também
   assert.ok(detectClosedByMessages(d), 'documentos também travam chamadas de iniciativa');
   await b.reply('k3', 'já mandei meus documentos');
   assert.equal(b.calls.length, 0);
-  assert.match(b.sent[0], /Peço perdão/);
+  assert.match(b.sent.join(' '), /Peço perdão/);
 });
 
 test('não é cliente comprovado: a IA responde, mas recebe a ordem de ler as 20 mensagens e pedir perdão se for cliente; quem não respondeu a chamada nossa segue normal', async () => {
@@ -78,7 +80,7 @@ test('não é cliente comprovado: a IA responde, mas recebe a ordem de ler as 20
   d.messages.push({ role: 'assistant', content: 'Segue o seu recibo.', at: iso(300) });
   await b.reply('k5', 'queria saber do meu processo');
   assert.equal(b.calls.length, 1);
-  assert.doesNotMatch(b.sent[0], /Peço perdão/);
+  assert.doesNotMatch(b.sent.join(' '), /Peço perdão/);
 });
 
 test('detecção da resposta a uma chamada nossa e o texto do pedido de desculpas', () => {
