@@ -7,9 +7,10 @@ import { speakable, QUOTE_VOICE_STYLE } from '../src/voice.js';
 import { presetSettings } from '../src/agent/presets.js';
 import { tempStore } from './helpers.js';
 
-function setup({ tts, ig = false } = {}) {
+function setup({ tts, ig = false, voiceOn = true, voiceOf = null } = {}) {
   const store = tempStore();
   store.updateSettings(presetSettings('migra-paraguai'));
+  if (voiceOn) store.updateSettings({ quotes: { voice: { enabled: true } } });
   const quotes = new Quotes({ store, dataDir: store.dataDir, secret: 's', matchPackage: () => ({ name: 'Pacote Ouro', price: 12997 }) });
   quotes.reserveLink = (r) => `https://app.migra.com/reservar/${r.id}?t=abc`;
   const q = quotes.create({ items: [{ pacote: 'Ouro', quantidade: 1 }], adults: 1, client: 'ana souza', start: '2026-10-29' });
@@ -17,7 +18,7 @@ function setup({ tts, ig = false } = {}) {
   const wa = { send: async (to, payload) => { sent.push({ to, ...payload }); } };
   const agent = { conversation: () => ({}), remember: (c, role, text) => mem.push(text) };
   const key = ig ? 'ig:55' : '5545999990000@s.whatsapp.net';
-  const d = makeQuoteDelivery({ quotes, wa, agent, getTts: () => tts, store, speakable, style: QUOTE_VOICE_STYLE, quoteLink: () => 'https://app.migra.com/orcamento/x', log: (l) => logs.push(l), pause: async () => {} });
+  const d = makeQuoteDelivery({ quotes, wa, agent, getTts: () => tts, voiceOf, store, speakable, style: QUOTE_VOICE_STYLE, quoteLink: () => 'https://app.migra.com/orcamento/x', log: (l) => logs.push(l), pause: async () => {} });
   return { d, q, key, sent, mem, logs, quotes, store };
 }
 const okTts = (calls = []) => ({ ready: true, speak: async (text, voice, style) => { calls.push({ text, voice, style }); return { buffer: Buffer.from('opus'), mimetype: 'audio/ogg; codecs=opus' }; } });
@@ -89,4 +90,32 @@ test('voz indisponível, desligada ou com erro: segue com o PDF e o texto de ant
 test('o que é falado vira palavras (sem dígitos soltos) para a voz não tropeçar', () => {
   const s = speakable('Tudo certo? São 2 pessoas, 15% e R$ 1.800,00 até 12/11.');
   assert.doesNotMatch(s, /\d/);
+});
+
+test('voz em espera: por padrão ninguém recebe voz; o administrador liga por perfil de WhatsApp e escolhe a voz de cada atendente', async () => {
+  const calls = [];
+  const padrao = setup({ tts: okTts(calls), voiceOn: false });
+  assert.equal((await padrao.d.deliver({ convKey: padrao.key, q: padrao.q, name: 'Ana' })).voice, false, 'em espera');
+  assert.equal(calls.length, 0);
+  const lig = setup({ tts: okTts(calls), voiceOn: false, voiceOf: () => ({ on: true, voice: 'Leda' }) });
+  assert.equal((await lig.d.deliver({ convKey: lig.key, q: lig.q, name: 'Ana' })).voice, true);
+  assert.equal(calls[0].voice, 'Leda', 'cada perfil tem a sua voz');
+  const deslig = setup({ tts: okTts(calls), voiceOn: true, voiceOf: () => ({ on: false, voice: 'Leda' }) });
+  assert.equal((await deslig.d.deliver({ convKey: deslig.key, q: deslig.q, name: 'Ana' })).voice, false, 'o perfil desligado manda mais que o ajuste geral');
+});
+
+test('entrada na reserva: depois do PDF vem a pergunta "vamos dar entrada?" com o link da ficha; sem a palavra contrato', async () => {
+  const { d, q, key, sent, mem } = setup({ tts: null });
+  const r = await d.deliver({ convKey: key, q, name: 'ana souza', entryAsk: true });
+  assert.equal(sent.length, 2);
+  assert.equal(sent[0].media.mimetype, 'application/pdf');
+  assert.match(sent[0].text, /^Segue o seu orçamento ORC-/);
+  assert.match(sent[1].text, /^Vamos dar entrada no seu processo de reserva, Ana\?/);
+  assert.match(sent[1].text, /https:\/\/app\.migra\.com\/reservar\//);
+  assert.doesNotMatch(sent[1].text, /contrato/i);
+  assert.ok(r.ask);
+  assert.match(mem[0], /Vamos dar entrada/);
+  const ig = setup({ tts: null, ig: true });
+  await ig.d.deliver({ convKey: ig.key, q: ig.q, name: 'Tati', entryAsk: true });
+  assert.ok(ig.sent.every((m) => !m.media), 'Instagram não recebe arquivo');
 });

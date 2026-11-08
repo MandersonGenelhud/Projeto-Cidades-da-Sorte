@@ -6,6 +6,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { GEMINI_VOICES } from './voice.js';
 
 export const LINE_PREFIX = 'l:';
 // Cada conexão usa memória do computador; 20 cobre a equipe com folga.
@@ -97,6 +98,9 @@ export class LineManager extends EventEmitter {
     if (patch.agent !== undefined) next.agent = Boolean(patch.agent);
     if (patch.office !== undefined) next.office = patch.office === 'pr' ? 'pr' : 'py';
     if (patch.agentName !== undefined) next.agentName = cleanAgentName(patch.agentName);
+    // Voz da atendente deste WhatsApp (mensagem de voz do orçamento): EM ESPERA por padrão; o administrador liga em cada perfil e escolhe a voz.
+    if (patch.voiceOn !== undefined) next.voiceOn = Boolean(patch.voiceOn);
+    if (patch.voice !== undefined) next.voice = GEMINI_VOICES[patch.voice] ? patch.voice : '';
     // Memória do agente deste número: orientações próprias de quem atende (área, jeito de falar, o que priorizar). Só texto, até 3000 letras.
     if (patch.memory !== undefined) next.memory = String(patch.memory ?? '').replace(/\r/g, '').trim().slice(0, 3000);
     // Número que conectou e se ele confere com o cadastro do vendedor (true, false ou null = sem cadastro).

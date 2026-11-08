@@ -42,6 +42,7 @@ import { makeOutbound, findRecentQuote, filledNotice } from './maria-outbound.js
 import { groupLiveBrief, HUB_OVERVIEW, STAFF_RULES } from './group-brief.js';
 import { HttpStt, HttpTts, GeminiStt, FallbackStt, GeminiTts, ChoiceTts, GEMINI_VOICES, speakable, QUOTE_VOICE_STYLE } from './voice.js';
 import { makeQuoteDelivery } from './quote-delivery.js';
+import { QuoteRequests } from './quote-request.js';
 import { Payments } from './payments.js';
 import { Realty, PROPERTY_TYPES } from './realty.js';
 import { Audit } from './audit.js';
@@ -639,10 +640,23 @@ const quoteLink = (q) => (publicBase() ? `${publicBase()}/orcamento/${q.id}?t=${
 // Botão "Tudo certo? Clique aqui para dar início à reserva" (dentro do PDF e na mensagem): abre a ficha já preenchida com o que sabemos.
 quotes.reserveLink = (rec) => (publicBase() ? `${publicBase()}/reservar/${rec.id}?t=${quotes.token(rec.id)}` : '');
 // Entrega do orçamento: mensagem de voz alegre e calma + PDF com o botão (src/quote-delivery.js). A voz usa o mesmo serviço de voz da Nina e da Maria.
-const quoteDelivery = makeQuoteDelivery({ quotes, wa, agent, store, speakable, style: QUOTE_VOICE_STYLE, quoteLink: (q) => quoteLink(q), log: (l) => store.addLog(l), getTts: () => nina.tts });
-async function sendQuote({ convKey, lead, items, adults, client, consultant, start, discountPct = 0 }) {
+const quoteDelivery = makeQuoteDelivery({ quotes, wa, agent, store, speakable, style: QUOTE_VOICE_STYLE, quoteLink: (q) => quoteLink(q), log: (l) => store.addLog(l), getTts: () => nina.tts,
+  // Voz por perfil de WhatsApp (em espera até o administrador ligar no perfil): null = número principal.
+  voiceOf: (convKey) => { const parsed = parseLineKey(convKey); if (!parsed) return null; const l = lines.get(parsed.id); return { on: l?.voiceOn === true, voice: l?.voice || '' }; } });
+// Caminho "dados primeiro": o cliente pede orçamento → recebe o link dos dados → o orçamento em PDF é elaborado → vem o convite para dar entrada na reserva.
+const quoteRequests = new QuoteRequests({
+  store, secret: auth.secret, baseUrl: () => publicBase(),
+  onFilled: async (rec) => {
+    const lead = (rec.leadId && crm.byId(rec.leadId)) || crm.findForConversation({ key: rec.convKey, phone: normalizePhone(rec.data.whatsapp) || '' }) || crm.ensureFromConversation({ key: rec.convKey, phone: normalizePhone(rec.data.whatsapp) || '', name: rec.data.nome, channel: String(rec.convKey).startsWith('ig:') ? 'instagram' : 'whatsapp' });
+    if (lead) crm.update({ name: 'Sistema', role: 'admin' }, lead.id, { name: rec.data.nome, ...(rec.data.email ? { email: rec.data.email } : {}), phone: normalizePhone(rec.data.whatsapp) || lead.phone || undefined });
+    const q = await sendQuote({ convKey: rec.convKey, lead, items: rec.items, adults: Number(rec.data.adultos) || 1, client: rec.data.nome, consultant: rec.consultant, entryAsk: true });
+    rec.quoteId = q.id;
+    store.save();
+  },
+});
+async function sendQuote({ convKey, lead, entryAsk = false, items, adults, client, consultant, start, discountPct = 0 }) {
   const q = quotes.create({ items, adults, discountPct, ...(/^\d{4}-\d{2}-\d{2}$/.test(String(start || '')) ? { start } : {}), client: client || lead?.name || '', phone: lead?.phone || '', consultant, leadId: lead?.id || null, convKey });
-  if (convKey) await quoteDelivery.deliver({ convKey, q, name: client || lead?.name });
+  if (convKey) await quoteDelivery.deliver({ convKey, q, name: client || lead?.name, entryAsk });
   if (lead) {
     const main = q.items[0];
     const patch = { value: q.plan.total, people: q.plan.people, ...(main ? { interest: main.name } : {}) };
@@ -669,7 +683,22 @@ agent.sendQuote = async (conv, args, { dryRun } = {}) => {
   const parsed = parseLineKey(conv.key);
   const owner = parsed ? auth.get(lines.get(parsed.id)?.ownerId) : (lead?.ownerId ? auth.get(lead.ownerId) : null);
   try {
-    const q = await sendQuote({ convKey: conv.key, lead, items, adults: args.adultos, client: args.nome, consultant: owner?.name?.split(' ')[0] });
+    // "Dados primeiro": sem os dados básicos do cliente não há orçamento. Ele recebe o link, preenche, e o PDF é elaborado e enviado sozinho.
+    const known = quoteRequests.list.some((r) => r.convKey === conv.key && r.status === 'preenchido' && Date.now() - Date.parse(r.createdAt) < 30 * 86_400_000);
+    if (store.settings.quotes?.formFirst !== false && !known) {
+      const open = quoteRequests.openFor(conv.key);
+      const rec = quoteRequests.create({ convKey: conv.key, leadId: lead?.id || null, items, adults: args.adultos, name: args.nome || conv.name, phone: conv.phone || lead?.phone || '', consultant: owner?.name?.split(' ')[0] || '' });
+      const link = quoteRequests.url(rec);
+      if (!link) return { erro: 'Endereço público do sistema não configurado: não consigo gerar o link dos dados. Avise a equipe.' };
+      if (!open) {
+        const first = String(args.nome || conv.name || '').trim().split(/\s+/)[0];
+        const msg = `${/^@|^\+?\d+$/.test(first) || !first ? '' : `${first}, `}para elaborar o seu orçamento preciso que você preencha alguns dados rapidinho neste link: ${link}\nAssim que preencher, eu envio o orçamento aqui em PDF.`;
+        await wa.send(conv.key, { text: msg, typing: false });
+        agent.remember(conv, 'assistant', msg);
+      }
+      return { ok: true, aguardandoDados: true, instrucao: open ? 'O link dos dados já foi enviado e ainda não foi preenchido: lembre o cliente com gentileza, em uma frase, sem reenviar o link.' : 'O link para preencher os dados já foi enviado ao cliente. Diga em UMA frase curta que o orçamento chega aqui em PDF assim que ele preencher. NÃO escreva valores nem o orçamento em texto e não fale de contrato.' };
+    }
+    const q = await sendQuote({ convKey: conv.key, lead, items, adults: args.adultos, client: args.nome, consultant: owner?.name?.split(' ')[0], entryAsk: true });
     return { ok: true, numero: q.number, total: q.plan.total, instrucao: 'O orçamento já foi enviado ao cliente em PDF timbrado, logo acima (não escreva o orçamento em texto). Foram enviadas uma mensagem de voz apresentando o orçamento e o PDF com o botão "clique aqui para dar início à sua reserva": comente em uma frase curta (sem repetir o que a voz disse) e deixe a porta aberta para dúvidas. Não repita os valores e não explique contrato.' };
   } catch (e) {
     return { erro: e.message };
@@ -3740,6 +3769,15 @@ app.post('/api/lines', (req, res) => {
   const office = owner ? officeOfUser(owner) : req.user.role === 'admin' ? normOffice(req.body.office) || (req.office !== 'all' ? req.office : 'py') : officeOfUser(req.user);
   res.json(publicLine(lines.add({ label: owner?.name || req.body.label, ownerId, office })));
 });
+// Amostra da voz (o administrador ouve antes de ligar a voz no perfil). O áudio é gerado pelo mesmo serviço de voz da Nina e da Maria.
+app.get('/api/voice-sample', async (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  if (!nina.tts.ready) throw httpError(400, 'O serviço de voz ainda não está pronto: confira a chave do Gemini em Agente IA.');
+  const voice = GEMINI_VOICES[req.query.voice] ? String(req.query.voice) : 'Sulafat';
+  const demo = quotes.voiceScript({ client: 'Cliente' }, { name: 'Ana' });
+  const r = await nina.tts.speak(speakable(demo), voice, QUOTE_VOICE_STYLE);
+  res.set('Cache-Control', 'no-store').type(String(r.mimetype).split(';')[0]).send(r.buffer);
+});
 app.patch('/api/lines/:id', (req, res) => {
   myLine(req.user, req.params.id);
   const patch = req.user.role === 'admin' ? req.body : { agent: req.body.agent, agentName: req.body.agentName, memory: req.body.memory };
@@ -4347,6 +4385,10 @@ app.get('/reservar/:id', (req, res) => {
   notify('crm', { id: lead?.id });
   res.redirect(302, closing.formUrl(f) || '/');
 });
+// Dados para o orçamento (nome, WhatsApp, adultos): o cliente preenche e o orçamento em PDF é elaborado e enviado.
+app.get('/orcamento-dados/:id', sitePage('orcamento-dados'));
+app.get('/api/public/orcamento-dados/:id', (req, res) => res.json(quoteRequests.view(req.params.id, req.query.t)));
+app.post('/api/public/orcamento-dados/:id', async (req, res) => res.json(await quoteRequests.submit(req.params.id, req.query.t, req.body || {})));
 app.get('/contrato/:id', sitePage('contrato'));
 app.get('/api/public/contrato/:id', (req, res) => {
   const q = publicContract(req);

@@ -1252,6 +1252,7 @@ function numberCheck(l) {
   }
   return `<p class="num-check">WhatsApp ${phone} conectado. Ninguém da equipe tem esse número no cadastro.</p>`;
 }
+const VOICE_NAMES = { Sulafat: 'calorosa', Achernar: 'suave', Laomedeia: 'animada', Sadachbia: 'viva', Leda: 'jovem', Zephyr: 'brilhante', Aoede: 'leve', Autonoe: 'brilhante', Vindemiatrix: 'gentil', Despina: 'macia', Algieba: 'macia', Callirrhoe: 'tranquila' };
 const lineCard = (l, people) => `
     <article class="panel line-card" data-line="${esc(l.id)}">
       <div class="line-head">
@@ -1264,6 +1265,13 @@ const lineCard = (l, people) => `
       </button>
       <label class="agent-name">Memória deste agente (orientações próprias deste número: área, jeito de falar, o que priorizar)<textarea data-field="memory" rows="3" maxlength="3000" placeholder="Ex.: Aqui atendemos migração e residência. Priorize quem quer começar o processo logo. Fale de forma direta e simpática.">${esc(l.memory || '')}</textarea></label>
       <label class="agent-name">Nome da atendente de IA deste WhatsApp <input data-field="agentName" maxlength="30" placeholder="ex.: Sofia (vazio = nome geral)" value="${esc(l.agentName || '')}" /></label>
+      ${isAdmin() ? `<div class="agent-name voice-box">
+        <label class="check"><input type="checkbox" data-field="voiceOn" ${l.voiceOn ? 'checked' : ''} /> Voz da atendente neste WhatsApp (mensagem de voz ao enviar o orçamento)</label>
+        <div class="row"><label>Voz <select data-field="voice">${Object.entries(VOICE_NAMES).map(([k, d]) => `<option value="${k}" ${(l.voice || 'Sulafat') === k ? 'selected' : ''}>${k} · ${d}</option>`).join('')}</select></label>
+        <button type="button" class="btn small" data-act="voice-sample">Ouvir amostra</button></div>
+        <audio data-voice-audio controls hidden></audio>
+        <p class="hint">${l.voiceOn ? 'Voz ligada neste perfil.' : 'Em espera: este perfil ainda não manda mensagem de voz. Ligue aqui quando quiser.'} Cada atendente pode ter a sua voz.</p>
+      </div>` : ''}
       ${numberCheck(l)}
       ${isAdmin() && !l.ownerId ? `<div class="row">
         <label>Nome da conexão <input data-field="label" value="${esc(l.label)}" /></label>
@@ -1318,19 +1326,37 @@ async function addLine(ownerId = null) {
 $('#btnAddLine').addEventListener('click', () => addLine());
 document.addEventListener('change', async (e) => {
   const card = e.target.closest('[data-lines-grid] [data-line]');
-  if (!card || !['label', 'ownerId', 'agentName', 'memory'].includes(e.target.dataset.field)) return;
+  if (!card || !['label', 'ownerId', 'agentName', 'memory', 'voiceOn', 'voice'].includes(e.target.dataset.field)) return;
   try {
-    await api(`/api/lines/${card.dataset.line}`, { method: 'PATCH', body: { [e.target.dataset.field]: e.target.value } });
+    await api(`/api/lines/${card.dataset.line}`, { method: 'PATCH', body: { [e.target.dataset.field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value } });
     toast('Salvo');
     loaders.lines();
   } catch (err) {
     toast(err.message, true);
   }
 });
+// Ouvir a amostra da voz escolhida neste perfil.
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-lines-grid] [data-act="voice-sample"]');
+  if (!b) return;
+  const card = b.closest('[data-line]');
+  const audio = card?.querySelector('[data-voice-audio]');
+  const voice = card?.querySelector('[data-field="voice"]')?.value || 'Sulafat';
+  b.disabled = true; b.textContent = 'Gerando…';
+  try {
+    const r = await fetch(`/api/voice-sample?voice=${encodeURIComponent(voice)}`, { credentials: 'same-origin' });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Não consegui gerar a amostra');
+    audio.src = URL.createObjectURL(await r.blob());
+    audio.hidden = false;
+    audio.play().catch(() => {});
+  } catch (err) { toast(err.message, true); }
+  b.disabled = false; b.textContent = 'Ouvir amostra';
+});
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-lines-grid] [data-act]');
   if (!btn) return;
   const act = btn.dataset.act;
+  if (act === 'voice-sample') return; // tratado acima (não recarrega a lista)
   if (act === 'add') return addLine(btn.closest('[data-owner]')?.dataset.owner);
   const card = btn.closest('[data-line]');
   if (!card) return;

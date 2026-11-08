@@ -196,6 +196,8 @@ export class Quotes {
     return reserveLink ? `Pronto para dar entrada? Clique aqui para dar início à sua reserva: ${reserveLink}` : `Orçamento ${rec.number} · válido até ${fmtBr(rec.validUntil)}`;
   }
 
+  brDate(iso) { return fmtBr(iso); }
+
   /** Registro curto para a memória da atendente (ela precisa saber o que foi enviado, sem repetir os valores ao cliente). */
   memo(rec) {
     const p = rec.plan;

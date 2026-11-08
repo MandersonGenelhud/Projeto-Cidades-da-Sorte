@@ -532,6 +532,9 @@
   "noticeExpiringQuotes",
   "quoteNote"
  ],
+ "src/quote-request.js": [
+  "QuoteRequests"
+ ],
  "src/quotes.js": [
   "Quotes",
   "packageInfo"

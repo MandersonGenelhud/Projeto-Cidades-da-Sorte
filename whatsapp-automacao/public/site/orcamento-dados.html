@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>Dados para o seu orçamento · Migra</title>
+  <link rel="icon" href="/img/grupo-migra-emblema.png" />
+  <link rel="stylesheet" href="/site/site.css" />
+  <link rel="stylesheet" href="/site/fechamento.css" />
+</head>
+<body class="flow">
+  <header class="flow-head"><img src="/brand/logo" alt="Migra Paraguai" /></header>
+  <main class="flow-wrap" id="page">
+    <p class="muted center">Carregando…</p>
+  </main>
+  <script src="/site/site.js"></script>
+  <script src="/telefone55.js"></script>
+  <script>
+    const id = location.pathname.split('/').pop();
+    const t = new URLSearchParams(location.search).get('t') || '';
+    let info;
+    function done(nome) {
+      $('#page').innerHTML = `
+        <div class="flow-card center">
+          <div class="big-check" aria-hidden="true">✓</div>
+          <h1>Pronto${nome ? `, ${esc(nome)}` : ''}!</h1>
+          <p>Recebemos os seus dados. Estamos elaborando o seu orçamento e ele chega em PDF no seu WhatsApp em instantes.</p>
+          <a class="btn primary block" href="whatsapp://">Voltar para o WhatsApp</a>
+        </div>`;
+    }
+    function render() {
+      const d = info.data || {};
+      $('#page').innerHTML = `
+        <div class="flow-card">
+          <h1>Para elaborar o seu orçamento</h1>
+          <p class="reassure"><span aria-hidden="true"></span> Preencha só estes dados básicos. Assim que você enviar, o seu orçamento chega em PDF no WhatsApp.</p>
+          <form id="f" class="fields" novalidate>
+            <label class="fl"><span>Nome completo</span><input name="nome" value="${esc(d.nome || '')}" autocomplete="name" placeholder="Como está no documento" required /></label>
+            <label class="fl"><span>WhatsApp com DDD</span><input name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" value="${esc(d.whatsapp || '')}" required /></label>
+            <label class="fl"><span>Quantos adultos vão no processo?</span><input name="adultos" type="number" inputmode="numeric" min="1" max="20" value="${esc(d.adultos || '')}" required /></label>
+            <label class="fl"><span>E-mail <i>opcional</i></span><input name="email" type="email" autocomplete="email" inputmode="email" value="${esc(d.email || '')}" /></label>
+            <p class="err" id="err" role="alert"></p>
+            <div class="flow-actions"><button class="btn primary grow">Receber o meu orçamento</button></div>
+          </form>
+        </div>
+        <p class="fine">Seus dados ficam guardados só na ${esc(info.company)} e servem para o seu orçamento e o seu atendimento. Nada é compartilhado com terceiros.</p>`;
+      $('#f').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = Object.fromEntries(new FormData(e.target).entries());
+        const btn = $('button.primary', e.target);
+        btn.disabled = true; btn.textContent = 'Enviando…';
+        try {
+          const r = await api(`/api/public/orcamento-dados/${id}?t=${encodeURIComponent(t)}`, { method: 'POST', body });
+          done(r.nome);
+        } catch (ex) {
+          $('#err').textContent = ex.message;
+          btn.disabled = false; btn.textContent = 'Receber o meu orçamento';
+        }
+      });
+    }
+    (async () => {
+      try { info = await api(`/api/public/orcamento-dados/${id}?t=${encodeURIComponent(t)}`); } catch (e) {
+        $('#page').innerHTML = `<div class="flow-card center"><h1>Link inválido</h1><p class="muted">${esc(e.message)}</p></div>`;
+        return;
+      }
+      if (info.status === 'preenchido') return done((info.data.nome || '').split(' ')[0]);
+      render();
+    })();
+  </script>
+</body>
+</html>

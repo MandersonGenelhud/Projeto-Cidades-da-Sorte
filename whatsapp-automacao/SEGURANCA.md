@@ -369,3 +369,11 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 ## Orçamento com mensagem de voz (cliente)
 
 - O orçamento vai ao cliente com uma mensagem de voz alegre e calma (voz calorosa do serviço de voz já usado pela Nina e pela Maria, estilo "alegre, suave, ritmo calmo e pausado, com pausas e respiração, nunca acelerada nem robótica") e o PDF com o botão "Pronto para dar entrada? Clique aqui" (`src/quote-delivery.js`, `test/orcamento-voz.test.js`). O texto falado é fixo: frases curtas, sem valores, sem falar em contrato e sem prometer nada. Sem serviço de voz, com erro, desligado (`quotes.voice.enabled = false`) ou no Instagram (que não recebe arquivo nem áudio), segue o PDF com o texto curto de antes. A voz pode ser trocada em `quotes.voice.voice`. O áudio vai ao Google para ser gerado, como já ocorre com as respostas faladas da Nina e da Maria.
+
+## Orçamento "dados primeiro" e voz por perfil
+
+- **Link dos dados do orçamento** (`/orcamento-dados/:id?t=`): o token é uma assinatura (HMAC) do pedido; token errado ou pedido inexistente devolve 404 igual, sem revelar nada. O pedido vale 48 h em aberto e reenviar o link reaproveita o mesmo pedido.
+- **Dados validados no servidor**: nome completo, WhatsApp com DDD, adultos de 1 a 20, e-mail opcional. Envio idempotente: clique duplo não gera dois orçamentos. Se a elaboração falhar, o cliente não vê erro e o pedido fica guardado e registrado no log.
+- **Sem valores em texto**: a IA não escreve o orçamento; o PDF só sai depois dos dados. O convite "vamos dar entrada?" leva à ficha, que leva ao documento para assinar; o Pix só vem depois da assinatura (regra anterior mantida).
+- **Voz em espera**: nenhuma voz sai até o administrador ligar no perfil do WhatsApp (`voiceOn`); a voz escolhida só aceita nomes da lista. A amostra (`/api/voice-sample`) é só do administrador. Falha de voz nunca bloqueia o PDF.
+- Testes: `test/orcamento-dados.test.js`, `test/orcamento-voz.test.js`.
