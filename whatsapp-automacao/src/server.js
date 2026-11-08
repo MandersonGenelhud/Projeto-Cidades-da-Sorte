@@ -635,12 +635,14 @@ const salesOnPaid = (p) => {
   }
 };
 const quoteLink = (q) => (publicBase() ? `${publicBase()}/orcamento/${q.id}?t=${quotes.token(q.id)}` : '');
+// Botão "Tudo certo? Clique aqui para dar início à reserva" (dentro do PDF e na mensagem): abre a ficha já preenchida com o que sabemos.
+quotes.reserveLink = (rec) => (publicBase() ? `${publicBase()}/reservar/${rec.id}?t=${quotes.token(rec.id)}` : '');
 async function sendQuote({ convKey, lead, items, adults, client, consultant, start, discountPct = 0 }) {
   const q = quotes.create({ items, adults, discountPct, ...(/^\d{4}-\d{2}-\d{2}$/.test(String(start || '')) ? { start } : {}), client: client || lead?.name || '', phone: lead?.phone || '', consultant, leadId: lead?.id || null, convKey });
   if (convKey) {
     // O orçamento vai em PDF timbrado (não escrito): só uma frase curta acompanha o arquivo. No Instagram, que não recebe arquivo, vai o link do PDF.
     const ig = String(convKey).startsWith('ig:');
-    const caption = quotes.caption(q, { link: ig ? quoteLink(q) : '', name: client || lead?.name });
+    const caption = quotes.caption(q, { link: ig ? quoteLink(q) : '', name: client || lead?.name, reserveLink: quotes.reserveLink(q) });
     await wa.send(convKey, ig ? { text: caption, typing: false } : { text: caption, media: { path: quotes.file(q), mimetype: 'application/pdf', fileName: `Orçamento ${q.number}.pdf` }, typing: false });
     const conv = agent.conversation(convKey, { create: false });
     if (conv) agent.remember(conv, 'assistant', `${caption}\n${quotes.memo(q)}`);
@@ -672,7 +674,7 @@ agent.sendQuote = async (conv, args, { dryRun } = {}) => {
   const owner = parsed ? auth.get(lines.get(parsed.id)?.ownerId) : (lead?.ownerId ? auth.get(lead.ownerId) : null);
   try {
     const q = await sendQuote({ convKey: conv.key, lead, items, adults: args.adultos, client: args.nome, consultant: owner?.name?.split(' ')[0] });
-    return { ok: true, numero: q.number, total: q.plan.total, instrucao: 'O orçamento já foi enviado ao cliente em PDF timbrado, logo acima (não escreva o orçamento em texto). Comente em uma frase curta que o PDF tem os valores, a entrada e as parcelas, e conduza para garantir a reserva (ficha de dados). Não repita os valores.' };
+    return { ok: true, numero: q.number, total: q.plan.total, instrucao: 'O orçamento já foi enviado ao cliente em PDF timbrado, logo acima (não escreva o orçamento em texto). Ele traz um botão (link) "clique aqui para dar início à sua reserva": comente em uma frase curta que o PDF tem os valores, a entrada e as parcelas e que, se estiver tudo certo, é só clicar para começar a reserva. Não repita os valores e não explique contrato.' };
   } catch (e) {
     return { erro: e.message };
   }
@@ -4057,11 +4059,20 @@ app.post('/api/closing/link', (req, res) => {
 closing.onFilled = async (f) => {
   if (!f.convKey) return;
   const lead = f.leadId ? crm.byId(f.leadId) : null;
+  // Ficha que veio do botão do orçamento: usa o MESMO orçamento (só atualiza o nome completo) e não manda o PDF de novo.
+  let q = null;
+  const fromQuote = f.quoteId && !f.noAuto ? quotes.list.find((x) => x.id === f.quoteId) : null;
+  if (fromQuote && fromQuote.contract?.status !== 'assinado') {
+    Object.assign(fromQuote, { client: f.data.nome, phone: normalizePhone(f.data.whatsapp) || fromQuote.phone, convKey: fromQuote.convKey || f.convKey, leadId: fromQuote.leadId || lead?.id || null });
+    fs.writeFileSync(quotes.file(fromQuote), quotes.pdf(fromQuote));
+    store.save();
+    q = fromQuote;
+  } else {
   const last = quotes.list.filter((q) => (lead && q.leadId === lead.id) || (q.phone && f.data.whatsapp && samePhone(q.phone, normalizePhone(f.data.whatsapp) || ''))).at(-1);
   const items = last ? last.items.map((r) => ({ pacote: r.name, quantidade: r.qty })) : (lead?.interest && crm.matchPackage(lead.interest) ? [{ pacote: lead.interest, quantidade: Number(f.data.adultos) || 1 }] : null);
   if (!items) return;
   const owner = lead?.ownerId ? auth.get(lead.ownerId) : null;
-  const q = quotes.create({
+  q = quotes.create({
     items, adults: Number(f.data.adultos) || 1, client: f.data.nome, phone: normalizePhone(f.data.whatsapp) || lead?.phone || '',
     consultant: owner?.name || last?.consultant || '', leadId: lead?.id || null, convKey: f.convKey,
     parcels: last?.plan?.custom ? last.plan.parcels.map((x) => ({ pct: x.pct, date: x.date })) : null,
@@ -4071,6 +4082,7 @@ closing.onFilled = async (f) => {
   await wa.send(f.convKey, String(f.convKey).startsWith('ig:') ? { text: `${text} ${quoteLink(q)}`, typing: false } : { text, media: { path: quotes.file(q), mimetype: 'application/pdf', fileName: `${q.number}.pdf` }, typing: false });
   const conv = agent.conversation(f.convKey, { create: false });
   if (conv) agent.remember(conv, 'assistant', `${text} [PDF do orçamento enviado]`);
+  }
   // Ordem do Marcos: orçamento → documentos → formulário → contrato → Pix por último.
   // Com a ficha preenchida, o contrato sai sozinho para assinar pelo celular; o Pix vai depois da assinatura.
   const client = pickClient(f.data);
@@ -4138,7 +4150,7 @@ app.post('/api/quotes', async (req, res) => {
   });
   if (key) {
     const ig = String(key).startsWith('ig:');
-    const caption = quotes.caption(q, { link: ig ? quoteLink(q) : '', name: q.client });
+    const caption = quotes.caption(q, { link: ig ? quoteLink(q) : '', name: q.client, reserveLink: quotes.reserveLink(q) });
     await wa.send(key, ig ? { text: caption, typing: false } : { text: caption, media: { path: quotes.file(q), mimetype: 'application/pdf', fileName: `Orçamento ${q.number}.pdf` }, typing: false });
     const convQ = agent.conversation(key, { create: false });
     if (convQ) agent.remember(convQ, 'assistant', `${caption}\n${quotes.memo(q)}`);
@@ -4208,6 +4220,13 @@ function refreshUnsignedContracts({ withQuotes = false } = {}) {
   }
   return done;
 }
+// Botão "dar início à reserva" nos orçamentos que já existem: refaz os PDFs uma vez (só quando o sistema já tem endereço público para o link).
+if (!store.data.reserveBtn2026 && publicBase()) {
+  const done = refreshUnsignedContracts({ withQuotes: true });
+  store.data.reserveBtn2026 = true;
+  store.save();
+  store.addLog({ type: 'system', message: `Botão de dar início à reserva colocado em ${done.quotes} orçamento(s) já existentes.` });
+}
 // Regra nova de vencimento das parcelas (valores iguais): refaz, uma vez, os PDFs de orçamento e os contratos não assinados.
 if (!store.data.termsPdf2026) {
   const done = refreshUnsignedContracts({ withQuotes: true });
@@ -4264,7 +4283,7 @@ const contractFlow = makeContractFlow({
   store, crm, closing, auth, lines, parseLineKey, samePhone, pickClient, publicBase,
   quotes: () => quotes.list,
   prepare: (q, client) => prepareContractSign(q, client, { name: 'IA' }),
-  afterSend: (q, client) => sendContractPix(q, { client, by: 'IA' }),
+  afterSend: (q, client) => sendContractPix(q, { client, by: 'IA', phase: 'envio' }),
   makeQuote: (args) => sendQuote(args),
   say: async (convKey, text) => {
     await wa.send(convKey, { text, typing: false });
@@ -4309,10 +4328,34 @@ app.post('/api/quotes/:id/contract/sign-link', async (req, res) => {
     const conv = agent.conversation(q.convKey, { create: false });
     if (conv) agent.remember(conv, 'assistant', r.text);
     sent = true;
-    pix = await sendContractPix(q, { client: q.contract?.client, by: req.user.name });
+    pix = await sendContractPix(q, { client: q.contract?.client, by: req.user.name, phase: 'envio' });
   }
   if (q.leadId) crm.addNote(req.user, q.leadId, `✍️ Contrato enviado para assinatura pelo celular${pix?.sent ? ` · Pix de ${pix.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} enviado junto` : ''}`);
   res.json({ ...r, sent, pix });
+});
+// "Tudo certo? Clique aqui para dar início à sua reserva": o botão do orçamento abre a ficha de dados já preenchida com o que sabemos (nome, telefone, pacote, pessoas).
+// Quando o cliente envia a ficha, o documento sai para ele assinar no celular e, assinado, vai o Pix da entrada.
+const reservaPage = (res, code, text) => res.status(code).type('html').send(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Migra Paraguai</title><body style="font-family:system-ui,sans-serif;max-width:520px;margin:12vh auto;padding:0 20px;color:#1d1d1f"><h2 style="color:#0B2A1E">Migra Paraguai</h2><p style="font-size:18px;line-height:1.5">${String(text).replace(/[<>&]/g, '')}</p></body>`);
+app.get('/reservar/:id', (req, res) => {
+  const q = quotes.list.find((x) => x.id === req.params.id);
+  const t = String(req.query.t || '');
+  const good = q ? quotes.token(q.id) : '';
+  if (!q || t.length !== good.length || !crypto.timingSafeEqual(Buffer.from(t), Buffer.from(good))) return reservaPage(res, 404, 'Link inválido ou orçamento não encontrado. Peça um novo link no WhatsApp.');
+  if (q.contract?.status === 'assinado') return reservaPage(res, 200, 'O seu contrato já foi assinado. Em caso de dúvida, é só nos chamar no WhatsApp.');
+  if (q.validUntil < new Date().toISOString().slice(0, 10)) return reservaPage(res, 410, `Este orçamento venceu em ${q.validUntil.split('-').reverse().join('/')}. Fale com a gente pelo WhatsApp que atualizamos para você.`);
+  const key = q.convKey || (q.phone ? `${q.phone}@s.whatsapp.net` : null);
+  const lead = (q.leadId && crm.byId(q.leadId)) || (key ? crm.findForConversation({ key, phone: q.phone }) : null);
+  const f = closing.createForm({ convKey: key, lead, servico: q.items.map((r) => `${r.name}${r.qty > 1 ? ` × ${r.qty}` : ''}`).join(', '), adultos: q.plan?.adults });
+  f.quoteId = q.id;
+  f.contractRequested = true; // com a ficha preenchida, o documento para assinar sai sozinho
+  const placeholder = (n) => !n || /^@|^\+?\d+$|^cliente$/i.test(String(n).trim());
+  if (!f.data.nome && !placeholder(q.client)) f.data.nome = q.client;
+  if ((!f.data.whatsapp || f.data.whatsapp.trim() === '+55') && q.phone) f.data.whatsapp = `+${q.phone}`;
+  store.save();
+  if (lead) crm.addNote({ name: 'Cliente', role: 'admin' }, lead.id, `🟢 O cliente clicou em "dar início à reserva" no orçamento ${q.number}`);
+  store.addLog({ type: 'system', phone: q.phone || key, message: `🟢 ${q.client || 'Cliente'} clicou em dar início à reserva (orçamento ${q.number})` });
+  notify('crm', { id: lead?.id });
+  res.redirect(302, closing.formUrl(f) || '/');
 });
 app.get('/contrato/:id', sitePage('contrato'));
 app.get('/api/public/contrato/:id', (req, res) => {
@@ -4372,6 +4415,9 @@ app.post('/api/public/contrato/:id/assinar', async (req, res) => {
   const form = (q.leadId && closing.forLead(q.leadId)) || (q.convKey && closing.forConversation(q.convKey)) || null;
   if (form?.viaContract && !form.paymentId) {
     await closing.sendReservationPix(form, { intro: 'Agora o último passo: para garantir a sua reserva' }).catch((e) => store.addLog({ type: 'error', message: `Pix depois do contrato: ${e.message}` }));
+  } else if (!form?.paymentId) {
+    // Contrato enviado sem passar pela ficha (vendedor, IA ou link do orçamento): o Pix do combinado vai agora, depois da assinatura.
+    await sendContractPix(q, { client: c.client, by: 'Sistema', phase: 'assinatura' }).catch(() => {});
   }
   const notice = `✍️ *Contrato assinado pelo cliente*\n👤 ${c.client.nome}${c.client.cpf ? ` · CPF ${c.client.cpf}` : ''}\n📄 ${ct} · R$ ${q.plan.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n🕒 ${new Date(signedAt).toLocaleString('pt-BR')}\nO PDF assinado está no painel (Orçamentos → Contrato).`;
   const seller = q.createdBy?.id ? auth.get(q.createdBy.id) : null;
@@ -4424,7 +4470,7 @@ app.post('/api/conversations/:key/closing/:action', async (req, res) => {
   const filled = form?.status === 'preenchida' ? form.data : null;
   if (act === 'quote') {
     if (!quote) throw httpError(400, 'Ainda não há orçamento para este cliente. Faça na aba Orçamentos com o WhatsApp dele.');
-    await sayTo(conv, `${quotes.caption(quote, { link: String(conv.key).startsWith('ig:') ? quoteLink(quote) : '', name: quote.client })}`, { path: quotes.file(quote), mimetype: 'application/pdf', fileName: `Orçamento ${quote.number}.pdf` });
+    await sayTo(conv, `${quotes.caption(quote, { link: String(conv.key).startsWith('ig:') ? quoteLink(quote) : '', name: quote.client, reserveLink: quotes.reserveLink(quote) })}`, { path: quotes.file(quote), mimetype: 'application/pdf', fileName: `Orçamento ${quote.number}.pdf` });
   } else if (act === 'ficha') {
     if (!publicBase()) throw httpError(400, 'O sistema ainda não tem endereço na internet (aba Conexões → criar endereço, ou a VPS).');
     const f = closing.createForm({ convKey: conv.key, lead, servico: quote ? quote.items.map((r) => `${r.name} × ${r.qty}`).join(', ') : '' });
@@ -4438,7 +4484,7 @@ app.post('/api/conversations/:key/closing/:action', async (req, res) => {
     const r = prepareContractSign(quote, client, req.user);
     await sayTo(conv, r.text);
     securityEvent('contrato_enviado', req.user, req, `CT-${quote.number.replace(/^ORC-/, '')} · ${client.nome}`);
-    const pixOut = await sendContractPix(quote, { client, by: req.user.name });
+    const pixOut = await sendContractPix(quote, { client, by: req.user.name, phase: 'envio' });
     if (!pixOut.sent && pixOut.why && !/já|desligado/.test(pixOut.why)) crm.addNote(req.user, lead.id, `⚠️ O Pix não saiu junto com o contrato: ${pixOut.why}. Envie o Pix pelo botão.`);
   } else if (act === 'pix') {
     const c = store.settings.payments || {};

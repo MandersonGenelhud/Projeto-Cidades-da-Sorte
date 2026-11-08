@@ -5,8 +5,8 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **128** · testes automatizados (arquivos): **129** · scripts do painel: **42**
-- Rotas da API em `server.js`: **494** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
+- Módulos em `src/`: **128** · testes automatizados (arquivos): **130** · scripts do painel: **42**
+- Rotas da API em `server.js`: **495** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
 
@@ -34,7 +34,7 @@
 | `agent/claude.js` | 97 | Claude (Anthropic) como cérebro da atendente, pelo SDK oficial. | `agent/llm.js` | 1 |
 | `agent/greeting.js` | 43 | Saudação certa pelo horário (regra da Migra): | `agent/agent.js`, `agent/prompt.js`, `server.js` | 1 |
 | `agent/llm.js` | 181 | Cliente de IA no formato da API da OpenAI (chat completions + ferramentas). | `server.js` | 4 |
-| `agent/presets.js` | 421 | Perfis prontos de negócio. "Carregar perfil" no painel copia estes dados | `server.js`, `store.js` | 14 |
+| `agent/presets.js` | 421 | Perfis prontos de negócio. "Carregar perfil" no painel copia estes dados | `server.js`, `store.js` | 15 |
 | `agent/prompt.js` | 135 | Monta o prompt de sistema a partir da base do negócio (passo 5 do vídeo). | `agent/agent.js`, `server.js` | 7 |
 | `agent/tools.js` | 577 | Ferramentas que o agente pode usar (passo 6 do vídeo: "o agente age"). | `agent/agent.js` | 4 |
 | `ai-stalls.js` | 31 | "Por que a atendente parou de falar?": para cada conversa em que a última mensagem é do cliente e a IA não respondeu, mostra o MOTIVO. | `routes/controle.js` | 1 |
@@ -46,7 +46,7 @@
 | `assistant.js` | 449 | Nina: a secretária financeira do Marcos (e dos administradores liberados no Caixa). | `ana.js`, `server.js` | 1 |
 | `attendants.js` | 122 | Visão por atendente: separa as conversas e os prospectos de cada pessoa (e do | `routes/controle.js`, `server.js` | 1 |
 | `audit.js` | 125 | Trilha de auditoria: registra QUEM criou, alterou ou excluiu cada coisa | `server.js` | 1 |
-| `auth.js` | 265 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 52 |
+| `auth.js` | 265 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 53 |
 | `autocontract.js` | 90 | Contrato automático pela atendente de IA: o cliente pede o contrato na conversa. | `server.js` | 2 |
 | `autoreply.js` | 250 | Chatbot de respostas automáticas por palavra-chave. | `server.js` | 7 |
 | `backup.js` | 111 | Backup automático e criptografado dos dados do painel (clientes, conversas, vendas, configurações). | `server.js` | 1 |
@@ -60,11 +60,11 @@
 | `connection.js` | 163 | Gerencia as conexões: WhatsApp (QR Code ou API oficial da Meta, um de cada vez) | `server.js` | 3 |
 | `contabil.js` | 320 | Painel da Migra Contábil Paraguay: a carteira de empresas clientes do escritório contábil. | `server.js` | 1 |
 | `contract-cards.js` | 96 | Quadros dos contratos (um por contrato, com prévia), busca, filtros e a consulta que a IA faz sobre o contrato do PRÓPRIO cliente. | `server.js` | 1 |
-| `contract-pix.js` | 50 | REGRA: todo contrato que vai para o cliente leva junto o Pix do que foi combinado (normalmente a reserva/entrada, para dar início ao processo). | `server.js` | 1 |
+| `contract-pix.js` | 56 | REGRA: o Pix do que foi combinado (normalmente a reserva/entrada) vai ao cliente DEPOIS que ele assina o contrato (ordem do Marcos: ficha, assinatura, Pix). | `server.js` | 2 |
 | `contract.js` | 341 | Contrato de prestação de serviços de assessoria migratória, preenchido sozinho com os dados | `server.js` | 3 |
 | `convsearch.js` | 37 | Busca por palavra nas conversas guardadas (WhatsApp e Instagram, de todos os números): ignora acentos e maiúsculas. | `server.js` | 1 |
 | `crm-ai.js` | 99 | IA a serviço do CRM: lê as conversas para preencher os prospectos e | `agent/agent.js`, `ana.js`, `assistant.js`, `maria.js`, `receipts.js`, `server.js` | 1 |
-| `crm.js` | 672 | CRM de vendas: prospectos (leads), funil, histórico, retornos agendados e números. | `attendants.js`, `server.js` | 29 |
+| `crm.js` | 672 | CRM de vendas: prospectos (leads), funil, histórico, retornos agendados e números. | `attendants.js`, `server.js` | 30 |
 | `csrf.js` | 16 | Segunda trava contra pedidos forjados por outros sites (CSRF). O cookie de sessão já é SameSite=Lax; | `server.js` | 1 |
 | `csv.js` | 16 | Planilhas (CSV para Excel brasileiro): ponto e vírgula, acentos corretos e proteção contra "fórmula" injetada no texto | `reports-csv.js` | 1 |
 | `customer360.js` | 136 | Ficha única do cliente (visão 360): tudo o que existe sobre uma pessoa em um lugar só, em ordem de data. | `server.js` | 1 |
@@ -107,14 +107,14 @@
 | `payment-terms.js` | 49 | Regra de vencimento das parcelas (plano padrão): 1ª com vencimento ou pagamento na primeira vinda ao Paraguai; 2ª entre 60 e 90 dias após a | `store.js` | 1 |
 | `payments.js` | 424 | Cobrança por Pix no fechamento: gera o Pix (copia e cola + QR Code), confirma o | `server.js` | 8 |
 | `payplan.js` | 118 | Etapas de pagamento do processo (o "fluxograma" que o cliente recebe). | `contract.js`, `quotes.js`, `server.js` | 7 |
-| `pdfdoc.js` | 260 | PDF de várias páginas, sem dependências: títulos, parágrafos com quebra de linha | `closing.js`, `contract.js`, `finance.js`, `payments.js`, `quotes.js` | 1 |
+| `pdfdoc.js` | 268 | PDF de várias páginas, sem dependências: títulos, parágrafos com quebra de linha | `closing.js`, `contract.js`, `finance.js`, `payments.js`, `quotes.js` | 2 |
 | `pending.js` | 550 | Conversas sem resposta: clientes cuja última mensagem ainda não foi respondida. | `server.js` | 3 |
 | `personal.js` | 475 | Agenda e financeiro PESSOAL de cada pessoa (a assistente pessoal "Ana"). Fica separado da empresa: não entra no Caixa Migra, | `ana.js`, `server.js` | 3 |
 | `phone-fix.js` | 48 | Telefones de clientes já gravados sem o +55 (só DDD + número): acrescenta o 55 do Brasil, só quando o número é claramente brasileiro | `routes/controle.js`, `store.js` | 1 |
 | `pix.js` | 154 | Pix "copia e cola" (BR Code, padrão EMV do Banco Central) e recibo em PDF, | `payments.js`, `receipts.js` | 1 |
 | `portfolio.js` | 57 | Portfólio de novidades do Grupo Migra: a direção vai anotando cada coisa nova que o grupo cria ou lança, e a Maria já fica sabendo. | `maria.js`, `server.js` | 1 |
 | `quote-expiry.js` | 79 | Aviso de orçamento que vai vencer: quem recebeu a proposta e ainda não fechou é lembrado, com o prazo REAL do orçamento, | `pending.js`, `routes/controle.js` | 2 |
-| `quotes.js` | 469 | Orçamentos da Migra (ORC-AAAA-NNNNN): PDF com a marca + mensagem de WhatsApp no formato da equipe. | `server.js` | 4 |
+| `quotes.js` | 483 | Orçamentos da Migra (ORC-AAAA-NNNNN): PDF com a marca + mensagem de WhatsApp no formato da equipe. | `server.js` | 5 |
 | `ranking.js` | 93 | Ranking da equipe: pontos, metas do mês, níveis de bonificação e conquistas. | `server.js` | 1 |
 | `realty.js` | 273 | Migra Imóveis: imóveis avulsos (casas, terrenos, galpões…) e loteamentos com | `server.js` | 3 |
 | `receipts.js` | 179 | Comprovante de pagamento enviado pelo cliente na conversa: a IA abre o arquivo, lê, confere com a cobrança | `server.js` | 1 |
@@ -135,13 +135,13 @@
 | `security.js` | 119 | Segurança do login: verificação em duas etapas (código do app autenticador, padrão TOTP/RFC 6238), | `server.js` | 28 |
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 5344 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 5390 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 94 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 1 |
 | `site-content.js` | 90 | Conteúdo editável da página inicial do site (título, números confirmados, vídeos de depoimento e perguntas), | `server.js` | 1 |
 | `site-host.js` | 43 | Domínio próprio do site público da Migra (ex.: www.migraparaguay.com): no domínio do site só aparecem | `server.js` | 3 |
-| `store.js` | 534 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 14 |
+| `store.js` | 534 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 15 |
 | `support.js` | 135 | Suporte interno: qualquer pessoa da equipe abre um chamado (problema no sistema, dúvida, pedido), | `server.js` | 1 |
 | `tasks.js` | 65 | Tarefas da equipe: o que cada pessoa precisa fazer, com prazo e lembrete no WhatsApp (uma vez, no dia do prazo ou quando atrasar). | `server.js` | 1 |
 | `transports/cloudapi.js` | 208 | WhatsApp Cloud API (API oficial da Meta): envio via Graph API e recebimento via webhook. | `server.js` | 1 |
@@ -217,7 +217,7 @@
 - `contabil-painel.js`
 - `nav-hubs.js`
 
-## Rotas da API (494)
+## Rotas da API (495)
 - `GET /webhook`
 - `GET /webhook/instagram`
 - `POST /webhook/instagram`
@@ -610,6 +610,7 @@
 - `POST /api/contract/extract`
 - `POST /api/quotes/:id/contract`
 - `POST /api/quotes/:id/contract/sign-link`
+- `GET /reservar/:id`
 - `GET /contrato/:id`
 - `GET /api/public/contrato/:id`
 - `GET /api/public/contrato/:id/pdf`

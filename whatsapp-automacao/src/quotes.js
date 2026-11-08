@@ -164,10 +164,14 @@ export class Quotes {
   /**
    * Texto curto que acompanha o PDF (o orçamento vai em PDF timbrado, não escrito). Instagram não recebe arquivo: vai o link do PDF.
    */
-  caption(rec, { link = '', name = '' } = {}) {
+  caption(rec, { link = '', name = '', reserveLink = '' } = {}) {
     const first = String(name || rec.client || '').trim().split(/\s+/)[0];
     const nome = first && first.length > 1 && !/^[+@\d]/.test(first) && first.toLowerCase() !== 'cliente' ? `, ${first.charAt(0).toUpperCase()}${first.slice(1)}` : '';
-    return [`Olá${nome}! Segue o seu orçamento ${rec.number} em PDF, preparado pela Migra Paraguai. Ele vale até ${fmtBr(rec.validUntil)}. Qualquer dúvida é só me chamar.`, link ? `Abra o PDF aqui: ${link}` : ''].filter(Boolean).join('\n');
+    return [
+      `Olá${nome}! Segue o seu orçamento ${rec.number} em PDF, preparado pela Migra Paraguai. Ele vale até ${fmtBr(rec.validUntil)}. Qualquer dúvida é só me chamar.`,
+      link ? `Abra o PDF aqui: ${link}` : '',
+      reserveLink ? `Se estiver tudo certo, clique aqui para dar início à sua reserva: ${reserveLink}` : '',
+    ].filter(Boolean).join('\n');
   }
 
   /** Registro curto para a memória da atendente (ela precisa saber o que foi enviado, sem repetir os valores ao cliente). */
@@ -338,9 +342,9 @@ export class Quotes {
     c.rect(M, sy, lw, boxH - 118, { fill: C.soft, radius: 12 });
     c.text('COMO RESERVAR', M + 16, sy + 16, { size: 7.5, bold: true, color: C.green, spacing: 0.9 });
     const steps = [
-      'Preencha a ficha de dados pelo celular',
+      'Preencha os dados que faltam pelo celular',
+      'Confira e assine o documento no celular',
       `Pague a entrada no Pix${company.document ? ` (CNPJ ${company.document})` : pay.pixKey ? ` (chave ${pay.pixKey})` : ''}`,
-      'Assine o termo da reserva no celular',
       'Já começamos as certidões (7 a 15 dias)',
     ];
     steps.forEach((s, k) => {
@@ -350,6 +354,16 @@ export class Quotes {
       c.text(s, M + 36, yy + 0.5, { size: 8.3, color: C.ink });
     });
     y += boxH + 14;
+
+    // Botão de dar entrada: quem já está decidido clica e começa a reserva na hora (abre a ficha com o que já sabemos; o restante é só completar).
+    const reserveUrl = this.reserveLink ? this.reserveLink(rec) : '';
+    if (reserveUrl) {
+      c.rect(M, y, W - 2 * M, 38, { fill: C.gold, radius: 10 });
+      c.text('TUDO CERTO? CLIQUE AQUI E DÊ INÍCIO À SUA RESERVA', W / 2, y + 9, { size: 11.5, bold: true, color: C.green, align: 'center', spacing: 0.3 });
+      c.text('Você completa só os dados que faltam e já recebe o documento para assinar no celular.', W / 2, y + 25, { size: 7.8, color: C.green, align: 'center' });
+      c.link(M, y, W - 2 * M, 38, reserveUrl);
+      y += 50;
+    }
 
     c.para(`Proposta válida até ${fmtBr(rec.validUntil)}. Veja na próxima página como funciona o processo, os documentos para começar e os dados para pagamento.`, M, y, W - 2 * M, { size: 7.5, color: C.gray, lead: 1.4 });
 
@@ -369,7 +383,7 @@ export class Quotes {
     y2 += 20;
     const par = (k) => (p.parcels[k] ? `${p.parcels[k].label}: ${money(p.parcels[k].value)} · ${byTrips(p) ? RULE_SHORT[k] : fmtBr(p.parcels[k].date)}` : '');
     const timeline = [
-      ['Reserva', 'Ficha de dados pelo celular, Pix da entrada e termo da reserva assinado no celular.', `Entrada: ${money(p.entry)} · ${fmtBr(rec.issued)}`],
+      ['Reserva', 'Ficha de dados pelo celular, assinatura do documento no celular e, por último, o Pix da entrada.', `Entrada: ${money(p.entry)} · ${fmtBr(rec.issued)}`],
       ['Certidões no Paraguai', 'Emitimos as certidões da Interpol e da Informática da Polícia Nacional (de 7 a 15 dias). Enquanto isso, você organiza os documentos no Brasil com a nossa orientação.', ''],
       ['1ª vinda ao Paraguai', 'Protocolo oficial do pedido e assinatura dos documentos, com a nossa equipe ao seu lado.', p.custom ? '' : par(0)],
       ['2ª vinda ao Paraguai', 'Coleta das digitais e últimas etapas, cerca de 60 a 70 dias úteis depois do protocolo.', p.custom ? '' : par(1)],

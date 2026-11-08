@@ -144,6 +144,7 @@ export function documentPdf(blocks, { footer = '' } = {}) {
 export class PdfCanvas {
   constructor() {
     this.pages = [[]];
+    this.annots = [[]]; // links clicáveis de cada página
     this.images = [];
   }
 
@@ -153,6 +154,12 @@ export class PdfCanvas {
 
   addPage() {
     this.pages.push([]);
+    this.annots.push([]);
+  }
+
+  /** Área clicável (botão/link) na página atual: x, y a partir do topo, largura e altura em pontos. */
+  link(x, y, w, h, url) {
+    this.annots.at(-1).push({ rect: [x, PAGE_H - y - h, x + w, PAGE_H - y], url: String(url).replace(/[\\()\r\n]/g, '') });
   }
 
   static rgb(hex) {
@@ -234,10 +241,11 @@ export class PdfCanvas {
     add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
     const imgIds = this.images.map((im) => add({ head: `<< /Type /XObject /Subtype /Image /Width ${im.width} /Height ${im.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.data.length} >>`, data: im.data }));
     const xobj = imgIds.length ? `/XObject << ${imgIds.map((id, i) => `/Im${i + 1} ${id} 0 R`).join(' ')} >>` : '';
-    const pageIds = this.pages.map((ops) => {
+    const pageIds = this.pages.map((ops, pi) => {
       const stream = Buffer.from(ops.join('\n'), 'latin1');
       const content = add({ head: `<< /Length ${stream.length} >>`, data: stream });
-      return add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> ${xobj} >> /Contents ${content} 0 R >>`);
+      const links = (this.annots[pi] || []).map((a) => add(`<< /Type /Annot /Subtype /Link /Rect [${a.rect.map((n) => n.toFixed(1)).join(' ')}] /Border [0 0 0] /A << /S /URI /URI (${a.url}) >> >>`));
+      return add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> ${xobj} >> /Contents ${content} 0 R${links.length ? ` /Annots [${links.map((id) => `${id} 0 R`).join(' ')}]` : ''} >>`);
     });
     objs[1] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;
     const parts = [Buffer.from('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n', 'latin1')];
