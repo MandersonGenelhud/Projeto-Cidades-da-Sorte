@@ -14,6 +14,9 @@
       <label class="check"><input type="checkbox" id="rsSilent" checked /> Incluir quem parou de responder e retornos combinados</label>
       <button class="btn" id="rsCount">Ver quantos são</button> <button class="btn primary" id="rsGo">Recomeçar agora</button></div>
     <div id="rsOut" class="muted"></div>
+    <h3>Quem já fechou com outro ou não quer mais</h3>
+    <p class="hint">O sistema lê o que o cliente disse (por exemplo "já fechei com um amigo", "não tenho mais interesse", "não me chame mais") e para de procurar essa pessoa: o prospecto vai para perdido com o motivo. Quem já fechou conosco (contrato assinado, venda, Pix pago ou cliente ganho no banco de dados) também não recebe mais chamada de iniciativa nossa. Este botão lê todas as conversas antigas de uma vez.</p>
+    <div class="row"><button class="btn" id="dcCount" type="button">Ver quantas conversas</button> <button class="btn primary" id="dcGo" type="button">Marcar quem já recusou</button></div><div id="dcOut" class="muted"></div>
     <h3>Por que a atendente parou?</h3>
     <p class="hint">Mostra, para cada cliente que escreveu e ainda não foi respondido, o motivo: conversa pausada (e por quê), IA que falhou, fila do número, fora do horário ou sem motivo conhecido.</p>
     <div class="row"><button class="btn" id="stGo" type="button">Ver por que pararam</button></div><div id="stOut" class="muted"></div>
@@ -44,6 +47,15 @@
     const id = e.target.id;
     if (id === 'rsSave') {
       try { await api('/api/settings', { method: 'PUT', body: { agent: { backlogOpening: { enabled: $('#rsOn').checked, minHours: Math.max(0, Number($('#rsHours').value) || 0), template: $('#rsT1').value.trim(), templateNoDate: $('#rsT2').value.trim() } } } }); toast('Mensagem de retorno salva'); } catch (err) { toast(err.message, true); }
+      return;
+    }
+    if (id === 'dcCount' || id === 'dcGo') {
+      try {
+        if (id === 'dcGo' && !confirm('Ler todas as conversas antigas e marcar quem já fechou com outro ou não quer mais? Os prospectos dessas pessoas vão para "perdido" e elas não recebem mais chamadas nossas.')) return;
+        const r = id === 'dcCount' ? await api('/api/declined') : await api('/api/declined/scan', { method: 'POST', body: {} });
+        const K = { fechou_outro: 'fecharam com outro', sem_interesse: 'sem interesse', nao_chamar: 'pediram para não ser chamados', fechou_conosco: 'dizem que já fecharam conosco' };
+        $('#dcOut').textContent = `${r.checked} conversas lidas: ${r.found} de quem já recusou (${Object.entries(r.byKind).map(([k, n]) => `${n} ${K[k] || k}`).join(', ') || 'nenhuma'})${id === 'dcGo' ? `. ${r.marked} marcadas agora.` : '.'}`;
+      } catch (err) { toast(err.message, true); }
       return;
     }
     if (id === 'stGo') {

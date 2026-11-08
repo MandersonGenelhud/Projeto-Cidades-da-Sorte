@@ -449,6 +449,17 @@
   "openingConfig",
   "wantsOpening"
  ],
+ "src/outreach-guard.js": [
+  "DECLINE_LABEL",
+  "buildClosedIndex",
+  "declineNote",
+  "detectDecline",
+  "isAck",
+  "isProactive",
+  "markDecline",
+  "outreachBlock",
+  "scanDeclined"
+ ],
  "src/partner-projects.js": [
   "DEFAULTS",
   "PartnerProjects",

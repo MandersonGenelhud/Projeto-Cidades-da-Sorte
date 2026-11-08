@@ -51,6 +51,7 @@ import { makeContractPix } from './contract-pix.js';
 import { fullConversation, clientBrief } from './lead-brief.js';
 import { buildDirectory, searchDirectory } from './directory.js';
 import { enqueueSilence, silenceConfig } from './silence.js';
+import { detectDecline, markDecline, scanDeclined, buildClosedIndex, outreachBlock as guardOutreach, DECLINE_LABEL } from './outreach-guard.js';
 import { fichaPedido } from './ficha-text.js';
 import { slaCheck } from './distribution.js';
 import { moveOldCorretorLeads } from './maintenance.js';
@@ -1057,12 +1058,20 @@ agent.quoteContext = (conv) => {
 };
 agent.contextFor = (conv) => {
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
-  if (!lead || lead.conversationKey === conv.key) return '';
+  if (!lead) return '';
+  const sameConv = lead.conversationKey === conv.key;
   const q = lead.qualification || {};
-  const origin = lead.conversationKey ? agent.conversation(lead.conversationKey, { create: false }) : null;
+  // O que o sistema JÁ SABE deste cliente (etapa, orçamento, contrato, Pix, o que disse): a atendente reconhece a história em vez de recomeçar do zero.
+  const full = fullConversation(lead, (k) => agent.conversation(k, { create: false }));
+  const facts = clientBrief({ lead, messages: full.messages, quotes: quotes.list, payments: payments.list }).status;
+  const closedWhy = closedIndex().closedFor({ phone: conv.phone || lead.phone, key: conv.key });
+  const origin = !sameConv && lead.conversationKey ? agent.conversation(lead.conversationKey, { create: false }) : null;
   const before = (origin?.messages || []).filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim()).slice(-40).map((m) => `${m.role === 'user' ? 'Cliente' : 'Atendimento'}: ${m.content.replace(/\s+/g, ' ').slice(0, 400)}`).join('\n').slice(-7000);
   return [
-    `Nome: ${lead.name || '-'} · código ${lead.code}${lead.instagram ? ` · Instagram @${lead.instagram}` : ''}`,
+    `Nome: ${lead.name || '-'} · código ${lead.code}${lead.instagram ? ` · Instagram @${lead.instagram}` : ''} · etapa no CRM: ${lead.stage}${lead.lostReason ? ` (${lead.lostReason})` : ''}`,
+    closedWhy ? `ATENÇÃO: este cliente JÁ FECHOU CONOSCO (${closedWhy}). Não venda de novo: ajude com o processo dele.` : '',
+    conv.declined ? `ATENÇÃO: o cliente disse que ${conv.declined.kind === 'fechou_outro' ? 'já fechou com outra pessoa ou empresa' : conv.declined.kind === 'sem_interesse' ? 'não tem mais interesse' : 'já fechou conosco'}. Não insista em vender.` : '',
+    facts.length ? `Situação registrada: ${facts.join(' ')}` : '',
     lead.interest ? `Interesse: ${lead.interest}${lead.people > 1 ? ` para ${lead.people} pessoas` : ''}` : '',
     q.temperature ? `Peneira: cliente ${q.temperature}${q.start ? `, quer começar ${q.start}` : ''}${q.moneyEvidence ? `, sobre o dinheiro disse: "${q.moneyEvidence}"` : ''}` : '',
     q.objections ? `Dúvidas que ficaram: ${q.objections}` : '',
@@ -2742,12 +2751,41 @@ const { restartAll, convOfLead, noticeQuotes, repairLeads } = registerControleRo
   conversationOffice: (...x) => conversationOffice(...x), convLabel: (...x) => convLabel(...x), lineOwnerOf: (...x) => lineOwnerOf(...x),
   store, auth, crm, agent, pending, lines, wa, sales, quotes, legacy,
   directory: { build: (v) => directory.build(v), search: (...a) => directory.search(...a) },
+  outreachFor: (c) => outreachFor(c),
 });
 // A IA falhou mesmo depois de tentar de novo: a mensagem do cliente continua guardada e a fila de "esperando resposta" tenta de novo em instantes,
 // sem esperar os 15 minutos da rede de segurança.
 agent.onFailed = (conv) => {
   setTimeout(() => { try { if (agent.active) restartAll({ onlyKeys: [conv.key], days: 2, includeSilent: false, includeMarcos: false }); } catch (e) { store.addLog({ type: 'error', message: `Nova tentativa da IA: ${e.message}` }); } }, 90_000).unref();
 };
+// Guarda de contato: não procura quem já recusou nem quem já fechou conosco (lido do banco, índice guardado por 5 minutos).
+let closedCache = { at: 0, idx: null };
+const closedIndex = () => { if (!closedCache.idx || Date.now() - closedCache.at > 5 * 60_000) closedCache = { at: Date.now(), idx: buildClosedIndex(directory.build({ role: 'admin' })) }; return closedCache.idx; };
+pending.outreachBlock = (jid, item) => guardOutreach({ conv: agent.conversation(jid, { create: false }), item: { ...item, jid }, getClosed: closedIndex });
+const outreachFor = (conv) => guardOutreach({ conv, item: { restart: true, jid: conv.key, phone: conv.phone }, getClosed: closedIndex });
+autoReply.onDecline = (msg, dc) => {
+  const conv = agent.conversation(msg.jid);
+  conv.phone ||= msg.phone || null;
+  if (msg.name) conv.name ||= msg.name;
+  const r = markDecline({ conv, decline: dc, text: msg.text, crm, store });
+  if (r.marked) store.addLog({ type: 'system', phone: msg.phone || msg.jid, message: `Guarda de contato: ${DECLINE_LABEL[dc.kind]} ("${String(msg.text).slice(0, 80)}"). O sistema parou de procurar este cliente.` });
+  if (dc.kind === 'nao_chamar') {
+    const text = String(store.settings.optOutMessage || 'Tudo bem! Não vou mais te enviar mensagens. Se mudar de ideia, é só chamar.');
+    wa.send(msg.jid, { text }).then(() => agent.remember(conv, 'assistant', text)).catch(() => {});
+    pending.resolve(msg.jid);
+    return 'handled';
+  }
+  return '';
+};
+// Conversas antigas: lê todas e marca quem já recusou (rota do administrador e uma vez ao iniciar).
+app.get('/api/declined', (req, res) => { needAdmin(req); res.json(scanDeclined({ store, crm, dryRun: true })); });
+app.post('/api/declined/scan', (req, res) => {
+  needAdmin(req);
+  const r = scanDeclined({ store, crm });
+  securityEvent('ler_recusas_antigas', req.user, req, `${r.found} conversa(s) de quem já recusou, ${r.marked} marcadas`);
+  res.json(r);
+});
+if (!store.data.declinedScan2026) { try { const r = scanDeclined({ store, crm }); store.data.declinedScan2026 = true; store.flush(); if (r.marked) store.addLog({ type: 'system', message: `Guarda de contato: ${r.marked} conversa(s) antigas de quem já fechou com outro ou não quer mais foram marcadas; o sistema não procura mais essas pessoas.` }); } catch (e) { store.addLog({ type: 'error', message: `Leitura das recusas antigas: ${e.message}` }); } }
 // Cliente que sumiu: depois do aviso de encerramento ele vai para o fim da fila (retorno marcado para 30 dias; a atendente chama de novo sozinha).
 pending.onSilence = (kind, conv) => {
   if (kind !== 'encerramento') return;

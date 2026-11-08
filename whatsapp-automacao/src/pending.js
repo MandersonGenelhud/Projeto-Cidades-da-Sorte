@@ -8,6 +8,7 @@ import { workHourRange, isWithinWorkHours } from './utils.js';
 import { buildOpening, wantsOpening } from './opening.js';
 import { quoteNote } from './quote-expiry.js';
 import { buildSilenceText, silenceConfig } from './silence.js';
+import { isProactive } from './outreach-guard.js';
 export { senderOf };
 
 /** A mensagem de retorno (agradecimento, demanda alta, imprevistos) já foi enviada: a IA não repete e segue direto ao assunto. */
@@ -264,7 +265,7 @@ export class PendingInbox {
     const allowed = [];
     const blocked = [];
     // Por que alguém ficou de fora (cada canal segue a sua regra: só o Instagram tem a janela de 24 horas).
-    const reasons = { teste: 0, instagram24h: 0, desconectado: 0 };
+    const reasons = { teste: 0, instagram24h: 0, desconectado: 0, recusou: 0, fechouConosco: 0, recente: 0 };
     const isConnected = (jid) => (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected');
     for (const jid of jids) {
       const p = this.items[jid];
@@ -273,6 +274,14 @@ export class PendingInbox {
       const igExpired = jid.startsWith('ig:') && Date.now() - p.at > 24 * 3600 * 1000;
       const connected = isConnected(jid);
       const permitted = this.autoReply.agentAllowed({ phone: p.phone, username: p.username, channel: p.channel });
+      // Guarda de contato: quem já recusou, quem já fechou conosco e quem acabou de ser chamado não é procurado de novo por iniciativa nossa.
+      const guard = this.outreachBlock ? this.outreachBlock(jid, p) : '';
+      if (guard) {
+        blocked.push(jid);
+        reasons[guard === 'recusou' ? 'recusou' : guard === 'fechou_conosco' ? 'fechouConosco' : 'recente'] += 1;
+        if ((isProactive(p) && !(p.texts || []).length) || guard === 'recusou') delete this.items[jid]; // não fica pendurado em "esperando resposta"
+        continue;
+      }
       if (connected && !igExpired && permitted) allowed.push(jid);
       else {
         blocked.push(jid);
@@ -503,6 +512,8 @@ export class PendingInbox {
         // Só conta no limite (e no intervalo daquele número) quando a resposta saiu de verdade.
         if (answered) {
           const at = this.now().getTime();
+          const cc = this.agent.conversation(jid, { create: false });
+          if (cc && isProactive(p)) cc.lastProactiveAt = at; // evita duas chamadas seguidas ao mesmo cliente
           this.sentAt.push(at);
           (this.sentBy[sender] ||= []).push(at);
           this.nextBy[sender] = this.now().getTime() + randomBetween(...this.profile(sender).gap) * 1000;

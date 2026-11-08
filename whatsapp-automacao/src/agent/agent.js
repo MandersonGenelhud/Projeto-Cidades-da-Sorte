@@ -6,6 +6,7 @@ import { TOOL_DEFINITIONS, runTool } from './tools.js';
 import { senderOf, profileFor } from '../send-profiles.js';
 import { humanizeConfig, noticeDelayMs, readingTimeMs, splitIntoBubbles, typingTimeMs } from '../humanize.js';
 import { sleep } from '../utils.js';
+import { declineNote, detectDecline, isAck } from '../outreach-guard.js';
 
 const MAX_STORED_MESSAGES = 200;
 const MAX_TOOL_ROUNDS = 6;
@@ -556,6 +557,16 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       if (texts.length && !(lastMem?.role === 'user' && lastMem.content === joined)) this.remember(conv, 'user', joined);
       let resumeNote = q.resume || '';
       q.resume = '';
+      // O cliente acabou de recusar (já fechou com outro, não quer mais): a próxima resposta é uma despedida simpática, sem vender.
+      if (texts.length && conv.declined?.noteDue) {
+        conv.declined.noteDue = false;
+        const note = declineNote(conv.declined.kind);
+        if (note) resumeNote = `${resumeNote}\n${note}`.trim();
+      } else if (texts.length && conv.declined && !detectDecline(joined) && !isAck(joined)) {
+        // Ele voltou a conversar de verdade depois de recusar: a recusa não vale mais e o atendimento segue normal.
+        delete conv.declined;
+        this.store.addLog({ type: 'system', phone: conv.phone || key, message: `Guarda de contato: ${conv.name || conv.phone || key} voltou a conversar; o atendimento segue normal.` });
+      }
       // O cliente voltou a falar: o silêncio acabou. Se já tinha recebido o aviso de encerramento, a atendente recebe de volta com gentileza.
       if (texts.length && conv.silence) {
         if (conv.silence.closeAt) resumeNote = `${resumeNote}\n# CLIENTE VOLTOU DEPOIS DO AVISO DE ENCERRAMENTO (regra da direção)\nEste cliente tinha sumido e já recebeu o aviso de que o atendimento seria encerrado e ele iria para o fim da fila. Agora ele respondeu: receba com simpatia, diga que ele voltou para a vez dele na fila e que dá para continuar de onde pararam, sem pedir desculpas e sem repetir o aviso. Siga a conversa normalmente.`.trim();

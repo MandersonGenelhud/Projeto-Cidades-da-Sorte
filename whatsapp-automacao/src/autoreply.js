@@ -1,5 +1,6 @@
 // Chatbot de respostas automáticas por palavra-chave.
 import { isWithinBusinessHours, isWithinWorkHours, renderTemplate, samePhone, uid } from './utils.js';
+import { detectDecline } from './outreach-guard.js';
 
 /** Remove acentos e padroniza para comparação. */
 export function normalizeText(text) {
@@ -186,6 +187,11 @@ export class AutoReply {
     }
     const contact = this.#rememberContact(msg);
     if (msg.phone) this.seenContacts.add(msg.phone);
+    // O cliente disse que já fechou com outro, que não quer mais ou que não quer ser chamado: o sistema marca e para de procurá-lo (quem trata é onDecline).
+    if (!msg.isGroup && msg.text && this.agent?.active && this.onDecline) {
+      const dc = detectDecline(msg.text);
+      if (dc) { try { if (this.onDecline(msg, dc) === 'handled') return; } catch (err) { this.store.addLog({ type: 'error', message: `Recusa do cliente: ${err.message}` }); } }
+    }
     if (!decision) return;
 
     if (decision.kind === 'workhours') {

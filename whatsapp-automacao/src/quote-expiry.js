@@ -31,7 +31,7 @@ PROIBIDO: inventar desconto, bônus, vaga limitada, prazo novo ou qualquer prome
  * Põe os avisos na fila da IA. dryRun só conta. Devolve os números e a lista de quem ficou de fora com o motivo.
  * pending = PendingInbox; agent = Agent; leadOf(conv|quote) => lead do CRM.
  */
-export function noticeExpiringQuotes({ store, agent, pending, quotes, sales = [], leadOf = () => null, isBlocked = () => false, now = Date.now(), daysAhead = 1, dryRun = false, resumeOwnerPauseHours = 2 }) {
+export function noticeExpiringQuotes({ store, agent, pending, quotes, sales = [], leadOf = () => null, isBlocked = () => false, outreachBlock = () => '', now = Date.now(), daysAhead = 1, dryRun = false, resumeOwnerPauseHours = 2 }) {
   const found = expiringQuotes({ quotes, sales, now, daysAhead });
   const out = { total: found.length, queued: 0, jaAvisados: 0, semConversa: 0, bloqueados: 0, comAtendente: 0, fechados: 0, jaNaFila: 0, skipped: [] };
   const convs = Object.values(store.data.conversations || {});
@@ -46,6 +46,9 @@ export function noticeExpiringQuotes({ store, agent, pending, quotes, sales = []
     const lead = leadOf(conv) || leadOf({ key: conv.key, phone: q.phone });
     if (lead && CLOSED.has(lead.stage)) { skip('cliente já fechou ou foi dado como perdido', 'fechados'); continue; }
     if (conv.handoff && !(conv.handoffReason === OWNER_PAUSE && now - (conv.ownerRepliedAt || 0) >= resumeOwnerPauseHours * 3_600_000)) { skip('uma pessoa está atendendo esta conversa', 'comAtendente'); continue; }
+    // Cliente que já recusou ou já fechou conosco não recebe lembrete de orçamento (o aviso fica registrado como visto, para não tentar de novo).
+    const guard = outreachBlock(conv);
+    if (guard) { if (!dryRun) q.expiryNoticeAt = new Date(now).toISOString(); skip(guard === 'recusou' ? 'o cliente já disse que fechou com outro ou não quer mais' : guard === 'fechou_conosco' ? 'o cliente já fechou conosco' : 'o cliente acabou de receber outra mensagem nossa', 'bloqueados'); continue; }
     if (pending.queue.includes(conv.key)) { skip('já está na fila de respostas', 'jaNaFila'); continue; }
     if (dryRun) { out.queued += 1; continue; }
     if (conv.handoff) { conv.handoff = false; conv.handoffReason = ''; }

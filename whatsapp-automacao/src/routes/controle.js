@@ -88,7 +88,7 @@ app.post('/api/reconcile/restore', (req, res) => {
 });
 // Orçamentos que vencem hoje ou amanhã: ver quem seria avisado (GET) e avisar pela fila da IA (POST). Cada orçamento é avisado uma vez só.
 const noticeQuotes = (opts = {}) => noticeExpiringQuotes({
-  store, agent, pending, quotes: quotes.list, sales: sales.list, now: Date.now(),
+  store, agent, pending, quotes: quotes.list, sales: sales.list, now: Date.now(), outreachBlock: (c) => ctx.outreachFor?.(c) || '',
   leadOf: (c) => crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }), isBlocked: (p) => store.isBlacklisted(p), ...opts,
 });
 app.get('/api/quotes-expiring', (req, res) => {
