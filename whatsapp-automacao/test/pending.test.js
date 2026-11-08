@@ -303,13 +303,13 @@ test('a pausa de "respondi pelo celular" termina sozinha depois de horas sem o d
   store.updateSettings({ agent: { humanize: { enabled: false } } });
   const jid = '595982222222@s.whatsapp.net';
   const conv = inbox.agent.conversation(jid);
-  Object.assign(conv, { handoff: true, handoffReason: OWNER_PAUSE, ownerRepliedAt: Date.now() - 2 * 3_600_000 });
+  Object.assign(conv, { handoff: true, handoffReason: OWNER_PAUSE, ownerRepliedAt: Date.now() - 1 * 3_600_000 });
   const send = async (text) => { wa.sent.push({ to: jid, text }); };
   await inbox.agent.handleIncoming({ key: jid, phone: '595982222222', name: 'A', text: 'oi, voltei' }, send);
-  assert.equal(wa.sent.length, 0, '2 h depois: ainda pausada');
-  conv.ownerRepliedAt = Date.now() - 7 * 3_600_000;
+  assert.equal(wa.sent.length, 0, '1 h depois: ainda pausada (a IA volta depois de 2 h sem o dono falar)');
+  conv.ownerRepliedAt = Date.now() - 3 * 3_600_000;
   await inbox.agent.handleIncoming({ key: jid, phone: '595982222222', name: 'A', text: 'alguém aí?' }, send);
-  assert.ok(wa.sent.length >= 1, '7 h depois: a IA retoma e responde');
+  assert.ok(wa.sent.length >= 1, '3 h depois: a IA retoma e responde');
   assert.equal(inbox.agent.conversation(jid).handoff, false);
 });
 

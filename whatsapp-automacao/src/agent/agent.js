@@ -42,6 +42,8 @@ export class Agent {
     this.routeLead = routeLead || null; // (conversa, args, { dryRun }) => encaminha para o vendedor da vez
     this.onReplied = onReplied || (() => {}); // (conversa) => usado pelo CRM para ler a conversa
     this.wait = wait; // espera (trocada nos testes para não demorar)
+    // Esperas entre as novas tentativas quando a IA falha (ms). Nos testes (node --test) não esperam de verdade.
+    this.retryWaits = process.env.NODE_TEST_CONTEXT ? [0, 0, 0] : [3000, 12000, 30000];
     this.notifyTeam = notifyTeam || (async () => {}); // (texto) => envia aviso no WhatsApp da equipe
     this.llm = llm;
     this.calendar = calendar;
@@ -147,6 +149,11 @@ export class Agent {
     const flat = (t) => String(t || '').replace(/\s+/g, ' ').trim();
     const mine = flat(text);
     if (mine.length >= 4 && (conv.messages || []).slice(-6).some((m) => m.role === 'assistant' && Date.now() - Date.parse(m.at) < 10 * 60_000 && flat(m.content).includes(mine))) return conv;
+    // Terceira proteção: mensagem SEM texto (imagem, áudio, PDF, QR do Pix) logo depois de uma resposta da própria IA é o eco do que o sistema enviou, não o dono falando.
+    if (!mine) {
+      const lastAi = [...(conv.messages || [])].reverse().find((m) => m.role === 'assistant');
+      if (lastAi && Date.now() - Date.parse(lastAi.at) < 30_000) return conv;
+    }
     if (text) this.remember(conv, 'assistant', text);
     conv.ownerRepliedAt = Date.now();
     if (this.config.pauseOnOwnerReply !== false && !conv.handoff) {
@@ -543,12 +550,20 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       conv.phone = phone || conv.phone;
       if (name) conv.name = name;
       if (username) conv.username = username;
-      if (texts.length) this.remember(conv, 'user', texts.join('\n'));
-      const resumeNote = q.resume || '';
+      // Se a última mensagem da memória já é exatamente esta (ficou sem resposta por falha da IA e voltou pela fila), não grava duas vezes.
+      const joined = texts.join('\n');
+      const lastMem = conv.messages.at(-1);
+      if (texts.length && !(lastMem?.role === 'user' && lastMem.content === joined)) this.remember(conv, 'user', joined);
+      let resumeNote = q.resume || '';
       q.resume = '';
+      // O cliente voltou a falar: o silêncio acabou. Se já tinha recebido o aviso de encerramento, a atendente recebe de volta com gentileza.
+      if (texts.length && conv.silence) {
+        if (conv.silence.closeAt) resumeNote = `${resumeNote}\n# CLIENTE VOLTOU DEPOIS DO AVISO DE ENCERRAMENTO (regra da direção)\nEste cliente tinha sumido e já recebeu o aviso de que o atendimento seria encerrado e ele iria para o fim da fila. Agora ele respondeu: receba com simpatia, diga que ele voltou para a vez dele na fila e que dá para continuar de onde pararam, sem pedir desculpas e sem repetir o aviso. Siga a conversa normalmente.`.trim();
+        delete conv.silence;
+      }
       // A pausa de "respondi pelo celular" termina sozinha se o dono ficou calado por horas e o cliente voltou a escrever.
       if (conv.handoff && conv.handoffReason === OWNER_PAUSE) {
-        const hours = Number(this.config.resumeAfterOwnerHours ?? 6);
+        const hours = Number(this.config.resumeAfterOwnerHours ?? 2);
         if (hours > 0 && Date.now() - (conv.ownerRepliedAt || 0) > hours * 3_600_000) {
           conv.handoff = false;
           conv.handoffReason = '';
@@ -566,20 +581,36 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       const delayed = q.delayed;
       q.delayed = false;
       const thinkStart = Date.now();
-      try {
-        result = await this.think(conv, { delayed, extraSystem: resumeNote });
-      } catch (err) {
-        // Nunca manda mensagem de erro para o cliente: ele continua em
-        // "Clientes esperando resposta" e o painel mostra o motivo.
-        this.store.addLog({ type: 'error', phone, message: `Agente IA (cliente não respondido, ficou em "esperando resposta"): ${err.message}` });
+      // Falha da IA (limite por minuto, instabilidade, resposta vazia): tenta de novo ANTES de desistir. Antes, uma única falha deixava o cliente
+      // sem resposta e ainda apagava a mensagem dele da memória, e a atendente parecia ter "parado de falar".
+      const RETRY_WAIT = this.retryWaits;
+      let failure = null;
+      for (let attempt = 0; attempt <= RETRY_WAIT.length; attempt++) {
+        try {
+          result = await this.think(conv, { delayed, extraSystem: resumeNote });
+          failure = null;
+          break;
+        } catch (err) {
+          failure = err;
+          if (err.auth || attempt === RETRY_WAIT.length || q.pending.length) break; // chave errada não melhora; mensagem nova do cliente também vale como nova tentativa
+          this.store.addLog({ type: 'system', phone, message: `Agente IA: falhou (${err.message}); tentando de novo em ${Math.round(RETRY_WAIT[attempt] / 1000)} s (${attempt + 1}/${RETRY_WAIT.length})` });
+          await this.wait(RETRY_WAIT[attempt]);
+        }
+      }
+      if (failure) {
+        const err = failure;
+        // Nunca manda mensagem de erro para o cliente. A mensagem dele continua guardada e ele continua em "esperando resposta": a fila tenta de novo sozinha.
+        this.store.addLog({ type: 'error', phone, message: `Agente IA (cliente não respondido, vai ser tentado de novo pela fila): ${err.message}` });
         if (err.quota) this.quotaHitAt = Date.now();
         this.lastError = { at: new Date().toISOString(), message: err.message };
         this.errorAt = Date.now();
+        conv.aiFailedAt = Date.now();
         this.notify('agentError', this.lastError);
-        conv.messages.pop();
         this.store.save();
+        try { this.onFailed?.(conv); } catch { /* a recuperação nunca derruba o atendimento */ }
         continue;
       }
+      delete conv.aiFailedAt;
       this.lastError = null;
       // Se chegaram mais mensagens enquanto a IA pensava, responde tudo junto.
       if (q.pending.length) continue;

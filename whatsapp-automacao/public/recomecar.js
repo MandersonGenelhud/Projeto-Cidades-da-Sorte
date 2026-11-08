@@ -14,6 +14,13 @@
       <label class="check"><input type="checkbox" id="rsSilent" checked /> Incluir quem parou de responder e retornos combinados</label>
       <button class="btn" id="rsCount">Ver quantos são</button> <button class="btn primary" id="rsGo">Recomeçar agora</button></div>
     <div id="rsOut" class="muted"></div>
+    <h3>Por que a atendente parou?</h3>
+    <p class="hint">Mostra, para cada cliente que escreveu e ainda não foi respondido, o motivo: conversa pausada (e por quê), IA que falhou, fila do número, fora do horário ou sem motivo conhecido.</p>
+    <div class="row"><button class="btn" id="stGo" type="button">Ver por que pararam</button></div><div id="stOut" class="muted"></div>
+    <h3>Chamar de volta quem sumiu</h3>
+    <p class="hint">Cliente que parou de responder recebe, sozinho, uma mensagem de gente: "você ainda está por aí? você realmente tem interesse?", explicando a fila de espera. Se passar 24 horas sem resposta, o sistema avisa com gentileza que vai encerrar o atendimento e o cliente volta para o final da fila (a atendente chama de novo em 30 dias). Se ele responder a qualquer momento, o atendimento segue normal. Cada aviso sai uma vez só, no horário de trabalho, no ritmo seguro de cada número.</p>
+    <div class="row"><label class="check"><input type="checkbox" id="slOn" checked /> Ligado</label> <label>Chamar depois de <input type="number" id="slHours" min="1" max="72" value="4" style="width:70px" /> h sem resposta</label>
+      <button class="btn small" id="slSave" type="button">Salvar</button> <button class="btn" id="slCount" type="button">Ver quantos são</button> <button class="btn primary" id="slGo" type="button">Chamar agora</button></div><div id="slOut" class="muted"></div>
     <details id="rsTpl"><summary><b>Mensagem de retorno automática</b> (a primeira mensagem para quem esperou)</summary>
       <p class="hint">Vai sozinha, antes da IA, para quem esperou o atendimento (ou que entrou no "recomeçar"), no número por onde o cliente falou. Texto fixo, sem pedir desculpas. Use {saudacao} (bom dia, boa tarde, boa noite), {nome} e {data} (o dia que tinha sido combinado). Vazio = texto padrão.</p>
       <label class="check"><input type="checkbox" id="rsOn" checked /> Enviar a mensagem de retorno</label>
@@ -39,11 +46,32 @@
       try { await api('/api/settings', { method: 'PUT', body: { agent: { backlogOpening: { enabled: $('#rsOn').checked, minHours: Math.max(0, Number($('#rsHours').value) || 0), template: $('#rsT1').value.trim(), templateNoDate: $('#rsT2').value.trim() } } } }); toast('Mensagem de retorno salva'); } catch (err) { toast(err.message, true); }
       return;
     }
+    if (id === 'stGo') {
+      try {
+        const r = await api('/api/ai-stalls?hours=72');
+        const NOME = { pausada: 'conversa pausada', ia_falhou: 'a IA falhou', na_fila: 'na fila do número', fora_horario: 'fora do horário', pendente: 'esperando entrar na fila', sem_motivo: 'sem motivo conhecido', bloqueado: 'bloqueado', ia_desligada: 'IA desligada' };
+        $('#stOut').innerHTML = r.total ? `${r.total} cliente(s) esperando resposta: ${Object.entries(r.porMotivo).map(([k, n]) => `${esc(NOME[k] || k)}: ${n}`).join(' · ')}<ul>${r.rows.slice(0, 25).map((x) => `<li><b>${esc(x.name || x.phone)}</b> · ${x.waitingHours} h · ${esc(x.motivo)}<br><span class="hint">"${esc(x.last)}"</span></li>`).join('')}</ul>` : 'Nenhum cliente esperando resposta nos últimos 3 dias.';
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
+    if (id === 'slSave') { try { await api('/api/settings', { method: 'PUT', body: { agent: { silence: { enabled: $('#slOn').checked, nudgeHours: Math.max(1, Math.min(72, Number($('#slHours').value) || 4)) } } } }); toast('Salvo'); } catch (err) { toast(err.message, true); } return; }
+    if (id === 'slCount' || id === 'slGo') {
+      try {
+        if (id === 'slGo' && !confirm('Mandar agora a chamada de volta (e os avisos de encerramento) para os clientes que sumiram? Sai uma mensagem para cada um, no ritmo seguro de cada número.')) return;
+        const r = id === 'slCount' ? await api('/api/silence') : await api('/api/silence/run', { method: 'POST', body: {} });
+        $('#slOut').textContent = `${r.nudges} cliente(s) para chamar de volta e ${r.closings} para avisar o encerramento${id === 'slGo' ? `. ${r.queued} entraram na fila` : ''}.${r.off ? ' (O recurso está desligado.)' : ''}`;
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
     if (id !== 'rsCount' && id !== 'rsGo') return;
     if (id === 'rsGo' && !confirm('Recomeçar todos os atendimentos parados? A IA vai escrever para os clientes, número por número, no ritmo seguro.')) return;
     try { await run(id === 'rsCount'); } catch (err) { toast(err.message, true); }
   });
-  const show = () => { box.hidden = window.currentUser?.role !== 'admin'; };
+  let slLoaded = false;
+  const show = () => {
+    box.hidden = window.currentUser?.role !== 'admin';
+    if (!box.hidden && !slLoaded) { slLoaded = true; api('/api/silence').then((r) => { $('#slOn').checked = r.config.enabled !== false; $('#slHours').value = r.config.nudgeHours; }).catch(() => { slLoaded = false; }); }
+  };
   new MutationObserver(show).observe(tab, { attributes: true, attributeFilter: ['class'] });
   show();
 })();

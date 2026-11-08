@@ -50,6 +50,7 @@ import { makeContractorSigner } from './routes/assinatura-contratada.js';
 import { makeContractPix } from './contract-pix.js';
 import { fullConversation, clientBrief } from './lead-brief.js';
 import { buildDirectory, searchDirectory } from './directory.js';
+import { enqueueSilence, silenceConfig } from './silence.js';
 import { fichaPedido } from './ficha-text.js';
 import { slaCheck } from './distribution.js';
 import { moveOldCorretorLeads } from './maintenance.js';
@@ -2742,6 +2743,28 @@ const { restartAll, convOfLead, noticeQuotes, repairLeads } = registerControleRo
   store, auth, crm, agent, pending, lines, wa, sales, quotes, legacy,
   directory: { build: (v) => directory.build(v), search: (...a) => directory.search(...a) },
 });
+// A IA falhou mesmo depois de tentar de novo: a mensagem do cliente continua guardada e a fila de "esperando resposta" tenta de novo em instantes,
+// sem esperar os 15 minutos da rede de segurança.
+agent.onFailed = (conv) => {
+  setTimeout(() => { try { if (agent.active) restartAll({ onlyKeys: [conv.key], days: 2, includeSilent: false, includeMarcos: false }); } catch (e) { store.addLog({ type: 'error', message: `Nova tentativa da IA: ${e.message}` }); } }, 90_000).unref();
+};
+// Cliente que sumiu: depois do aviso de encerramento ele vai para o fim da fila (retorno marcado para 30 dias; a atendente chama de novo sozinha).
+pending.onSilence = (kind, conv) => {
+  if (kind !== 'encerramento') return;
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username });
+  if (!lead || ['ganho', 'perdido'].includes(lead.stage)) return;
+  const sys = { name: 'Sistema', role: 'admin' };
+  crm.addNote(sys, lead.id, 'Cliente sumiu: o aviso de encerramento do atendimento foi enviado e ele voltou para o fim da fila.');
+  crm.followUp(sys, lead.id, { date: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10), reason: 'Voltar ao fim da fila: não respondeu ao aviso de encerramento' });
+};
+const runSilence = (opts = {}) => enqueueSilence({ store, pending, conversations: Object.values(store.data.conversations || {}), leadOf: (c) => crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }), isBlocked: (p) => store.isBlacklisted(p), ...opts });
+app.get('/api/silence', (req, res) => { needAdmin(req); res.json({ config: silenceConfig(store.settings.agent), ...runSilence({ dryRun: true }) }); });
+app.post('/api/silence/run', (req, res) => {
+  needAdmin(req);
+  const r = runSilence({});
+  securityEvent('chamar_de_volta_silenciosos', req.user, req, `${r.nudges} chamada(s) de volta e ${r.closings} encerramento(s): ${r.queued} entraram na fila`);
+  res.json(r);
+});
 // Busca por palavra em todas as conversas (só administrador; respeita o escritório escolhido no alto da tela).
 app.get('/api/search/conversations', (req, res) => {
   needAdmin(req);
@@ -5258,6 +5281,8 @@ if (process.env.NODE_ENV !== 'test') {
   setInterval(() => { try { if (agent.active && isWithinWorkHours(store.settings.agent?.workHours)) restartAll({ days: Number(store.settings.agent?.pendingMaxDays) || 30, includeSilent: false, includeMarcos: false }); } catch (e) { store.addLog({ type: 'error', message: `Recomeçar parados: ${e.message}` }); } }, 15 * 60_000).unref();
   // Orçamento a vencer (hoje ou amanhã): avisa uma vez, no horário de trabalho, pela conversa do cliente. Desligue com quoteExpiry.auto = false.
   setInterval(() => { try { if (agent.active && store.settings.agent?.quoteExpiry?.auto !== false && isWithinWorkHours(store.settings.agent?.workHours)) { const r = noticeQuotes({}); if (r.queued) store.addLog({ type: 'system', message: `Orçamentos a vencer: ${r.queued} cliente(s) avisados pela fila da IA.` }); } } catch (e) { store.addLog({ type: 'error', message: `Aviso de orçamento a vencer: ${e.message}` }); } }, 30 * 60_000).unref();
+  // Cliente que sumiu: a cada 15 minutos, no horário de trabalho, chama de volta (4 h sem resposta) ou avisa o encerramento (24 h depois do aviso).
+  setInterval(() => { try { if (agent.active && isWithinWorkHours(store.settings.agent?.workHours)) { const r = runSilence({}); if (r.queued) store.addLog({ type: 'system', message: `Clientes que sumiram: ${r.nudges} chamada(s) de volta e ${r.closings} encerramento(s) na fila (${r.queued} entraram).` }); } } catch (e) { store.addLog({ type: 'error', message: `Chamar de volta quem sumiu: ${e.message}` }); } }, 15 * 60_000).unref();
   // Conversa que a atendente respondeu e ficou sem prospecto no CRM: cria o que faltou (últimos 3 dias), a cada 30 minutos.
   setInterval(() => { try { if (agent.active) { const r = repairLeads({}); if (r.created) store.addLog({ type: 'system', message: `Prospectos que faltavam: ${r.created} conversa(s) respondida(s) pela IA ganharam registro no CRM.` }); } } catch (e) { store.addLog({ type: 'error', message: `Reparo de prospectos: ${e.message}` }); } }, 30 * 60_000).unref();
   setInterval(() => slaTick().catch((e) => store.addLog({ type: 'error', message: `Cliente parado: ${e.message}` })), 10 * 60_000).unref();

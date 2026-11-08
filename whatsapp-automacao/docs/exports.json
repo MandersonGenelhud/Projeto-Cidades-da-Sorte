@@ -63,6 +63,9 @@
   "TOOL_DEFINITIONS",
   "runTool"
  ],
+ "src/ai-stalls.js": [
+  "stallReport"
+ ],
  "src/alerts.js": [
   "Alerts"
  ],
@@ -643,6 +646,15 @@
   "parseShoppingItems",
   "storeFromName",
   "storeOf"
+ ],
+ "src/silence.js": [
+  "CLOSING_TEXT",
+  "DEFAULT_SILENCE",
+  "NUDGE_TEXT",
+  "buildSilenceText",
+  "collectSilent",
+  "enqueueSilence",
+  "silenceConfig"
  ],
  "src/site-content.js": [
   "DEFAULT_CONTENT",

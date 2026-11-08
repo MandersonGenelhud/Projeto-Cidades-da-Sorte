@@ -7,6 +7,7 @@ import { senderOf, profileFor } from './send-profiles.js';
 import { workHourRange, isWithinWorkHours } from './utils.js';
 import { buildOpening, wantsOpening } from './opening.js';
 import { quoteNote } from './quote-expiry.js';
+import { buildSilenceText, silenceConfig } from './silence.js';
 export { senderOf };
 
 /** A mensagem de retorno (agradecimento, demanda alta, imprevistos) já foi enviada: a IA não repete e segue direto ao assunto. */
@@ -410,7 +411,8 @@ export class PendingInbox {
           continue;
         }
         // Antes de entrar: lê as mensagens anteriores e vê se é cliente esperando ou conversa do Marcos.
-        if (p && conv && !conv.handoff && this.agent.triageBacklog && this.store.settings.agent?.triagePending !== false) {
+        const fixedKind = p?.kind === 'nudge' || p?.kind === 'encerramento'; // chamada por silêncio do cliente: texto fixo, sem IA
+        if (p && conv && !conv.handoff && !fixedKind && this.agent.triageBacklog && this.store.settings.agent?.triagePending !== false) {
           try {
             const v = await this.agent.triageBacklog(conv, p.texts, { restart: Boolean(p.restart) });
             conv.triage = { ...v, at: new Date().toISOString() };
@@ -429,7 +431,27 @@ export class PendingInbox {
             continue;
           }
         }
-        if (!skip && p && (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected')) {
+        if (!skip && p && fixedKind && (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected')) {
+          // Cliente que sumiu: o sistema chama de volta (ou avisa o encerramento) com o texto combinado, como uma pessoa faria.
+          const c = this.agent.conversation(jid);
+          const text = buildSilenceText(p.kind, { name: p.name || c.name, now: this.now(), cfg: silenceConfig(this.store.settings.agent) });
+          try {
+            if (p.kind === 'encerramento' && String(jid).startsWith('ig:') && this.now().getTime() - (Date.parse([...(c.messages || [])].reverse().find((m) => m.role === 'user')?.at) || 0) > 23 * 3_600_000) {
+              this.store.addLog({ type: 'system', phone: p.phone || jid, message: 'Encerramento por silêncio: Instagram fora das 24 h, o aviso não pôde ser enviado; o cliente foi para o fim da fila mesmo assim.' });
+            } else {
+              await this.wa.send(jid, { text });
+              this.agent.remember(c, 'assistant', text);
+              this.lastSentAt = Date.now();
+              answered = true;
+              this.store.addLog({ type: 'autoreply', phone: p.phone || jid, message: text, rule: p.kind === 'nudge' ? 'Cliente sumiu: chamada de volta' : 'Cliente sumiu: encerramento do atendimento' });
+            }
+            c.silence = { ...(c.silence || {}), [p.kind === 'nudge' ? 'nudgeAt' : 'closeAt']: this.now().getTime() };
+            this.store.save();
+            try { this.onSilence?.(p.kind, c); } catch { /* o efeito no CRM nunca derruba a fila */ }
+          } catch (err) {
+            this.store.addLog({ type: 'error', phone: p.phone || jid, message: `Cliente sumiu (${p.kind}): ${err.message}` });
+          }
+        } else if (!skip && p && (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected')) {
           // Quem esperou bastante recebe primeiro a mensagem de retorno (texto fixo da direção: agradece, demanda alta, imprevistos, continuidade).
           let opened = false;
           const cfgAg = this.store.settings.agent || {};

@@ -109,7 +109,7 @@ const DEFAULT_DATA = {
       // Se o dono responder um cliente pelo celular, o agente para de responder aquele cliente.
       pauseOnOwnerReply: true,
       // Pausa por "respondi pelo celular" termina sozinha depois de tantas horas sem o dono falar de novo (0 = nunca).
-      resumeAfterOwnerHours: 6,
+      resumeAfterOwnerHours: 2, // depois que o dono respondeu pelo celular, a IA volta sozinha se ele ficar calado por este tempo (antes: 6 h)
       // Ritmo humano: espera para "ver", ler e digitar; divide a resposta em mensagens curtas.
       humanize: { enabled: true, noticeMin: 5, noticeMax: 20 },
       // Conversas sem resposta: considera mensagens dos últimos N dias e responde sozinho.
@@ -386,6 +386,13 @@ export class Store extends EventEmitter {
       this.data.phones55_2026 = true;
       this.flush();
       if (r.count) this.addLog({ type: 'system', message: `Telefones: ${r.count} cadastro(s) de clientes ganharam o prefixo +55 do Brasil.` });
+    }
+    // Depois que o dono responde pelo celular, a IA voltava só após 6 h: vendas perdidas. Quem ainda está no padrão antigo passa a 2 h (uma vez).
+    if (!this.data.ownerResume2026) {
+      const agOwner = this.data.settings.agent;
+      if (agOwner && Number(agOwner.resumeAfterOwnerHours) === 6) agOwner.resumeAfterOwnerHours = 2;
+      this.data.ownerResume2026 = true;
+      this.flush();
     }
     const agDays = this.data.settings.agent;
     if (agDays && !agDays.pendingDays2026) {

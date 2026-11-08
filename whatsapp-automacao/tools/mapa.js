@@ -36,7 +36,7 @@ export function analyze() {
   const routeSrc = [server, ...fs.readdirSync(path.join(ROOT, 'src/routes')).map((f) => read('src/routes/' + f))].join('\n');
   const routes = [...routeSrc.matchAll(/^\s*app\.(get|post|put|patch|delete|use)\(\s*'([^']+)'/gm)].map((m) => `${m[1].toUpperCase()} ${m[2]}`);
   const intervals = [...server.matchAll(/(?<!const ping = )setInterval\(/g)].length;
-  const intervalsUnref = [...server.matchAll(/setInterval\([\s\S]*?\.unref\(\)/g)].length;
+  const intervalsUnref = [...server.matchAll(/(?<!const ping = )setInterval\([\s\S]*?\.unref\(\)/g)].length;
   const store = read('src/store.js');
   const flags = [...new Set([...store.matchAll(/\b([A-Za-z]+\d{4}[a-z]?)\b\s*(?:=|\))/g)].map((m) => m[1]).filter((f) => /20\d\d/.test(f)))].sort();
   const front = [...read('public/index.html').matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);

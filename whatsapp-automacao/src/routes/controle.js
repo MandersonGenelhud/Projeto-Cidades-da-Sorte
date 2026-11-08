@@ -8,6 +8,7 @@ import { distributionReport } from '../distribution.js';
 import { noticeExpiringQuotes } from '../quote-expiry.js';
 import { reconcile } from '../reconcile.js';
 import { fixPhones } from '../phone-fix.js';
+import { stallReport } from '../ai-stalls.js';
 import { repairMissingLeads, dataHealth } from '../lead-repair.js';
 import crypto from 'node:crypto';
 import { restartStalled } from '../restart.js';
@@ -44,6 +45,11 @@ app.get('/api/directory', (req, res) => {
     coverage: { people: dir.count, records: dir.records, bySource: dir.bySource },
     results: q ? ctx.directory.search(req.user, q, { limit: 10 }).map((r) => ({ score: r.score, why: r.why, name: r.person.name, cpfs: r.person.cpfs, phones: r.person.phones, emails: r.person.emails, instagram: r.person.instagram, sources: r.person.sources, items: r.person.items.slice(0, 30) })) : [],
   });
+});
+// Por que a atendente parou de falar em cada conversa (só administrador, só leitura).
+app.get('/api/ai-stalls', (req, res) => {
+  needAdmin(req);
+  res.json(stallReport({ conversations: Object.values(store.data.conversations || {}), pending, agentCfg: store.settings.agent || {}, active: Boolean(agent.active), isBlocked: (p) => store.isBlacklisted(p), hours: Math.min(720, Math.max(1, Number(req.query.hours) || 72)) }));
 });
 // Telefones sem o +55: ver quantos cadastros seriam corrigidos (GET) e corrigir (POST). Cada mudança fica registrada (antes e depois).
 app.get('/api/phones-fix', (req, res) => { needAdmin(req); res.json(fixPhones(store, { dryRun: true })); });
