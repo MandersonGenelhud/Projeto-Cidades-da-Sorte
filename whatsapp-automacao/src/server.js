@@ -915,7 +915,7 @@ agent.bookMentoring = async (conv, args = {}, { dryRun } = {}) => {
   if (isClientOfMigra(lead)) {
     await tellMarcos(mentoringNotice(lead, args, conv, 'cliente da Migra (sem cobrança)'));
     if (lead) crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `🎓 Mentoria com o Marcos pedida (${args.formato || 'online'}), sem cobrança por já ser cliente`);
-    return { ok: true, cliente: true, instrucao: 'Este cliente já é da Migra, então a mentoria não tem cobrança. Diga isso com carinho ("como você já é nosso cliente, não tem custo"), que passou o pedido para a assessoria do Marcos, que escolhe o dia e o horário na agenda dele e confirma por aqui se serve para o cliente. Nunca confirme nem sugira data ou horário.' };
+    return { ok: true, cliente: true, instrucao: 'Este cliente já é da Migra, então a mentoria não tem cobrança. Diga isso com gentileza, sem usar a palavra "carinho" ("como você já é nosso cliente, não tem custo"), que passou o pedido para a assessoria do Marcos, que escolhe o dia e o horário na agenda dele e confirma por aqui se serve para o cliente. Nunca confirme nem sugira data ou horário.' };
   }
   if (args.pagamento === 'cartao') {
     await tellMarcos(mentoringNotice(lead, args, conv, `PAGAMENTO NO CARTÃO (${usd}): enviar o link e, depois de pago, agendar`));

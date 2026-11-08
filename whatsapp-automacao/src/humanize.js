@@ -1,5 +1,6 @@
 // Ritmo humano: quanto tempo uma pessoa levaria para ver, ler e digitar.
 import { randomBetween } from './utils.js';
+import { professionalTone } from './agent/greeting.js';
 
 export const DEFAULT_HUMANIZE = {
   enabled: true,
@@ -71,7 +72,7 @@ export function splitIntoBubbles(text, max = 6) {
  * send(texto) envia uma mensagem; wait(ms) espera. Devolve as mensagens enviadas. Não corta link, código nem Pix.
  */
 export async function sendInBubbles(send, text, { wait = (ms) => new Promise((r) => setTimeout(r, ms)), max = 8, pause = () => randomBetween(1200, 2800) } = {}) {
-  const bubbles = splitIntoBubbles(text, max);
+  const bubbles = splitIntoBubbles(professionalTone(text), max);
   for (const [i, b] of bubbles.entries()) {
     await send(b);
     if (i < bubbles.length - 1) await wait(process.env.NODE_TEST_CONTEXT ? 0 : pause());

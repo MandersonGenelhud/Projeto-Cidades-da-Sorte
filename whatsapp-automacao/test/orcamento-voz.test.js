@@ -50,10 +50,11 @@ test('o que a voz diz: simpático, curto, com pausas (vírgulas e pontos), sem v
   await d.deliver({ convKey: key, q, name: 'ana souza' });
   const t = calls[0].text;
   assert.match(t, /^Oi Ana! Tudo bem\?/);
-  assert.match(t, /Preparei o seu orçamento com muito carinho\./);
+  assert.match(t, /Preparei o seu orçamento para você\./);
   assert.match(t, /clicar no botão que está no PDF/);
   assert.match(t, /dá entrada na sua reserva/);
-  assert.match(t, /Um abraço!$/);
+  assert.match(t, /Muito sucesso!$/);
+  assert.doesNotMatch(t, /carinho|beijo|abraço/i);
   assert.doesNotMatch(t, /contrato|R\$|reais|%|desconto|garant/i);
   assert.ok(t.split(/[.!?]/).filter(Boolean).length >= 6, 'frases curtas, uma de cada vez (a voz respira entre elas)');
   assert.ok(t.length < 520, 'não é um discurso');

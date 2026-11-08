@@ -20,7 +20,7 @@ export function messageFor(row) {
   const parcela = `${row.label ? `${row.label} ` : ''}no valor de ${brl(row.value)}${row.due ? `, com vencimento em ${br(row.due)}` : ''}`;
   const t = tier(row.daysLate);
   const fim = 'Se já pagou, é só me enviar o comprovante por aqui que eu dou baixa. Se preferir pagar no Pix ou no cartão, me avise que eu te envio agora.';
-  if (t === 'leve') return `Olá, ${nome}! Tudo bem? Aqui é da Migra Paraguai. Passando para lembrar com carinho da parcela do seu contrato ${row.number}: ${parcela}. ${fim}`;
+  if (t === 'leve') return `Olá, ${nome}! Tudo bem? Aqui é da Migra Paraguai. Passando para lembrar da parcela do seu contrato ${row.number}: ${parcela}. ${fim}`;
   if (t === 'medio') return `Olá, ${nome}! Aqui é da Migra Paraguai. Notamos que a parcela do contrato ${row.number} (${parcela}) ainda está em aberto. Queremos te ajudar a regularizar para o seu processo seguir sem atrasos. ${fim} Se houver alguma dificuldade, me conte: podemos conversar sobre a melhor forma.`;
   return `Olá, ${nome}. Aqui é da Migra Paraguai. A parcela do contrato ${row.number} (${parcela}) está em aberto há ${row.daysLate} dias e precisamos regularizar para não prejudicar o andamento do seu processo. ${fim} Responda esta mensagem e combinamos a melhor solução para você.`;
 }

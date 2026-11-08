@@ -29,14 +29,21 @@ export function fixGreeting(text, now = new Date()) {
 }
 
 /**
- * Tom profissional: troca "beijo/beijinho/bjs" por "abraço" e tira emojis de beijo,
- * mesmo que a IA escorregue (a mensagem pode ir para alguém casado).
+ * Tom profissional (regra da direção): nada de beijo, nada de "com carinho" (a atendente age com calma e gentileza, sem anunciar isso).
+ * Troca "beijo/beijinho/bjs" por "abraço", tira os emojis de beijo, e as expressões "com (muito) carinho" e "carinhosamente", mesmo que a IA escorregue.
+ * Despedida com "abraço" só se a própria atendente escolher (o prompt a restringe); beijo nunca.
  */
 export function professionalTone(text) {
   const keepCase = (m, word) => (m === m.toUpperCase() && m.length > 1 ? word.toUpperCase() : m[0] === m[0].toUpperCase() ? word[0].toUpperCase() + word.slice(1) : word);
   return String(text)
     .replace(/\b(beijinhos|beijos|bjss*|bjos)\b/gi, (m) => keepCase(m, 'abraços'))
     .replace(/\b(beijinho|beijão|beijo|bjo|bj)\b/gi, (m) => keepCase(m, 'abraço'))
+    .replace(/abraço\s+e\s+(um\s+)?abraço/gi, 'abraço')
     .replace(/\s*[\u{1F618}\u{1F617}\u{1F619}\u{1F61A}\u{1F48B}]\uFE0F?/gu, '')
-    .replace(/abraço\s+e\s+(um\s+)?abraço/gi, 'abraço');
+    .replace(/[ \t]*,?[ \t]*\bcom (muito |todo |bastante |um )?carinho\b(?=[\s,.!?;:]|$)/gi, '')
+    .replace(/[ \t]*\bcarinhosamente\b/gi, '')
+    .replace(/[ \t]+([,.!?;:])/g, '$1')
+    .replace(/([.!?])\s*([.!?])+(?=\s|$)/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
 }

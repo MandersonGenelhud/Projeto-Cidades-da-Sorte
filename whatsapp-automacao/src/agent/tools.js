@@ -268,7 +268,7 @@ export const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'oferecer_plano_pdf',
-      description: 'ÚLTIMO degrau, só para quem NÃO TEM condições de contratar a assessoria: depois de registrar em registrar_qualificacao que ele não tem condições (com a frase dele), de tentar o pacote menor e a data da entrada, e de dizer com carinho que ele pode se preparar e que a Migra fica à disposição. Gera o Pix do Plano em PDF (passo a passo para dar entrada sozinho, sem a assessoria) e envia o QR Code. O PDF só é enviado depois do pagamento confirmado, e o Marcos é avisado. Nunca ofereça a quem tem condições.',
+      description: 'ÚLTIMO degrau, só para quem NÃO TEM condições de contratar a assessoria: depois de registrar em registrar_qualificacao que ele não tem condições (com a frase dele), de tentar o pacote menor e a data da entrada, e de dizer com gentileza (sem usar a palavra "carinho") que ele pode se preparar e que a Migra fica à disposição. Gera o Pix do Plano em PDF (passo a passo para dar entrada sozinho, sem a assessoria) e envia o QR Code. O PDF só é enviado depois do pagamento confirmado, e o Marcos é avisado. Nunca ofereça a quem tem condições.',
       parameters: { type: 'object', properties: { nome_pagador: { type: 'string', description: 'Nome de quem vai pagar, se ele disse' } } },
     },
   },

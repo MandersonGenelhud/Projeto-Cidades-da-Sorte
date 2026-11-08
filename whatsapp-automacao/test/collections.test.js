@@ -33,7 +33,7 @@ test('cobrança: lista só o vencido e não cancelado, com faixa de atraso e tot
 test('cobrança: o texto muda com o atraso, é educado e oferece Pix ou cartão', () => {
   const base = { client: 'ANA PAULA PAMPLONA', number: '2026-000215', label: 'Parcela 1', value: 3400, due: '2026-10-25' };
   const leve = messageFor({ ...base, daysLate: 9 }); const firme = messageFor({ ...base, daysLate: 94 });
-  assert.match(leve, /Olá, Ana!/); assert.match(leve, /lembrar com carinho/); assert.match(leve, /R\$ 3\.400,00/); assert.match(leve, /25\/10\/2026/);
+  assert.match(leve, /Olá, Ana!/); assert.match(leve, /lembrar da parcela/); assert.doesNotMatch(leve, /carinho/i); assert.match(leve, /R\$ 3\.400,00/); assert.match(leve, /25\/10\/2026/);
   assert.match(firme, /há 94 dias/); assert.match(firme, /Pix ou no cartão/); assert.match(firme, /comprovante/);
   assert.doesNotMatch(`${leve}${firme}`, /ação judicial|protesto|SPC|Serasa|polícia/i, 'sem ameaça');
 });

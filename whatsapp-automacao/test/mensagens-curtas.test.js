@@ -30,3 +30,12 @@ test('envio em partes: manda cada mensagem na ordem, com pausa entre elas e sem 
   assert.deepEqual(sent, bubbles);
   assert.equal(waits.length, bubbles.length - 1);
 });
+
+test('tom da direção: nenhuma mensagem fixa diz "com carinho"; o envio em partes limpa a expressão e beijo vira nada de beijo', async () => {
+  const sent = [];
+  await sendInBubbles(async (b) => sent.push(b), 'Bom dia! Passando para avisar com carinho que o seu orçamento vence hoje. Um beijo.', { wait: async () => {}, max: 8 });
+  const t = sent.join(' ');
+  assert.doesNotMatch(t, /carinho|beijo/i);
+  assert.match(t, /Passando para avisar que o seu orçamento vence hoje/);
+  for (const base of [NUDGE_TEXT, CLOSING_TEXT, DEFAULT_OPENING, apologyText('Ana')]) assert.doesNotMatch(base, /carinho|beijo/i);
+});

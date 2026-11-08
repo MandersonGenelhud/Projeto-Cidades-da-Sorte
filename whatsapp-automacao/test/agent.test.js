@@ -407,6 +407,8 @@ test('saudação pelo horário: 0h–12h59 bom dia, 13h–18h59 boa tarde, 19h�
 
 test('tom profissional: nada de beijo (no máximo um abraço), mesmo se a IA escorregar', async () => {
   const { professionalTone } = await import('../src/agent/greeting.js');
+  assert.equal(professionalTone('Passando para avisar com carinho que o orçamento vence hoje, com muito carinho.'), 'Passando para avisar que o orçamento vence hoje.');
+  assert.equal(professionalTone('Vou te ajudar carinhosamente, tá?'), 'Vou te ajudar, tá?');
   assert.equal(professionalTone('Um beijo e um ótimo final de semana!'), 'Um abraço e um ótimo final de semana!');
   assert.equal(professionalTone('Bjs! 😘'), 'Abraços!');
   assert.equal(professionalTone('Vi um beija-flor'), 'Vi um beija-flor');
@@ -420,7 +422,8 @@ test('tom profissional: nada de beijo (no máximo um abraço), mesmo se a IA esc
   const r = await agent.think(conv);
   assert.equal(r.text, 'Fica tranquila! Um abraço');
   assert.match(system, /Nunca mande beijo/);
-  assert.match(system, /no máximo "Um abraço"/);
+  assert.match(system, /"um abraço" só se tiver certeza de que é um homem/);
+  assert.match(system, /NUNCA escreva a palavra "carinho"/);
 });
 
 test('retomada do Instagram: abertura fixa com demanda alta, perdão e agradecimento (saudação do horário)', async () => {

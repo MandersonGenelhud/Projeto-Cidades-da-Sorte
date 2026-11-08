@@ -183,11 +183,11 @@ export class Quotes {
     const nome = first && first.length > 1 && !/^[+@\d]/.test(first) && first.toLowerCase() !== 'cliente' ? ` ${first.charAt(0).toUpperCase()}${first.slice(1).toLowerCase()}` : '';
     return [
       `Oi${nome}! Tudo bem?`,
-      'Preparei o seu orçamento com muito carinho.',
+      'Preparei o seu orçamento para você.',
       'Ele está aí no PDF, com tudo explicadinho: o investimento, a entrada e as parcelas.',
       'Se estiver tudo certo para você, é só clicar no botão que está no PDF, ou no link logo abaixo, e a gente já dá entrada na sua reserva.',
       'É bem simples, você só completa os dados que faltam.',
-      'Qualquer dúvida, pode me chamar por aqui, tá? Um abraço!',
+      'Qualquer dúvida, pode me chamar por aqui, tá? Muito sucesso!',
     ].join(' ');
   }
 
