@@ -450,7 +450,7 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Número de pessoas nos grupos**: a contagem (somente leitura) guarda só o total; na arte e na legenda aparece sempre "mais de X" arredondado **para baixo** na centena (1.101 → 1.100; 999 → 900), para nunca prometer mais do que existe. O número só entra depois de contado.
 - **Legenda** (`GET /api/flash-offer/legenda`, só administrador): curta, com destaques do WhatsApp, link `wa.me` do número do Marcos (cadastrado em `crm.ownerPhone`) com a frase da oferta já escrita. Sai um aviso se o número do dono não estiver cadastrado.
 - **Pagamento da oferta**: à vista **ou** cartão em até 3x com a taxa da operadora paga pelo cliente (a Migra recebe à vista); a IA usa as taxas cadastradas (`opcoes_cartao`), nunca inventa. Outras formas (entrada e etapas) não prometem o brinde: a negociação final é do vendedor.
-- **Prioridade da fila**: cliente que acabou de chegar (últimas 3 h) passa na frente em cada número; os antigos (retomadas, recomeços, pedidos parados) saem aos poucos, 1 a cada 4 atendimentos, o mais antigo primeiro. Não muda limites por hora, horários nem intervalos de proteção dos números (`src/queue-priority.js`).
+- **Prioridade da fila**: conversa que está INICIANDO (primeiro contato, sem resposta nossa, primeira mensagem nas últimas 6 h) passa na frente de todas; depois o cliente que escreveu nas últimas 3 h em cada número; os antigos (retomadas, recomeços, pedidos parados) saem aos poucos, 1 a cada 4 atendimentos, o mais antigo primeiro. Não muda limites por hora, horários nem intervalos de proteção dos números (`src/queue-priority.js`).
 - Testes: `test/oferta-relampago.test.js`.
 
 ## Dois brindes da oferta (sem escassez falsa) e "quem atendeu" nos avisos

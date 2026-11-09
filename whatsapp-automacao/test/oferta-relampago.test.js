@@ -150,3 +150,20 @@ test('oferta para todos: sem limite de pessoas; quem paga a entrada até a data 
   t = Date.parse('2026-11-13T09:00:00Z');
   assert.deepEqual(f.claim({ convKey: 'tarde' }), { ok: false, motivo: 'encerrada', left: 0 });
 });
+
+import { startingConv } from '../src/queue-priority.js';
+test('conversa que está INICIANDO (primeiro contato, sem resposta nossa) passa na frente de todas; depois os recentes; os antigos aos poucos', () => {
+  const NOW = Date.parse('2026-11-09T12:00:00Z');
+  const h = (n) => NOW - n * 3_600_000;
+  const msg = (role, ago) => ({ role, at: new Date(h(ago)).toISOString() });
+  const convs = { novo1: { messages: [msg('user', 0.1)] }, novo2: { messages: [msg('user', 1), msg('user', 0.9)] }, conv3: { messages: [msg('user', 30), msg('assistant', 29), msg('user', 1)] }, velho: { messages: [msg('user', 100), msg('assistant', 99)] } };
+  assert.equal(startingConv(convs.novo1, NOW), true);
+  assert.equal(startingConv(convs.conv3, NOW), false, 'já tem resposta nossa: não está iniciando');
+  assert.equal(startingConv({ messages: [msg('user', 20)] }, NOW), false, 'primeira mensagem de ontem: não é início');
+  const items = { conv3: { at: h(1) }, novo2: { at: h(0.9) }, novo1: { at: h(0.1) }, velho: { at: h(100), restart: true, kind: 'retomar' } };
+  const q = Object.keys(items); const state = { n: 0 }; const order = [];
+  while (q.length) { const j = pickNext(q, items, { now: NOW, state, isStarting: (x) => startingConv(convs[x], NOW) && !items[x].restart }); order.push(j); q.splice(q.indexOf(j), 1); }
+  assert.deepEqual(order.slice(0, 2), ['novo2', 'novo1'], 'as que estão começando primeiro (a que espera há mais tempo antes)');
+  assert.equal(order[2], 'conv3', 'depois a conversa em andamento recente');
+  assert.equal(order[3], 'velho', 'e por último a antiga');
+});

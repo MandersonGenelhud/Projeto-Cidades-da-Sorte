@@ -584,7 +584,8 @@
  ],
  "src/queue-priority.js": [
   "isFresh",
-  "pickNext"
+  "pickNext",
+  "startingConv"
  ],
  "src/quote-delivery.js": [
   "DEFAULT_QUOTE_VOICE",

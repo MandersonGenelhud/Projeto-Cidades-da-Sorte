@@ -10,7 +10,7 @@ import { quoteNote } from './quote-expiry.js';
 import { buildSilenceText, silenceConfig } from './silence.js';
 import { isProactive } from './outreach-guard.js';
 import { sendInBubbles } from './humanize.js';
-import { pickNext } from './queue-priority.js';
+import { pickNext, startingConv } from './queue-priority.js';
 export { senderOf };
 
 /** A mensagem de retorno (agradecimento, demanda alta, imprevistos) já foi enviada: a IA não repete e segue direto ao assunto. */
@@ -365,7 +365,7 @@ export class PendingInbox {
     const mine = () => this.queue.filter((j) => senderOf(j) === sender);
     // Quem acabou de chegar passa na frente; os antigos saem aos poucos (a cada 4 atendimentos, um antigo).
     const state = (this.pickState[sender] ||= { n: 0 });
-    const next = () => pickNext(mine(), this.items, { now: this.now().getTime(), state }) || null;
+    const next = () => pickNext(mine(), this.items, { now: this.now().getTime(), state, isStarting: (j) => !this.items[j]?.restart && startingConv(this.agent.conversation(j, { create: false }), this.now().getTime()) }) || null;
     if (!this.careful) return next();
     for (;;) {
       if (!mine().length) return null;
