@@ -588,6 +588,7 @@
   "strategyFor"
  ],
  "src/queue-priority.js": [
+  "isClientMessage",
   "isFresh",
   "pickNext",
   "startingConv"

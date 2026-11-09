@@ -510,3 +510,9 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Falha de envio** (cliente sem WhatsApp ou número fora do ar): o recibo fica guardado, o motivo é registrado e o administrador é avisado.
 - **Limites**: o recibo comprova o que foi **registrado** pela equipe; não é documento fiscal. Se a baixa for feita por engano e depois desfeita, o cliente já recebeu o recibo anulado e não há aviso automático de anulação ao cliente. Envio real pelo WhatsApp não foi testado fora da simulação.
 - Testes: `test/recibo-parcela.test.js`.
+
+## Fila de atendimento: quem respondeu vem primeiro (09/11/2026)
+
+- Causa encontrada: as respostas de clientes que esperavam há mais de 3 horas eram tratadas como "antigas" e ficavam misturadas com as centenas de recomeços, ordenadas pela data da última mensagem; as retomadas muito antigas passavam na frente.
+- Agora (`src/queue-priority.js`): 1º quem **respondeu** (do que espera há mais tempo ao mais recente, até 3 dias); 2º quem está **chegando** (primeiro contato); 3º recomeços e retomadas antigas, do mais antigo ao mais novo. Para as antigas não pararem para sempre, sai uma delas a cada 8 atendimentos. Limites por hora/dia, horário de trabalho, recusas e a guarda de contato continuam valendo (sem mudança).
+- Testes: `test/oferta-relampago.test.js` (fila com 300 recomeços antigos).

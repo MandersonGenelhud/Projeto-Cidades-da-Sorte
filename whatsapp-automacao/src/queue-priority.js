@@ -17,18 +17,32 @@ export function isFresh(item, now, newHours = 3) {
   return now - (Number(item.at) || 0) <= newHours * HOUR;
 }
 
+/** Item que é o CLIENTE falando conosco (respondeu uma mensagem nossa ou escreveu agora): não é retomada/recomeço/lembrete nosso. */
+export function isClientMessage(item) {
+  if (!item) return false;
+  return !(item.restart || ['retomar', 'nudge', 'encerramento', 'orcamento'].includes(item.kind));
+}
+
 /**
  * Escolhe o próximo da lista (chaves) deste número. state = { n: quantos já foram escolhidos }.
- * Regra: novos primeiro (os mais antigos entre os novos primeiro); a cada oldEvery-ésima escolha, o mais antigo do grupo antigo (se houver).
+ * Ordem de prioridade:
+ *  1) quem RESPONDEU (cliente falou conosco numa conversa que já existia), do que espera há mais tempo ao mais recente;
+ *  2) quem está CHEGANDO agora (primeiro contato, ainda sem resposta nossa);
+ *  3) as retomadas e recomeços antigos, do mais antigo ao mais recente.
+ * Para as antigas nunca ficarem paradas para sempre, a cada oldEvery-ésima escolha sai uma delas (só quando ainda há gente nos grupos 1 e 2).
+ * Mensagem de cliente com mais de replyDays dias sem resposta deixa de ser "resposta" e entra no grupo das antigas.
  */
-export function pickNext(jids, items, { now = Date.now(), state = { n: 0 }, newHours = 3, oldEvery = 4, isStarting = () => false } = {}) {
+export function pickNext(jids, items, { now = Date.now(), state = { n: 0 }, replyDays = 3, oldEvery = 8, isStarting = () => false } = {}) {
   if (!jids.length) return null;
-  // Conversa que está COMEÇANDO agora (primeiro contato, ainda sem resposta nossa) passa na frente de todas; depois vêm os recentes.
-  const byAt = (a, b) => (items[a]?.at || 0) - (items[b]?.at || 0);
-  const fresh = jids.filter((j) => isFresh(items[j], now, newHours) || isStarting(j)).sort((a, b) => (isStarting(b) - isStarting(a)) || byAt(a, b));
-  const old = jids.filter((j) => !fresh.includes(j)).sort((a, b) => (items[a]?.at || 0) - (items[b]?.at || 0));
-  if (!fresh.length) return old[0];
-  if (!old.length) return fresh[0];
+  const at = (j) => Number(items[j]?.at) || 0;
+  const byAt = (a, b) => at(a) - at(b);
+  const live = jids.filter((j) => isClientMessage(items[j]) && now - at(j) <= replyDays * 24 * HOUR);
+  const starting = live.filter((j) => isStarting(j)).sort(byAt);
+  const replies = live.filter((j) => !isStarting(j)).sort(byAt);
+  const old = jids.filter((j) => !live.includes(j)).sort(byAt);
+  const top = [...replies, ...starting];
+  if (!top.length) return old[0];
+  if (!old.length) return top[0];
   state.n = (state.n || 0) + 1;
-  return state.n % oldEvery === 0 ? old[0] : fresh[0];
+  return state.n % oldEvery === 0 ? old[0] : top[0];
 }

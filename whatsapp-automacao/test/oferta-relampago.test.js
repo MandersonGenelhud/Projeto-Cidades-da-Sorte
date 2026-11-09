@@ -121,19 +121,35 @@ test('legenda dos grupos: curta, com destaques do WhatsApp, o número arredondad
   assert.doesNotMatch(buildCaption({ people: 0, link }), /mais de/);
 });
 
-test('fila: cliente novo passa na frente, mas os antigos saem aos poucos (1 a cada 4)', () => {
+test('fila: quem respondeu passa na frente, mas as antigas saem aos poucos (1 a cada 8)', () => {
   const NOW = Date.parse('2026-11-09T12:00:00Z');
   const h = (n) => NOW - n * 3_600_000;
-  const items = { n1: { at: h(0.2) }, n2: { at: h(0.5) }, n3: { at: h(1) }, n4: { at: h(2) }, n5: { at: h(2.5) }, v1: { at: h(100), kind: 'retomar', restart: true }, v2: { at: h(200) } };
+  const items = { n1: { at: h(0.2) }, n2: { at: h(0.5) }, n3: { at: h(1) }, n4: { at: h(2) }, n5: { at: h(2.5) }, v1: { at: h(100), kind: 'retomar', restart: true }, v2: { at: h(400) } };
   assert.equal(isFresh(items.n1, NOW), true);
   assert.equal(isFresh(items.v1, NOW), false);
-  assert.equal(isFresh(items.v2, NOW), false);
   const q = Object.keys(items); const state = { n: 0 }; const order = [];
-  while (q.length) { const j = pickNext(q, items, { now: NOW, state }); order.push(j); q.splice(q.indexOf(j), 1); }
-  assert.deepEqual(order.slice(0, 4), ['n5', 'n4', 'n3', 'v2'], 'novos primeiro; o 4º atendimento é um antigo (o mais antigo)');
+  while (q.length) { const j = pickNext(q, items, { now: NOW, state, oldEvery: 4 }); order.push(j); q.splice(q.indexOf(j), 1); }
+  assert.deepEqual(order.slice(0, 4), ['n5', 'n4', 'n3', 'v2'], 'quem espera há mais tempo primeiro; o 4º atendimento é um antigo (o mais antigo)');
   assert.equal(order[4], 'n2');
-  assert.deepEqual(pickNext(['v1'], items, { now: NOW }), 'v1', 'sem novos, atende os antigos');
+  assert.deepEqual(pickNext(['v1'], items, { now: NOW }), 'v1', 'sem respostas, atende os antigos');
   assert.equal(pickNext([], items), null);
+});
+
+test('fila: quem RESPONDEU nunca fica atrás de centenas de recomeços antigos, mesmo esperando há horas; depois vêm os novos e só então os antigos', () => {
+  const NOW = Date.parse('2026-11-09T12:00:00Z');
+  const h = (n) => NOW - n * 3_600_000;
+  const items = { novo: { at: h(0.1) }, respondeuHaOntem: { at: h(20) }, respondeuAgora: { at: h(0.3) } };
+  for (let i = 0; i < 300; i++) items[`velho${i}`] = { at: h(500 + i), restart: true, kind: 'retomar' };
+  const q = Object.keys(items); const state = { n: 0 }; const order = [];
+  while (q.length) { const j = pickNext(q, items, { now: NOW, state, isStarting: (x) => x === 'novo' }); order.push(j); q.splice(q.indexOf(j), 1); }
+  assert.deepEqual(order.slice(0, 3), ['respondeuHaOntem', 'respondeuAgora', 'novo'], 'respostas primeiro, depois quem está chegando');
+  assert.ok(order[3].startsWith('velho'));
+  // mesmo com muitos antigos na fila, uma resposta nova que chega no meio é atendida na próxima vez (ou na seguinte, no máximo)
+  const items2 = { ...items }; const q2 = Object.keys(items2).filter((k) => k.startsWith('velho')); const st = { n: 0 };
+  items2.chegou = { at: NOW }; q2.push('chegou');
+  const next = [pickNext(q2, items2, { now: NOW, state: st }), pickNext(q2.filter((x) => x !== 'chegou').concat('chegou'), items2, { now: NOW, state: st })];
+  assert.ok(next.includes('chegou') || st.n >= 1, 'a resposta nova não espera os 300 antigos');
+  assert.equal(pickNext(q2, items2, { now: NOW, state: { n: 0 } }), 'chegou');
 });
 
 test('oferta para todos: sem limite de pessoas; quem paga a entrada até a data garante; depois da data encerra; configurando um limite, ele volta a valer', () => {
@@ -152,7 +168,7 @@ test('oferta para todos: sem limite de pessoas; quem paga a entrada até a data 
 });
 
 import { startingConv } from '../src/queue-priority.js';
-test('conversa que está INICIANDO (primeiro contato, sem resposta nossa) passa na frente de todas; depois os recentes; os antigos aos poucos', () => {
+test('conversa que está INICIANDO (primeiro contato, sem resposta nossa) vem logo depois de quem respondeu; os antigos aos poucos', () => {
   const NOW = Date.parse('2026-11-09T12:00:00Z');
   const h = (n) => NOW - n * 3_600_000;
   const msg = (role, ago) => ({ role, at: new Date(h(ago)).toISOString() });
@@ -163,7 +179,7 @@ test('conversa que está INICIANDO (primeiro contato, sem resposta nossa) passa 
   const items = { conv3: { at: h(1) }, novo2: { at: h(0.9) }, novo1: { at: h(0.1) }, velho: { at: h(100), restart: true, kind: 'retomar' } };
   const q = Object.keys(items); const state = { n: 0 }; const order = [];
   while (q.length) { const j = pickNext(q, items, { now: NOW, state, isStarting: (x) => startingConv(convs[x], NOW) && !items[x].restart }); order.push(j); q.splice(q.indexOf(j), 1); }
-  assert.deepEqual(order.slice(0, 2), ['novo2', 'novo1'], 'as que estão começando primeiro (a que espera há mais tempo antes)');
-  assert.equal(order[2], 'conv3', 'depois a conversa em andamento recente');
+  assert.equal(order[0], 'conv3', 'primeiro a conversa em andamento que respondeu');
+  assert.deepEqual(order.slice(1, 3), ['novo2', 'novo1'], 'depois as que estão começando (a que espera há mais tempo antes)');
   assert.equal(order[3], 'velho', 'e por último a antiga');
 });
