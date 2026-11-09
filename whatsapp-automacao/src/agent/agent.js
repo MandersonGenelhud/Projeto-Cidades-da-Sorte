@@ -583,6 +583,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       const joined = texts.join('\n');
       const lastMem = conv.messages.at(-1);
       if (texts.length && !(lastMem?.role === 'user' && lastMem.content === joined)) this.remember(conv, 'user', joined);
+      if (texts.length) { try { this.onInbound?.(conv, joined); } catch { /* a contagem de campanhas nunca derruba o atendimento */ } }
       let resumeNote = q.resume || '';
       q.resume = '';
       // O cliente acabou de recusar (já fechou com outro, não quer mais): a próxima resposta é uma despedida simpática, sem vender.

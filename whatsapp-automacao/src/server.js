@@ -41,6 +41,8 @@ import { planPdfPrice, loadPlanPdf } from './plano-pdf.js';
 import { registerFechamentosRoutes } from './routes/fechamentos.js';
 import { FlashOffer } from './flash-offer.js';
 import { GroupBroadcasts } from './group-broadcast.js';
+import { Campaigns } from './campanhas.js';
+import { campaignReport } from './campanhas-funil.js';
 import { reconcileOverdue } from './followups-done.js';
 import { makeSellerOf, buildSellerPipeline } from './seller-pipeline.js';
 import { Portfolio } from './portfolio.js';
@@ -2853,6 +2855,22 @@ const { restartAll, convOfLead, noticeQuotes, repairLeads } = registerControleRo
 const flashOffer = new FlashOffer({ store });
 agent.flashStatus = () => flashOffer.status();
 agent.flashClaim = (conv, tier = 'ano') => { const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username }); return flashOffer.claim({ convKey: conv.key, leadId: lead?.id || null, name: lead?.name || conv.name, phone: conv.phone || lead?.phone || '', pacote: lead?.interest || '', tier }); };
+// Controle de campanhas: quem veio falar da oferta (por link com código ou por palavras), de qual variante, e quantos fecharam (src/campanhas.js).
+const campanhas = new Campaigns({ store });
+agent.onInbound = (conv, text) => {
+  const r = campanhas.observe({ convKey: conv.key, text, name: conv.name, phone: conv.phone });
+  if (r?.created) {
+    store.addLog({ type: 'system', phone: conv.phone || conv.key, message: `Campanha "${r.campaign.name}": ${conv.name || conv.phone || 'novo contato'} veio pela oferta${r.hit.variant ? ` (variante ${r.hit.variant})` : ''}` });
+    const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username });
+    if (lead) crm.addNote({ name: 'Sistema', role: 'admin' }, lead.id, `Veio pela campanha "${r.campaign.name}"${r.hit.variant ? ` (variante ${r.hit.variant})` : ''}.`);
+  }
+};
+const campaignView = (c) => campaignReport({ camp: c, hits: campanhas.hits, leadOf: (h) => crm.findForConversation({ key: h.convKey, phone: h.phone }), quotes: quotes.list, forms: store.data.closing || [], payments: payments.list, claims: flashOffer.list(), sellerOf: (x) => sellerOf(x) });
+app.get('/api/campanhas', (req, res) => { needAdmin(req); res.json(campanhas.list.map((c) => ({ id: c.id, name: c.name, code: c.code, status: c.status, startsAt: c.startsAt, endsAt: c.endsAt, vieram: campanhas.hits.filter((h) => h.campaignId === c.id).length }))); });
+app.get('/api/campanhas/:id', (req, res) => { needAdmin(req); res.json(campaignView(campanhas.get(req.params.id))); });
+app.post('/api/campanhas', (req, res) => { needAdmin(req); const c = campanhas.create(req.body || {}); securityEvent('campanha_criada', req.user, req, c.name); res.json(c); });
+app.post('/api/campanhas/:id/situacao', (req, res) => { needAdmin(req); const c = campanhas.setStatus(req.params.id, req.body?.status, req.body?.note); securityEvent('campanha_situacao', req.user, req, `${c.name}: ${c.status}`); res.json({ id: c.id, status: c.status }); });
+app.post('/api/campanhas/:id/escanear', (req, res) => { needAdmin(req); const c = campanhas.get(req.params.id); const found = campanhas.scan(c, store.data.conversations, { days: Math.min(30, Math.max(1, Number(req.body?.days) || 7)) }); res.json({ found }); });
 // Envio da mesma postagem para vários grupos, um de cada vez (src/group-broadcast.js). A IA e a fila esperam enquanto cada grupo recebe, e o envio espera a IA ficar livre.
 const groupHold = { on: false };
 agent.holdWhile = () => groupHold.on;
@@ -2869,7 +2887,7 @@ app.post('/api/group-broadcasts/:id/:action', (req, res) => {
   res.json(groupBroadcasts.summary(b));
 });
 app.delete('/api/group-broadcasts/:id', (req, res) => { needAdmin(req); groupBroadcasts.remove(req.params.id); res.json({ ok: true }); });
-registerFechamentosRoutes(app, { flashOffer, wa, needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), store, crm, quotes, payments, dataDir: DATA_DIR });
+registerFechamentosRoutes(app, { campanhas, flashOffer, wa, needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), store, crm, quotes, payments, dataDir: DATA_DIR });
 // A IA falhou mesmo depois de tentar de novo: a mensagem do cliente continua guardada e a fila de "esperando resposta" tenta de novo em instantes,
 // sem esperar os 15 minutos da rede de segurança.
 agent.onFailed = (conv) => {

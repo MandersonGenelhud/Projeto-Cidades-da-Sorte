@@ -35,7 +35,7 @@
         <div id="gsGroups" style="max-height:320px;overflow:auto;margin-top:8px">${groups.map((g) => `<label class="check" data-name="${esc(String(g.name).toLowerCase())}" style="display:block"><input type="checkbox" class="gsG" value="${esc(g.id)}" data-n="${esc(g.name)}" /> ${esc(g.name)} <span class="hint">(${g.participants} pessoas)</span></label>`).join('')}</div></div>
       <div class="panel"><h2>2. Texto e arquivo</h2>
         <label>Nome deste envio <input id="gsName" maxlength="80" placeholder="Ex.: Oferta relâmpago" /></label>
-        <div class="row"><button class="btn small" id="gsCaption" type="button">Usar a legenda da oferta relâmpago</button></div>
+        <div class="row"><label>Variante <select id="gsVariant"><option value="">sem código</option><option value="A">A</option><option value="B">B</option></select></label> <button class="btn small" id="gsCaption" type="button">Usar a legenda da oferta relâmpago</button></div>
         <label>Texto (vai como legenda da imagem ou do vídeo) <textarea id="gsText" rows="10" maxlength="3500" style="width:100%"></textarea></label>
         <label>Imagem ou vídeo <input type="file" id="gsFile" accept="image/*,video/*" /></label><div id="gsMedia" class="hint"></div></div>
       <div class="panel"><h2>3. Ritmo</h2>
@@ -47,7 +47,7 @@
     sec.querySelector('#gsSearch').addEventListener('input', (e) => { const q = e.target.value.toLowerCase(); sec.querySelectorAll('#gsGroups label').forEach((l) => { l.hidden = Boolean(q) && !l.dataset.name.includes(q); }); });
     sec.querySelector('#gsAll').addEventListener('click', () => { sec.querySelectorAll('#gsGroups label:not([hidden]) .gsG').forEach((c) => { c.checked = true; }); upd(); });
     sec.querySelector('#gsNone').addEventListener('click', () => { sec.querySelectorAll('.gsG').forEach((c) => { c.checked = false; }); upd(); });
-    sec.querySelector('#gsCaption').addEventListener('click', async () => { try { const r = await api('/api/flash-offer/legenda'); sec.querySelector('#gsText').value = r.text; } catch (e) { toast(e.message, true); } });
+    sec.querySelector('#gsCaption').addEventListener('click', async () => { try { const r = await api(`/api/flash-offer/legenda?variant=${encodeURIComponent(sec.querySelector('#gsVariant').value)}`); sec.querySelector('#gsText').value = r.text; } catch (e) { toast(e.message, true); } });
     sec.querySelector('#gsFile').addEventListener('change', async (e) => {
       const f = e.target.files[0]; media = null; sec.querySelector('#gsMedia').textContent = '';
       if (!f) return;

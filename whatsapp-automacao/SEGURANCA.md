@@ -476,3 +476,12 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Limite honesto**: não há como garantir que o WhatsApp não restrinja o número: o risco existe mesmo com os cuidados. Recomenda-se testar com um grupo e usar intervalos longos.
 - **Limite da oferta**: `crm.flashOffer.spots` (painel Fechamentos): 0 = sem limite; maior que 0 = limite real contado pelo sistema, e a IA só fala de vagas com o número real. A arte e a legenda devem dizer o mesmo que o sistema.
 - Testes: `test/envio-grupos.test.js`.
+
+## Campanhas de marketing (quem veio pela oferta e quantos fecharam)
+
+- Cada pessoa que escreve falando da campanha é guardada **uma vez** (nome, telefone, data, primeira frase com até 160 letras e variante). Entra por (1) código no link da legenda ("ref IDI-A") ou (2) palavras como "oferta relâmpago" ou "curso de idiomas", só dentro das datas e enquanto a campanha estiver ativa. Grupos e simulações não contam.
+- Só leitura e contagem: nada é enviado a ninguém. A contagem roda em um gancho que **nunca derruba o atendimento** se falhar. A pessoa ganha uma anotação no prospecto.
+- O funil usa os mesmos dados do pipeline (orçamento, ficha, contrato, comprovante, pagamento) e a reserva do brinde; a taxa de cada variante só é comparada com 5 pessoas ou mais por variante, e a nota avisa que poucos dados enganam.
+- Acesso só do administrador. Criação, ativar/pausar/encerrar e busca nas conversas ficam registradas em segurança. Os dados pessoais ficam no `data/` (fora do Git).
+- Limite: palavras comuns ("brinde", "promoção") podem trazer um falso positivo; o código do link é o mais confiável. Quem veio por palavras fica em "sem código".
+- Testes: `test/campanhas.test.js`.

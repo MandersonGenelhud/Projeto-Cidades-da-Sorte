@@ -59,7 +59,9 @@ export function registerFechamentosRoutes(app, ctx) {
     needAdmin(req);
     const phone = String(store.settings.crm?.ownerPhone || '').replace(/\D/g, '');
     if (!phone) throw httpError(400, 'Cadastre o WhatsApp do Marcos em Prospectos → Regras (campo do dono) para gerar o link.');
-    const link = `https://wa.me/${phone}?text=${encodeURIComponent('Oi! Vi a oferta relâmpago no grupo e quero garantir a minha vaga.')}`;
+    const camp = ctx.campanhas?.list?.find((c) => c.status === 'ativa') || ctx.campanhas?.list?.[0];
+    const variant = String(req.query.variant || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+    const link = `https://wa.me/${phone}?text=${encodeURIComponent(camp ? camp.code && ctx.campanhas.refText(camp, variant) : 'Oi! Vi a oferta relâmpago no grupo e quero garantir o meu brinde.')}`;
     const people = Number(flashOffer.cfg.groupPeople) || 0;
     res.json({ link, people, label: peopleLabel(people), text: buildCaption({ people, link, until: flashOffer.cfg.validUntil }), contadoGrupos: people > 0 });
   });

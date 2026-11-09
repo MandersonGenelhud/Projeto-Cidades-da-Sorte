@@ -152,6 +152,12 @@
  "src/campaigns.js": [
   "CampaignRunner"
  ],
+ "src/campanhas-funil.js": [
+  "campaignReport"
+ ],
+ "src/campanhas.js": [
+  "Campaigns"
+ ],
  "src/cash.js": [
   "BOOKS",
   "CURRENCIES",
