@@ -362,7 +362,7 @@ export class Payments {
     // Selo de pago
     c.rect(W - M - 124, y + 22, 100, 46, { stroke: RC.green, radius: 8, lineWidth: 2 });
     c.text('PAGO', W - M - 74, y + 32, { size: 20, bold: true, color: RC.green, align: 'center', spacing: 2 });
-    c.text(p.method === 'cartao' ? 'Cartão aprovado' : 'Pix confirmado', W - M - 74, y + 54, { size: 7.5, color: RC.gray, align: 'center' });
+    c.text(p.method === 'cartao' ? 'Cartão aprovado' : p.methodLabel ? String(p.methodLabel).slice(0, 18) : 'Pix confirmado', W - M - 74, y + 54, { size: 7.5, color: RC.gray, align: 'center' });
     y += 120;
 
     // Texto do recibo
@@ -375,11 +375,11 @@ export class Payments {
 
     // Detalhes do pagamento
     const rows = [
-      ['Forma de pagamento', `Pix${p.provider === 'mercadopago' ? ' (Mercado Pago)' : ''}`],
-      ['Data e hora do pagamento', when],
-      ['Identificador da transação', p.txid],
+      ['Forma de pagamento', p.methodLabel || `Pix${p.provider === 'mercadopago' ? ' (Mercado Pago)' : ''}`],
+      ['Data e hora do pagamento', p.methodLabel ? day : when],
+      [p.reference ? 'Referência' : 'Identificador da transação', p.reference || p.txid],
       ['Situação', 'Pago e confirmado'],
-    ];
+    ].filter(([, v]) => v);
     c.text('DETALHES DO PAGAMENTO', M, y, { size: 9, bold: true, color: RC.green, spacing: 0.8 });
     y += 16;
     c.rect(M, y - 4, maxW, 0.8, { fill: RC.gold });

@@ -501,3 +501,12 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Avisos antecipados** ("1 dia antes", "2 dias antes", "no mesmo dia"): saem às 9h, uma vez cada, com até 3 h de atraso tolerado. Em contas e vencimentos sem aviso combinado, a Ana pergunta; sem resposta, avisa só no resumo da manhã.
 - **Limites**: pedir para lembrar o outro depende da frase começar com "lembre/avise" + nome ou "meu marido/minha esposa"; frases diferentes caem no fluxo normal (lembrete para si). Só um par por administrador. A Ana não valida se a mensagem veio realmente da pessoa dona do número (como já era com a equipe).
 - Testes: `test/ana-familia.test.js`.
+
+## Recibo da parcela em nome da Migra (09/11/2026)
+
+- Quando uma parcela de **Vendas e contratos** é dada como recebida (clique em "Confirmar recebimento", Maria lendo o comprovante ou Pix automático), o sistema emite sozinho o **recibo em PDF** (mesmo desenho e **mesma numeração** do recibo do Pix, `store.data.receiptSeq`) e envia ao cliente pelo WhatsApp (`src/sale-receipts.js`). O recibo aparece na linha da parcela, com Ver, Reenviar e Emitir.
+- **Duplicidade**: um recibo por recebimento (pedir de novo devolve o mesmo número). A entrada paga pelo Pix já tem recibo próprio e é só **vinculada**, sem segundo recibo.
+- **Erro humano / fraude**: desfazer o recebimento **anula** o recibo (fica em `receiptsVoided` com data e quem anulou) e o número **nunca é reaproveitado**; recibo só existe para parcela `pago`. Emitir/reenviar manualmente é só do administrador; ver o PDF exige poder ver a venda (vendedor só as dele) e não é público. Cada emissão manual vai para o registro de segurança (`venda_recibo`). Arquivos em `data/` com permissão 0600.
+- **Falha de envio** (cliente sem WhatsApp ou número fora do ar): o recibo fica guardado, o motivo é registrado e o administrador é avisado.
+- **Limites**: o recibo comprova o que foi **registrado** pela equipe; não é documento fiscal. Se a baixa for feita por engano e depois desfeita, o cliente já recebeu o recibo anulado e não há aviso automático de anulação ao cliente. Envio real pelo WhatsApp não foi testado fora da simulação.
+- Testes: `test/recibo-parcela.test.js`.

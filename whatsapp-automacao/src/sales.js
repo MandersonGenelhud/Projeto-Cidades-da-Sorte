@@ -126,7 +126,7 @@ export class Sales {
   }
 
   /** Confirma (ou desfaz) o recebimento de uma parcela. */
-  setParcel(user, id, index, { paid = true, date = today(), method = 'Pix', note = '' } = {}) {
+  setParcel(user, id, index, { paid = true, date = today(), method = 'Pix', note = '', receipt = true } = {}) {
     this.#admin(user);
     const sale = this.#mustSee(user, id);
     const p = sale.parcels[Number(index)];
@@ -138,10 +138,12 @@ export class Sales {
     } else {
       Object.assign(p, { status: 'pendente', paidAt: null, method: null, confirmedBy: null });
       this.#log(sale, user, `${p.label}: recebimento desfeito`);
+      try { this.onParcelVoided?.(sale, Number(index), user); } catch { /* anular o recibo nunca impede desfazer */ }
     }
     if (sale.status !== 'cancelada') sale.status = sale.parcels.every((x) => x.status === 'pago') ? 'concluida' : 'ativa';
     this.store.save();
     this.notify('sales', { id });
+    if (paid && receipt) { try { this.onParcelPaid?.(sale, Number(index), user); } catch { /* o recibo nunca impede dar baixa */ } }
     return sale;
   }
 

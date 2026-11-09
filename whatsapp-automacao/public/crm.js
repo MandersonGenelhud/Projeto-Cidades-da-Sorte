@@ -1823,7 +1823,8 @@ async function openSale(id) {
     <h3>Parcelas</h3>
     <div class="table-wrap"><table><thead><tr><th>Parcela</th><th>Valor</th><th>Vencimento</th><th>Situação</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>
       ${v.parcels.map((p, i) => `<tr><td><b>${esc(p.label)}</b></td><td>${brl2(p.value)}</td><td>${dBr(p.due)}</td>
-        <td>${p.status === 'pago' ? `<span class="badge done">Recebida ${dBr(p.paidAt)}</span><div class="hint">${esc(p.method || '')}${p.confirmedBy ? ` · por ${esc(p.confirmedBy)}` : ''}</div>` : p.due && p.due < new Date().toISOString().slice(0, 10) ? '<span class="badge paused">Atrasada</span>' : '<span class="badge pending">A receber</span>'}</td>
+        <td>${p.status === 'pago' ? `<span class="badge done">Recebida ${dBr(p.paidAt)}</span><div class="hint">${esc(p.method || '')}${p.confirmedBy ? ` · por ${esc(p.confirmedBy)}` : ''}</div>
+          <div class="hint">${p.receipt ? `<a href="/api/sales/${esc(v.id)}/parcel/${i}/receipt" target="_blank" rel="noopener">Recibo nº ${String(p.receipt.no).padStart(4, '0')}</a> · ${p.receipt.sentAt ? 'enviado ao cliente' : '<b>não enviado ao cliente</b>'}${admin && !p.receipt.viaPix ? ` · <a href="#" data-receipt="${i}">${p.receipt.sentAt ? 'reenviar' : 'enviar agora'}</a>` : ''}` : admin ? `Sem recibo · <a href="#" data-receipt="${i}">emitir e enviar</a>` : 'Sem recibo'}</div>` : p.due && p.due < new Date().toISOString().slice(0, 10) ? '<span class="badge paused">Atrasada</span>' : '<span class="badge pending">A receber</span>'}</td>
         ${!admin && v.status !== 'cancelada' && p.status !== 'pago' ? `<td>${p.claim ? `<span class="badge paused">Aviso enviado ao Marcos</span> <button class="btn small" data-claim="${i}" data-undo="1">Retirar aviso</button>` : `<button class="btn small primary" data-claim="${i}">Cliente pagou</button>`}</td>` : ''}
         ${admin && p.claim && p.status !== 'pago' ? `<td><span class="badge paused">${esc(p.claim.by)} avisou: pago em ${dBr(p.claim.date)}</span></td>` : ''}
         ${admin && v.status !== 'cancelada' ? `<td>${p.status === 'pago' ? `<button class="btn small" data-parcel="${i}" data-paid="0">Desfazer</button>` : `<button class="btn small primary" data-parcel="${i}" data-paid="1">Confirmar recebimento</button>`}</td>` : admin ? '<td></td>' : ''}</tr>`).join('')}
@@ -1860,6 +1861,14 @@ async function openSale(id) {
       const method = prompt('Forma de pagamento:', 'Pix') || 'Pix';
       act(`/api/sales/${id}/parcel/${b.dataset.parcel}`, { paid: true, date: `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`, method }, 'Recebimento confirmado');
     } else if (confirm('Desfazer o recebimento desta parcela?')) act(`/api/sales/${id}/parcel/${b.dataset.parcel}`, { paid: false }, 'Recebimento desfeito');
+  }));
+  $$('#saleBody [data-receipt]').forEach((a) => a.addEventListener('click', async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api(`/api/sales/${id}/parcel/${a.dataset.receipt}/receipt`, { method: 'POST', body: {} });
+      toast(r.ok ? 'Recibo enviado ao cliente pelo WhatsApp' : 'Recibo gerado, mas não foi possível enviar ao cliente. Abra o PDF e envie manualmente.');
+      openSale(id);
+    } catch (err) { toast(err.message, true); }
   }));
   $('#btnSaleComm')?.addEventListener('click', () => {
     const value = $('#saleCommValue').value;

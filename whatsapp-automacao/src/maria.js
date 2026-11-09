@@ -1183,6 +1183,7 @@ export class Maria {
         }
         const v = this.sales.view?.(this.sales.list.find((x) => x.id === c.sale.id) || c.sale);
         resumo = v ? ` Já recebido: ${bx.money(v.received)} de ${bx.money(v.total)}; falta ${bx.money(v.open)}${v.next ? ` (próxima: ${v.next.label}, ${bx.money(v.next.value)}${v.next.due ? ` até ${String(v.next.due).split('-').reverse().join('/')}` : ''})` : ' (venda quitada!)'}.` : '';
+        if (direct && v) resumo += ' O recibo em nome da Migra foi gerado e enviado ao cliente.';
       } else if (direct) {
         await this.payments.confirm(c.payment.id, { by });
         c.payment.receipt = { ref: rec.ref, amount: rec.valor, date: rec.data || '', payer: rec.pagador || '', receiver: rec.recebedor || '', bank: rec.banco || '', readAt: new Date().toISOString(), auto: false };

@@ -672,6 +672,9 @@
   "REPEAT_MS",
   "chatPreview"
  ],
+ "src/sale-receipts.js": [
+  "SaleReceipts"
+ ],
  "src/sales-coach.js": [
   "SALES_COACH",
   "coachMessages",

@@ -5,8 +5,8 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **147** · testes automatizados (arquivos): **143** · scripts do painel: **47**
-- Rotas da API em `server.js`: **524** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
+- Módulos em `src/`: **148** · testes automatizados (arquivos): **144** · scripts do painel: **47**
+- Rotas da API em `server.js`: **526** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
 
@@ -24,7 +24,7 @@
 - Configuração nova vai em `settings` com **valor padrão** em `store.js`; mudança em dado já existente usa **migração de uma vez** com selo (veja abaixo), nunca sobrescreve o que o painel salvou.
 - Nada de segredo no código. Dados reais ficam em `data/` e nunca no Git.
 
-## Módulos (147)
+## Módulos (148)
 | Módulo | Linhas | Para que serve | Quem usa | Testes |
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
@@ -50,7 +50,7 @@
 | `atendimento-plano.js` | 31 | Plano de atendimento: separa TODAS as conversas dos últimos dias em grupos claros, para o administrador saber o que o botão "Começar" vai fazer. | `routes/controle.js` | 2 |
 | `attendants.js` | 122 | Visão por atendente: separa as conversas e os prospectos de cada pessoa (e do | `routes/controle.js`, `server.js` | 1 |
 | `audit.js` | 125 | Trilha de auditoria: registra QUEM criou, alterou ou excluiu cada coisa | `server.js` | 1 |
-| `auth.js` | 265 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 55 |
+| `auth.js` | 265 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 56 |
 | `autocontract.js` | 90 | Contrato automático pela atendente de IA: o cliente pede o contrato na conversa. | `server.js` | 2 |
 | `autoreply.js` | 250 | Chatbot de respostas automáticas por palavra-chave. | `server.js` | 7 |
 | `backup.js` | 111 | Backup automático e criptografado dos dados do painel (clientes, conversas, vendas, configurações). | `server.js` | 1 |
@@ -104,7 +104,7 @@
 | `maria-baixa.js` | 150 | Baixa de pagamento pela Maria: o vendedor manda o comprovante (foto ou PDF), a Maria lê, descobre de quem é o pagamento e qual parcela ou | `maria.js` | 1 |
 | `maria-items.js` | 62 | Vários pacotes no mesmo pedido ("5 Ouro, 1 Estudantil e 1 Inicial, com 10% de desconto"): lê a lista e o desconto do texto, sem IA. | `maria.js` | 1 |
 | `maria-outbound.js` | 127 | Envio ao cliente pedido pela Maria: a ficha de dados e o contrato saem pelo WhatsApp que o cliente já conhece | `server.js` | 2 |
-| `maria.js` | 1599 | Maria: a assessora interna da Migra no WhatsApp (número exclusivo, só da equipe). | `server.js` | 23 |
+| `maria.js` | 1600 | Maria: a assessora interna da Migra no WhatsApp (número exclusivo, só da equipe). | `server.js` | 23 |
 | `marketing.js` | 88 | Marketing: traz os números dos anúncios da Meta (Facebook e Instagram) para o painel, em português simples. | `server.js` | 1 |
 | `merge-data.js` | 54 | Junta os dados de duas instalações (ex.: o computador e a VPS) SEM apagar nada da instalação de destino: | — | 1 |
 | `messaging-audit.js` | 97 | Auditoria das conversas e mapa de mensagens por número: para cada WhatsApp (principal, Instagram e o de cada vendedor) mostra | `routes/controle.js` | 1 |
@@ -117,8 +117,8 @@
 | `partner-projects.js` | 224 | Migra Sócios de Projeto: plano de carreira em que o consultor que chegou ao topo traz um projeto novo | `server.js` | 1 |
 | `patch-baileys.js` | 23 | Correção da biblioteca do WhatsApp (Baileys 7.0.0-rc14) enquanto a versão nova não sai: | — | 1 |
 | `payment-terms.js` | 49 | Regra de vencimento das parcelas (plano padrão): 1ª com vencimento ou pagamento na primeira vinda ao Paraguai; 2ª entre 60 e 90 dias após a | `store.js` | 1 |
-| `payments.js` | 425 | Cobrança por Pix no fechamento: gera o Pix (copia e cola + QR Code), confirma o | `server.js` | 9 |
-| `payplan.js` | 118 | Etapas de pagamento do processo (o "fluxograma" que o cliente recebe). | `contract.js`, `quotes.js`, `server.js` | 7 |
+| `payments.js` | 425 | Cobrança por Pix no fechamento: gera o Pix (copia e cola + QR Code), confirma o | `server.js` | 10 |
+| `payplan.js` | 118 | Etapas de pagamento do processo (o "fluxograma" que o cliente recebe). | `contract.js`, `quotes.js`, `server.js` | 8 |
 | `pdfdoc.js` | 268 | PDF de várias páginas, sem dependências: títulos, parágrafos com quebra de linha | `closing.js`, `contract.js`, `finance.js`, `payments.js`, `plano-pdf.js`, `quotes.js` | 2 |
 | `pending.js` | 574 | Conversas sem resposta: clientes cuja última mensagem ainda não foi respondida. | `server.js` | 3 |
 | `personal.js` | 528 | Agenda e financeiro PESSOAL de cada pessoa (a assistente pessoal "Ana"). Fica separado da empresa: não entra no Caixa Migra, | `ana.js`, `server.js` | 4 |
@@ -145,8 +145,9 @@
 | `routes/controle.js` | 206 | Rotas de CONTROLE das conversas e do atendimento (só administrador): quadros por pessoa, auditoria dos números, envio por número, | `server.js` | **0** |
 | `routes/fechamentos.js` | 69 | Rotas do painel de FECHAMENTOS (só administrador): funil depois do orçamento, checklist de acompanhamento, radar de objeções | `server.js` | **0** |
 | `routing.js` | 165 | Encaminhamento: a IA fez a peneira no Direct/WhatsApp, o cliente está pronto | `digest.js`, `sectors.js`, `server.js` | 2 |
+| `sale-receipts.js` | 92 | Recibo da PARCELA de uma venda/contrato: quando uma parcela é dada como recebida (pelo painel, pela Maria lendo o comprovante ou pelo Pix automático), | `server.js` | 1 |
 | `sales-coach.js` | 77 | A Maria como vendedora da equipe: roteiro de venda (o mesmo espírito do atendente de IA) e leitura do CRM para dizer | `maria.js` | 1 |
-| `sales.js` | 310 | Contratos e vendas: cada venda fechada (a partir do orçamento), as parcelas com o que já entrou, | `server.js` | 10 |
+| `sales.js` | 312 | Contratos e vendas: cada venda fechada (a partir do orçamento), as parcelas com o que já entrou, | `server.js` | 11 |
 | `scheduler.js` | 117 | Mensagens agendadas (única vez, diária, semanal ou mensal). | `server.js` | 1 |
 | `school.js` | 91 | Migra School: alunos de idiomas, etapa em que estão e frequência de acesso. | `server.js` | 1 |
 | `sectors.js` | 149 | Setores do Grupo Migra: cada assunto tem os seus atendentes (cadastrados no painel). | `server.js` | 2 |
@@ -154,7 +155,7 @@
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
 | `seller-pipeline.js` | 67 | Pipeline por vendedor: para cada pessoa da equipe (Eliezer, Giovana, Diego, Fran, Marcos…), quem ela está atendendo, quem recebeu orçamento, | `campanhas-funil.js`, `server.js` | 1 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 5558 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 5600 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
@@ -247,7 +248,7 @@
 - `contabil-painel.js`
 - `nav-hubs.js`
 
-## Rotas da API (524)
+## Rotas da API (526)
 - `GET /webhook`
 - `GET /webhook/instagram`
 - `POST /webhook/instagram`
@@ -668,6 +669,8 @@
 - `POST /api/quotes/:id/sale`
 - `POST /api/sales/:id/parcel/:index`
 - `POST /api/sales/:id/parcel/:index/claim`
+- `GET /api/sales/:id/parcel/:index/receipt`
+- `POST /api/sales/:id/parcel/:index/receipt`
 - `POST /api/sales/:id/commission`
 - `POST /api/sales/:id/seller`
 - `POST /api/sales/:id/cancel`

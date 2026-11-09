@@ -101,6 +101,7 @@ import { Visits, DEFAULT_BRING } from './visits.js';
 import { PayPlans, planMessage } from './payplan.js';
 import { Quotes } from './quotes.js';
 import { Sales } from './sales.js';
+import { SaleReceipts } from './sale-receipts.js';
 import { contractPdf } from './contract.js';
 import { parseJsonObject } from './crm-ai.js';
 import { collectHandoffs, digestMessage } from './digest.js';
@@ -631,6 +632,22 @@ const sales = new Sales({
     return a ? { id: a.id, name: a.name, ...affiliates.rate(l.commissionCategory || l.category) } : null;
   },
 });
+// Recibo da parcela em nome da Migra: emitido e enviado ao cliente sozinho quando a parcela é recebida (src/sale-receipts.js).
+const saleReceipts = new SaleReceipts({
+  store, sales, payments,
+  docOf: (sale) => quotes.list.find((q) => q.id === sale.quoteId)?.contract?.client?.cpf || (store.data.closing || []).find((f) => f.leadId && f.leadId === sale.leadId && f.status === 'preenchida')?.data?.cpf || sale.client?.doc || '',
+  sendToClient: async (sale, payload) => {
+    const lead = sale.leadId ? crm.byId(sale.leadId) : null;
+    const target = lead?.conversationKey || lead?.phone || sale.client?.phone;
+    if (!target || wa.status !== 'connected') return false;
+    await wa.send(target, { ...payload, typing: false });
+    try { agent.remember(target, 'assistant', `${payload.text} [recibo em PDF enviado]`); } catch { /* memória é opcional */ }
+    return true;
+  },
+  notifyAdmins: (t) => notifyAdmins(t),
+});
+sales.onParcelPaid = (sale, index, user) => { saleReceipts.issueAndSend(sale.id, index, { by: user?.name || 'Sistema' }).catch((e) => store.addLog({ type: 'error', message: `Recibo da parcela: ${e.message}` })); };
+sales.onParcelVoided = (sale, index, user) => saleReceipts.void(sale.id, index, user?.name || 'Sistema');
 // Níveis de comissão (meta do mês) e saques: a comissão da venda segue o nível quando os níveis estão ligados.
 const commissions = new Commissions({
   store, sales, auth,
@@ -671,7 +688,7 @@ const salesOnPaid = (p) => {
     if (!q) return;
     const lead = p.leadId ? crm.byId(p.leadId) : null;
     const sale = sales.fromQuote(q, { by: 'Sistema', sellerId: lead?.ownerId || q.createdBy?.id || null, entryPaid: true });
-    if (sale.parcels[0].status !== 'pago') sales.setParcel({ role: 'admin', name: 'Sistema (Pix confirmado)' }, sale.id, 0, { paid: true, method: 'Pix' });
+    if (sale.parcels[0].status !== 'pago') { sales.setParcel({ role: 'admin', name: 'Sistema (Pix confirmado)' }, sale.id, 0, { paid: true, method: 'Pix', receipt: false }); const e = sale.parcels[0]; if (p.receiptNo) e.receipt = { no: p.receiptNo, file: '', viaPix: true, issuedAt: new Date().toISOString(), issuedBy: 'Sistema', value: e.value, sentAt: p.receiptSentAt || null, sentError: '' }; store.save(); }
   } catch (e) {
     store.addLog({ type: 'error', message: `Lançar venda após o Pix: ${e.message}` });
   }
@@ -4696,6 +4713,31 @@ app.post('/api/sales/:id/parcel/:index/claim', (req, res) => {
   }
   securityEvent('venda_parcela_informada', req.user, req, `${s.number} · ${p?.label} · ${req.body?.undo ? 'aviso retirado' : 'pagamento informado'}`);
   res.json(sales.view(s));
+});
+// Recibo da parcela (PDF em nome da Migra). Ver: quem pode ver a venda. Emitir/reenviar: só administrador.
+app.get('/api/sales/:id/parcel/:index/receipt', (req, res) => {
+  const s = sales.get(req.params.id);
+  if (!s || !sales.canSee(req.user, s)) throw httpError(404, 'Venda não encontrada');
+  const p = s.parcels?.[Number(req.params.index)];
+  if (p?.receipt?.viaPix) {
+    const pay = payments.list.find((x) => x.receiptNo === p.receipt.no);
+    if (pay) return res.set('Cache-Control', 'no-store').type('application/pdf').set('Content-Disposition', `inline; filename="Recibo-${String(pay.receiptNo).padStart(4, '0')}.pdf"`).send(payments.receiptPdf(pay));
+  }
+  const f = saleReceipts.pdf(s.id, req.params.index);
+  if (!f) throw httpError(404, 'Esta parcela não tem recibo válido');
+  res.set('Cache-Control', 'no-store').type('application/pdf').set('Content-Disposition', `inline; filename="${f.name}"`).send(f.buffer);
+});
+app.post('/api/sales/:id/parcel/:index/receipt', async (req, res) => {
+  needAdmin(req);
+  const s = sales.get(req.params.id);
+  if (!s) throw httpError(404, 'Venda não encontrada');
+  let r;
+  try {
+    saleReceipts.issue(s.id, req.params.index, { by: req.user.name });
+    r = await saleReceipts.send(s.id, req.params.index);
+  } catch (e) { throw httpError(e.status || 400, e.message); }
+  securityEvent('venda_recibo', req.user, req, `${s.number} · parcela ${Number(req.params.index) + 1} · recibo ${r.receipt.no} · ${r.ok ? 'enviado' : 'não enviado'}`);
+  res.json({ ...r, sale: sales.view(s) });
 });
 app.post('/api/sales/:id/commission', (req, res) => {
   const s = sales.setCommission(req.user, req.params.id, req.body || {});
