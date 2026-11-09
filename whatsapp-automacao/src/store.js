@@ -49,7 +49,7 @@ const DEFAULT_DATA = {
       jobsContact: [{ name: 'Diego', whatsapp: '' }], // quem quer trabalhar na Migra (só o nome = WhatsApp da Equipe)
       mentoring: { enabled: true, price: 400, currency: 'USD', minutes: 60, priceBRL: 0 }, // priceBRL: valor do Pix em reais (0 = US$ × cotação do painel) // mentoria com o Marcos Miguel (único atendimento direto com ele)
       // Oferta do aplicativo de idiomas da Migra (ainda em desenvolvimento): só vale até a data que o Marcos escolher.
-      flashOffer: { enabled: true, validUntil: '2026-11-12', spots: 0, months: 12, groupPeople: 0, title: 'Oferta relâmpago: quem fechar com a Migra e pagar a entrada até quinta-feira, 12/11, ganha de presente 12 meses de aulas do aplicativo Migra School (espanhol na prática, do dia a dia).', conditions: 'fechar e pagar a entrada até 12/11, para todos (sem limite de pessoas), em qualquer forma de pagamento aceita (à vista, cartão ou entrada com etapas); o brinde é liberado depois que a equipe confirmar o pagamento da entrada.', reference: 'um ano de curso de idiomas em escolas tradicionais custa, em média, de R$ 3 mil a R$ 10 mil' },
+      flashOffer: { enabled: true, validUntil: '2026-11-12', spots: 20, months: 12, groupPeople: 0, title: 'Oferta relâmpago: as 20 primeiras pessoas que fecharem com a Migra e pagarem a entrada até quinta-feira, 12/11, ganham de presente 12 meses de aulas do aplicativo Migra School (espanhol na prática, do dia a dia).', conditions: 'as 20 primeiras pessoas que fecharem e pagarem a entrada até 12/11, em qualquer forma de pagamento aceita (à vista, cartão em até 3x ou entrada com etapas); o brinde é liberado depois que a equipe confirmar o pagamento da entrada.', reference: 'um ano de curso de idiomas em escolas tradicionais custa, em média, de R$ 3 mil a R$ 10 mil' },
       appOffer: { enabled: true, regularPrice: 59.99, discountPct: 50, months: 6, period: 'por mês', validUntil: '2026-12-25', gift: '' }, // oferta de Natal: vale até 25/12/2026
       codePrefix: 'MIG',
       fx: { USD: 5.5, PYG: 0.0007 }, // cotação usada só para somar vendas em R$ nos painéis
@@ -425,6 +425,14 @@ export class Store extends EventEmitter {
       const def4 = DEFAULT_DATA.settings?.crm?.flashOffer;
       if (fz && def4) Object.assign(fz, { title: def4.title, conditions: def4.conditions, spots: 0, months: 12 });
       this.data.flash2026e = true;
+      this.flush();
+    }
+    // Oferta limitada às 20 primeiras pessoas (informação do Marcos, 09/11/2026): o limite é real e contado pelo sistema.
+    if (!this.data.flash2026f) {
+      const fw = this.data.settings.crm?.flashOffer;
+      const def5 = DEFAULT_DATA.settings?.crm?.flashOffer;
+      if (fw && def5) Object.assign(fw, { title: def5.title, conditions: def5.conditions, spots: 20, months: 12 });
+      this.data.flash2026f = true;
       this.flush();
     }
     // Gatilhos de venda confirmados pela direção (Marcos): alta procura/fila e possibilidade de reajuste (sem data nem percentual, nada inventado).

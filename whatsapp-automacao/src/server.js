@@ -2865,6 +2865,7 @@ agent.onInbound = (conv, text) => {
     if (lead) crm.addNote({ name: 'Sistema', role: 'admin' }, lead.id, `Veio pela campanha "${r.campaign.name}"${r.hit.variant ? ` (variante ${r.hit.variant})` : ''}.`);
   }
 };
+agent.onOfferPresented = (conv) => { const r = campanhas.markPresented({ convKey: conv.key, name: conv.name, phone: conv.phone }); if (r?.created) store.addLog({ type: 'system', phone: conv.phone || conv.key, message: `Campanha "${r.campaign.name}": a IA apresentou a oferta a ${conv.name || conv.phone || 'novo contato'}` }); };
 const campaignView = (c) => campaignReport({ camp: c, hits: campanhas.hits, leadOf: (h) => crm.findForConversation({ key: h.convKey, phone: h.phone }), quotes: quotes.list, forms: store.data.closing || [], payments: payments.list, claims: flashOffer.list(), sellerOf: (x) => sellerOf(x) });
 app.get('/api/campanhas', (req, res) => { needAdmin(req); res.json(campanhas.list.map((c) => ({ id: c.id, name: c.name, code: c.code, status: c.status, startsAt: c.startsAt, endsAt: c.endsAt, vieram: campanhas.hits.filter((h) => h.campaignId === c.id).length }))); });
 app.get('/api/campanhas/:id', (req, res) => { needAdmin(req); res.json(campaignView(campanhas.get(req.params.id))); });

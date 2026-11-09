@@ -63,6 +63,6 @@ export function registerFechamentosRoutes(app, ctx) {
     const variant = String(req.query.variant || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
     const link = `https://wa.me/${phone}?text=${encodeURIComponent(camp ? camp.code && ctx.campanhas.refText(camp, variant) : 'Oi! Vi a oferta relâmpago no grupo e quero garantir o meu brinde.')}`;
     const people = Number(flashOffer.cfg.groupPeople) || 0;
-    res.json({ link, people, label: peopleLabel(people), text: buildCaption({ people, link, until: flashOffer.cfg.validUntil }), contadoGrupos: people > 0 });
+    res.json({ link, people, label: peopleLabel(people), text: buildCaption({ people, link, until: flashOffer.cfg.validUntil, spots: Number(flashOffer.cfg.spots) || 0 }), contadoGrupos: people > 0 });
   });
 }

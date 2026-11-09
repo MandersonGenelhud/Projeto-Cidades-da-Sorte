@@ -83,3 +83,24 @@ test('a IA avisa a contagem a cada mensagem de cliente (onInbound) sem derrubar 
   assert.deepEqual(seen, ['Vi a oferta relâmpago (ref IDI-A)']);
   assert.ok(sent.length >= 1, 'o cliente foi respondido mesmo assim');
 });
+
+test('quem chegou agora e recebeu a oferta da IA é guardado como "apresentada", separado de quem veio pedir; se depois pedir, vira "veio"', () => {
+  const { c } = setup();
+  const a = c.markPresented({ convKey: 'n1', name: 'Novo', phone: '5511900000009', at: T });
+  assert.equal(a.created, true); assert.equal(a.hit.via, 'ia');
+  assert.equal(c.markPresented({ convKey: 'n1', at: T }), null, 'uma vez só');
+  assert.equal(c.markPresented({ convKey: '1203@g.us', at: T }), null);
+  const r1 = campaignReport({ camp: c.list[0], hits: c.hits, quotes: [], payments: [], claims: [], forms: [] });
+  assert.deepEqual([r1.total.vieram, r1.total.apresentadas], [0, 1]);
+  c.observe({ convKey: 'n1', text: 'quero o brinde do curso de idiomas', at: T });
+  const r2 = campaignReport({ camp: c.list[0], hits: c.hits, quotes: [], payments: [], claims: [], forms: [] });
+  assert.deepEqual([r2.total.vieram, r2.total.apresentadas], [1, 0]);
+  c.setStatus(c.list[0].id, 'pausada');
+  assert.equal(c.markPresented({ convKey: 'n2', at: T }), null, 'campanha pausada não conta');
+});
+
+import { buildCaption } from '../src/flash-offer.js';
+test('legenda com limite real fala das primeiras N pessoas; sem limite, de todos', () => {
+  assert.match(buildCaption({ people: 1500, link: 'x', spots: 20 }), /\*as 20 primeiras pessoas\* que fecharem com a Migra e derem a entrada até quinta-feira ganham/);
+  assert.match(buildCaption({ people: 1500, link: 'x', spots: 0 }), /\*quem fechar com a Migra e der a entrada até quinta-feira\* ganha/);
+});

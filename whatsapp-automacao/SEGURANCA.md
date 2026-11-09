@@ -485,3 +485,10 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Acesso só do administrador. Criação, ativar/pausar/encerrar e busca nas conversas ficam registradas em segurança. Os dados pessoais ficam no `data/` (fora do Git).
 - Limite: palavras comuns ("brinde", "promoção") podem trazer um falso positivo; o código do link é o mais confiável. Quem veio por palavras fica em "sem código".
 - Testes: `test/campanhas.test.js`.
+
+## Oferta limitada às 20 primeiras pessoas e memória do aplicativo Migra School (09/11/2026)
+
+- Por informação do Marcos, a oferta voltou a valer para as **20 primeiras pessoas** que fecharem e pagarem a entrada até 12/11. O limite é **real**: `crm.flashOffer.spots = 20`, contado pelo sistema (reserva de 48 h; confirma quando a entrada é paga). A IA só fala de quantas vagas restam com o número do sistema e, esgotado, para de oferecer. Arte, legenda e IA dizem agora a mesma coisa.
+- Memória do aplicativo (`src/agent/oferta-app.js`): espanhol na prática do cotidiano (trabalho, rua, banco, fronteira), 12 meses de presente, renovação **não incluída** (sem prometer promoção futura), login e senha por usuário, vários celulares mas **uma sessão por vez**, e "pergunte à equipe" para data de liberação ou recursos não informados. A IA não critica outras escolas nem afirma que elas "seguram" o aluno, e não diz que o aplicativo "vale" R$ 3 mil a R$ 10 mil (é referência de mercado).
+- Quem chega agora ouve a oferta cedo (depois de uma pergunta sobre o objetivo) e entra na campanha como "apresentada" (`campanhas.markPresented`), separado de quem veio pedir a oferta.
+- Testes: `test/oferta-relampago.test.js`, `test/campanhas.test.js`.

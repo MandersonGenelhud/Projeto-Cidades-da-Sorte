@@ -9,6 +9,7 @@ import { sleep } from '../utils.js';
 import { declineNote, detectDecline, isAck } from '../outreach-guard.js';
 import { applyQualification, qualBlock, READ_ANSWERS } from '../qualificacao.js';
 import { SALES_PLAYBOOK } from './vendas-playbook.js';
+import { appOfferFacts } from './oferta-app.js';
 import { answeredOurOutreach, detectDocsSent, apologyText, READ_BEFORE_CONTINUING } from '../outreach-apology.js';
 import { detectClosedByMessages } from '../closed-signals.js';
 
@@ -316,6 +317,7 @@ Termine sempre com uma pergunta que avance ("o que pesa mais para você: o valor
 ${fo.title}
 Condições: ${fo.conditions || 'fechar e pagar à vista até a data da oferta'}. ${fo.reference ? `Referência (não é o preço do aplicativo): ${fo.reference}.` : ''}
 ${Number(fo.spots) > 0 ? `A OFERTA É LIMITADA às ${fo.spots} PRIMEIRAS pessoas que fecharem com a Migra e PAGAREM A ENTRADA até ${until} (em qualquer forma de pagamento: à vista, cartão em até 3x com a taxa da operadora paga pelo cliente, ou entrada com etapas): ganham ${fo.months || 12} MESES do aplicativo Migra School. O limite é REAL e contado pelo sistema: você SÓ pode falar de quantas vagas restam com o número que aparecer em "Vagas da oferta relâmpago"; sem número, diga só que são vagas limitadas. Nunca invente que acabou. O brinde só é liberado depois que a equipe confirmar o pagamento da entrada${fo.groupPeople >= 100 ? `. Hoje os grupos têm mais de ${(Math.floor(Number(fo.groupPeople) / 100) * 100).toLocaleString('pt-BR')} pessoas` : ''}. ` : `A OFERTA VALE PARA TODOS: quem fechar com a Migra e PAGAR A ENTRADA até ${until} (em qualquer forma de pagamento: à vista, cartão em até 3x com a taxa da operadora paga pelo cliente, ou entrada com as etapas) ganha ${fo.months || 12} MESES do aplicativo Migra School. NÃO é limitada a poucas pessoas: NUNCA diga "vagas limitadas", "últimas vagas" nem "só X pessoas", e não invente escassez. O único limite verdadeiro é o PRAZO (${until}) e que o brinde só é liberado depois que a equipe confirmar o pagamento da entrada${fo.groupPeople >= 100 ? `. Hoje os grupos têm mais de ${(Math.floor(Number(fo.groupPeople) / 100) * 100).toLocaleString('pt-BR')} pessoas: pode dizer que a procura é grande` : ''}. `}Ao descrever o aplicativo, diga só o que está aqui: é o Migra School, ensina o espanhol na prática do dia a dia (para quem vai morar ou circular no Paraguai começar a falar desde o início); não afirme que é "melhor que qualquer curso" nem critique outros cursos pelo nome.
+${appOfferFacts({ months: Number(fo.months) || 12, until, spots: Number(fo.spots) || 0 })}
 COMO usar como gatilho de fechamento (com honestidade): (1) quando o cliente já viu o valor e o orçamento e está decidindo, apresente a oferta como a oportunidade de quem fecha até ${until}; (2) diante de "vou pensar", "depois", "mais para frente": descubra a objeção, e então lembre que a condição acaba em ${until}, sem pressão falsa; (3) deixe CLARO a condição: pagar a entrada até ${until}; use opcoes_cartao para mostrar as parcelas do cartão e nunca invente taxa; negociação além disso é do vendedor, no final; (4) não diga que o aplicativo equivale a esse valor: diga que o curso de idiomas em escola tradicional custa em média o valor de referência, e que ele leva o aplicativo de idiomas do dia a dia por um ano de presente; (5) não prometa data de lançamento do aplicativo se ele ainda estiver em desenvolvimento, e não invente recursos; (6) depois de ${until}, não fale mais da oferta. Quando o cliente disser que vai pagar à vista, registre em registrar_qualificacao (oferta_relampago: vai_a_vista ou vai_parcelado, conforme a forma de pagamento da entrada; nao_a_vista se não vai fechar agora). Não ofereça a quem não tem condições de pagar: sem pressão.`;
     }
     // Oferta do aplicativo de idiomas: só entra no prompt enquanto a data escolhida pelo Marcos não passou (nunca prazo inventado).
@@ -686,6 +688,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
         await send(bubble, { typingMs });
         if (human && i < bubbles.length - 1) await this.wait(randomPause());
       }
+      if (/oferta rel[âa]mpago|migra school|12 meses|brinde/i.test(result.text) && this.flashStatus?.()?.open) { try { this.onOfferPresented?.(conv); } catch { /* a contagem nunca derruba o atendimento */ } }
       last = result;
       Promise.resolve(this.onReplied(conv, { handoff: conv.handoff })).catch(() => {});
     }

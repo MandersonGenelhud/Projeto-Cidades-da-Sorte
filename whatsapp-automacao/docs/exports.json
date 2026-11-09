@@ -42,6 +42,9 @@
   "LLMClient",
   "PROVIDERS"
  ],
+ "src/agent/oferta-app.js": [
+  "appOfferFacts"
+ ],
  "src/agent/presets.js": [
   "CRISIS_KNOWLEDGE",
   "DEFAULT_PRESET",

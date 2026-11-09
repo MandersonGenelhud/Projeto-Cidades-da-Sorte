@@ -19,7 +19,8 @@ export function campaignReport({ camp, hits, leadOf = () => null, quotes = [], f
     return { id: h.id, name: h.name || lead?.name || '', phone: h.phone || lead?.phone || '', variant: h.variant || '', via: h.via, at: h.at, stage, quote: q?.number || '', brinde: claim ? (claim.status === 'confirmada' ? 'confirmado' : 'reservado') : '', seller: seller?.name || '', first: h.first };
   });
   const group = (list) => ({
-    vieram: list.length,
+    vieram: list.filter((r) => r.via !== 'ia').length,
+    apresentadas: list.filter((r) => r.via === 'ia').length,
     orcamento: list.filter((r) => reached(r.stage, 'orcamento')).length,
     ficha: list.filter((r) => reached(r.stage, 'ficha')).length,
     contrato: list.filter((r) => reached(r.stage, 'contrato')).length,
@@ -27,7 +28,7 @@ export function campaignReport({ camp, hits, leadOf = () => null, quotes = [], f
     brinde: list.filter((r) => r.brinde).length,
     brindeConfirmado: list.filter((r) => r.brinde === 'confirmado').length,
   });
-  const withRates = (g) => ({ ...g, taxaOrcamento: pct(g.orcamento, g.vieram), taxaFechamento: pct(g.fecharam, g.vieram) });
+  const withRates = (g) => ({ ...g, taxaOrcamento: pct(g.orcamento, g.vieram + g.apresentadas), taxaFechamento: pct(g.fecharam, g.vieram + g.apresentadas) });
   const variants = [...new Set([...(camp.variants || []), ...rows.map((r) => r.variant)])].filter((v) => v !== '');
   const byVariant = [...variants.map((v) => ({ variant: v, ...withRates(group(rows.filter((r) => r.variant === v))) })), { variant: '', label: 'Sem código (palavras da oferta ou link antigo)', ...withRates(group(rows.filter((r) => !r.variant))) }];
   const days = {};

@@ -22,9 +22,14 @@ test('oferta relâmpago: entra no prompt até 12/11 com a condição "à vista" 
   const dentro = await promptAt(new Date(2026, 10, 12, 20, 0)); // quinta, 12/11
   assert.match(dentro, /OFERTA RELÂMPAGO EM VIGOR/);
   assert.match(dentro, /vale até 12\/11\/2026/);
-  assert.match(dentro, /A OFERTA VALE PARA TODOS/);
-  assert.match(dentro, /PAGAR A ENTRADA até 12\/11\/2026/);
-  assert.match(dentro, /NUNCA diga "vagas limitadas"/);
+  assert.match(dentro, /A OFERTA É LIMITADA às 20 PRIMEIRAS/);
+  assert.match(dentro, /PAGAREM A ENTRADA até 12\/11\/2026/);
+  assert.match(dentro, /O limite é REAL e contado pelo sistema/);
+  assert.match(dentro, /login e senha só dele/);
+  assert.match(dentro, /só em UM por vez/);
+  assert.match(dentro, /renovação depois dos 12 meses NÃO está incluída/);
+  assert.match(dentro, /apresente a oferta cedo/);
+  assert.match(dentro, /não critique outras escolas/);
   assert.match(dentro, /não diga que o aplicativo equivale a esse valor/);
   assert.match(dentro, /depois de 12\/11\/2026, não fale mais da oferta/);
   const fora = await promptAt(new Date(2026, 10, 13, 9, 0));
@@ -86,7 +91,6 @@ test('vagas no prompt: a IA recebe o número real e, esgotado, é mandada parar 
   agent.flashStatus = () => ({ open: true, total: 20, left: 7 });
   await agent.handleIncoming({ key: 'k1', phone: '5511999990001', name: 'Rita', text: 'oi' }, async () => {});
   assert.match(system, /Restam 7 de 20 brindes/);
-  assert.match(system, /NUNCA diga "vagas limitadas"/);
   agent.flashStatus = () => ({ open: true, total: 20, left: 0 });
   await agent.handleIncoming({ key: 'k2', phone: '5511999990002', name: 'Rita', text: 'oi' }, async () => {});
   assert.match(system, /Os brindes ESGOTARAM/);

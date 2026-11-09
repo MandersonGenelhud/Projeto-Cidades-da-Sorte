@@ -67,14 +67,15 @@ export class FlashOffer {
 export const roundedPeople = (n) => Math.max(0, Math.floor(Number(n) / 100) * 100);
 export const peopleLabel = (n) => { const r = roundedPeople(n); return r >= 100 ? `mais de ${r.toLocaleString('pt-BR')} pessoas` : ''; };
 
-/** Legenda curta para postar a arte nos grupos, com os destaques do WhatsApp (*negrito*). Oferta para TODOS que pagarem a entrada até a data. */
-export function buildCaption({ people = 0, link = '', until = '2026-11-12' } = {}) {
+/** Legenda curta para postar a arte nos grupos, com os destaques do WhatsApp (*negrito*). Com spots > 0 fala das primeiras N pessoas; com 0, de todos. */
+export function buildCaption({ people = 0, link = '', until = '2026-11-12', spots = 0 } = {}) {
   const [, m, d] = String(until).split('-');
   const label = peopleLabel(people);
+  const quem = spots > 0 ? `*as ${spots} primeiras pessoas* que fecharem com a Migra e derem a entrada até quinta-feira` : '*quem fechar com a Migra e der a entrada até quinta-feira*';
   return [
     `*OFERTA RELÂMPAGO ATÉ QUINTA-FEIRA, ${d}/${m}*`,
     '',
-    `${label ? `Somos ${label} nos nossos grupos, e ` : ''}*quem fechar com a Migra e der a entrada até quinta-feira* ganha *1 ano de curso de idiomas* (espanhol na prática, do dia a dia) de presente.`,
+    `${label ? `Somos ${label} nos nossos grupos, e ` : ''}${quem} ${spots > 0 ? 'ganham' : 'ganha'} *1 ano de curso de idiomas* (espanhol na prática, do dia a dia) de presente.`,
     '',
     'Um ano de curso de idiomas em escola tradicional custa, em média, de R$ 3 mil a R$ 10 mil.',
     '',

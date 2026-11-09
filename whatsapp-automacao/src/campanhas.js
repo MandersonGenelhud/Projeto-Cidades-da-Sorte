@@ -64,12 +64,23 @@ export class Campaigns {
       const m = this.match(c, text);
       if (!m) continue;
       let hit = this.hits.find((h) => h.campaignId === c.id && h.convKey === convKey);
-      if (hit) { if (m.via === 'link' && hit.via !== 'link') Object.assign(hit, { via: 'link', variant: m.variant || hit.variant }); return { hit, created: false }; }
+      if (hit) { if (m.via === 'link' && hit.via !== 'link') Object.assign(hit, { via: 'link', variant: m.variant || hit.variant }); else if (hit.via === 'ia') Object.assign(hit, { via: m.via, first: clip(text) }); return { hit, created: false }; }
       hit = { id: crypto.randomBytes(5).toString('hex'), campaignId: c.id, variant: m.variant, via: m.via, convKey, name: clip(name, 100), phone: String(phone || '').replace(/\D/g, ''), at: new Date(at).toISOString(), first: clip(text) };
       this.hits.push(hit); this.store.save();
       return { hit, created: true, campaign: c };
     }
     return null;
+  }
+
+  /** A IA apresentou a oferta a alguém que chegou agora (sem escrever o código): guarda como "apresentada", separado de quem veio pedir a oferta. */
+  markPresented({ convKey, name = '', phone = '', at = this.now() }) {
+    if (!convKey || String(convKey).includes('@g.us') || String(convKey).startsWith('sim:')) return null;
+    const c = this.list.find((x) => x.status === 'ativa' && this.#active(x, at));
+    if (!c) return null;
+    if (this.hits.some((h) => h.campaignId === c.id && h.convKey === convKey)) return null;
+    const hit = { id: crypto.randomBytes(5).toString('hex'), campaignId: c.id, variant: '', via: 'ia', convKey, name: clip(name, 100), phone: String(phone || '').replace(/\D/g, ''), at: new Date(at).toISOString(), first: '' };
+    this.hits.push(hit); this.store.save();
+    return { hit, created: true, campaign: c };
   }
 
   /** Procura nas conversas já guardadas quem falou da campanha (para pegar quem já chegou antes da contagem). */
