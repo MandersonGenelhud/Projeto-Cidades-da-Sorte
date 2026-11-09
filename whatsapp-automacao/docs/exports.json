@@ -91,12 +91,17 @@
   "validTime",
   "weekdayOf"
  ],
+ "src/ana-family.js": [
+  "Family"
+ ],
  "src/ana.js": [
   "Ana",
   "brNum",
   "expandMagnitude",
   "financePeriod",
-  "financeRange"
+  "financeRange",
+  "parseAdvanceDays",
+  "scopeOf"
  ],
  "src/app-signups.js": [
   "APPS",

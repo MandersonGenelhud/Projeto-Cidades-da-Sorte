@@ -8,7 +8,7 @@ function setup() {
   const store = tempStore();
   const auth = new Auth({ store, dataDir: store.dataDir });
   const adm = auth.create({ name: 'Marcos Miguel', login: 'marcos', password: 'segredo123', role: 'admin', whatsapp: '5545999990001' });
-  const temp = auth.create({ name: 'Teste Temporario', login: 'teste', password: 'segredo123', role: 'seller', whatsapp: '556984761664', expiresAt: '2026-11-08' });
+  const temp = auth.create({ name: 'Teste Temporario', login: 'teste', password: 'segredo123', role: 'seller', whatsapp: '556984761664', expiresAt: '2099-12-31' });
   return { store, auth, adm, temp };
 }
 
@@ -17,6 +17,7 @@ test('acesso temporário: vale até o fim do dia combinado e depois a pessoa é 
   const u = () => auth.get(temp.id);
   assert.ok(u().expiresAt, 'o prazo ficou gravado');
   assert.ok(auth.login('teste', 'segredo123'), 'antes do prazo entra');
+  auth.update(temp.id, { expiresAt: '2026-11-08' }); // prazo fixo para a conferência por horários (não depende do dia de hoje)
   const before = Date.parse('2026-11-08T22:00:00-03:00');
   assert.equal(accessExpired(u(), before), false, 'ainda dentro do dia');
   assert.deepEqual(auth.sweepExpired(before), []);
@@ -41,6 +42,7 @@ test('administrador nunca tem acesso temporário; novo prazo reabre quem venceu;
   const { auth, adm, temp } = setup();
   assert.throws(() => auth.update(adm.id, { expiresAt: '2026-12-01' }), /Administrador/);
   assert.equal(auth.create({ name: 'Outro Admin', login: 'outro', password: 'segredo123', role: 'admin', expiresAt: '2026-12-01' }).expiresAt, null);
+  auth.update(temp.id, { expiresAt: '2026-11-08' });
   auth.sweepExpired(Date.parse('2026-11-10T12:00:00-03:00'));
   assert.equal(auth.get(temp.id).active, false);
   auth.update(temp.id, { expiresAt: '2099-01-01' });

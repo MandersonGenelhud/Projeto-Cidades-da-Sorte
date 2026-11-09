@@ -492,3 +492,12 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Memória do aplicativo (`src/agent/oferta-app.js`): espanhol na prática do cotidiano (trabalho, rua, banco, fronteira), 12 meses de presente, renovação **não incluída** (sem prometer promoção futura), login e senha por usuário, vários celulares mas **uma sessão por vez**, e "pergunte à equipe" para data de liberação ou recursos não informados. A IA não critica outras escolas nem afirma que elas "seguram" o aluno, e não diz que o aplicativo "vale" R$ 3 mil a R$ 10 mil (é referência de mercado).
 - Quem chega agora ouve a oferta cedo (depois de uma pergunta sobre o objetivo) e entra na campanha como "apresentada" (`campanhas.markPresented`), separado de quem veio pedir a oferta.
 - Testes: `test/oferta-relampago.test.js`, `test/campanhas.test.js`.
+
+## Ana para a casa (esposa/marido), lista de compras do casal, avisos cruzados e avisos antecipados
+
+- **Pessoa da casa** (`src/ana-family.js`): cadastrada só pelo administrador (aba "Ana e a casa"; sem login, sem painel, sem Maria). Identificada pelo número de WhatsApp (o 9º dígito não atrapalha) e só atendida pela **Ana, quando chamada pelo nome**. Sem "Ana," ou com "Maria,", silêncio. Registrado em segurança sem o número. A pessoa precisa saber e concordar em usar.
+- **Privacidade**: cada pessoa tem a PRÓPRIA agenda e o PRÓPRIO financeiro (testado). Só duas coisas são divididas entre as duas pessoas ligadas: a **lista de compras** (uma só; avisa o outro quando alguém adiciona ou compra; ao ligar, as listas que já existiam são juntadas) e os **lembretes pedidos para o outro** ("Ana, lembre a Carol de..."), que entram na agenda dele(a), com "pedido de fulano", e o outro recebe um aviso na hora. Nada da empresa passa pela Ana da casa.
+- **Contas da casa x pessoais**: marcadas pela frase ("é da casa", "pessoal"); o resumo e a lista de contas a pagar mostram separado.
+- **Avisos antecipados** ("1 dia antes", "2 dias antes", "no mesmo dia"): saem às 9h, uma vez cada, com até 3 h de atraso tolerado. Em contas e vencimentos sem aviso combinado, a Ana pergunta; sem resposta, avisa só no resumo da manhã.
+- **Limites**: pedir para lembrar o outro depende da frase começar com "lembre/avise" + nome ou "meu marido/minha esposa"; frases diferentes caem no fluxo normal (lembrete para si). Só um par por administrador. A Ana não valida se a mensagem veio realmente da pessoa dona do número (como já era com a equipe).
+- Testes: `test/ana-familia.test.js`.

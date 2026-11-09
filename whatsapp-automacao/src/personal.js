@@ -50,6 +50,7 @@ export class Personal {
   constructor({ store, now = () => new Date() }) {
     this.store = store;
     this.now = now;
+    this.shareOf = null; // (userId) → { key, members } quando a lista de compras é dividida com a pessoa da casa (ana-family.js)
   }
 
   today() { return isoOf(this.now()); }
@@ -63,17 +64,32 @@ export class Personal {
     return b;
   }
 
+  /** A caixa da LISTA DE COMPRAS: a do casal (uma lista só) quando a pessoa está ligada a alguém da casa; senão, a própria. Só compras são divididas. */
+  #shopBox(userId) {
+    const sk = this.shareOf?.(userId);
+    if (!sk) return this.#box(userId);
+    const all = (this.store.data.personal ||= {});
+    let b = all[sk.key];
+    if (!b) {
+      b = all[sk.key] = { shared: true, shopping: [], storeMap: {}, items: [], entries: [], budgets: {}, settings: {}, last: null, goals: [], series: {} };
+      for (const id of sk.members) { const own = this.#box(id); for (const it of own.shopping) b.shopping.push({ ...it, by: it.by || id }); own.shopping = []; }
+      this.store.save();
+    }
+    b.shopping ||= []; b.storeMap ||= {};
+    return b;
+  }
+
   settings(userId) { return this.#box(userId).settings; }
   setSetting(userId, k, v) { this.#box(userId).settings[k] = v; this.store.save(); }
 
   // ---------- agenda ----------
   /** kind: compromisso (com hora, avisa antes), lembrete (avisa na hora) ou conta (vencimento de parcela/conta). */
-  addItem(userId, { kind = 'lembrete', title, date, time = '', remindMin = null, amount = null, currency = 'BRL', seriesId = null, entryId = null } = {}) {
+  addItem(userId, { kind = 'lembrete', title, date, time = '', remindMin = null, amount = null, currency = 'BRL', seriesId = null, entryId = null, by = '', scope = '', remindDays = null } = {}) {
     const t = String(title || '').replace(/\s+/g, ' ').trim().slice(0, 200);
     if (!t) throw err('Diga o que é o compromisso ou lembrete');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) throw err('Data inválida');
     const box = this.#box(userId);
-    const it = { id: newId(), kind, title: t, date, time: /^\d{2}:\d{2}$/.test(time) ? time : '', remindMin: remindMin ?? (kind === 'compromisso' ? 30 : 0), amount, currency, seriesId, entryId, notified: false, doneAt: null, cancelled: false, createdAt: this.now().toISOString() };
+    const it = { id: newId(), kind, title: t, date, time: /^\d{2}:\d{2}$/.test(time) ? time : '', remindMin: remindMin ?? (kind === 'compromisso' ? 30 : 0), amount, currency, seriesId, entryId, by: by || '', scope: ['casa', 'pessoal'].includes(scope) ? scope : '', remindDays: Array.isArray(remindDays) ? [...new Set(remindDays.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 30))].sort((a, b) => b - a) : null, notifiedDays: [], notified: false, doneAt: null, cancelled: false, createdAt: this.now().toISOString() };
     box.items.push(it);
     return it;
   }
@@ -93,6 +109,40 @@ export class Personal {
       const at = new Date(`${i.date}T${i.time}:00`).getTime() - i.remindMin * 60_000;
       return at <= ms && ms - at <= 3 * 3_600_000;
     });
+  }
+
+  /**
+   * Avisos ANTECIPADOS (1 dia antes, 2 dias antes, no mesmo dia) dos itens que têm remindDays. Saem às 9h do dia do aviso (ou no horário do item, no mesmo dia).
+   * Cada aviso sai uma vez só; até 3 h de atraso (depois disso perdeu o sentido).
+   */
+  dueAdvance(userId, now = this.now(), hour = '09:00') {
+    const ms = now.getTime(); const out = [];
+    for (const i of this.#box(userId).items) {
+      if (i.cancelled || i.doneAt || !Array.isArray(i.remindDays) || !i.remindDays.length) continue;
+      for (const d of i.remindDays) {
+        if ((i.notifiedDays || []).includes(d)) continue;
+        const day = addDays(i.date, -d);
+        const hm = d === 0 && i.time ? i.time : hour;
+        const at = new Date(`${day}T${hm}:00`).getTime() - (d === 0 && i.time ? (i.remindMin || 0) * 60_000 : 0);
+        if (at <= ms && ms - at <= 3 * 3_600_000) out.push({ item: i, days: d });
+      }
+    }
+    return out;
+  }
+
+  markAdvance(userId, id, days) {
+    const it = this.#box(userId).items.find((i) => i.id === id);
+    if (it) { (it.notifiedDays ||= []).push(days); this.store.save(); }
+  }
+
+  /** Define de quantos dias antes avisar (ex.: [2, 1, 0]). */
+  setRemindDays(userId, id, days) {
+    const it = this.#box(userId).items.find((i) => i.id === id);
+    if (!it) return null;
+    it.remindDays = [...new Set((days || []).map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 30))].sort((a, b) => b - a);
+    it.notifiedDays = [];
+    this.store.save();
+    return it;
   }
 
   markNotified(userId, id) {
@@ -118,13 +168,13 @@ export class Personal {
   }
 
   // ---------- finanças ----------
-  addEntry(userId, { kind = 'saida', amount, currency = 'BRL', category = '', description = '', date = null, status = 'pago', dueDate = null, seriesId = null, installment = '' } = {}) {
+  addEntry(userId, { kind = 'saida', amount, currency = 'BRL', category = '', description = '', date = null, status = 'pago', dueDate = null, seriesId = null, installment = '', scope = '' } = {}) {
     const v = round(amount);
     if (!(v > 0)) throw err('O valor precisa ser maior que zero');
     if (!['entrada', 'saida'].includes(kind)) throw err('Tipo inválido');
     if (!['BRL', 'USD', 'PYG'].includes(currency)) throw err('Moeda inválida');
     const desc = String(description || '').replace(/\s+/g, ' ').trim().slice(0, 160) || (kind === 'entrada' ? 'Entrada' : 'Gasto');
-    const e = { id: newId(), kind, amount: v, currency, category: CATEGORIES.includes(category) ? category : categoryOf(desc, kind), description: desc, date: date || this.today(), status: status === 'a_pagar' ? 'a_pagar' : 'pago', dueDate: dueDate || null, seriesId, installment, createdAt: this.now().toISOString(), deleted: false };
+    const e = { scope: ['casa', 'pessoal'].includes(scope) ? scope : '', id: newId(), kind, amount: v, currency, category: CATEGORIES.includes(category) ? category : categoryOf(desc, kind), description: desc, date: date || this.today(), status: status === 'a_pagar' ? 'a_pagar' : 'pago', dueDate: dueDate || null, seriesId, installment, createdAt: this.now().toISOString(), deleted: false };
     this.#box(userId).entries.push(e);
     return e;
   }
@@ -176,9 +226,10 @@ export class Personal {
     if (!last) return null;
     for (const id of last.items || []) { const it = box.items.find((i) => i.id === id); if (it) it.cancelled = true; }
     for (const id of last.entries || []) { const e = box.entries.find((x) => x.id === id); if (e) e.deleted = true; }
-    for (const id of last.shoppingDone || []) { const i = box.shopping.find((x) => x.id === id); if (i) { i.done = false; i.doneAt = null; } }
-    for (const id of last.shoppingCancelled || []) { const i = box.shopping.find((x) => x.id === id); if (i) i.cancelled = false; }
-    for (const id of last.shopping || []) { const i = box.shopping.find((x) => x.id === id); if (i) i.cancelled = true; }
+    const shopAll = [...box.shopping, ...this.#shopBox(userId).shopping];
+    for (const id of last.shoppingDone || []) { const i = shopAll.find((x) => x.id === id); if (i) { i.done = false; i.doneAt = null; } }
+    for (const id of last.shoppingCancelled || []) { const i = shopAll.find((x) => x.id === id); if (i) i.cancelled = false; }
+    for (const id of last.shopping || []) { const i = shopAll.find((x) => x.id === id); if (i) i.cancelled = true; }
     if (last.goalContribution) { const g = box.goals.find((x) => x.id === last.goalContribution.id); if (g) { g.saved = round(g.saved - last.goalContribution.amount); g.contributions.pop(); } }
     for (const r of last.reverts || []) {
       if (r.entryId) { const e = box.entries.find((x) => x.id === r.entryId); if (e) { e.status = r.status; e.date = r.date; } }
@@ -189,10 +240,10 @@ export class Personal {
     return last;
   }
 
-  entries(userId, { from = '', to = '', kind = '', term = '', status = '' } = {}) {
+  entries(userId, { from = '', to = '', kind = '', term = '', status = '', scope = '' } = {}) {
     const n = fold1(term);
     return this.#box(userId).entries
-      .filter((e) => !e.deleted && (!from || e.date >= from) && (!to || e.date <= to) && (!kind || e.kind === kind) && (!status || e.status === status)
+      .filter((e) => !e.deleted && (!from || e.date >= from) && (!to || e.date <= to) && (!kind || e.kind === kind) && (!status || e.status === status) && (!scope || e.scope === scope)
         && (!n || fold1(`${e.description} ${e.category}`).includes(n)))
       .sort((a, b) => b.date.localeCompare(a.date));
   }
@@ -209,14 +260,16 @@ export class Personal {
     }
     for (const c of Object.values(byCur)) c.saldo = round(c.entradas - c.saidas);
     const spending = Object.entries(cat).map(([k, total]) => { const [currency, category] = k.split('|'); return { currency, category, total }; }).sort((a, b) => b.total - a.total);
-    return { byCurrency: byCur, spending, count: rows.length };
+    const byScope = {};
+    for (const e of rows) { if (e.status === 'a_pagar' || e.kind !== 'saida' || !e.scope) continue; const k = `${e.scope}|${e.currency}`; byScope[k] = round((byScope[k] || 0) + e.amount); }
+    return { byCurrency: byCur, spending, count: rows.length, byScope: Object.entries(byScope).map(([k, total]) => { const [scope, currency] = k.split('|'); return { scope, currency, total }; }) };
   }
 
   /** Contas a pagar (parcelas etc.) nos próximos dias. */
-  upcoming(userId, days = 30) {
+  upcoming(userId, days = 30, scope = '') {
     const t = this.today();
     const limit = addDays(t, days);
-    return this.#box(userId).entries.filter((e) => !e.deleted && e.status === 'a_pagar' && e.dueDate && e.dueDate <= limit).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    return this.#box(userId).entries.filter((e) => !e.deleted && e.status === 'a_pagar' && e.dueDate && e.dueDate <= limit && (!scope || e.scope === scope)).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }
 
   // ---------- orçamento ----------
@@ -258,21 +311,21 @@ export class Personal {
   }
 
   /** Acrescenta um item. O tipo de loja vem do que a pessoa disse, do que ela já ensinou ou das palavras conhecidas. Repetido em aberto não duplica. */
-  addShopping(userId, { text, qty = '', store = '', targetDate = null } = {}) {
+  addShopping(userId, { text, qty = '', store = '', targetDate = null, by = '' } = {}) {
     const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 80);
     if (!t) throw err('Diga o que precisa comprar');
-    const box = this.#box(userId);
+    const box = this.#shopBox(userId);
     const where = STORES.includes(store) ? store : storeOf(t, box.storeMap);
     const dup = box.shopping.find((i) => !i.done && !i.cancelled && fold1(i.text) === fold1(t) && i.store === where);
     if (dup) return { item: dup, duplicate: true };
-    const it = { id: newId(), text: t, qty: String(qty || '').slice(0, 30), store: where, targetDate, done: false, doneAt: null, cancelled: false, addedAt: this.now().toISOString() };
+    const it = { id: newId(), text: t, qty: String(qty || '').slice(0, 30), store: where, targetDate, by: by || userId, done: false, doneAt: null, cancelled: false, addedAt: this.now().toISOString() };
     box.shopping.push(it);
     return { item: it, duplicate: false };
   }
 
   /** Itens em aberto, agrupados por loja (ou só de uma). */
   shoppingList(userId, { store = '' } = {}) {
-    const open = this.#box(userId).shopping.filter((i) => !i.done && !i.cancelled && (!store || i.store === store));
+    const open = this.#shopBox(userId).shopping.filter((i) => !i.done && !i.cancelled && (!store || i.store === store));
     const groups = {};
     for (const i of open) (groups[i.store] ||= []).push(i);
     return STORES.filter((st) => groups[st]).map((st) => ({ store: st, items: groups[st] }));
@@ -286,7 +339,7 @@ export class Personal {
 
   /** "Comprei o martelo" / "comprei tudo do mercado": marca como comprado. */
   buy(userId, term, { store = '', all = false } = {}) {
-    const box = this.#box(userId);
+    const box = this.#shopBox(userId);
     const hits = all ? box.shopping.filter((i) => !i.done && !i.cancelled && (!store || i.store === store)) : this.#matchShopping(box, term, store);
     for (const i of hits) { i.done = true; i.doneAt = this.now().toISOString(); }
     if (hits.length) { box.last = { label: 'compras', shoppingDone: hits.map((i) => i.id) }; this.store.save(); }
@@ -295,7 +348,7 @@ export class Personal {
 
   /** Tira da lista (apaga só da lista da PRÓPRIA pessoa). */
   dropShopping(userId, term, { store = '' } = {}) {
-    const box = this.#box(userId);
+    const box = this.#shopBox(userId);
     const hits = this.#matchShopping(box, term, store);
     for (const i of hits) i.cancelled = true;
     if (hits.length) { box.last = { label: 'lista', shoppingCancelled: hits.map((i) => i.id) }; this.store.save(); }
@@ -304,7 +357,7 @@ export class Personal {
 
   /** Muda um item de loja e aprende para as próximas vezes. */
   moveShopping(userId, term, store) {
-    const box = this.#box(userId);
+    const box = this.#shopBox(userId);
     const hits = this.#matchShopping(box, term, '');
     for (const i of hits) i.store = store;
     for (const i of hits) this.learnStore(userId, i.text, store);

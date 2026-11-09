@@ -261,7 +261,7 @@ export class Maria {
 
   personFor(msg) {
     if (!msg?.phone) return null;
-    return this.auth.users.find((u) => u.active !== false && !accessExpired(u) && u.whatsapp && samePhone(u.whatsapp, msg.phone)) || null;
+    return this.auth.users.find((u) => u.active !== false && !accessExpired(u) && u.whatsapp && samePhone(u.whatsapp, msg.phone)) || this.ana?.family?.personByPhone(msg.phone) || null;
   }
 
   /** Perfil da pessoa: administrador = tudo; senão o que foi definido em maria.profiles; senão (primeira vez) pelo nome; senão só o que é dela. */
@@ -281,11 +281,36 @@ export class Maria {
     return scoped(profile) ? user : { id: user.id, name: user.name, role: 'admin' };
   }
 
+  /** Mensagem de uma pessoa da casa: só a Ana responde, e só quando chamada pelo nome ("Ana, ..."). Sem o nome, silêncio. */
+  async #familyChat(msg, user) {
+    if (!this.ana?.enabled) return true;
+    let text = String(msg.text || '');
+    const spoke = Boolean(msg.hasAudio);
+    try {
+      if (msg.hasImage) return true;
+      if (spoke) {
+        if (!this.stt?.ready) { await this.#say(msg, 'Ainda não consigo ouvir áudios agora. Escreva por texto, por favor.', false); return true; }
+        const audio = await this.downloadAudio(msg);
+        if (!audio) throw new Error('não consegui baixar o áudio');
+        text = await this.stt.transcribe(audio, 'audio/ogg');
+      }
+      const claim = this.ana.claims(text, user);
+      if (!claim) return true;
+      const r = await this.ana.process(user, claim.rest, { phone: msg.phone });
+      await this.#say(msg, typeof r === 'string' ? { text: r, voice: this.ana.voice, style: this.ana.voiceStyle } : { ...r, voice: this.ana.voice, style: this.ana.voiceStyle }, spoke);
+    } catch (e) {
+      this.log({ type: 'error', message: `Ana (pessoa da casa): ${e.message}` });
+    }
+    return true;
+  }
+
   async handle(msg) {
     if (msg.fromMe || msg.isGroup || msg.channel === 'instagram') return true; // nunca responde grupo nem o próprio aparelho
     const user = this.personFor(msg);
     if (!this.enabled && !this.ana?.enabled) return true;
     if (!user) return this.#unknown(msg);
+    // Pessoa da casa (sem painel): só a Ana, só com o nome dela no começo; nada da empresa, nem a Maria.
+    if (user.role === 'familia') return this.#familyChat(msg, user);
     const profile = this.profileOf(user);
     let text = String(msg.text || '');
     const spoke = Boolean(msg.hasAudio);
@@ -778,7 +803,7 @@ export class Maria {
 
   /** Manda uma mensagem a uma pessoa da equipe pelo número da Maria (ou, se ele estiver fora do ar, pelo principal). */
   async notifyUser(userId, text) {
-    const u = this.auth.get(userId);
+    const u = this.auth.get(userId) || this.ana?.family?.userById(userId);
     const ph = normalizePhone(u?.whatsapp);
     if (!ph) return false;
     const lineId = this.config.lineId || this.lineIdByName(this.name);

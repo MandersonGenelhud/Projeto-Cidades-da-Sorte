@@ -20,6 +20,33 @@ const ACTIONS = ['agendar', 'agenda', 'cancelar', 'registrar', 'parcelar', 'paga
 const STORE_ICON = { 'Mercado': '🛒', 'Farmácia': '💊', 'Material de construção': '🧱', 'Ferramentas e ferragens': '🔧', 'Pet shop': '🐾', 'Papelaria e escritório': '📎', 'Eletrônicos': '🔌', 'Roupas e calçados': '👕', 'Casa e decoração': '🏠', 'Automotivo': '🚗', 'Outros': '📦' };
 
 const fold = fold1;
+const WORDNUM = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, sete: 7 };
+const numOf = (x) => (/^\d+$/.test(x) ? Number(x) : WORDNUM[x] ?? NaN);
+/** "2 dias antes", "1 e 2 dias antes", "na véspera", "no mesmo dia" → { found, days: [2, 1, 0] }. */
+export function parseAdvanceDays(text) {
+  const n = fold(text);
+  const days = new Set();
+  const m = /(?<!\bdia\s)(?<![\/\d])((?:\d+|um|uma|dois|duas|tres|quatro|cinco|sete)(?:\s*(?:,|e|ou)\s*(?:\d+|um|uma|dois|duas|tres|quatro|cinco|sete))*)\s+dias?\s+antes/.exec(n);
+  if (m) for (const x of m[1].split(/\s*(?:,|\be\b|\bou\b)\s*/)) { const v = numOf(x.trim()); if (Number.isInteger(v) && v >= 1 && v <= 30) days.add(v); }
+  if (/\bvespera\b/.test(n)) days.add(1);
+  if (/\b(no mesmo dia|no proprio dia|no dia mesmo|so no dia|somente no dia)\b/.test(n)) days.add(0);
+  return { found: days.size > 0, days: [...days].sort((a, b) => b - a) };
+}
+/** Tira do título as frases de aviso ("2 dias antes e no mesmo dia") e de tipo ("é da casa"), que não fazem parte do assunto. */
+const cleanTitle = (t) => String(t || '')
+  .replace(/,?\s*(?:\d+|um|uma|dois|duas|tres|quatro|cinco|sete)(?:\s*(?:,|\be\b|\bou\b)\s*(?:\d+|um|uma|dois|duas|tres|quatro|cinco|sete))*\s+dias?\s+antes/gi, '')
+  .replace(/,?\s*(?:\be\s+)?\b(?:no mesmo dia|no proprio dia|na vespera|so no dia)\b/gi, '')
+  .replace(/,?\s*\b(?:é|e)\s+(?:da casa|de casa|pessoal|pessoais)\b/gi, '')
+  .replace(/\bdia\s*(?=[,.]|$)/gi, '')
+  .replace(/\s+,/g, ',').replace(/[,\s]+$/g, '').trim();
+const BILLISH = /\b(conta|boleto|fatura|parcela|vence|vencimento|vencem|pagar|pagamento|mensalidade|aluguel|condominio|iptu|ipva|luz|agua|internet|cartao|prestacao)\b/;
+/** "da casa" ou "pessoal" dito na frase. */
+export function scopeOf(text) {
+  const n = fold(text);
+  if (/\b(da casa|de casa|pra casa|para a casa|do lar|contas? domesticas?)\b/.test(n)) return 'casa';
+  if (/\b(pessoa(?:l|is)|minha conta pessoal|so meu|so minha)\b/.test(n)) return 'pessoal';
+  return '';
+}
 const cap = (s) => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
 
 /** "1.500,50" → 1500.5 ; "1500" → 1500 ; "1.500" → 1500 ; "10,5" → 10.5 */
@@ -65,9 +92,11 @@ export class Ana {
    * personal: o armazenamento privado (src/personal.js). notify(userId, texto) → Promise<boolean> (envia pelo WhatsApp da Maria).
    * llm: opcional (sem ela, entende frases simples). tts/voz ficam com quem envia (Maria).
    */
-  constructor({ store, auth, personal, llm = null, notify = async () => false, audit = () => {}, log = () => {}, now = () => new Date() }) {
-    Object.assign(this, { store, auth, personal, llm, notify, audit, log, now });
+  constructor({ store, auth, personal, llm = null, family = null, notify = async () => false, audit = () => {}, log = () => {}, now = () => new Date() }) {
+    Object.assign(this, { store, auth, personal, llm, family, notify, audit, log, now });
     this.pending = new Map(); // userId → registro esperando o "sim" { entry, until }
+    this.asks = new Map(); // userId → pergunta de antecedência esperando resposta { itemId, until }
+    if (family) personal.shareOf = (id) => { const k = family.shareKey(id); return k ? { key: k, members: family.members(id) } : null; };
   }
 
   get config() { return this.store.settings.ana || {}; }
@@ -79,6 +108,7 @@ export class Ana {
   /** Quem pode usar a Ana: a lista escolhida pelo administrador; vazia = todos os administradores. */
   allowed(user) {
     if (!user || user.active === false) return false;
+    if (user.role === 'familia') return true; // quem o administrador cadastrou como pessoa da casa
     const list = Array.isArray(this.config.users) ? this.config.users : [];
     return list.length ? list.includes(user.id) : user.role === 'admin';
   }
@@ -274,8 +304,31 @@ export class Ana {
       if (/^(sim|confirmo|confirma|pode|pode sim|isso mesmo|certo)$/.test(yn)) { this.pending.delete(uid); return this.#saveEntry(user, pend.entry); }
       if (/^(nao|cancela|cancelar|deixa|esquece|errei|nao precisa)$/.test(yn)) { this.pending.delete(uid); return `Tudo bem, ${first}, não anotei nada.`; }
     }
+    // Resposta à pergunta "quanto tempo antes quer o aviso?"
+    const ask = this.asks.get(uid);
+    if (ask) {
+      this.asks.delete(uid);
+      if (ask.until > Date.now()) {
+        const yn = fold(t).replace(/[.!\s]+$/g, '');
+        let adv = parseAdvanceDays(t);
+        if (!adv.found && /^(so )?(no )?(mesmo |proprio )?dia$|^no dia mesmo$/.test(yn)) adv = { found: true, days: [0] };
+        if (/^(nao|nao precisa|sem aviso|deixa assim)$/.test(yn)) return `Tudo bem, ${first}. Vou te avisar só no dia, no resumo da manhã.`;
+        if (adv.found) {
+          const done = this.personal.setRemindDays(uid, ask.itemId, adv.days);
+          if (done) return `✅ Combinado, ${first}! Te aviso ${this.#advText(adv.days)} (às 9h) sobre *${done.title}*.`;
+        }
+      }
+    }
+    // "Ana, lembre a Carol de ...": o lembrete vai para a agenda DELA e ela é avisada na hora.
+    const cross = this.family?.crossTarget(uid, t);
+    if (cross) return this.#remindOther(user, cross);
     const it = await this.#interpret(t);
+    it.escopo = scopeOf(t);
+    const advance = parseAdvanceDays(t);
+    if (advance.found) it.avisarDias = advance.days;
     this.audit(`${user.name} usou a Ana (${it.acao})`);
+    // "Contas da casa" / "contas pessoais": lista só do que foi marcado assim.
+    if (/\b(contas?|boletos?|parcelas?)\b/.test(fold(t)) && it.escopo && /\b(abert|pagar|vence|vencem|devo|falta|quais)/.test(fold(t)) && ['consulta', 'resumo', 'agenda', 'chat'].includes(it.acao)) return this.#scopeBills(user, it.escopo);
     switch (it.acao) {
       case 'agendar': return this.#schedule(user, it, t);
       case 'agenda': return this.#agenda(user, it, t);
@@ -310,6 +363,12 @@ export class Ana {
   #help(first) {
     return `${first}, eu sou a Ana e cuido só do que é pessoal seu. Exemplos:
 
+👨‍👩‍👧 *Casal* (se a sua Ana estiver ligada à de quem mora com você)
+• "Ana, lembre a Carol de buscar a encomenda amanhã às 10h": entra na agenda dela e ela é avisada na hora
+• A lista de compras é UMA SÓ dos dois: quando um adiciona ou compra, o outro recebe o aviso
+• "Ana, pagar a conta de luz dia 20, é da casa" e "Ana, quais as contas da casa?" (contas da casa e pessoais ficam separadas)
+• "Ana, me lembre 2 dias antes e no mesmo dia": eu aviso às 9h (se você não disser, eu pergunto nas contas)
+
 📅 *Agenda e lembretes*
 • "Ana, me lembre de ligar para o contador amanhã às 14h"
 • "Ana, agende dentista dia 20/12 às 9h" (pode ser daqui a 1 ou 2 anos)
@@ -339,13 +398,14 @@ Todo dia às ${this.config.briefingTime || '04:30'} eu te mando o resumo do seu 
     return `${when}${far}`;
   }
 
-  async #schedule(user, it, text) {
-    const first = String(user.name || '').split(' ')[0];
+  async #schedule(user, it, text, { speaker = user, by = '' } = {}) {
+    const first = String(speaker.name || '').split(' ')[0];
     let title = it.titulo;
     if (!title) {
       const w = parseWhenPt(text, this.now());
-      title = titleFrom(text, w.spans, { drop: [/\b(me lembre|lembre[- ]?me|lembra(?:r)?(?:[- ]?me)?|agende|agendar|marque|anote|cadastre)\b/gi] });
+      title = titleFrom(text, w.spans, { drop: [/\b(me lembre|lembre[- ]?me|lembra(?:r)?(?:[- ]?me)?|agende|agendar|marque|anote|cadastre)\b/gi, /,?\s*(?:\d+|um|uma|dois|duas|tres|quatro|cinco|sete)(?:\s*(?:,|\be\b|\bou\b)\s*(?:\d+|um|uma|dois|duas|tres|quatro|cinco|sete))*\s+dias?\s+antes/gi, /,?\s*(?:\be\s+)?\b(?:no mesmo dia|no proprio dia|na vespera|so no dia)\b/gi, /,?\s*\b(?:é|e)\s+(?:da casa|de casa|pessoal|pessoais)\b/gi, /\bdia\s*(?=[,.]|$)/gi] }).replace(/\s+,/g, ',').replace(/[,\s]+$/g, '').trim();
     }
+    title = cleanTitle(title);
     if (!title) return `${first}, qual é o assunto? Diga, por exemplo: "Ana, me lembre de ligar para o contador amanhã às 14h".`;
     let date = it.data; const time = it.hora;
     const today = this.personal.today();
@@ -355,11 +415,57 @@ Todo dia às ${this.config.briefingTime || '04:30'} eu te mando o resumo do seu 
     if (date === today && time && time <= `${String(this.now().getHours()).padStart(2, '0')}:${String(this.now().getMinutes()).padStart(2, '0')}`) return `${first}, esse horário (${time}) de hoje já passou. Quer para outro horário ou outro dia?`;
     const kind = it.tipo === 'compromisso' && time ? 'compromisso' : 'lembrete';
     const clash = time ? this.personal.agenda(user.id, date, date).find((x) => x.time === time) : null;
-    const item = this.personal.addItem(user.id, { kind, title: cap(title), date, time, remindMin: it.antecedencia });
+    const bill = BILLISH.test(fold(title)) || BILLISH.test(fold(text));
+    const item = this.personal.addItem(user.id, { kind, title: cap(title), date, time, remindMin: it.antecedencia, by, scope: it.escopo || '', remindDays: it.avisarDias || null });
     this.personal.remember(user.id, 'agenda', { items: [item] });
+    const askLead = bill && !it.avisarDias && date > today;
+    if (askLead) this.asks.set(user.id, { itemId: item.id, until: Date.now() + 30 * 60_000 });
     const warn = !time ? '\n\nComo não tem horário, vou listar no resumo da manhã desse dia.' : item.remindMin > 0 ? `\nTe aviso ${item.remindMin} minutos antes.` : '\nTe aviso na hora.';
     const conflict = clash ? `\n\n⚠️ Atenção: nesse horário você já tem "${clash.title}".` : '';
-    return { text: `✅ Anotado, ${first}!\n📅 *${item.title}*\n${this.#stamp(item)}${warn}${conflict}\n\nSe errei, diga "Ana, desfaz".`, spoken: `Anotado, ${first}! ${item.title}, ${this.#stamp(item).replace(/\d{2}\/\d{2}(\/\d{4})?/, (d) => d.replace('/', ' do '))}.` };
+    const adv = item.remindDays?.length ? `\nTe aviso ${this.#advText(item.remindDays)} (às 9h).` : '';
+    const asking = askLead ? '\n\n❓ Quer que eu avise antes? Diga: *no mesmo dia*, *1 dia antes* ou *2 dias antes* (pode juntar, ex.: "2 dias antes e no mesmo dia").' : '';
+    if (by) return { item, text: `✅ Anotado, ${first}! Vou lembrar ${String(user.name || '').split(' ')[0]}:\n📅 *${item.title}*\n${this.#stamp(item)}${warn}${adv}${conflict}`, spoken: `Anotado, ${first}! Vou lembrar ${String(user.name || '').split(' ')[0]}: ${item.title}.` };
+    return { item, text: `✅ Anotado, ${first}!\n📅 *${item.title}*\n${this.#stamp(item)}${warn}${adv}${conflict}${asking}\n\nSe errei, diga "Ana, desfaz".`, spoken: `Anotado, ${first}! ${item.title}, ${this.#stamp(item).replace(/\d{2}\/\d{2}(\/\d{4})?/, (d) => d.replace('/', ' do '))}.` };
+  }
+
+  /** Avisa a outra pessoa da casa quando a lista compartilhada mudou (só se a lista é dividida). */
+  async #tellPartner(user, text) {
+    const p = this.family?.partnerOf(user.id);
+    if (!p || !this.family.shareKey(user.id)) return;
+    try { await this.notify(p.id, text); } catch { /* o aviso nunca atrapalha o pedido */ }
+  }
+
+  /** [2, 1, 0] → "2 dias antes, 1 dia antes e no mesmo dia". */
+  #advText(days) {
+    const parts = days.map((d) => (d === 0 ? 'no mesmo dia' : d === 1 ? '1 dia antes' : `${d} dias antes`));
+    return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} e ${parts.at(-1)}` : parts[0];
+  }
+
+  /** O lembrete é para a outra pessoa da casa: entra na agenda DELA e ela recebe o aviso na hora. */
+  async #remindOther(user, { partner, rest }) {
+    const first = String(user.name || '').split(' ')[0];
+    const pFirst = String(partner.name || '').split(' ')[0];
+    if (!rest) return `${first}, o que devo lembrar ${pFirst}? Diga, por exemplo: "Ana, lembre ${pFirst} de ligar para o contador amanhã às 14h".`;
+    const it = await this.#interpret(`me lembre de ${rest}`);
+    it.acao = 'agendar';
+    const adv = parseAdvanceDays(rest);
+    if (adv.found) it.avisarDias = adv.days;
+    it.escopo = scopeOf(rest);
+    const r = await this.#schedule(partner, it, rest, { speaker: user, by: user.name });
+    if (typeof r === 'string' || !r.item) return r; // faltou data, assunto etc.: a pergunta volta para quem pediu
+    const text = `📌 ${first} adicionou um lembrete para você:\n📅 *${r.item.title}*\n${this.#stamp(r.item)}${r.item.remindDays?.length ? `\nVou te avisar ${this.#advText(r.item.remindDays)}.` : ''}\n\nSe não for isso, diga "Ana, desfaz".`;
+    const ok = await this.notify(partner.id, text).catch(() => false);
+    return { ...r, text: `${r.text}${ok ? `\n\n📲 Avisei ${pFirst} agora.` : `\n\n(Não consegui avisar ${pFirst} agora; ela vê no resumo da manhã.)`}` };
+  }
+
+  /** Contas a pagar marcadas como "da casa" ou "pessoal". */
+  #scopeBills(user, scope) {
+    const first = String(user.name || '').split(' ')[0];
+    const up = this.personal.upcoming(user.id, 90, scope);
+    const label = scope === 'casa' ? 'da casa' : 'pessoais';
+    if (!up.length) return `${first}, não há contas ${label} em aberto nos próximos 90 dias.`;
+    const total = up.filter((e) => e.currency === 'BRL').reduce((x, e) => x + e.amount, 0);
+    return `💳 *Contas ${label} a pagar, ${first}* (${up.length}${total ? `, somando ${money(total)}` : ''}):\n${up.slice(0, 15).map((e) => `• ${dBr(e.dueDate)} · ${e.description}${e.amount ? ` · ${money(e.amount, e.currency)}` : ''}`).join('\n')}`;
   }
 
   #range(it, text) {
@@ -420,7 +526,7 @@ Todo dia às ${this.config.briefingTime || '04:30'} eu te mando o resumo do seu 
     const kind = it.entrada ? 'entrada' : 'saida';
     const desc = it.descricao || titleFrom(text, [], { drop: [/\b(gastei|paguei|comprei|recebi|entrou|saiu|reais|real|r\$)\b/gi, /\d[\d.,]*/g] }) || (kind === 'entrada' ? 'Entrada' : 'Gasto');
     const w = parseWhenPt(text, this.now());
-    const entry = { kind, amount: it.valor, currency: it.moeda, description: desc, category: it.categoria, date: it.data && it.data <= this.personal.today() ? it.data : (w.date && w.date <= this.personal.today() ? w.date : null) };
+    const entry = { scope: it.escopo || '', kind, amount: it.valor, currency: it.moeda, description: desc, category: it.categoria, date: it.data && it.data <= this.personal.today() ? it.data : (w.date && w.date <= this.personal.today() ? w.date : null) };
     if (it.valor >= (BIG[it.moeda] || Infinity)) {
       this.pending.set(user.id, { entry, until: Date.now() + CONFIRM_MS });
       return `Só para confirmar, ${first}, porque é um valor alto: ${kind === 'entrada' ? 'entrada' : 'gasto'} de ${money(it.valor, it.moeda)} (${desc}). Responda *Ana, sim* para anotar ou *Ana, não* para cancelar.`;
@@ -456,7 +562,7 @@ Todo dia às ${this.config.briefingTime || '04:30'} eu te mando o resumo do seu 
     if (firstDue < today) return `${first}, a data da primeira parcela (${dBr(firstDue)}) já passou. Me diga uma data futura.`;
     let r;
     try {
-      r = this.personal.installments(user.id, { description: cap(it.descricao || 'Compra parcelada'), amount: per, count: it.parcelas, firstDue, currency: it.moeda, category: it.categoria });
+      r = this.personal.installments(user.id, { description: cap(it.descricao || 'Compra parcelada'), amount: per, count: it.parcelas, firstDue, currency: it.moeda, category: it.categoria, scope: it.escopo || '' });
     } catch (e) { return `${first}, não consegui parcelar: ${e.message}`; }
     this.personal.remember(user.id, 'parcelas', { items: r.items, entries: r.entries });
     const month = financeRange('mes', this.now());
@@ -485,6 +591,7 @@ Todo dia às ${this.config.briefingTime || '04:30'} eu te mando o resumo do seu 
     for (const [c, v] of cur) lines.push(`• Entradas ${money(v.entradas, c)} · Saídas ${money(v.saidas, c)} · *Saldo ${money(v.saldo, c)}*`);
     const top = s.spending.slice(0, 4).map((x) => `${x.category} ${money(x.total, x.currency)}`).join('; ');
     if (top) lines.push(`Onde mais saiu: ${top}.`);
+    if (s.byScope?.length) lines.push(`🏠 Saídas por tipo: ${s.byScope.map((x) => `${x.scope === 'casa' ? 'da casa' : 'pessoais'} ${money(x.total, x.currency)}`).join(' · ')}.`);
     if (up.length) lines.push(`\n💳 Nos próximos 30 dias vencem ${up.length} conta(s)/parcela(s)${upTotal ? `, somando ${money(upTotal)}` : ''}. Próxima: ${up[0].description} em ${dBr(up[0].dueDate)}.`);
     const b = this.personal.budgetStatus(user.id, financeRange('mes', this.now()).from, financeRange('mes', this.now()).to);
     const alerts = b.rows.filter((x) => x.pct >= 80).map((x) => `${x.category} ${x.pct}%`);
@@ -596,12 +703,13 @@ Todo dia às ${this.config.briefingTime || '04:30'} eu te mando o resumo do seu 
     const added = []; const dups = []; const outros = [];
     for (const x of items) {
       const store = named || guess[x.nome] || '';
-      const r = this.personal.addShopping(user.id, { text: x.nome, qty: x.qtd, store, targetDate: it.data || null });
+      const r = this.personal.addShopping(user.id, { text: x.nome, qty: x.qtd, store, targetDate: it.data || null, by: user.id });
       (r.duplicate ? dups : added).push(r.item);
       if (r.item.store === 'Outros' && !r.duplicate) outros.push(r.item.text);
       if (it.data && !r.duplicate) this.personal.addItem(user.id, { kind: 'lembrete', title: `Comprar: ${r.item.text}`, date: it.data, time: '', remindMin: 0 });
     }
     this.personal.remember(user.id, 'lista de compras', { shopping: added });
+    await this.#tellPartner(user, `🛒 ${String(user.name || '').split(' ')[0]} adicionou na lista de compras: ${added.map((i) => `${i.text}${i.qty ? ` (${i.qty})` : ''}`).join(', ')}.`);
     const by = {};
     for (const i of added) (by[i.store] ||= []).push(i);
     const lines = [];
@@ -628,7 +736,7 @@ Todo dia às ${this.config.briefingTime || '04:30'} eu te mando o resumo do seu 
     return { text: lines.join('\n'), spoken: `${first}, ${store ? `na lista de ${store.toLowerCase()}` : 'na sua lista'} você tem ${flat.length} ${flat.length === 1 ? 'item' : 'itens'}: ${flat.slice(0, 8).join(', ')}.${flat.length > 8 ? ' Mandei o resto por escrito.' : ''}` };
   }
 
-  #shopBought(user, it, text) {
+  async #shopBought(user, it, text) {
     const first = String(user.name || '').split(' ')[0];
     const store = it.loja || storeFromName(text);
     const all = /\b(tudo|todos|todas)\b/.test(fold(text));
@@ -637,6 +745,7 @@ Todo dia às ${this.config.briefingTime || '04:30'} eu te mando o resumo do seu 
     else for (const x of (parseShoppingItems(it.termo || text).length ? parseShoppingItems(it.termo || text) : [{ nome: it.termo }])) done.push(...this.personal.buy(user.id, x.nome, { store }));
     done = [...new Map(done.map((d) => [d.id, d])).values()];
     if (!done.length) return `${first}, não achei isso na sua lista de compras${it.termo ? ` ("${it.termo}")` : ''}. Se foi um gasto, me diga o valor: "Ana, gastei 50 reais no mercado".`;
+    await this.#tellPartner(user, `✅ ${first} comprou: ${done.map((d) => d.text).join(', ')}. Já saiu da lista.`);
     const left = this.personal.shoppingList(user.id, { store }).flatMap((g) => g.items).length;
     return `✅ Marquei como comprado, ${first}: ${done.map((d) => d.text).join(', ')}.${left ? `\nAinda faltam ${left} item(ns)${store ? ` do ${store.toLowerCase()}` : ''} na lista.` : `\n🎉 ${store ? `Lista de ${store.toLowerCase()} zerada` : 'Lista zerada'}!`}`;
   }
@@ -732,7 +841,8 @@ Todo dia às ${this.config.briefingTime || '04:30'} eu te mando o resumo do seu 
     let sent = 0;
     const today = isoOf(now);
     const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    for (const user of this.auth.users.filter((u) => this.allowed(u) && u.whatsapp)) {
+    const people = [...this.auth.users.filter((u) => this.allowed(u) && u.whatsapp), ...(this.family?.list || []).map((f) => this.family.asUser(f))];
+    for (const user of people) {
       const set = this.personal.settings(user.id);
       const at = validTime(set.briefTime) ? set.briefTime : validTime(this.config.briefingTime) ? this.config.briefingTime : '04:30';
       if (set.lastRenew !== today) { this.personal.renewSeries(user.id); this.personal.setSetting(user.id, 'lastRenew', today); }
@@ -745,6 +855,12 @@ Todo dia às ${this.config.briefingTime || '04:30'} eu te mando o resumo do seu 
         const lead = it.remindMin > 0 ? ` (começa às ${it.time}, daqui a ${it.remindMin} min)` : '';
         const text = `⏰ ${String(user.name || '').split(' ')[0]}, lembrete: *${it.title}*${it.remindMin > 0 ? lead : it.time ? ` (${it.time})` : ''}.`;
         if (await this.notify(user.id, text).catch(() => false)) { this.personal.markNotified(user.id, it.id); sent++; }
+      }
+      // Avisos antecipados (1 dia antes, 2 dias antes, no mesmo dia), às 9h.
+      for (const { item, days } of this.personal.dueAdvance(user.id, now)) {
+        const when = days === 0 ? 'é hoje' : days === 1 ? 'é amanhã' : `é daqui a ${days} dias`;
+        const text = `⏰ ${String(user.name || '').split(' ')[0]}, lembrete: *${item.title}* ${when} (${dBr(item.date)}${item.time ? ` às ${item.time}` : ''})${item.by ? `. Pedido de ${item.by}` : ''}.`;
+        if (await this.notify(user.id, text).catch(() => false)) { this.personal.markAdvance(user.id, item.id, days); sent++; }
       }
     }
     return { sent };

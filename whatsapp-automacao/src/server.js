@@ -36,6 +36,7 @@ import { Cash, METHODS as CASH_METHODS, CURRENCIES as CASH_CURRENCIES, SCOPE_LAB
 import { Nina } from './assistant.js';
 import { Maria, PROFILES as MARIA_PROFILES } from './maria.js';
 import { Ana } from './ana.js';
+import { Family } from './ana-family.js';
 import { Personal } from './personal.js';
 import { planPdfPrice, loadPlanPdf } from './plano-pdf.js';
 import { registerFechamentosRoutes } from './routes/fechamentos.js';
@@ -4864,8 +4865,9 @@ const mariaOutbound = makeOutbound({
 // Ana: assistente pessoal (agenda e financeiro pessoal de cada administrador). Os dados ficam em store.data.personal, por pessoa.
 const personal = new Personal({ store });
 const portfolio = new Portfolio({ store });
+const anaFamily = new Family({ store, auth });
 const ana = new Ana({
-  store, auth, personal, llm,
+  store, auth, personal, llm, family: anaFamily,
   notify: (userId, text) => maria.notifyUser(userId, text),
   audit: (text) => securityEvent('ana_whatsapp', { name: 'Ana' }, null, text),
   log: (l) => store.addLog(l),
@@ -5021,6 +5023,23 @@ app.put('/api/ana', (req, res) => {
   const users = b.users === undefined ? cur.users || [] : (Array.isArray(b.users) ? b.users : []).filter((id) => auth.get(id));
   store.updateSettings({ ana: { enabled: b.enabled === undefined ? cur.enabled !== false : Boolean(b.enabled), users, briefingTime: time, voice: cur.voice || 'Aoede' } });
   securityEvent('ana_ajustes', req.user, req, `Ana ${store.settings.ana.enabled ? 'ligada' : 'desligada'} · resumo às ${time} · ${users.length ? `${users.length} pessoa(s) escolhida(s)` : 'todos os administradores'}`);
+  res.json({ ok: true });
+});
+// Pessoas da casa que usam a Ana pelo mesmo número (ex.: a esposa): sem painel, sem empresa; lista de compras e avisos divididos só com a pessoa ligada.
+app.get('/api/ana/family', (req, res) => {
+  needAdmin(req);
+  res.json({ list: anaFamily.list.map((f) => ({ id: f.id, name: f.name, whatsapp: f.whatsapp, linkedUserId: f.linkedUserId, linkedName: auth.get(f.linkedUserId)?.name || '' })), people: auth.users.filter((u) => u.active !== false && u.role === 'admin').map((u) => ({ id: u.id, name: u.name })) });
+});
+app.post('/api/ana/family', (req, res) => {
+  needAdmin(req);
+  const f = anaFamily.add(req.body || {});
+  securityEvent('ana_casa_adicionada', req.user, req, `${f.name} ligada à Ana de ${auth.get(f.linkedUserId)?.name || ''}`);
+  res.json({ id: f.id });
+});
+app.delete('/api/ana/family/:id', (req, res) => {
+  needAdmin(req);
+  anaFamily.remove(req.params.id);
+  securityEvent('ana_casa_removida', req.user, req, 'Pessoa da casa removida da Ana');
   res.json({ ok: true });
 });
 // Maria (assessora interna no WhatsApp): quem pode o quê. Só administrador.
