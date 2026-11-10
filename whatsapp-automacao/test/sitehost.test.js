@@ -85,3 +85,10 @@ test('mídia do site original: usa o arquivo nosso quando já foi copiado e o en
   assert.match(out, /poster="https:\/\/migrapyassessoria\.com\/assets\/img\/hero-poster\.jpg"/, 'o que não foi copiado segue no endereço antigo');
   assert.match(out, /src="\/site\/m-logo-migra-motors\.jpg"/);
 });
+
+test('as logos das empresas do grupo (img/marcas) aparecem no domínio do site; outras pastas continuam bloqueadas', () => {
+  assert.equal(siteAllows('GET', '/img/marcas/migra-paraguai.webp'), true);
+  assert.equal(siteAllows('GET', '/img/grupo-migra-emblema.png'), true);
+  assert.equal(siteAllows('GET', '/img/outra/pasta/arquivo.png'), false);
+  assert.equal(siteAllows('GET', '/img/marcas/../../data/x'), false);
+});

@@ -13,7 +13,7 @@ export const SITE_ALLOW = [
   /^\/$/,
   /^\/(marcas|migra|motors|school|imoveis|parceiros|indicacao|live|atendimento)(\/.*)?$/,
   /^\/site\/[\w.-]+$/,
-  /^\/img\/[\w.-]+$/,
+  /^\/img\/(marcas\/)?[\w.-]+$/, // inclui as logos das empresas do grupo (img/marcas)
   /^\/brand\/[\w.-]+$/,
   /^\/r\/[\w-]+$/,
   /^\/(robots\.txt|sitemap\.xml|privacidade\.html|favicon\.ico)$/,

@@ -595,3 +595,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Dependência: o vídeo do Marcos, a cena e os depoimentos ainda são carregados de `migrapyassessoria.com/assets` (sistema antigo); se o antigo sair do ar, esses vídeos somem. Baixar para o Migra Hub antes de desligar o antigo.
 - Limite: o endereço www.migraparaguai.com hoje serve outro site (WordPress); esta página só aparece nele depois de o domínio apontar para a VPS (feito pelo dono do domínio, `deploy/trocar-dominio.sh`).
 - Ajuste: o vídeo do Marcos fica **no topo, centralizado, acima do título**, também no computador (antes ficava ao lado). O site que se altera é o `migraparaguay.com` (front-end servido pelo Migra Hub); o painel do Hub não foi mexido.
+
+## Site: logos das empresas do grupo não apareciam (10/11/2026)
+
+- A lista do que o domínio do site pode mostrar (`SITE_ALLOW`, `src/site-host.js`) só aceitava `/img/<arquivo>`; as logos ficam em `/img/marcas/<arquivo>` e davam 404 no site (apareciam só os nomes). Agora `/img/marcas/` também é liberado; outras subpastas e caminhos com `..` continuam bloqueados.
+- Teste: `test/sitehost.test.js`.
