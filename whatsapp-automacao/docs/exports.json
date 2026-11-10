@@ -782,6 +782,10 @@
   "siteHostsFrom",
   "siteOfficeMap"
  ],
+ "src/site-standalone.js": [
+  "buildStandalone",
+  "buildStandaloneFromDisk"
+ ],
  "src/store.js": [
   "Store",
   "deepMerge"
