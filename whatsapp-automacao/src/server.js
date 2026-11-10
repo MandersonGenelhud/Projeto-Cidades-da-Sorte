@@ -1554,7 +1554,7 @@ const SITE_OFFICES = siteOfficeMap();
 const siteContent = () => mergeContent(store.settings.site);
 // Página inicial dos domínios do site: a versão premium (cópia melhorada do site do Marcos) ou, se escolhida em Site, a versão editável clássica.
 const SITE_DIR = path.join(ROOT, 'public', 'site');
-app.use(siteGuard({ hosts: SITE_HOSTS, homeFile: () => path.join(SITE_DIR, store.settings.site?.template === 'classic' ? 'home.html' : 'home-premium.html'), render: (html, origin) => (html.includes('{{HERO_TITLE}}') ? renderHome(html, siteContent(), origin) : renderPremium(html, origin, SITE_DIR)) }));
+app.use(siteGuard({ hosts: SITE_HOSTS, homeFile: () => path.join(SITE_DIR, store.settings.site?.template === 'classic' ? 'home.html' : 'home-grupo.html'), render: (html, origin) => (html.includes('{{HERO_TITLE}}') ? renderHome(html, siteContent(), origin) : renderPremium(html, origin, SITE_DIR)) }));
 app.get('/robots.txt', (req, res) => {
   const site = SITE_HOSTS.has(hostOf(req));
   res.type('text/plain').send(site ? `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: https://${hostOf(req)}/sitemap.xml\n` : 'User-agent: *\nDisallow: /\n');

@@ -601,3 +601,9 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - A lista do que o domínio do site pode mostrar (`SITE_ALLOW`, `src/site-host.js`) só aceitava `/img/<arquivo>`; as logos ficam em `/img/marcas/<arquivo>` e davam 404 no site (apareciam só os nomes). Agora `/img/marcas/` também é liberado; outras subpastas e caminhos com `..` continuam bloqueados.
 - Teste: `test/sitehost.test.js`.
 - Logo oficial "Grupo Migra Paraguay" (arquivo enviado pelo Manderson) no canto superior esquerdo do site, no lugar do texto "Grupo Migra" (`public/img/grupo-migra-paraguay-logo.webp`).
+
+## Site do Grupo Migra com o novo layout (10/11/2026)
+
+- A página inicial agora é `public/site/home-grupo.html` (+ `grupo.css`, `grupo.js`), no desenho do modelo aprovado pelo Manderson: topo com a logo oficial e menu (Grupo Migra, Serviços, Como funciona, Depoimentos, FAQ, botão WhatsApp), hero verde com o **vídeo do Marcos grande** ao lado do título (no celular, em cima), faixa de 3 diferenciais, cena de rolagem, "Nossas soluções" (4 cartões), "Como funciona" (4 passos), **depoimentos em vídeo**, perguntas frequentes, "Ecossistema Grupo Migra" (8 empresas com logo e Instagram), chamada final e botão flutuante do WhatsApp. A versão anterior (`home-premium.html`) continua no repositório.
+- As fotos dos cartões, do "Como funciona" e da bandeira foram **recortadas do próprio modelo** (baixa resolução): trocar por fotos originais em alta quando houver. Sem oferta de curso na página. School aparece só como empresa do grupo ("Escola de idiomas", texto do modelo).
+- Teste: `test/site-host*.test.js` (página, arquivos novos e logos acessíveis no domínio do site).
