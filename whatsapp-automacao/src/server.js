@@ -258,23 +258,36 @@ agent.onQualified = (conv, q) => {
   const cap = { sim: 'TEM condições de fechar', parcial: 'tem condições em parte', nao: 'sem condições agora', desconhecida: 'condições ainda desconhecidas' }[q.capacidade];
   crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Termômetro de venda: ${cap}${q.evidencia ? ` ("${q.evidencia}")` : ''}. Urgência: ${q.urgencia}. Decide: ${q.decisor}.${q.objecoes ? ` Trava: ${q.objecoes}.` : ''}${q.previsao ? ` Previsão de ter o valor: ${q.previsao}.` : ''}${q.oferta ? ` Oferta relâmpago: ${{ interessou: 'interessou', vai_a_vista: 'VAI PAGAR À VISTA (brinde de 12 meses: confira o pagamento da entrada até a data)', vai_parcelado: 'vai fechar com a entrada e etapas (brinde de 12 meses: confira o pagamento da entrada até a data)', nao_a_vista: 'não vai fechar agora' }[q.oferta]}.` : ''}`);
 };
+// Avisos para a EQUIPE (vendedoras, administradores): saem pelo número principal e, se ele estiver fora do ar, por um número da equipe conectado (ex.: a Central).
+// Antes, com o principal desconectado, nenhum aviso de "cliente para você" chegava às vendedoras (e ninguém via o erro).
+const connectedTeamLine = () => lines.list().find((l) => l.status === 'connected');
+const teamCanSend = () => wa.status === 'connected' || Boolean(connectedTeamLine());
+const teamSend = async (phone, payload) => {
+  if (wa.status === 'connected') return wa.send(phone, payload);
+  const l = connectedTeamLine();
+  if (!l) throw new Error('Nenhum WhatsApp conectado para avisar a equipe');
+  return wa.send(lineKey(l.id, `${String(phone).replace(/\D/g, '')}@s.whatsapp.net`), payload);
+};
 // Peneira feita: a IA passa o cliente para o vendedor da vez (rodízio).
 const router = new LeadRouter({
   store,
   crm,
-  sendWhatsApp: (phone, text) => wa.send(phone, { text, typing: false }),
-  canSendWhatsApp: () => wa.status === 'connected',
+  sendWhatsApp: (phone, text) => teamSend(phone, { text, typing: false }),
+  canSendWhatsApp: () => teamCanSend(),
 });
-// Vendedores que a Central direciona (crm.centralSellers, ex.: Geovana e Fran): só vale para conversas do número da Central.
+// Quem a Central direciona: as VENDEDORAS (quem recebe clientes e tem WhatsApp), em rodízio; nunca a própria Central nem o Marcos.
+// crm.centralSellers (opcional) restringe a alguns nomes; vazio = todas as vendedoras do rodízio.
 const normNome = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 const centralSellerNames = () => (store.settings.crm?.centralSellers || []).map((n) => String(n || '').trim()).filter(Boolean);
 const centralSellerMatch = (u, names = centralSellerNames()) => { const un = normNome(u.name); return names.some((n) => { const x = normNome(n); return un === x || un.startsWith(`${x} `); }); };
+const isCentralUser = (u) => /^central\b/i.test(String(u?.name || '')) || lines.list().some((l) => l.central === true && l.ownerId === u?.id);
+const isSellerForCentral = (u) => u.active !== false && !u.pending && u.whatsapp && !isCentralUser(u) && !isOwner(u, store.settings.crm?.ownerPhone) && (u.receivesLeads ?? u.role === 'seller') && (!u.sectors?.length || u.sectors.includes('documentacao'));
 const centralPoolFor = (conv) => {
-  const names = centralSellerNames();
   const parsed = parseLineKey(conv?.key);
   const line = parsed ? lines.get(parsed.id) : null;
-  if (!names.length || !line || !isCentralLine(line, line.ownerId ? auth.get(line.ownerId) : null)) return null;
-  return (u) => centralSellerMatch(u, names);
+  if (!line || !isCentralLine(line, line.ownerId ? auth.get(line.ownerId) : null)) return null;
+  const names = centralSellerNames();
+  return (u) => isSellerForCentral(u) && (!names.length || centralSellerMatch(u, names));
 };
 agent.routeLead = (conv, args, opts) => router.route(conv, args, { ...opts, pool: centralPoolFor(conv) });
 agent.agentNameFor = (conv) => lines.get(parseLineKey(conv.key)?.id)?.agentName || '';
@@ -284,8 +297,8 @@ const sectors = new Sectors({
   store,
   crm,
   auth,
-  send: (phone, text) => wa.send(phone, { text, typing: false }),
-  canSend: () => wa.status === 'connected',
+  send: (phone, text) => teamSend(phone, { text, typing: false }),
+  canSend: () => teamCanSend(),
   notifyAdmins: (text) => notifyAdmins(text),
 });
 agent.routeSector = (conv, args, opts) => sectors.route(conv, args, opts);
@@ -477,11 +490,11 @@ crm.onWon = async (lead) => {
 
 // Avisos para o dono (administradores com WhatsApp + número extra dos pagamentos).
 async function notifyAdmins(text) {
-  if (wa.status !== 'connected') return;
+  if (!teamCanSend()) return;
   const phones = new Set(auth.users.filter((u) => u.role === 'admin' && u.active !== false && u.whatsapp).map((u) => u.whatsapp));
   const extra = normalizePhone(store.settings.payments?.notifyPhone);
   if (extra) phones.add(extra);
-  for (const phone of phones) await wa.send(phone, { text, typing: false }).catch(() => {});
+  for (const phone of phones) await teamSend(phone, { text, typing: false }).catch(() => {});
 }
 // Na VPS o endereço fixo (PUBLIC_URL) sempre vale: os dados vindos do computador carregam o endereço provisório antigo.
 if (process.env.PUBLIC_URL) store.updateSettings({ crm: { panelUrl: String(process.env.PUBLIC_URL).replace(/\/+$/, '') } });
@@ -841,13 +854,13 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
   }
   if (quote) quote.forwardedAt = new Date().toISOString();
   const send = async (to) => {
-    await wa.send(to, { text, typing: false });
-    if (quote && fs.existsSync(quotes.file(quote))) await wa.send(to, { text: '', media: { path: quotes.file(quote), mimetype: 'application/pdf', fileName: `${quote.number}.pdf` }, typing: false });
+    await teamSend(to, { text, typing: false });
+    if (quote && fs.existsSync(quotes.file(quote))) await teamSend(to, { text: '', media: { path: quotes.file(quote), mimetype: 'application/pdf', fileName: `${quote.number}.pdf` }, typing: false });
   };
-  if (wa.status === 'connected') {
-    if (closer?.whatsapp) await send(closer.whatsapp).catch(() => {});
+  if (teamCanSend()) {
+    if (closer?.whatsapp) await send(closer.whatsapp).catch((e) => store.addLog({ type: 'error', message: `Aviso ao vendedor ${closer.name}: ${e.message}` }));
     else for (const u of auth.users.filter((x) => x.role === 'admin' && x.active !== false && x.whatsapp)) await send(u.whatsapp).catch(() => {});
-  }
+  } else store.addLog({ type: 'error', message: `Nenhum WhatsApp conectado para avisar ${closer?.name || 'a equipe'} sobre ${who}` });
   notify('crm', { id: lead?.id });
   return { closer, quote };
 }
@@ -2338,6 +2351,8 @@ function healthReport() {
   const off = lineList.filter((l) => l.status !== 'connected');
   if (off.length) add('warn', `${off.length} WhatsApp(s) de vendedor sem conexão: ${off.map((l) => l.label).join(', ')}.`);
   const csNames = centralSellerNames();
+  const vend = auth.users.filter(isSellerForCentral);
+  add(vend.length ? 'ok' : 'bad', vend.length ? `A Central direciona os clientes em rodízio para as vendedoras: ${vend.map((u) => u.name.split(' ')[0]).join(', ')}.` : 'A Central não tem vendedora para quem direcionar (cadastre vendedoras ativas, com WhatsApp e "recebe clientes" ligado, na aba Equipe).');
   if (csNames.length) {
     const miss = csNames.filter((n) => !auth.users.some((u) => u.active !== false && !u.pending && u.whatsapp && centralSellerMatch(u, [n])));
     if (miss.length) add('warn', `A Central direciona os clientes para: ${csNames.join(', ')}. Não encontrei na Equipe (ativo e com WhatsApp): ${miss.join(', ')}. Confira o nome em Prospectos → Regras → "Vendedores que a Central direciona".`);

@@ -45,3 +45,12 @@ test('orientação da Central: cliente objetivo fecha; os demais vão para os ve
   assert.match(t, /acima de qualquer outra orientação/);
   assert.match(t, /DIRECIONE/);
 });
+
+test('a Central direciona por papel: só vendedoras do rodízio; nunca a própria Central nem o dono', () => {
+  const { auth, crm } = setup();
+  const central = auth.get(auth.create({ name: 'Central Atendimento', login: 'central', password: 'segredo123', role: 'seller', whatsapp: '595984453784' }).id);
+  const rot = crm.rotation().map((u) => u.name);
+  assert.ok(!rot.includes('Central Atendimento'), 'a Central não entra no rodízio como se fosse vendedora');
+  assert.ok(rot.includes('GEOVANA') && rot.includes('Fran'));
+  void central;
+});

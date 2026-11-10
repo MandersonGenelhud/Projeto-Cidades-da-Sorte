@@ -335,7 +335,7 @@ export class Crm {
   /** Quem está no rodízio: ativo, com WhatsApp e com "recebe clientes" ligado. */
   rotation(office = null) {
     // Quem foi marcado só para terrenos ou veículos não recebe o rodízio da migração. Cada escritório roda só com a própria equipe.
-    return this.auth.users.filter((u) => (!office || officeOfUser(u) === office) && u.active !== false && u.whatsapp && (u.receivesLeads ?? u.role === 'seller') && (!u.sectors?.length || u.sectors.includes('documentacao')));
+    return this.auth.users.filter((u) => (!office || officeOfUser(u) === office) && u.active !== false && u.whatsapp && !/^central\b/i.test(String(u.name || '')) && (u.receivesLeads ?? u.role === 'seller') && (!u.sectors?.length || u.sectors.includes('documentacao')));
   }
 
   /** Próximo da vez: quem recebeu cliente há mais tempo (ou nunca recebeu). */

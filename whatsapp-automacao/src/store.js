@@ -112,7 +112,7 @@ const DEFAULT_DATA = {
       // Se o dono responder um cliente pelo celular, o agente para de responder aquele cliente.
       pauseOnOwnerReply: true,
       // Pausa por "respondi pelo celular" termina sozinha depois de tantas horas sem o dono falar de novo (0 = nunca).
-      resumeAfterOwnerHours: 0, // regra da direção: depois que uma pessoa falou com o cliente, a IA NÃO volta sozinha (0). Só o administrador retoma. (Antes: 6 h, depois 2 h.)
+      resumeAfterOwnerHours: 2, // quando o CLIENTE volta a escrever e o dono ficou calado por este tempo, a IA responde (0 = nunca). A IA nunca toma a INICIATIVA depois que uma pessoa falou (outreach-guard).
       // Ritmo humano: espera para "ver", ler e digitar; divide a resposta em mensagens curtas.
       humanize: { enabled: true, noticeMin: 5, noticeMax: 20 },
       // Conversas sem resposta: considera mensagens dos últimos N dias e responde sozinho.
@@ -401,14 +401,22 @@ export class Store extends EventEmitter {
     if (!this.data.central2026) {
       const crmC = this.data.settings.crm;
       if (crmC && (this.data.users || []).length && !crmC.centralWhatsapp) crmC.centralWhatsapp = '595984453784';
-      if (crmC && (this.data.users || []).length && !(crmC.centralSellers || []).length) crmC.centralSellers = ['Geovana', 'Fran'];
-      this.data.central2026 = true;
+            this.data.central2026 = true;
+      this.flush();
+    }
+    // Ajuste (10/11/2026): a Central direciona para as VENDEDORAS (por papel, não por nome) e a IA volta a responder o cliente que escreve depois de horas sem o dono falar.
+    if (!this.data.centralFix2026) {
+      const crmF = this.data.settings.crm; const agF = this.data.settings.agent;
+      if (crmF && JSON.stringify(crmF.centralSellers || []) === JSON.stringify(['Geovana', 'Fran'])) crmF.centralSellers = [];
+      if (agF && Number(agF.resumeAfterOwnerHours) === 0) agF.resumeAfterOwnerHours = 2;
+      for (const u of this.data.users || []) if (/^central\b/i.test(String(u.name || ''))) u.receivesLeads = false;
+      this.data.centralFix2026 = true;
       this.flush();
     }
     // Regra da direção (10/11/2026): depois que uma pessoa falou com o cliente, a IA não volta sozinha. Uma vez, tira o prazo de retomada automática.
     if (!this.data.humanRule2026) {
       const agH = this.data.settings.agent;
-      if (agH && Number(agH.resumeAfterOwnerHours) > 0) agH.resumeAfterOwnerHours = 0;
+      void agH; // (a retomada do cliente que volta a escrever foi mantida; ver centralFix2026)
       this.data.humanRule2026 = true;
       this.flush();
     }

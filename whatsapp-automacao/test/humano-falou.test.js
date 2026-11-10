@@ -31,7 +31,7 @@ test('a conversa que o humano começou (mesmo antiga e sem resposta do cliente) 
   assert.equal(r.length, 0);
 });
 
-test('o celular do dono falando (inclusive áudio sem texto) marca a conversa para sempre e a IA não volta sozinha', async () => {
+test('o celular do dono falando (inclusive áudio sem texto) marca a conversa: a IA nunca mais toma a iniciativa, mas responde o cliente que volta a escrever', async () => {
   const store = tempStore();
   store.updateSettings({ agent: { enabled: true, audience: 'all' } });
   const llm = { configured: true, chat: async () => ({ content: 'Olá!', tool_calls: [] }) };
@@ -42,11 +42,13 @@ test('o celular do dono falando (inclusive áudio sem texto) marca a conversa pa
   assert.ok(conv.humanSpokeAt > 0);
   assert.equal(humanSpoke(conv), true);
   assert.equal(outreachBlock({ conv, item: { kind: 'encerramento' }, now: Date.now() }), 'humano');
-  // dias depois o cliente escreve: a IA continua quieta (sem retomada automática depois de X horas)
+  // dias depois o CLIENTE volta a escrever: é resposta a ele (não iniciativa nossa), então a IA volta a atender
   conv.ownerRepliedAt = Date.now() - 5 * 24 * 3_600_000;
   const sent = [];
   await agent.handleIncoming({ key: 'jess', phone: '595981000111', text: 'oi, voltei' }, async (t) => sent.push(t));
-  assert.deepEqual(sent, [], 'a atendente não responde sozinha depois que o humano falou; só o administrador retoma');
+  assert.equal(sent.length, 1, 'cliente que escreve depois de dias sem o dono falar é respondido');
+  // mas por iniciativa nossa (lembrete, encerramento...) nunca mais
+  assert.equal(outreachBlock({ conv, item: { kind: 'nudge' }, now: Date.now() }), 'humano');
 });
 
 test('envio já na fila é cancelado se uma pessoa falou com o cliente antes de a IA enviar', async () => {

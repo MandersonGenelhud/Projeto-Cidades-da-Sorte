@@ -606,7 +606,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       }
       // A pausa de "respondi pelo celular" termina sozinha se o dono ficou calado por horas e o cliente voltou a escrever.
       if (conv.handoff && conv.handoffReason === OWNER_PAUSE) {
-        const hours = Number(this.config.resumeAfterOwnerHours ?? 0); // 0 = nunca volta sozinha (regra da direção); só o administrador retoma
+        const hours = Number(this.config.resumeAfterOwnerHours ?? 2); // o cliente que volta a escrever depois de horas sem o dono falar volta a ser atendido (0 = nunca); a IA nunca toma a iniciativa depois que uma pessoa falou
         if (hours > 0 && Date.now() - (conv.ownerRepliedAt || 0) > hours * 3_600_000) {
           conv.handoff = false;
           conv.handoffReason = '';
