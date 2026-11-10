@@ -435,7 +435,8 @@ body { background-color: var(--bg); }
 
 /* Grupo Migra: logo no topo e vídeo de boas-vindas do Marcos como primeira coisa da página */
 .nav-brand { display: inline-flex; align-items: center; gap: 10px; }
-.nav-logo { width: 40px; height: 40px; object-fit: contain; display: block; }
+.nav-logo { height: 62px; width: auto; max-width: 190px; object-fit: contain; display: block; mix-blend-mode: screen; }
+@media (max-width: 720px) { .nav-logo { height: 42px; max-width: 130px; } }
 .nav-brand-name { color: var(--ink); }
 .nav-brand-name span { color: var(--gold); }
 .hero-videofirst .hero-grid { grid-template-columns: 1fr; gap: 28px; justify-items: center; align-items: start; }

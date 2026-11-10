@@ -600,3 +600,4 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 - A lista do que o domínio do site pode mostrar (`SITE_ALLOW`, `src/site-host.js`) só aceitava `/img/<arquivo>`; as logos ficam em `/img/marcas/<arquivo>` e davam 404 no site (apareciam só os nomes). Agora `/img/marcas/` também é liberado; outras subpastas e caminhos com `..` continuam bloqueados.
 - Teste: `test/sitehost.test.js`.
+- Logo oficial "Grupo Migra Paraguay" (arquivo enviado pelo Manderson) no canto superior esquerdo do site, no lugar do texto "Grupo Migra" (`public/img/grupo-migra-paraguay-logo.webp`).
