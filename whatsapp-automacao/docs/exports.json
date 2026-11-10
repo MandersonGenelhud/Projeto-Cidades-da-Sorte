@@ -26,6 +26,9 @@
   "toDateStr",
   "toTimeStr"
  ],
+ "src/agent/central.js": [
+  "centralNote"
+ ],
  "src/agent/claude.js": [
   "CLAUDE_MODELS",
   "ClaudeChat",
@@ -408,6 +411,7 @@
   "LineManager",
   "MAX_LINES",
   "cleanAgentName",
+  "isCentralLine",
   "lineKey",
   "matchSeller",
   "parseLineKey"

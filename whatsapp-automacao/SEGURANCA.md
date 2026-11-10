@@ -570,3 +570,11 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Agora: mensagem de número de usuário ativo da Equipe (não pendente) para o número central é ignorada pela atendente e não cria prospecto (`isTeamPhone`, `src/sectors.js`). Nina, Maria, comprovantes e as linhas dos vendedores continuam como antes (tratados antes). Para testar a atendente com o próprio celular: aba Testar, ou `settings.agent.answerTeam = true`.
 - Limite: depende de o WhatsApp do usuário estar cadastrado na Equipe; número da equipe não cadastrado continua sendo tratado como cliente.
 - Teste: `test/log-quedas.test.js`.
+
+## Central de Atendimento: aviso ao Marcos no fechamento e orientação própria (10/11/2026)
+
+- **Aviso ao Marcos**: quando a atendente (Central ou qualquer número) envia o contrato ao cliente, os administradores recebem no WhatsApp "Fechamento pela atendente: contrato enviado", com número atendido, cliente, contrato, total, entrada e link da conversa. **Uma vez por contrato** (reenviar o link não repete; a marca fica no orçamento). Falha ao avisar nunca derruba o envio do contrato.
+- **Orientação da Central** (`src/agent/central.js`): número cujo nome começa com "Central" (ou marcado `central`) recebe o papel de porta de entrada: primeiro atendimento, apresentação, dúvidas, fechamento direto de quem é objetivo, e direcionamento ao vendedor do setor (rodízio). Antes, esse número seria tratado como "assistente de um vendedor" ("Central Atendimento"), que não encaminha. A "Memória deste agente" do número é somada à orientação. A base do negócio e a memória de vendas são as mesmas de todos os números.
+- **Equipe no número da Central**: mensagem de número de usuário ativo da Equipe para qualquer número do sistema (inclusive as linhas) não é respondida como cliente nem vira prospecto.
+- Limite: o aviso vale para contratos enviados pela atendente ou pelos atalhos; contrato gerado à mão no painel não avisa (o Marcos já está olhando).
+- Testes: `test/autocontract.test.js`.

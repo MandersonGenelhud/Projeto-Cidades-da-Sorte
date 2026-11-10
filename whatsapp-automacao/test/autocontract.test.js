@@ -4,7 +4,7 @@ import { makeContractFlow, contractReady } from '../src/autocontract.js';
 
 const DATA = { nome: 'Luiza Fernandes da Silva', cpf: '529.982.247-25', nacionalidade: 'Brasileira', estadoCivil: 'Casado(a)', rua: 'Rua A', numero: '10', cidade: 'Cascavel', uf: 'PR', rg: '123', adultos: '2' };
 
-function setup({ quote = true, form = null, base = 'https://migra.exemplo.com' } = {}) {
+function setup({ quote = true, form = null, base = 'https://migra.exemplo.com', extra = {} } = {}) {
   const sent = [];
   const notes = [];
   const audits = [];
@@ -39,6 +39,7 @@ function setup({ quote = true, form = null, base = 'https://migra.exemplo.com' }
     makeQuote: async ({ items, convKey }) => { const q = { id: 'q2', number: 'ORC-2026-09768', convKey, leadId: 'L1', items: items.map((i) => ({ name: i.pacote, qty: i.quantidade })), plan: { adults: 1 } }; quotes.push(q); return q; },
     say: async (key, text) => sent.push({ key, text }),
     audit: (t) => audits.push(t),
+    ...extra,
   };
   const conv = { key: '5545988887777', phone: '5545988887777', name: 'Luiza' };
   return { flow: makeContractFlow(deps), conv, sent, notes, audits, lead, forms, quotes };
@@ -102,4 +103,43 @@ test('contrato só com dados completos (nome, CPF, nacionalidade, estado civil e
   assert.equal(contractReady({ ...DATA, cpf: '' }), false);
   assert.equal(contractReady({ nome: 'Luiza' }), false);
   assert.equal(contractReady(null), false);
+});
+
+import { isCentralLine } from '../src/lines.js';
+import { centralNote } from '../src/agent/central.js';
+
+test('fechamento pela central: o Marcos é avisado quando o contrato vai ao cliente, uma vez só', async () => {
+  const avisos = [];
+  const key = 'l:central1:5545988887777';
+  const { flow, conv } = setup({
+    form: { id: 'f0', convKey: key, status: 'preenchida', data: DATA },
+    extra: { notifyAdmins: async (t) => avisos.push(t), parseLineKey: (k) => (String(k).startsWith('l:') ? { id: 'central1', jid: '5545988887777' } : null), lines: { get: () => ({ label: 'Central Atendimento', agentName: 'Luana' }) } },
+  });
+  const c = { ...conv, key };
+  const q = await flow.sendContract(c, {});
+  assert.equal(q.enviado, true);
+  assert.equal(avisos.length, 1);
+  assert.match(avisos[0], /Fechamento pela atendente/);
+  assert.match(avisos[0], /Luana · Central Atendimento/);
+  assert.match(avisos[0], /CT-2026-09767/);
+  // reenviar o link não repete o aviso
+  await flow.sendContract(c, {});
+  assert.equal(avisos.length, 1);
+});
+
+test('falha ao avisar o Marcos não derruba o envio do contrato', async () => {
+  const { flow, conv } = setup({ form: { id: 'f0', convKey: '5545988887777', status: 'preenchida', data: DATA }, extra: { notifyAdmins: async () => { throw new Error('WhatsApp fora do ar'); } } });
+  const r = await flow.sendContract(conv, {});
+  assert.equal(r.enviado, true);
+});
+
+test('central: reconhece pelo nome ou pela marca e a orientação traz o papel, o fechamento direto e a memória do número', () => {
+  assert.equal(isCentralLine({ label: 'Central Atendimento' }), true);
+  assert.equal(isCentralLine({ label: 'Eliezer', central: true }), true);
+  assert.equal(isCentralLine({ label: 'Eliezer' }, { name: 'Eliezer Silvestre' }), false);
+  const t = centralNote({ agentName: 'Luana', memory: 'Priorize quem quer residência.' });
+  assert.match(t, /CENTRAL DE ATENDIMENTO/);
+  assert.match(t, /Luana/);
+  assert.match(t, /Marcos é avisado automaticamente/);
+  assert.match(t, /Priorize quem quer residência/);
 });

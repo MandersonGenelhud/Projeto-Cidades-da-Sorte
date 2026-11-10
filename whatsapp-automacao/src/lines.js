@@ -18,6 +18,8 @@ export function cleanAgentName(v) {
   if (/^nina\b/i.test(name)) throw Object.assign(new Error('"Nina" é o nome da secretária financeira do Marcos. Escolha outro nome.'), { status: 400 });
   return name;
 }
+/** Número da Central de Atendimento (porta de entrada que direciona aos vendedores): marcado como central ou com "Central" no nome. */
+export const isCentralLine = (line, owner = null) => Boolean(line) && (line.central === true || /^central\b/i.test(String(line.label || '')) || /^central\b/i.test(String(owner?.name || '')));
 export const lineKey = (id, jid) => `${LINE_PREFIX}${id}:${jid}`;
 
 /** "l:abc:5511...@s.whatsapp.net" → { id: 'abc', jid: '5511...@s.whatsapp.net' } */
@@ -96,6 +98,7 @@ export class LineManager extends EventEmitter {
     if (patch.label !== undefined) next.label = String(patch.label).trim() || line.label;
     if (patch.ownerId !== undefined) next.ownerId = patch.ownerId || null;
     if (patch.agent !== undefined) next.agent = Boolean(patch.agent);
+    if (patch.central !== undefined) next.central = Boolean(patch.central);
     if (patch.office !== undefined) next.office = patch.office === 'pr' ? 'pr' : 'py';
     if (patch.agentName !== undefined) next.agentName = cleanAgentName(patch.agentName);
     // Voz da atendente deste WhatsApp (mensagem de voz do orçamento): EM ESPERA por padrão; o administrador liga em cada perfil e escolhe a voz.

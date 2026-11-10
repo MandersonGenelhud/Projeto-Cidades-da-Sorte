@@ -13,7 +13,31 @@ const ct = (q) => `CT-${q.number.replace(/^ORC-/, '')}`;
  * say(convKey, texto), audit(texto).
  */
 export function makeContractFlow(deps) {
-  const { store, crm, closing, auth, lines, parseLineKey, samePhone, pickClient, publicBase, quotes, prepare, makeQuote, say, audit = () => {}, afterSend = null } = deps;
+  const { store, crm, closing, auth, lines, parseLineKey, samePhone, pickClient, publicBase, quotes, prepare, makeQuote, say, audit = () => {}, afterSend = null, notifyAdmins = null } = deps;
+
+  /**
+   * Fechamento feito pela atendente (Central de Atendimento ou qualquer número): assim que o contrato vai para o cliente, o Marcos é avisado
+   * no WhatsApp, uma vez por contrato (reenviar o link não repete o aviso).
+   */
+  async function informAdmins({ convKey, lead, quote, client }) {
+    if (!notifyAdmins || quote.adminNoticeAt) return;
+    quote.adminNoticeAt = new Date().toISOString(); // no orçamento (e não no contrato): refazer o contrato não apaga a marca
+    const parsed = parseLineKey(convKey);
+    const line = parsed ? lines.get(parsed.id) : null;
+    const via = line ? `${line.agentName ? `${line.agentName} · ` : ''}${line.label || 'número da equipe'}` : 'número principal';
+    const owner = lead?.ownerId ? auth.get(lead.ownerId) : null;
+    const brl = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    const text = [
+      '*Fechamento pela atendente: contrato enviado ao cliente*',
+      `Atendido por: ${via}${owner ? ` · vendedor do cliente: ${owner.name}` : ''}`,
+      `${client.nome}${client.cpf ? ` · CPF ${client.cpf}` : ''}`,
+      `${ct(quote)} · ${(quote.items || []).map((i) => `${i.name} x ${i.qty}`).join(', ') || 'serviços do orçamento'} · total ${brl(quote.plan?.total)}${quote.plan?.entry ? ` · entrada ${brl(quote.plan.entry)}` : ''}`,
+      conv_phone(lead, convKey) ? `Conversa: https://wa.me/${conv_phone(lead, convKey)}` : '',
+      'Próximo passo: o cliente assina pelo celular e o Pix da entrada vai em seguida.',
+    ].filter(Boolean).join('\n');
+    try { await notifyAdmins(text); } catch { /* o aviso não pode derrubar o envio do contrato */ }
+  }
+  const conv_phone = (lead, convKey) => String(lead?.phone || (/^\d{8,15}$/.test(String(convKey)) ? convKey : '') || '').replace(/\D/g, '');
 
   /** Gera o contrato com os dados do cliente e manda o link de assinatura no WhatsApp dele. */
   async function sendContractTo({ convKey, lead, quote, client }) {
@@ -28,6 +52,7 @@ export function makeContractFlow(deps) {
     }
     for (const f of closing.list.filter((x) => x.convKey === convKey)) f.contractRequested = false;
     audit(`${ct(quote)} · ${client.nome}`);
+    await informAdmins({ convKey, lead, quote, client });
     store.save();
     return r;
   }

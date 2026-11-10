@@ -94,7 +94,7 @@ import { Motors } from './motors.js';
 import { School } from './school.js';
 import { Proposals, simulate as finSimulate, options as finOptions, schedule as finSchedule, isConfigured as finConfigured } from './finance.js';
 import { Affiliates } from './affiliates.js';
-import { LineManager, lineKey, matchSeller, parseLineKey } from './lines.js';
+import { LineManager, lineKey, matchSeller, parseLineKey, isCentralLine } from './lines.js';
 import { Closing, DEFAULT_TERM } from './closing.js';
 import { humanizeConfig, splitIntoBubbles } from './humanize.js';
 import { Visits, DEFAULT_BRING } from './visits.js';
@@ -115,6 +115,7 @@ import { AffiliateExtras } from './affiliate-extras.js';
 import { reportCsv, auditCsv, REPORTS } from './reports-csv.js';
 import { buildScreenMap, compareMap } from './legacy-map.js';
 import { Sectors, resolvePeople, isOwner, isTeamPhone } from './sectors.js';
+import { centralNote } from './agent/central.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
 import { Backups } from './backup.js';
 import { AutoFollowUps } from './followups.js';
@@ -1144,6 +1145,7 @@ agent.channelNote = (conv) => {
   const parsed = parseLineKey(conv.key);
   const line = parsed ? lines.get(parsed.id) : null;
   const owner = line?.ownerId ? auth.get(line.ownerId) : null;
+  if (line && isCentralLine(line, owner)) return centralNote(line);
   if (!owner) return '';
   const first = owner.name.split(' ')[0];
   const memory = line?.memory ? `\n\n# Memória deste agente (orientações de ${first}, valem para os clientes deste número)\n${line.memory}` : '';
@@ -1390,7 +1392,7 @@ wa.on('message', (msg) => {
 function routeIncoming(msg) {
   // Equipe (Marcos e vendedores) falando com o número central pelo celular pessoal: não é cliente. A atendente não responde e não vira prospecto.
   // (Para testar a atendente use a aba Testar; ou ligue "Responder também a equipe" em Agente IA, settings.agent.answerTeam.)
-  if (!msg.isGroup && !msg.line && msg.phone && store.settings.agent?.answerTeam !== true && isTeamPhone(auth.users, msg.phone)) { notify('message', msg); return; }
+  if (!msg.isGroup && msg.phone && store.settings.agent?.answerTeam !== true && isTeamPhone(auth.users, msg.phone)) { notify('message', msg); return; }
   pending.onIncoming(msg);
   if (!msg.isGroup) {
     try {
@@ -4447,6 +4449,7 @@ const contractFlow = makeContractFlow({
   quotes: () => quotes.list,
   prepare: (q, client) => prepareContractSign(q, client, { name: 'IA' }),
   afterSend: (q, client) => sendContractPix(q, { client, by: 'IA', phase: 'envio' }),
+  notifyAdmins: (t) => notifyAdmins(t),
   makeQuote: (args) => sendQuote(args),
   say: async (convKey, text) => {
     await wa.send(convKey, { text, typing: false });
