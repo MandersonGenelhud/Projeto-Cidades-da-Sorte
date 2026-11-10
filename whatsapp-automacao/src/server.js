@@ -5296,6 +5296,15 @@ app.delete('/api/app-signups/:app/key', (req, res) => {
   res.json({ ok: true });
 });
 
+// Data de corte: daqui para a frente é o sistema novo; daqui para trás é o antigo copiado (vazio = automática, pela primeira venda do sistema novo).
+app.put('/api/sales/cutoff', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
+  const d = String(req.body?.date || '').slice(0, 10);
+  if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) throw httpError(400, 'Data inválida (use dd/mm/aaaa)');
+  store.updateSettings({ sales: { novoSistemaDesde: d } });
+  securityEvent('venda_corte', req.user, req, d ? `Sistema novo desde ${d}` : 'Corte automático');
+  res.json(sales.cutoff());
+});
 app.put('/api/sales/settings', (req, res) => {
   if (req.user.role !== 'admin') throw httpError(403, 'Só o administrador');
   const pct = Number(req.body?.commissionPct);

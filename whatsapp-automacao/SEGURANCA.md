@@ -550,3 +550,10 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Agora: contrato antigo sem data recebe `dateUnknown` e fica fora de "vendido/vendas do período" (painel executivo e Vendas e contratos). O botão **Limpar falsos contratos** também marca os já importados e remove as vendas lançadas a partir de leads/clientes que não sejam contratos (só as sem nenhuma baixa feita aqui e sem contrato verdadeiro de mesmo número).
 - Limite: "recebido no mês" e "a receber total" só fecham depois da cópia nova, com os recebimentos e parcelas reais do sistema antigo.
 - Teste: `test/legacy-noise.test.js`.
+
+## Sistema novo × antigo: data de corte, etiqueta e filtro (10/11/2026)
+
+- Cada venda mostra a origem: **Antigo** (copiada do sistema antigo) ou **Novo** (nasceu no Migra Hub). Em Vendas e contratos há o filtro "Novo + antigo / Só novo / Só antigo", a etiqueta em cada linha e uma faixa com a data de corte ("daqui para a frente é o sistema novo, daqui para trás é o antigo") e os totais de cada lado.
+- A data de corte é automática (primeira venda que nasceu no sistema novo) ou definida pelo administrador (`PUT /api/sales/cutoff`, registrada no registro de segurança). Só administrador altera.
+- Limite: a origem vem do carimbo `legacy` da importação; vendas antigas anteriores à importação sem o carimbo contam como novas.
+- Teste: `test/painel-conferencia.test.js`.

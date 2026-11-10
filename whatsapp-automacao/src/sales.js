@@ -258,6 +258,7 @@ export class Sales {
     const next = pending[0] || null;
     return {
       ...sale,
+      origem: this.originOf(sale),
       received,
       open: cents(sale.total - received),
       overdue: sale.status === 'cancelada' ? 0 : cents(pending.filter((p) => p.due && p.due < t).reduce((s, p) => s + p.value, 0)),
@@ -266,12 +267,13 @@ export class Sales {
   }
 
   /** Lista visível para o usuário (vendedor: só as dele), com filtros de período e vendedor. */
-  listFor(user, { from = '', to = '', seller = '', q = '', status = '' } = {}) {
+  listFor(user, { from = '', to = '', seller = '', q = '', status = '', origem = '' } = {}) {
     const inRange = (iso) => (!from || iso.slice(0, 10) >= from) && (!to || iso.slice(0, 10) <= to);
     const term = String(q).toLowerCase().trim();
     return this.list
       .filter((s) => this.canSee(user, s))
       .filter((s) => !seller || s.sellerId === seller)
+      .filter((s) => !origem || this.originOf(s) === origem)
       .filter((s) => !status || s.status === status || (status === 'atrasada' && this.view(s).overdue > 0))
       .filter((s) => inRange(s.createdAt))
       .filter((s) => !term || [s.number, s.quoteNumber, s.client.nome, s.client.phone, s.sellerName].some((x) => String(x || '').toLowerCase().includes(term)))
@@ -280,10 +282,25 @@ export class Sales {
       .map((s) => this.view(s));
   }
 
+  /** De onde veio a venda: "antigo" (copiada do sistema antigo) ou "novo" (nasceu aqui no Migra Hub). */
+  originOf(s) { return s.legacy ? 'antigo' : 'novo'; }
+
+  /**
+   * Data de corte: daqui para a frente é o sistema novo, daqui para trás é o antigo copiado.
+   * Vale a data combinada (settings.sales.novoSistemaDesde) ou, sem ela, a da primeira venda que nasceu no sistema novo.
+   */
+  cutoff() {
+    const set = String(this.store.settings.sales?.novoSistemaDesde || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(set)) return { date: set, source: 'definida' };
+    const first = this.list.filter((s) => !s.legacy && s.createdAt).map((s) => s.createdAt.slice(0, 10)).sort()[0];
+    return first ? { date: first, source: 'primeira venda do sistema novo' } : { date: '', source: '' };
+  }
+
   /** Números do painel: vendas do período e recebimentos do período. */
-  summary(user, { from = '', to = '', seller = '', office = '' } = {}) {
+  summary(user, { from = '', to = '', seller = '', office = '', origem = '' } = {}) {
     const inRange = (iso) => Boolean(iso) && (!from || iso.slice(0, 10) >= from) && (!to || iso.slice(0, 10) <= to);
-    const all = this.list.filter((s) => this.canSee(user, s) && s.status !== 'cancelada' && (!seller || s.sellerId === seller) && (!office || this.officeOf(s) === office));
+    const base = this.list.filter((s) => this.canSee(user, s) && s.status !== 'cancelada' && (!seller || s.sellerId === seller) && (!office || this.officeOf(s) === office));
+    const all = origem ? base.filter((s) => this.originOf(s) === origem) : base;
     // Contrato antigo sem data conhecida (dateUnknown) não conta como "vendido" no período: ficou datado no dia da importação.
     const sold = all.filter((s) => !s.dateUnknown && inRange(s.createdAt));
     const t = today();
@@ -308,7 +325,19 @@ export class Sales {
       emAberto: sum(sold, (s) => Math.max(0, cents(s.total - paidOf(s)))),
       recebidoNoPeriodo: sum(all, (s) => sum(paidIn(s), (p) => p.value)),
     };
+    const porOrigem = {};
+    for (const o of ['antigo', 'novo']) {
+      const g = base.filter((s) => this.originOf(s) === o);
+      porOrigem[o] = {
+        vendas: g.filter((s) => !s.dateUnknown && inRange(s.createdAt)).length,
+        vendido: sum(g.filter((s) => !s.dateUnknown && inRange(s.createdAt)), (s) => s.total),
+        recebido: sum(g, (s) => sum(paidIn(s), (p) => p.value)),
+        aReceber: sum(g, (s) => sum(s.parcels.filter((p) => p.status !== 'pago'), (p) => p.value)),
+        contratos: g.length,
+      };
+    }
     return {
+      porOrigem, corte: this.cutoff(),
       periodo,
       sales: sold.length,
       sold: sum(sold, (s) => s.total),

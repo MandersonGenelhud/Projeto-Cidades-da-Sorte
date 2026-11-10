@@ -1764,10 +1764,10 @@ const dBr = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '�
 const saleState = { users: [] };
 loaders.contracts = async () => {
   const admin = window.currentUser?.role === 'admin';
-  const q = new URLSearchParams({ ...periodRange('#salesFilterPeriod'), ...($('#salesFilterSeller').value ? { seller: $('#salesFilterSeller').value } : {}) });
+  const q = new URLSearchParams({ ...periodRange('#salesFilterPeriod'), ...($('#salesFilterSeller').value ? { seller: $('#salesFilterSeller').value } : {}), ...($('#salesFilterOrigin').value ? { origem: $('#salesFilterOrigin').value } : {}) });
   const [sum, list] = await Promise.all([
     api(`/api/sales/summary?${q}`),
-    api(`/api/sales?${new URLSearchParams({ ...(admin && $('#salesFilterSeller').value ? { seller: $('#salesFilterSeller').value } : {}), ...($('#salesFilterStatus').value ? { status: $('#salesFilterStatus').value } : {}), q: $('#salesSearch').value || '' })}`),
+    api(`/api/sales?${new URLSearchParams({ ...(admin && $('#salesFilterSeller').value ? { seller: $('#salesFilterSeller').value } : {}), ...($('#salesFilterStatus').value ? { status: $('#salesFilterStatus').value } : {}), ...($('#salesFilterOrigin').value ? { origem: $('#salesFilterOrigin').value } : {}), q: $('#salesSearch').value || '' })}`),
   ]);
   const kpi = (label, value, sub = '', tone = '') => `<div class="card kpi ${tone}"><div class="kpi-head"><span class="label">${label}</span></div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
   $('#salesBoardKpis').innerHTML = [
@@ -1778,6 +1778,19 @@ loaders.contracts = async () => {
     kpi('Em atraso', brl2(sum.overdue), sum.overdue ? '<span class="status-warn">cobrar os clientes</span>' : 'nenhuma parcela atrasada', sum.overdue ? 'warn' : ''),
     kpi(admin ? 'Comissões a pagar' : 'Minhas comissões a receber', brl2(sum.commissionOpen), `${brl2(sum.commissionPaid)} pagas no período`),
   ].join('');
+  const po = sum.porOrigem; const corte = sum.corte;
+  if (po && $('#salesOriginBanner')) {
+    $('#salesOriginBanner').innerHTML = `<b>Sistema novo × antigo.</b> ${corte?.date ? `Daqui para a frente (desde <b>${dBr(corte.date)}</b>) é o sistema novo; daqui para trás é o antigo copiado.` : 'Ainda não há venda do sistema novo.'}
+      <div class="hint">Novo: ${po.novo.vendas} venda(s) no período · ${brl2(po.novo.vendido)} vendidos · ${brl2(po.novo.aReceber)} a receber. Antigo (copiado): ${po.antigo.vendas} no período · ${brl2(po.antigo.vendido)} vendidos · ${brl2(po.antigo.aReceber)} a receber (${po.antigo.contratos} contratos).</div>
+      ${admin ? '<button class="btn small" id="btnCutoff">Mudar a data de corte</button>' : ''}`;
+    $('#btnCutoff')?.addEventListener('click', async () => {
+      const v = prompt('Sistema novo desde (dd/mm/aaaa). Deixe vazio para o automático:', corte?.date ? dBr(corte.date) : '');
+      if (v === null) return;
+      const m = v.trim() ? v.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/) : null;
+      if (v.trim() && !m) return toast('Use o formato dd/mm/aaaa', true);
+      try { await api('/api/sales/cutoff', { method: 'PUT', body: { date: m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : '' } }); toast('Data de corte atualizada'); loaders.contracts(); } catch (e) { toast(e.message, true); }
+    });
+  }
   if (admin) {
     if (!saleState.users.length) {
       saleState.users = (await api('/api/users')).filter((u) => u.active && !u.pending);
@@ -1793,7 +1806,7 @@ loaders.contracts = async () => {
       <label>Com indicação (%) <input type="number" min="0" max="100" step="0.1" data-pct-aff="${esc(u.id)}" value="${u.affiliateCommissionPct ?? ''}" placeholder="padrão" /></label></div>`).join('');
   }
   $('#salesTable').innerHTML = `<thead><tr><th>Venda</th><th>Data</th><th>Cliente</th>${admin ? '<th>Vendedor</th>' : ''}<th>Total</th><th>Recebido</th><th>Próxima parcela</th><th>Comissão</th><th>Situação</th></tr></thead>
-    <tbody>${list.map((v) => `<tr data-sale-id="${esc(v.id)}"><td><b>${esc(v.number)}</b><div class="hint">${esc(v.quoteNumber)}</div></td><td>${dBr(v.createdAt)}</td>
+    <tbody>${list.map((v) => `<tr data-sale-id="${esc(v.id)}"><td><b>${esc(v.number)}</b> <span class="badge ${v.origem === 'antigo' ? 'paused' : 'done'}" title="${v.origem === 'antigo' ? 'Copiada do sistema antigo' : 'Nasceu no sistema novo'}">${v.origem === 'antigo' ? 'Antigo' : 'Novo'}</span><div class="hint">${esc(v.quoteNumber)}</div></td><td>${v.dateUnknown ? '<span class="hint">sem data</span>' : dBr(v.createdAt)}</td>
       <td>${esc(v.client.nome)}<div class="hint">${v.client.phone ? esc(fmtPhone(v.client.phone)) : ''}</div></td>${admin ? `<td>${esc(v.sellerName || '—')}</td>` : ''}
       <td><b>${brl2(v.total)}</b></td>
       <td>${brl2(v.received)}<div class="progress"><span style="width:${Math.min(100, Math.round((v.received / (v.total || 1)) * 100))}%"></span></div></td>
@@ -1801,7 +1814,7 @@ loaders.contracts = async () => {
       <td>${brl2(v.commission.value)}<div class="hint">${v.commission.pct}% · ${v.commission.status === 'paga' ? `paga ${dBr(v.commission.paidAt)}` : 'a pagar'}</div></td>
       <td>${SALE_STATUS[v.status] || ''}${v.overdue ? ' <span class="badge paused">atraso</span>' : ''}</td></tr>`).join('') || `<tr><td colspan="${admin ? 9 : 8}" class="muted">Nenhuma venda ainda.</td></tr>`}</tbody>`;
 };
-for (const sel of ['#salesFilterPeriod', '#salesFilterSeller', '#salesFilterStatus']) $(sel).addEventListener('change', () => loaders.contracts());
+for (const sel of ['#salesFilterPeriod', '#salesFilterSeller', '#salesFilterStatus', '#salesFilterOrigin']) $(sel).addEventListener('change', () => loaders.contracts());
 $('#salesSearch').addEventListener('input', () => { clearTimeout(saleState.t); saleState.t = setTimeout(() => loaders.contracts(), 300); });
 $('#btnCommissionSave').addEventListener('click', async () => {
   const perSeller = Object.fromEntries($$('#commissionPerSeller [data-pct]').map((i) => [i.dataset.pct, i.value === '' ? '' : Number(i.value)]));

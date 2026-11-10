@@ -34,3 +34,23 @@ test('painel de vendas fecha com o Dashboard Executivo do sistema antigo (nov/20
   assert.equal(r.periodo.recebidoNoPeriodo, 42848.6);
   assert.equal(r.sales, 15);
 });
+
+test('sistema novo × antigo: separa as vendas copiadas das que nasceram aqui, tem filtro e data de corte', () => {
+  const store = tempStore();
+  const auth = new Auth({ store, dataDir: store.dataDir });
+  const admin = auth.get(auth.create({ name: 'Marcos', login: 'marcos', password: 'segredo123', role: 'admin' }).id);
+  const sales = new Sales({ store, auth });
+  sales.list.push({ ...venda('ANT-1', 10000, 2000, '2026-03-10T12:00:00.000Z', '2026-03-10T12:00:00.000Z'), legacy: true });
+  sales.list.push(venda('MH-1', 5000, 1000, '2026-11-05T12:00:00.000Z', '2026-11-05T12:00:00.000Z'));
+  assert.equal(sales.cutoff().date, '2026-11-05', 'automático: a primeira venda do sistema novo');
+  assert.equal(sales.cutoff().source, 'primeira venda do sistema novo');
+  store.updateSettings({ sales: { novoSistemaDesde: '2026-11-01' } });
+  assert.deepEqual([sales.cutoff().date, sales.cutoff().source], ['2026-11-01', 'definida']);
+  const todo = sales.summary(admin, { from: '2026-01-01', to: '2026-12-31' });
+  assert.equal(todo.porOrigem.antigo.vendido, 10000);
+  assert.equal(todo.porOrigem.novo.vendido, 5000);
+  assert.equal(todo.sold, 15000);
+  assert.equal(sales.summary(admin, { from: '2026-01-01', to: '2026-12-31', origem: 'novo' }).sold, 5000);
+  assert.deepEqual(sales.listFor(admin, { origem: 'antigo' }).map((v) => [v.number, v.origem]), [['ANT-1', 'antigo']]);
+  assert.equal(sales.listFor(admin, {}).length, 2);
+});

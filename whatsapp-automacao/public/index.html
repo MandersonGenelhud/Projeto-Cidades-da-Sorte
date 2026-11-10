@@ -386,6 +386,7 @@
         </div>
       </div>
       <div class="cards" id="salesBoardKpis"></div>
+      <div class="card" id="salesOriginBanner" style="margin:10px 0;padding:12px 14px"></div>
       <div class="grid2" data-admin>
         <div class="panel"><h2>Por vendedor</h2><div class="table-wrap"><table id="salesBySeller"></table></div></div>
         <div class="panel"><h2>Estoque de lotes</h2><div id="salesStock" class="hint"></div></div>
@@ -405,6 +406,7 @@
         <div class="conv-header">
           <h2>Vendas</h2>
           <div class="row">
+            <select id="salesFilterOrigin" title="Sistema novo (nascidas aqui) ou antigo (copiadas)"><option value="">Novo + antigo</option><option value="novo">Só sistema novo</option><option value="antigo">Só sistema antigo</option></select>
             <select id="salesFilterStatus"><option value="">Todas</option><option value="ativa">Em andamento</option><option value="atrasada">Com parcela atrasada</option><option value="concluida">Quitadas</option><option value="cancelada">Canceladas</option></select>
             <input id="salesSearch" type="search" placeholder="Buscar cliente, número ou vendedor" />
           </div>
