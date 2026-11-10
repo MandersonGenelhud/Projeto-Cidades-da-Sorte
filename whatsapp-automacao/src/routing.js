@@ -104,11 +104,11 @@ export class LeadRouter {
    * Chamado pela ferramenta da IA. Em simulação (dryRun) mostra quem seria
    * o vendedor, sem mexer no rodízio nem avisar ninguém.
    */
-  async route(conv, args, { dryRun = false } = {}) {
+  async route(conv, args, { dryRun = false, pool = null } = {}) {
     const routing = this.store.settings.crm?.routing || {};
     if (routing.enabled === false) return { erro: 'Encaminhamento desligado. Use transferir_para_humano.' };
     if (dryRun || String(conv.key).startsWith('sim:')) {
-      const seller = this.crm.nextSeller();
+      const seller = (pool && this.crm.nextSeller(pool)) || this.crm.nextSeller();
       if (!seller) return { erro: 'Nenhum vendedor no rodízio (cadastre vendedores com WhatsApp na aba Equipe). Use transferir_para_humano.' };
       const fake = { code: 'TESTE-0000', name: args.nome || conv.name || '', conversationKey: conv.key };
       return {
@@ -128,7 +128,7 @@ export class LeadRouter {
     }) || this.crm.findForConversation({ key: conv.key, phone: conv.phone });
     if (!lead) return { erro: 'Não foi possível registrar o cliente no CRM. Use transferir_para_humano.' };
     this.crm.qualify(lead, args);
-    const seller = this.crm.routeLead(lead, { reason: 'rodízio após a peneira da IA' });
+    const seller = this.crm.routeLead(lead, { reason: pool ? 'direcionado pela Central de Atendimento' : 'rodízio após a peneira da IA', pool });
     if (!seller) return { erro: 'Nenhum vendedor disponível no rodízio. Use transferir_para_humano.' };
     // Já avisou esse vendedor sobre este cliente há pouco: não repete (a mensagem repetida enterra as que importam).
     if (lead.routedAt && conv.routedTo === seller.id && Date.now() - Date.parse(lead.routedAt) < REPEAT_MS) {

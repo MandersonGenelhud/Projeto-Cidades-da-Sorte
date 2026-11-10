@@ -265,7 +265,18 @@ const router = new LeadRouter({
   sendWhatsApp: (phone, text) => wa.send(phone, { text, typing: false }),
   canSendWhatsApp: () => wa.status === 'connected',
 });
-agent.routeLead = (conv, args, opts) => router.route(conv, args, opts);
+// Vendedores que a Central direciona (crm.centralSellers, ex.: Geovana e Fran): só vale para conversas do número da Central.
+const normNome = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const centralSellerNames = () => (store.settings.crm?.centralSellers || []).map((n) => String(n || '').trim()).filter(Boolean);
+const centralSellerMatch = (u, names = centralSellerNames()) => { const un = normNome(u.name); return names.some((n) => { const x = normNome(n); return un === x || un.startsWith(`${x} `); }); };
+const centralPoolFor = (conv) => {
+  const names = centralSellerNames();
+  const parsed = parseLineKey(conv?.key);
+  const line = parsed ? lines.get(parsed.id) : null;
+  if (!names.length || !line || !isCentralLine(line, line.ownerId ? auth.get(line.ownerId) : null)) return null;
+  return (u) => centralSellerMatch(u, names);
+};
+agent.routeLead = (conv, args, opts) => router.route(conv, args, { ...opts, pool: centralPoolFor(conv) });
 agent.agentNameFor = (conv) => lines.get(parseLineKey(conv.key)?.id)?.agentName || '';
 agent.routeSpecialist = (conv, args, opts) => router.routeSpecialist(conv, args, opts);
 // Setores (loteamentos, documentação, veículos): a IA direciona e o atendente do setor recebe o resumo.
@@ -774,7 +785,13 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
   const ownerPhone = store.settings.crm?.ownerPhone;
   // Fechamento da migração: o dono do WhatsApp da conversa; senão, os atendentes do setor de
   // documentação (Camila e Fran); o Marcos não recebe mais vendas.
-  let closer = lineOwner && !isOwner(lineOwner, ownerPhone) ? lineOwner : null;
+  // Número da CENTRAL: o dono da linha é a própria Central (não é vendedor). Quem recebe o cliente são os vendedores da Central (ex.: Geovana e Fran), em rodízio.
+  const centralLine = Boolean(parsed) && isCentralLine(lines.get(parsed.id), lineOwner);
+  let closer = lineOwner && !centralLine && !isOwner(lineOwner, ownerPhone) ? lineOwner : null;
+  if (!closer && centralLine) {
+    const pool = centralPoolFor({ key: convKey });
+    closer = (lead ? crm.routeLead(lead, { reason: 'direcionado pela Central de Atendimento', pool }) : crm.nextSeller(pool)) || null;
+  }
   if (!closer) {
     const p = sectors.next('documentacao');
     if (p) {
@@ -847,6 +864,13 @@ agent.closeHandoff = async (conv, args, { dryRun } = {}) => {
     tentativas: args.o_que_ja_foi_dito, dica: args.dica_de_fechamento, sugestao: args.sugestao, moradia: args.moradia, temperatura: args.temperatura,
   }).filter(([, v]) => v));
   const { closer } = await forwardToSeller({ conv, lead, brief, reason: args.objecao ? `Receio: ${args.objecao}` : '' });
+  const parsedC = parseLineKey(conv.key);
+  const lineC = parsedC ? lines.get(parsedC.id) : null;
+  if (lineC && isCentralLine(lineC, lineC.ownerId ? auth.get(lineC.ownerId) : null) && closer?.name) {
+    const first = closer.name.split(' ')[0];
+    const sayC = `Já passei o seu atendimento para ${first}, da nossa equipe, com tudo o que conversamos. ${first} vai entrar em contato com você por aqui em instantes.`;
+    return { ok: true, quem: first, instrucao: `Diga ao cliente exatamente: "${sayC}" Não passe o número pessoal de ninguém. Depois continue disponível para dúvidas simples, sem repetir o aviso.` };
+  }
   return { ok: true, quem: closer?.name?.split(' ')[0] || 'o escritório', instrucao: `Diga ao cliente exatamente: "${say}" Depois continue disponível: se ele voltar a escrever, responda normalmente.` };
 };
 
@@ -1145,7 +1169,7 @@ agent.channelNote = (conv) => {
   const parsed = parseLineKey(conv.key);
   const line = parsed ? lines.get(parsed.id) : null;
   const owner = line?.ownerId ? auth.get(line.ownerId) : null;
-  if (line && isCentralLine(line, owner)) return centralNote(line);
+  if (line && isCentralLine(line, owner)) return centralNote({ ...line, sellers: centralSellerNames().map((n) => n.split(' ')[0]) });
   if (!owner) return '';
   const first = owner.name.split(' ')[0];
   const memory = line?.memory ? `\n\n# Memória deste agente (orientações de ${first}, valem para os clientes deste número)\n${line.memory}` : '';
@@ -2313,6 +2337,12 @@ function healthReport() {
   const lineList = lines.list().map((l) => ({ id: l.id, label: l.label, status: l.status, lastError: l.lastError || '', agent: l.agent !== false }));
   const off = lineList.filter((l) => l.status !== 'connected');
   if (off.length) add('warn', `${off.length} WhatsApp(s) de vendedor sem conexão: ${off.map((l) => l.label).join(', ')}.`);
+  const csNames = centralSellerNames();
+  if (csNames.length) {
+    const miss = csNames.filter((n) => !auth.users.some((u) => u.active !== false && !u.pending && u.whatsapp && centralSellerMatch(u, [n])));
+    if (miss.length) add('warn', `A Central direciona os clientes para: ${csNames.join(', ')}. Não encontrei na Equipe (ativo e com WhatsApp): ${miss.join(', ')}. Confira o nome em Prospectos → Regras → "Vendedores que a Central direciona".`);
+    else add('ok', `A Central direciona os clientes em rodízio para: ${csNames.join(', ')}.`);
+  }
   if (!publicBase()) add('warn', 'O sistema não tem endereço público (necessário para Instagram, contratos e links).');
   return {
     at: new Date().toISOString(),

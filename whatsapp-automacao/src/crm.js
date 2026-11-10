@@ -360,8 +360,9 @@ export class Crm {
   /** Entrega o prospecto para o próximo vendedor do rodízio (ou mantém o atual, se ainda puder atender). */
   routeLead(lead, { reason = 'rodízio', pool = null } = {}) {
     const current = lead.ownerId ? this.auth.get(lead.ownerId) : null;
-    if (current && current.active !== false && current.whatsapp) return current;
-    const seller = this.nextSeller(pool, this.officeOf(lead));
+    if (current && current.active !== false && current.whatsapp && (!pool || pool(current))) return current;
+    // Com "pool" (ex.: os vendedores da Central), vale só quem passa no filtro; se ninguém passar, cai no rodízio comum para o cliente nunca ficar sem destino.
+    const seller = (pool && this.nextSeller(pool, this.officeOf(lead))) || this.nextSeller(null, this.officeOf(lead));
     if (!seller) return null;
     this.#assign('Sistema', lead, seller.id, reason);
     seller.lastLeadAt = new Date().toISOString();

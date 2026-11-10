@@ -1,0 +1,46 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { Auth } from '../src/auth.js';
+import { Crm } from '../src/crm.js';
+import { LeadRouter } from '../src/routing.js';
+import { centralNote } from '../src/agent/central.js';
+import { tempStore } from './helpers.js';
+
+function setup() {
+  const store = tempStore();
+  const auth = new Auth({ store, dataDir: store.dataDir });
+  const mk = (name, login, whatsapp) => auth.get(auth.create({ name, login, password: 'segredo123', role: 'seller', whatsapp }).id);
+  const geo = mk('GEOVANA', 'geo', '595981000001'); const fran = mk('Fran', 'fran', '595981000002'); const outro = mk('Carlos Outro', 'carlos', '595981000003');
+  const crm = new Crm({ store, auth });
+  const pool = (u) => ['geovana', 'fran'].some((x) => { const n = u.name.toLowerCase(); return n === x || n.startsWith(`${x} `); });
+  return { store, auth, crm, geo, fran, outro, pool };
+}
+
+test('a Central direciona só para a Geovana e a Fran, em rodízio, mesmo que o cliente já tenha sido dado a outro vendedor', () => {
+  const { crm, outro, pool, geo, fran } = setup();
+  const l1 = crm.ensureFromConversation({ key: '5545988880001', phone: '5545988880001', name: 'Ana', channel: 'whatsapp' });
+  const l2 = crm.ensureFromConversation({ key: '5545988880002', phone: '5545988880002', name: 'Bia', channel: 'whatsapp' });
+  l1.ownerId = outro.id; // rodízio comum já tinha dado a outro vendedor
+  const a = crm.routeLead(l1, { pool }); const b = crm.routeLead(l2, { pool });
+  assert.ok([geo.id, fran.id].includes(a.id), 'o cliente que estava com outro vendedor vai para a Geovana ou a Fran');
+  assert.ok([geo.id, fran.id].includes(b.id));
+  assert.notEqual(a.id, b.id, 'rodízio entre as duas');
+  // mesma conversa de novo: continua com quem já está
+  assert.equal(crm.routeLead(l1, { pool }).id, a.id);
+});
+
+test('se ninguém da lista da Central estiver disponível, cai no rodízio comum (o cliente não fica sem destino)', () => {
+  const { crm } = setup();
+  const l = crm.ensureFromConversation({ key: '5545988880009', phone: '5545988880009', name: 'Caio', channel: 'whatsapp' });
+  const s = crm.routeLead(l, { pool: () => false });
+  assert.ok(s, 'algum vendedor recebe');
+});
+
+test('orientação da Central: cliente objetivo fecha; os demais vão para os vendedores da Central', () => {
+  const t = centralNote({ agentName: 'Luana', sellers: ['Geovana', 'Fran'] });
+  assert.match(t, /OBJETIVO[\s\S]*FECHA/);
+  assert.match(t, /passar_fechamento_para_humano/);
+  assert.match(t, /Geovana e Fran em rodízio/);
+  assert.match(t, /acima de qualquer outra orientação/);
+  assert.match(t, /DIRECIONE/);
+});
