@@ -587,3 +587,10 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Contrapartida**: cliente que volta a escrever numa conversa em que uma pessoa já falou não é respondido pela IA; a pessoa precisa responder (ou o administrador usar "Retomar com a IA").
 - Limite: conversas em que a pessoa falou mas o sistema não tem registro (celular desligado da VPS na época) só são protegidas se o histórico do celular chegar ao sistema.
 - Testes: `test/humano-falou.test.js`.
+
+## Site do Grupo Migra: vídeo do Marcos no topo, sem oferta de curso, empresas do grupo (10/11/2026)
+
+- Página inicial (`public/site/home-premium.html`): marca "Grupo Migra" com a logo no topo e no rodapé; o **vídeo de boas-vindas do Marcos é a primeira coisa da página** (celular: em cima de tudo; computador: à esquerda do título); "Sua nova vida no Paraguai começa aqui" com "+1.500 famílias e pessoas atendidas"; **removidas as 3 ofertas do curso "Paraguai Sem Assessoria" (R$ 197, Hotmart)** e a página do School deixou de ser linkada; seção "Empresas do Grupo Migra" com as 8 logos; Instagram da Migra Paraguai corrigido para o perfil confirmado (de `migraparaguaiassessoria` para `migraparaguayassessoria`, o perfil de MIGRA-CONTEXTO.md).
+- Pendente de dados: Instagram da Migra Tech e da Migra School (não inventados), e "Migra Brasil"/"Migra Med" se forem empresas do grupo.
+- Dependência: o vídeo do Marcos, a cena e os depoimentos ainda são carregados de `migrapyassessoria.com/assets` (sistema antigo); se o antigo sair do ar, esses vídeos somem. Baixar para o Migra Hub antes de desligar o antigo.
+- Limite: o endereço www.migraparaguai.com hoje serve outro site (WordPress); esta página só aparece nele depois de o domínio apontar para a VPS (feito pelo dono do domínio, `deploy/trocar-dominio.sh`).
