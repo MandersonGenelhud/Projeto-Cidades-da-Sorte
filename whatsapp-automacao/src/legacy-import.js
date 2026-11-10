@@ -218,12 +218,19 @@ export function cashRowsFromCapture(captura) {
   return out;
 }
 
+/**
+ * Listas do sistema antigo que NÃO são contratos (leads, clientes, suporte, documentos, equipe...). Com "id" numérico e um nome elas pareciam
+ * contrato e inflaram a lista (5.884 leads viraram "contratos" numa cópia em que o sistema tem 402). Contratos vêm de /api/contracts e /api/processes.
+ */
+export const NOISE_API = /\/api\/(leads|customers|clients|support|documents|team|team-contacts|sellers|users|audit|sales-audit|marketing|contact-links|instagram|whatsapp|goals|withdrawals|cities|tutorials|curso|settings|agenda|notifications|alerts)\b/i;
+export const isNoiseApi = (url) => { try { return NOISE_API.test(new URL(url, 'http://x').pathname); } catch { return NOISE_API.test(String(url || '')); } };
+
 /** captura = { pages: [{url, title, tables:[{headers, rows}], fields:[{label,value}]}], api: [{url, json}] } */
 export function extractRecords(captura) {
   const out = [];
   const push = (raw, source) => { const r = normalizeRecord(raw, { source }); if (r) out.push(r); };
   for (const raw of knownApiRecords(captura)) push(raw, 'sistema antigo (lista)');
-  for (const a of captura?.api || []) for (const o of objectsIn(a.json)) push(flat(o), a.url);
+  for (const a of captura?.api || []) { if (isNoiseApi(a.url)) continue; for (const o of objectsIn(a.json)) push(flat(o), a.url); }
   for (const p of captura?.pages || []) {
     for (const t of p.tables || []) {
       const headers = (t.headers || []).map((h) => String(h || '').trim());
@@ -549,6 +556,20 @@ export class LegacyContracts {
     }
     this.store.save();
     return out;
+  }
+
+  /**
+   * Limpa os "contratos" que na verdade vieram de listas que não são contratos (leads, clientes, suporte...), de cópias feitas antes da correção.
+   * Só mexe na lista de contratos antigos; vendas já lançadas ficam como estão e são apenas contadas para o administrador conferir.
+   */
+  purgeNoise({ sales = null } = {}) {
+    const before = this.list.length;
+    const dropped = this.list.filter((r) => r.source && isNoiseApi(r.source));
+    const droppedNumbers = new Set(dropped.map((r) => String(r.number)));
+    this.store.data.legacyContracts = this.list.filter((r) => !dropped.includes(r));
+    const salesToCheck = sales ? sales.list.filter((s) => s.legacy && droppedNumbers.has(String(s.legacyNumber))).length : 0;
+    this.store.save();
+    return { before, removed: dropped.length, after: this.list.length, salesToCheck };
   }
 
   /** Junta cadastros repetidos de clientes antigos: fica o primeiro, completa os campos vazios e tira os outros. */

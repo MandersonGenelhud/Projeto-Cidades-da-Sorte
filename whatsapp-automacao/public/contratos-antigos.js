@@ -20,7 +20,7 @@
       <p class="hint">Se o Node.js não estiver instalado, o programa instala sozinho (se pedir permissão, clique em Sim) e pede para você abrir o arquivo de novo. Ele só lê o sistema do Marcos: não clica em botões, não apaga nada e a senha nunca passa por aqui.</p>
     </div>
     <div class="panel"><h2>Passo 2: importar o arquivo captura.json</h2>
-      <div class="row"><input type="file" id="lgFile" accept=".json" /><button class="btn" id="lgPreview">1) Conferir o arquivo</button><button class="btn primary" id="lgImport" disabled>2) Importar</button><button class="btn" id="lgMap" title="Lista as telas do sistema antigo e compara com o que já temos (sem dados de clientes)">4) Mapa das telas</button><button class="btn" id="lgApply">3) Levar para Vendas e CRM</button></div>
+      <div class="row"><input type="file" id="lgFile" accept=".json" /><button class="btn" id="lgPreview">1) Conferir o arquivo</button><button class="btn primary" id="lgImport" disabled>2) Importar</button><button class="btn" id="lgMap" title="Lista as telas do sistema antigo e compara com o que já temos (sem dados de clientes)">4) Mapa das telas</button><button class="btn" id="lgApply">3) Levar para Vendas e CRM</button><button class="btn" id="lgPurge" title="Tira da lista os falsos contratos que vieram de leads, clientes e suporte em cópias antigas">Limpar falsos contratos</button></div>
       <div id="lgOut" class="hint"></div></div>
     <div class="panel"><h2>Auditoria da cópia</h2><p class="hint">Compara o que o sistema antigo diz que tem (os números das telas) com o que foi copiado, e mostra páginas que não abriram.</p><div id="lgAudit"></div></div>
     <div class="panel"><div class="row"><input id="lgQ" placeholder="Buscar por número, cliente, documento…" /><span id="lgInfo" class="hint"></span></div>
@@ -73,6 +73,13 @@
     try {
       const r = await api('/api/legacy/apply', { method: 'POST', body: {} });
       toast(`Pronto: ${r.sales} venda(s) com parcelas, ${r.clients} cliente(s) no CRM (${r.salesSkipped + r.clientsSkipped} já existiam, ${r.noParcels} contrato(s) sem parcelas). ${r.fromCobranca ? `${r.fromCobranca} com as parcelas reais da Cobrança.` : ''}${r.upgraded ? ` ${r.upgraded} atualizado(s) com as parcelas reais.` : ''}`);
+    } catch (e) { toast(e.message, true); }
+  };
+  sec.querySelector('#lgPurge').onclick = async () => {
+    if (!confirm('Tirar da lista de contratos antigos os registros que na verdade são leads, clientes ou suporte (de cópias feitas antes da correção)? Os contratos de verdade não são mexidos.')) return;
+    try {
+      const r = await api('/api/legacy/purge-noise', { method: 'POST', body: {} });
+      toast(`Limpeza feita: ${r.removed} falso(s) contrato(s) removido(s); sobraram ${r.after}.${r.salesToCheck ? ` Atenção: ${r.salesToCheck} venda(s) já lançada(s) vieram desses registros; me avise para conferir.` : ''}`);
     } catch (e) { toast(e.message, true); }
   };
   async function loadAudit() {

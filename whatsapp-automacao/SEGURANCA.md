@@ -530,3 +530,10 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Agora (`src/legacy-import.js`): o contrato já importado acompanha a cópia mais nova (parcelas, pago, total, situação), sem duplicar e registrando no histórico da venda. **Exceção de segurança**: se alguém deu baixa à mão no sistema novo (Maria, painel), aquela venda não é mais sobrescrita pela cópia. Repetir a mesma cópia não muda nada.
 - Limite: contrato que o sistema antigo apagou não some daqui (só cancelamento marcado lá é refletido).
 - Teste: `test/legacy-parcels.test.js`.
+
+## Cópia do sistema antigo: leads e clientes não viram "contratos" (10/11/2026)
+
+- Problema: a cópia de 10/11 enviou **9.585 "contratos"** enquanto o sistema antigo tem **402**. A causa: o leitor genérico lia TODAS as listas JSON do sistema antigo (inclusive 5.884 leads, clientes, suporte) e tratava como contrato qualquer item com "id" numérico e nome.
+- Correção (`src/legacy-import.js`): listas que não são contratos (`/api/leads`, `/api/customers`, suporte, documentos, equipe, auditoria, marketing etc.) são ignoradas; contratos vêm de `/api/contracts`, `/api/processes`, cobrança e telas. Novo botão **"Limpar falsos contratos"** (administrador, registrado na auditoria) tira da lista os registros que vieram dessas listas, sem mexer nos contratos de verdade. Vendas já lançadas a partir deles não são apagadas: o sistema só conta e avisa para conferir.
+- Limite: só fica provado depois de rodar a cópia nova e comparar com o painel antigo.
+- Testes: `test/legacy-noise.test.js`.

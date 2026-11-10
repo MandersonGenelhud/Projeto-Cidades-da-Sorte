@@ -73,3 +73,29 @@ test('captura: busca as páginas seguintes de listas "200 de N" e para quando a 
   const api3 = [{ url: 'https://velho.com/api/contracts/9216d553-058a-4f1e-929e-8e74308026f6', json: { count: 9, data: mk(0, 1) } }];
   assert.equal(await varrerPaginas(async () => ({ data: mk(5, 1) }), api3), 0);
 });
+
+import { LegacyContracts, isNoiseApi } from '../src/legacy-import.js';
+import { tempStore } from './helpers.js';
+
+test('leads, clientes e suporte do sistema antigo não viram contratos (5.884 leads inflaram a cópia para 9.585 "contratos")', () => {
+  const leads = Array.from({ length: 300 }, (_, i) => ({ id: 1000 + i, name: `Lead ${i}`, phone: '5511999990000', origin: 'quiz', value: 100, created_at: '2026-08-12T10:00:00Z' }));
+  const cap = { pages: [], api: [
+    { url: 'https://velho.com/api/leads?page=1', json: { count: 300, data: leads } },
+    { url: 'https://velho.com/api/customers?page=1', json: { count: 1, data: [{ id: 77, full_name: 'Maria', cpf: '111.222.333-44', phone: '5511999990000' }] } },
+    { url: 'https://velho.com/api/contracts', json: { count: 1, data: [{ id: 'a1b2c3d4-0000-4000-8000-000000000001', contract_number: '2026-000215', status: 'signed', final_value: 8000, created_at: '2026-06-01T10:00:00Z', customer: { full_name: 'Maria Souza' } }] } },
+  ] };
+  const recs = extractRecords(cap);
+  assert.equal(recs.length, 1);
+  assert.equal(recs[0].number, '2026-000215');
+  assert.equal(isNoiseApi('https://x.com/api/leads?page=2'), true);
+  assert.equal(isNoiseApi('https://x.com/api/contracts'), false);
+});
+
+test('limpeza dos falsos contratos já importados: tira só os que vieram de listas que não são contratos', () => {
+  const store = tempStore();
+  const lc = new LegacyContracts({ store });
+  lc.list.push({ id: 'a', number: '1001', client: 'Lead 1', source: 'https://x.com/api/leads?page=1', raw: {} }, { id: 'b', number: '2026-000215', client: 'Maria', source: 'sistema antigo (lista)', raw: {} });
+  const r = lc.purgeNoise();
+  assert.deepEqual([r.before, r.removed, r.after], [2, 1, 1]);
+  assert.equal(lc.list[0].number, '2026-000215');
+});

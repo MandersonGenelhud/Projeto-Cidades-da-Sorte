@@ -3647,6 +3647,12 @@ app.post('/api/legacy/apply', (req, res) => {
   notify('sales', {}); notify('crm', {});
   res.json(out);
 });
+app.post('/api/legacy/purge-noise', (req, res) => {
+  if (req.user.role !== 'admin') throw httpError(403, 'Esta área é só do administrador');
+  const out = legacy.purgeNoise({ sales });
+  audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'contratos antigos', label: `Limpou ${out.removed} falso(s) contrato(s) vindos de listas que não são contratos (leads, clientes...)` });
+  res.json(out);
+});
 app.get('/api/legacy', (req, res) => res.json({ items: legacy.search(req.query).map(({ raw, source, parcels, ...r }) => ({ ...r, parcelas: parcels?.length || 0 })), clients: legacy.clients.length, total: legacy.list.length, ultimoNumero: legacy.search({ limit: 1 })[0]?.number || '' }));
 app.get('/api/legacy/export.csv', (req, res) => {
   audit.record({ user: req.user, ip: clientIp(req), action: 'alterou', entity: 'contratos antigos', label: 'Baixou a planilha de contratos antigos' });

@@ -6,7 +6,7 @@
 
 ## Números
 - Módulos em `src/`: **148** · testes automatizados (arquivos): **145** · scripts do painel: **47**
-- Rotas da API em `server.js`: **526** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
+- Rotas da API em `server.js`: **527** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
 
@@ -94,7 +94,7 @@
 | `lead-repair.js` | 56 | Conversas que a atendente respondeu mas não viraram prospecto no CRM (nada gravado para o vendedor ver): cria o prospecto que faltou. | `routes/controle.js` | 1 |
 | `learnings.js` | 90 | Aprendizados de vendas: a cada venda confirmada, a IA lê a conversa e anota o que funcionou | `server.js` | 1 |
 | `legacy-extras.js` | 78 | O que mais veio da cópia do sistema antigo: modelos de contrato (Migra Paraguai, Migra Med, Migra Brasil, RUC), | `server.js` | 1 |
-| `legacy-import.js` | 587 | Contratos do sistema antigo (do Marcos): lê o arquivo capturado pela ferramenta | `legacy-ingest.js`, `reconcile.js`, `reengage.js`, `server.js` | 6 |
+| `legacy-import.js` | 608 | Contratos do sistema antigo (do Marcos): lê o arquivo capturado pela ferramenta | `legacy-ingest.js`, `reconcile.js`, `reengage.js`, `server.js` | 6 |
 | `legacy-ingest.js` | 116 | Envio automático da cópia do sistema antigo: o programa de cópia (no computador de quem tem o login do sistema antigo) | `server.js` | **0** |
 | `legacy-map.js` | 94 | Mapa das telas do sistema antigo (sem nenhum dado de cliente) e comparação com o que o Migra Hub já tem. | `server.js` | 1 |
 | `legacy-tool.js` | 62 | Monta o arquivo único CAPTURAR-CONTRATOS.bat que o administrador baixa pelo painel: | `server.js` | 3 |
@@ -155,7 +155,7 @@
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
 | `seller-pipeline.js` | 67 | Pipeline por vendedor: para cada pessoa da equipe (Eliezer, Giovana, Diego, Fran, Marcos…), quem ela está atendendo, quem recebeu orçamento, | `campanhas-funil.js`, `server.js` | 1 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 5600 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 5606 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
@@ -248,7 +248,7 @@
 - `contabil-painel.js`
 - `nav-hubs.js`
 
-## Rotas da API (526)
+## Rotas da API (527)
 - `GET /webhook`
 - `GET /webhook/instagram`
 - `POST /webhook/instagram`
@@ -530,6 +530,7 @@
 - `GET /api/legacy/ferramenta-site.bat`
 - `GET /api/legacy/audit`
 - `POST /api/legacy/apply`
+- `POST /api/legacy/purge-noise`
 - `GET /api/legacy`
 - `GET /api/legacy/export.csv`
 - `GET /api/legacy/:id`
