@@ -133,13 +133,13 @@ test('falha ao avisar o Marcos não derruba o envio do contrato', async () => {
   assert.equal(r.enviado, true);
 });
 
-test('central: reconhece pelo nome ou pela marca e a orientação traz o papel, o fechamento direto e a memória do número', () => {
+test('central: reconhece pelo nome ou pela marca e a orientação traz o papel, o pré-atendimento e a memória do número', () => {
   assert.equal(isCentralLine({ label: 'Central Atendimento' }), true);
   assert.equal(isCentralLine({ label: 'Eliezer', central: true }), true);
   assert.equal(isCentralLine({ label: 'Eliezer' }, { name: 'Eliezer Silvestre' }), false);
   const t = centralNote({ agentName: 'Luana', memory: 'Priorize quem quer residência.' });
   assert.match(t, /CENTRAL DE ATENDIMENTO/);
   assert.match(t, /Luana/);
-  assert.match(t, /Marcos é avisado automaticamente/);
+  assert.match(t, /TODO CLIENTE vai para o vendedor/);
   assert.match(t, /Priorize quem quer residência/);
 });

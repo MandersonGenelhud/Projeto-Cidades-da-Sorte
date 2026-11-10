@@ -637,3 +637,9 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - A taxa da equipe agora pode ser definida **em dólares** (`visits.consultFeeUsd`, Visitas → "Taxa de reserva em DÓLARES"); o Pix sai em reais pela cotação do painel, como a mentoria. Sem valor em dólares, vale o valor em reais de antes (R$ 250). **O valor em dólares da equipe ainda não foi definido** (o Manderson precisa informar).
 - A atendente nunca inventa valores nem confirma data/horário: a equipe confirma depois da reserva.
 - Testes: `test/agendamento-antecipado.test.js`, `test/learnings.test.js`.
+
+## Central de Atendimento (Luana): pré-atendimento e TODO cliente vai para os vendedores (10/11/2026)
+- **Mudança de regra**: a Central deixa de fechar venda sozinha. Ela faz o pré-atendimento (nome, o que precisa, pressa, onde está), apresenta a Migra, tira dúvidas básicas e entrega **todo** cliente aos vendedores pelo rodízio (`passar_fechamento_para_humano`). Não monta orçamento, não envia contrato, não cobra. Isso reduz o risco de cobrança ou contrato errado feito pela IA.
+- **Quem recebe**: todos os vendedores ativos, com WhatsApp e "recebe clientes" ligado (sem a própria Central e sem o dono). Quem for cadastrado depois entra no rodízio sozinho. `crm.centralSellers` continua opcional: só restringe se alguém preencher; vazio = todos.
+- **Limite conhecido**: vendedor restrito a um setor que não inclui documentação (ex.: só loteamentos ou só veículos) não entra neste rodízio geral.
+- Teste: `test/central-direciona.test.js`, `test/autocontract.test.js`.

@@ -37,13 +37,25 @@ test('se ninguém da lista da Central estiver disponível, cai no rodízio comum
   assert.ok(s, 'algum vendedor recebe');
 });
 
-test('orientação da Central: cliente objetivo fecha; os demais vão para os vendedores da Central', () => {
-  const t = centralNote({ agentName: 'Luana', sellers: ['Geovana', 'Fran'] });
-  assert.match(t, /OBJETIVO[\s\S]*FECHA/);
+test('orientação da Central: pré-atendimento e TODO cliente vai para os vendedores; ela não fecha', () => {
+  const t = centralNote({ agentName: 'Luana' });
+  assert.match(t, /PRÉ-ATENDIMENTO/);
+  assert.match(t, /TODO CLIENTE vai para o vendedor, sem exceção/);
   assert.match(t, /passar_fechamento_para_humano/);
-  assert.match(t, /Geovana e Fran em rodízio/);
+  assert.match(t, /aos vendedores da equipe em rodízio/);
+  assert.match(t, /NÃO fecha venda/);
+  assert.doesNotMatch(t, /OBJETIVO[\s\S]*você mesma FECHA/);
   assert.match(t, /acima de qualquer outra orientação/);
-  assert.match(t, /DIRECIONE/);
+  assert.match(centralNote({ agentName: 'Luana', sellers: ['Geovana', 'Fran'] }), /a Geovana e Fran em rodízio/);
+});
+
+test('vendedor novo cadastrado entra no rodízio da Central sem mexer em lista', () => {
+  const { auth, crm, geo, fran } = setup();
+  const novo = auth.get(auth.create({ name: 'Paulo Novo', login: 'paulo', password: 'segredo123', role: 'seller', whatsapp: '595981000009' }).id);
+  const todos = (u) => u.active !== false;
+  const ids = new Set();
+  for (let i = 0; i < 12; i++) ids.add(crm.routeLead(crm.ensureFromConversation({ key: `554598880${String(i).padStart(3, "0")}`, phone: `554598880${String(i).padStart(3, "0")}`, name: `C${i}`, channel: 'whatsapp' }), { pool: todos }).id);
+  assert.ok(ids.has(novo.id) && ids.has(geo.id) && ids.has(fran.id), 'todos os vendedores recebem, inclusive o recém-cadastrado');
 });
 
 test('a Central direciona por papel: só vendedoras do rodízio; nunca a própria Central nem o dono', () => {
