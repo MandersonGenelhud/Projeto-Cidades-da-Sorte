@@ -790,7 +790,7 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
   let closer = lineOwner && !centralLine && !isOwner(lineOwner, ownerPhone) ? lineOwner : null;
   if (!closer && centralLine) {
     const pool = centralPoolFor({ key: convKey });
-    closer = (lead ? crm.routeLead(lead, { reason: 'direcionado pela Central de Atendimento', pool }) : crm.nextSeller(pool)) || null;
+    closer = (lead ? crm.routeLead(lead, { reason: 'direcionado pela Central de Atendimento', pool, fallback: true }) : crm.nextSeller(pool)) || null;
   }
   if (!closer) {
     const p = sectors.next('documentacao');

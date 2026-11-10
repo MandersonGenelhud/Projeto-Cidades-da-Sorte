@@ -358,11 +358,11 @@ export class Crm {
   }
 
   /** Entrega o prospecto para o próximo vendedor do rodízio (ou mantém o atual, se ainda puder atender). */
-  routeLead(lead, { reason = 'rodízio', pool = null } = {}) {
+  routeLead(lead, { reason = 'rodízio', pool = null, fallback = false } = {}) {
     const current = lead.ownerId ? this.auth.get(lead.ownerId) : null;
     if (current && current.active !== false && current.whatsapp && (!pool || pool(current))) return current;
-    // Com "pool" (ex.: os vendedores da Central), vale só quem passa no filtro; se ninguém passar, cai no rodízio comum para o cliente nunca ficar sem destino.
-    const seller = (pool && this.nextSeller(pool, this.officeOf(lead))) || this.nextSeller(null, this.officeOf(lead));
+    // Com "pool" vale só quem passa no filtro; com fallback (a Central), se ninguém passar cai no rodízio comum para o cliente nunca ficar sem destino.
+    const seller = pool ? (this.nextSeller(pool, this.officeOf(lead)) || (fallback ? this.nextSeller(null, this.officeOf(lead)) : null)) : this.nextSeller(null, this.officeOf(lead));
     if (!seller) return null;
     this.#assign('Sistema', lead, seller.id, reason);
     seller.lastLeadAt = new Date().toISOString();

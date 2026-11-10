@@ -32,7 +32,8 @@ test('a Central direciona só para a Geovana e a Fran, em rodízio, mesmo que o 
 test('se ninguém da lista da Central estiver disponível, cai no rodízio comum (o cliente não fica sem destino)', () => {
   const { crm } = setup();
   const l = crm.ensureFromConversation({ key: '5545988880009', phone: '5545988880009', name: 'Caio', channel: 'whatsapp' });
-  const s = crm.routeLead(l, { pool: () => false });
+  const s = crm.routeLead(l, { pool: () => false, fallback: true });
+  assert.equal(crm.routeLead(crm.ensureFromConversation({ key: '5545988880010', phone: '5545988880010', name: 'Duda', channel: 'whatsapp' }), { pool: () => false }), null, 'sem fallback (parceiros) continua sem destino para o próximo filtro tentar');
   assert.ok(s, 'algum vendedor recebe');
 });
 

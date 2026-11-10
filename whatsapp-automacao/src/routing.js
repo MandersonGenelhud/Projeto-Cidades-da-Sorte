@@ -128,7 +128,7 @@ export class LeadRouter {
     }) || this.crm.findForConversation({ key: conv.key, phone: conv.phone });
     if (!lead) return { erro: 'Não foi possível registrar o cliente no CRM. Use transferir_para_humano.' };
     this.crm.qualify(lead, args);
-    const seller = this.crm.routeLead(lead, { reason: pool ? 'direcionado pela Central de Atendimento' : 'rodízio após a peneira da IA', pool });
+    const seller = this.crm.routeLead(lead, { reason: pool ? 'direcionado pela Central de Atendimento' : 'rodízio após a peneira da IA', pool, fallback: Boolean(pool) });
     if (!seller) return { erro: 'Nenhum vendedor disponível no rodízio. Use transferir_para_humano.' };
     // Já avisou esse vendedor sobre este cliente há pouco: não repete (a mensagem repetida enterra as que importam).
     if (lead.routedAt && conv.routedTo === seller.id && Date.now() - Date.parse(lead.routedAt) < REPEAT_MS) {
