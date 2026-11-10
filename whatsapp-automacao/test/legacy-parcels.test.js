@@ -85,3 +85,31 @@ test('auditoria da cópia: compara o que o sistema antigo diz ter com o que foi 
   assert.equal(by.contratos.status, 'ok');
   assert.deepEqual([a.paginas, a.arquivos, a.falhas.length, a.contratosSemParcelas, a.contratosSemCliente, a.ok], [2, 1, 1, 1, 1, false]);
 });
+
+test('nova cópia do mesmo contrato: o pago e o saldo acompanham o sistema antigo; baixa feita à mão aqui não é sobrescrita', () => {
+  const store = tempStore();
+  const auth = new Auth({ store, dataDir: store.dataDir });
+  const admin = auth.get(auth.create({ name: 'Marcos', login: 'marcos', password: 'segredo123', role: 'admin' }).id);
+  const crm = new Crm({ store, auth });
+  const sales = new Sales({ store, auth });
+  const lc = new LegacyContracts({ store });
+  lc.import(CAPTURA, admin); lc.apply({ sales, crm, user: admin });
+  const sale = sales.list.find((s) => s.legacyNumber === '500');
+  assert.equal(sale.parcels.filter((p) => p.status === 'pago').length, 1);
+  // o cliente pagou a parcela 1 depois da primeira cópia: a cópia nova traz "Pago"
+  const nova = JSON.parse(JSON.stringify(CAPTURA));
+  nova.pages[1].tables[0].rows[1] = ['Parcela 1', '10/02/2026', 'R$ 1.000,00', 'Pago', '12/02/2026'];
+  lc.import(nova, admin);
+  const r = lc.apply({ sales, crm, user: admin });
+  assert.equal(r.refreshed, 1);
+  assert.equal(sales.list.find((s) => s.legacyNumber === '500').parcels.filter((p) => p.status === 'pago').length, 2);
+  assert.equal(sales.list.filter((s) => s.legacyNumber === '500').length, 1, 'sem duplicar');
+  // repetir a mesma cópia não muda nada
+  assert.equal(lc.apply({ sales, crm, user: admin }).refreshed, 0);
+  // alguém deu baixa na parcela 2 aqui no sistema novo: a cópia seguinte não mexe mais na venda
+  sales.list.find((s) => s.legacyNumber === '500').parcels[2].confirmedBy = 'Maria';
+  sales.list.find((s) => s.legacyNumber === '500').parcels[2].status = 'pago';
+  const nova2 = JSON.parse(JSON.stringify(nova)); nova2.pages[1].tables[0].rows[0] = ['Entrada', '10/01/2026', 'R$ 1.000,00', 'Pendente', ''];
+  lc.import(nova2, admin);
+  assert.equal(lc.apply({ sales, crm, user: admin }).refreshed, 0);
+});

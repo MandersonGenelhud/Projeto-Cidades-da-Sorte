@@ -441,6 +441,8 @@ export class LegacyContracts {
         for (const f of Object.keys(r)) if (f !== 'raw' && (cur[f] === '' || cur[f] === null) && r[f] !== '' && r[f] !== null) cur[f] = r[f];
         // Dados que mudam (pago, próximo prazo, situação) valem os da cópia mais nova.
         if (r.paid !== null) cur.paid = r.paid;
+        if (r.parcels?.length) cur.parcels = r.parcels;
+        if (r.value !== null) cur.value = r.value;
         if (r.openParcels?.length) cur.openParcels = r.openParcels;
         if (r.nextDue) cur.nextDue = r.nextDue;
         if (r.status) cur.status = r.status;
@@ -473,7 +475,7 @@ export class LegacyContracts {
    * atrasos e o painel executivo) e clientes viram prospectos no CRM. Nada é enviado a ninguém, e comissão fica zerada.
    */
   apply({ sales, crm, user, doSales = true, doClients = true }) {
-    const out = { sales: 0, salesSkipped: 0, noParcels: 0, synthetic: 0, fromCobranca: 0, upgraded: 0, clients: 0, clientsSkipped: 0 };
+    const out = { sales: 0, refreshed: 0, salesSkipped: 0, noParcels: 0, synthetic: 0, fromCobranca: 0, upgraded: 0, clients: 0, clientsSkipped: 0 };
     const hasContract = new Set();
     if (doSales) {
       for (const r of this.list) {
@@ -501,6 +503,20 @@ export class LegacyContracts {
           had.parcels = parcels.map((p) => ({ label: p.label, value: p.value, due: p.due, status: p.paid ? 'pago' : 'pendente', ...(p.paid ? { paidAt: p.paidAt, method: 'Sistema antigo', confirmedBy: 'Importação' } : {}) }));
           had.legacySynthetic = false;
           out.upgraded += 1; continue;
+        }
+        // Nova cópia do mesmo contrato: o pago, o saldo e a situação acompanham o sistema antigo, SE ninguém deu baixa à mão aqui
+        // (quem deu baixa aqui manda; nesse caso a venda fica como está).
+        if (had && had.legacy && !had.parcels.some((x) => x.confirmedBy && x.confirmedBy !== 'Importação')) {
+          const total1 = r.value ?? Math.round(parcels.reduce((a, p) => a + p.value, 0) * 100) / 100;
+          const fresh = parcels.map((p) => ({ label: p.label, value: p.value, due: p.due, status: p.paid ? 'pago' : 'pendente', ...(p.paid ? { paidAt: p.paidAt, method: 'Sistema antigo', confirmedBy: 'Importação' } : {}) }));
+          const sig = (list) => JSON.stringify(list.map((x) => [x.label, x.value, x.due, x.status, x.paidAt || '']));
+          const st = /cancel|rescind|distrat/i.test(r.status || '') ? 'cancelada' : 'ativa';
+          if (sig(fresh) !== sig(had.parcels) || total1 !== had.total || st !== had.status) {
+            had.parcels = fresh; had.total = total1; had.status = st; had.legacySynthetic = synth;
+            had.items = [{ name: r.service || had.items?.[0]?.name || 'Contrato do sistema antigo', qty: 1, price: total1, total: total1 }];
+            had.history.push({ at: new Date().toISOString(), by: user?.name || 'Importação', text: `Atualizado pela nova cópia do sistema antigo (contrato ${r.number})` });
+            out.refreshed += 1; continue;
+          }
         }
         if (had) { out.salesSkipped += 1; continue; }
         const total = r.value ?? Math.round(parcels.reduce((a, p) => a + p.value, 0) * 100) / 100;

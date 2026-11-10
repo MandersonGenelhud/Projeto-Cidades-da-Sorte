@@ -94,7 +94,7 @@
 | `lead-repair.js` | 56 | Conversas que a atendente respondeu mas não viraram prospecto no CRM (nada gravado para o vendedor ver): cria o prospecto que faltou. | `routes/controle.js` | 1 |
 | `learnings.js` | 90 | Aprendizados de vendas: a cada venda confirmada, a IA lê a conversa e anota o que funcionou | `server.js` | 1 |
 | `legacy-extras.js` | 78 | O que mais veio da cópia do sistema antigo: modelos de contrato (Migra Paraguai, Migra Med, Migra Brasil, RUC), | `server.js` | 1 |
-| `legacy-import.js` | 571 | Contratos do sistema antigo (do Marcos): lê o arquivo capturado pela ferramenta | `legacy-ingest.js`, `reconcile.js`, `reengage.js`, `server.js` | 6 |
+| `legacy-import.js` | 587 | Contratos do sistema antigo (do Marcos): lê o arquivo capturado pela ferramenta | `legacy-ingest.js`, `reconcile.js`, `reengage.js`, `server.js` | 6 |
 | `legacy-ingest.js` | 116 | Envio automático da cópia do sistema antigo: o programa de cópia (no computador de quem tem o login do sistema antigo) | `server.js` | **0** |
 | `legacy-map.js` | 94 | Mapa das telas do sistema antigo (sem nenhum dado de cliente) e comparação com o que o Migra Hub já tem. | `server.js` | 1 |
 | `legacy-tool.js` | 62 | Monta o arquivo único CAPTURAR-CONTRATOS.bat que o administrador baixa pelo painel: | `server.js` | 3 |

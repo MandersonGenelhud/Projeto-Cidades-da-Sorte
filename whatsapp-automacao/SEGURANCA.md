@@ -523,3 +523,10 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - `sales.summary` agora devolve `periodo` com a conta do antigo e o painel mostra "Em aberto dos contratos do período", mantendo "A receber (tudo)". Conferido com os 15 contratos reais de nov/2026: R$ 308.802,00 vendidos, R$ 14.200,00 já recebidos deles, R$ 294.602,00 em aberto e R$ 42.848,60 recebidos no mês.
 - Limite: contratos importados sem a data real de cada pagamento (só "valor pago") têm o pagamento datado no dia do contrato, o que distorce o "recebido no período". A cópia precisa trazer a lista de recebimentos com data para isso fechar.
 - Teste: `test/painel-conferencia.test.js` (sem dados de clientes).
+
+## Nova cópia do sistema antigo atualiza os contratos já importados (10/11/2026)
+
+- Antes: uma segunda cópia trazia só os contratos NOVOS; contratos já importados ficavam com o pago/saldo da primeira cópia (e o painel nunca fechava com o antigo).
+- Agora (`src/legacy-import.js`): o contrato já importado acompanha a cópia mais nova (parcelas, pago, total, situação), sem duplicar e registrando no histórico da venda. **Exceção de segurança**: se alguém deu baixa à mão no sistema novo (Maria, painel), aquela venda não é mais sobrescrita pela cópia. Repetir a mesma cópia não muda nada.
+- Limite: contrato que o sistema antigo apagou não some daqui (só cancelamento marcado lá é refletido).
+- Teste: `test/legacy-parcels.test.js`.
