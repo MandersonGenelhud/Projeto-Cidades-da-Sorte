@@ -38,7 +38,7 @@ test('no domínio do site só há páginas públicas; no endereço do sistema o 
   assert.ok(!home.body.includes('{{ORIGIN}}'));
   assert.equal((await get('meusite.test', '/site/premium.css')).status, 200);
   assert.equal((await get('meusite.test', '/site/premium.js')).status, 200);
-  for (const a of ['/site/grupo.css', '/site/grupo.js', '/site/g-svc-1.jpg', '/site/g-how.jpg', '/img/grupo-migra-paraguay-logo.webp', '/img/marcas/migra-motors.webp']) assert.equal((await get('meusite.test', a)).status, 200, a);
+  for (const a of ['/site/grupo.css', '/site/grupo.js', '/site/g-svc-1.webp', '/site/g-how.webp', '/img/grupo-migra-paraguay-logo.webp', '/img/marcas/migra-motors.webp']) assert.equal((await get('meusite.test', a)).status, 200, a);
   for (const p of ['/login.html', '/app.js', '/index.html', '/api/auth/state', '/api/leads', '/api/executive', '/data/db.json']) assert.equal((await get('www.meusite.test', p)).status, 404, p);
   assert.equal((await get('meusite.test', '/api/public/catalog')).status, 200);
   assert.equal((await get('meusite.test', '/site/home.css')).status, 200);

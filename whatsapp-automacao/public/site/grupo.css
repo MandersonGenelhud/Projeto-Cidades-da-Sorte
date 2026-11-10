@@ -137,12 +137,27 @@ a.g-brand:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(11, 
   .g-feats { grid-template-columns: 1fr; gap: 6px; } .g-feat + .g-feat { border-left: 0; border-top: 1px solid var(--g-line); padding-top: 14px; }
   .g-feat { justify-content: flex-start; }
   .g-cta-in { padding-left: 24px; }
-  .g-cta-flag { opacity: .35; }
+  .g-cta-flag { display: none; }
+}
+@media (max-width: 720px) {
+  .g-how-photo { display: none; }
+  .g-how-in { padding-top: clamp(36px, 8vw, 56px); }
 }
 @media (max-width: 560px) {
-  .g-sol-grid { grid-template-columns: 1fr; }
+  /* cartões em linha: a foto fica pequena (bem nítida) ao lado do texto */
+  .g-sol-grid { grid-template-columns: 1fr; gap: 14px; }
+  .g-sol-card { display: grid; grid-template-columns: 118px 1fr; }
+  .g-sol-card img { width: 118px; height: 100%; min-height: 150px; }
+  .g-sol-body { min-height: 0; padding: 14px 14px 16px; }
+  .g-sol-body p { padding-right: 0; padding-bottom: 28px; }
+  .g-sol-t h3 { font-size: 1rem; }
   .g-steps { grid-template-columns: 1fr 1fr; }
   .g-brands { grid-template-columns: repeat(2, 1fr); }
   .g-btn { width: 100%; }
   .g-btn-lg { padding: 16px 20px; }
 }
+
+/* enquadra o assunto de cada foto quando o cartão fica estreito (celular) */
+.g-sol-card:nth-child(1) img { object-position: 12% center; }
+.g-sol-card:nth-child(3) img { object-position: 72% center; }
+.g-sol-card:nth-child(4) img { object-position: 38% center; }
