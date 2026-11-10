@@ -297,7 +297,18 @@ export class Sales {
       b.received += sum(paidIn(s), (p) => p.value);
       if (s.commission.status === 'paga') { if (inRange(s.commission.paidAt)) b.commissionPaid += s.commission.value; } else b.commissionOpen += s.commission.value;
     }
+    // Mesma conta do "Dashboard Executivo" do sistema antigo: olha os contratos CRIADOS no período (faturamento), quanto já entrou deles
+    // (qualquer data) e o que falta (saldo desses contratos). O "recebido no período" é o dinheiro que caiu no período, de qualquer contrato.
+    const paidOf = (s) => sum(s.parcels.filter((p) => p.status === 'pago'), (p) => p.value);
+    const periodo = {
+      contratos: sold.length,
+      faturamento: sum(sold, (s) => s.total),
+      recebidoDosContratos: sum(sold, (s) => Math.min(paidOf(s), s.total)),
+      emAberto: sum(sold, (s) => Math.max(0, cents(s.total - paidOf(s)))),
+      recebidoNoPeriodo: sum(all, (s) => sum(paidIn(s), (p) => p.value)),
+    };
     return {
+      periodo,
       sales: sold.length,
       sold: sum(sold, (s) => s.total),
       received: sum(all, (s) => sum(paidIn(s), (p) => p.value)),

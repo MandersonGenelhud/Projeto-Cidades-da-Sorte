@@ -1773,7 +1773,8 @@ loaders.contracts = async () => {
   $('#salesBoardKpis').innerHTML = [
     kpi(admin ? 'Vendido no período' : 'Minhas vendas no período', brl2(sum.sold), `${sum.sales} contrato(s)`),
     kpi('Recebido no período', brl2(sum.received), 'entradas e parcelas confirmadas'),
-    kpi('A receber', brl2(sum.toReceive), 'parcelas em aberto'),
+    kpi('Em aberto dos contratos do período', brl2(sum.periodo?.emAberto ?? 0), `de ${brl2(sum.periodo?.faturamento ?? 0)} vendidos (já entrou ${brl2(sum.periodo?.recebidoDosContratos ?? 0)})`),
+    kpi('A receber (tudo)', brl2(sum.toReceive), 'todas as parcelas em aberto, de qualquer data'),
     kpi('Em atraso', brl2(sum.overdue), sum.overdue ? '<span class="status-warn">cobrar os clientes</span>' : 'nenhuma parcela atrasada', sum.overdue ? 'warn' : ''),
     kpi(admin ? 'Comissões a pagar' : 'Minhas comissões a receber', brl2(sum.commissionOpen), `${brl2(sum.commissionPaid)} pagas no período`),
   ].join('');

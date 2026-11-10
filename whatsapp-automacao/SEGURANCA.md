@@ -516,3 +516,10 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Causa encontrada: as respostas de clientes que esperavam há mais de 3 horas eram tratadas como "antigas" e ficavam misturadas com as centenas de recomeços, ordenadas pela data da última mensagem; as retomadas muito antigas passavam na frente.
 - Agora (`src/queue-priority.js`): 1º quem **respondeu** (do que espera há mais tempo ao mais recente, até 3 dias); 2º quem está **chegando** (primeiro contato); 3º recomeços e retomadas antigas, do mais antigo ao mais novo. Para as antigas não pararem para sempre, sai uma delas a cada 8 atendimentos. Limites por hora/dia, horário de trabalho, recusas e a guarda de contato continuam valendo (sem mudança).
 - Testes: `test/oferta-relampago.test.js` (fila com 300 recomeços antigos).
+
+## Painel de vendas com a mesma conta do sistema antigo (10/11/2026)
+
+- Diferença achada comparando fotos do Dashboard Executivo antigo (nov/2026) com a nossa conta: o antigo mostra **vendido** (contratos criados no período), **recebido no mês** (dinheiro que caiu no período, de qualquer contrato) e **em aberto** (saldo só dos contratos do período, = vendido − já recebido deles). A nossa "A receber" somava as parcelas em aberto de **todos** os contratos, de qualquer data, então nunca batia.
+- `sales.summary` agora devolve `periodo` com a conta do antigo e o painel mostra "Em aberto dos contratos do período", mantendo "A receber (tudo)". Conferido com os 15 contratos reais de nov/2026: R$ 308.802,00 vendidos, R$ 14.200,00 já recebidos deles, R$ 294.602,00 em aberto e R$ 42.848,60 recebidos no mês.
+- Limite: contratos importados sem a data real de cada pagamento (só "valor pago") têm o pagamento datado no dia do contrato, o que distorce o "recebido no período". A cópia precisa trazer a lista de recebimentos com data para isso fechar.
+- Teste: `test/painel-conferencia.test.js` (sem dados de clientes).
