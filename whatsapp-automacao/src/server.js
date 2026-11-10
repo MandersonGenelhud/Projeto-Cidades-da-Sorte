@@ -114,7 +114,7 @@ import { PartnerProjects } from './partner-projects.js';
 import { AffiliateExtras } from './affiliate-extras.js';
 import { reportCsv, auditCsv, REPORTS } from './reports-csv.js';
 import { buildScreenMap, compareMap } from './legacy-map.js';
-import { Sectors, resolvePeople, isOwner } from './sectors.js';
+import { Sectors, resolvePeople, isOwner, isTeamPhone } from './sectors.js';
 import { LoginGuard, newTotpSecret, otpauthUrl, verifyTotp } from './security.js';
 import { Backups } from './backup.js';
 import { AutoFollowUps } from './followups.js';
@@ -1388,6 +1388,9 @@ wa.on('message', (msg) => {
   routeIncoming(msg);
 });
 function routeIncoming(msg) {
+  // Equipe (Marcos e vendedores) falando com o número central pelo celular pessoal: não é cliente. A atendente não responde e não vira prospecto.
+  // (Para testar a atendente use a aba Testar; ou ligue "Responder também a equipe" em Agente IA, settings.agent.answerTeam.)
+  if (!msg.isGroup && !msg.line && msg.phone && store.settings.agent?.answerTeam !== true && isTeamPhone(auth.users, msg.phone)) { notify('message', msg); return; }
   pending.onIncoming(msg);
   if (!msg.isGroup) {
     try {

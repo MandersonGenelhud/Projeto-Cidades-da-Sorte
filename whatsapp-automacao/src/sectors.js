@@ -42,6 +42,16 @@ export function isOwner(user, ownerPhone = '') {
   return /^marcos\b/.test(norm(user.name));
 }
 
+/**
+ * O número é de alguém da equipe (usuário ativo com esse WhatsApp)? Vale para o número central: quando o Marcos e os vendedores
+ * falam com ele pelo celular pessoal, a atendente de clientes NÃO responde como se fossem clientes (e eles não viram prospecto).
+ */
+export function isTeamPhone(users = [], phone = '') {
+  const p = normalizePhone(phone) || '';
+  if (!p) return false;
+  return users.some((u) => u && u.active !== false && !u.pending && u.whatsapp && samePhone(u.whatsapp, p));
+}
+
 /** "Nome = WhatsApp" por linha → [{ name, whatsapp }]. */
 export function parsePeople(text) {
   return String(text || '').split('\n').map((line) => line.split(/[=:]/).map((x) => x.trim()))

@@ -563,3 +563,10 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Três números desconectados (Eliezer, Eliezer Silvestre, Gabriel) tentavam reconectar a cada poucos minutos e cada tentativa gerava uma linha de "erro": o painel mostrava ~707 "erros hoje", escondendo problemas reais.
 - Agora o mesmo motivo de queda do mesmo número é anotado **uma vez a cada 30 minutos**, com a contagem das repetições; motivo diferente aparece na hora. A reconexão continua do mesmo jeito (sem mudança de comportamento ou de segurança).
 - Teste: `test/log-quedas.test.js`.
+
+## Troca do número central: equipe não vira cliente (10/11/2026)
+
+- Com o número central novo (WhatsApp Business), o Marcos e os vendedores passam a falar com ele pelo celular pessoal. Antes, uma mensagem de um número da equipe para o número central podia ser respondida pela atendente como se fosse cliente e virar prospecto.
+- Agora: mensagem de número de usuário ativo da Equipe (não pendente) para o número central é ignorada pela atendente e não cria prospecto (`isTeamPhone`, `src/sectors.js`). Nina, Maria, comprovantes e as linhas dos vendedores continuam como antes (tratados antes). Para testar a atendente com o próprio celular: aba Testar, ou `settings.agent.answerTeam = true`.
+- Limite: depende de o WhatsApp do usuário estar cadastrado na Equipe; número da equipe não cadastrado continua sendo tratado como cliente.
+- Teste: `test/log-quedas.test.js`.

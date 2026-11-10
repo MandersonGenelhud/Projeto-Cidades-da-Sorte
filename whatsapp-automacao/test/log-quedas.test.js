@@ -15,3 +15,13 @@ test('queda repetida do WhatsApp: o mesmo motivo vira um aviso a cada 30 minutos
   assert.equal(outro.log, true);
   assert.equal(outro.text, 'sessão encerrada no celular (código 401)');
 });
+
+import { isTeamPhone } from '../src/sectors.js';
+test('número da equipe falando com o número central não é tratado como cliente', () => {
+  const users = [{ name: 'Marcos', whatsapp: '595991234567', active: true }, { name: 'Ex', whatsapp: '595981111111', active: false }, { name: 'Pend', whatsapp: '595982222222', pending: true }];
+  assert.equal(isTeamPhone(users, '+595 991 234567'), true);
+  assert.equal(isTeamPhone(users, '595981111111'), false, 'usuário inativo não conta');
+  assert.equal(isTeamPhone(users, '595982222222'), false, 'cadastro pendente não conta');
+  assert.equal(isTeamPhone(users, '5545999990000'), false, 'cliente');
+  assert.equal(isTeamPhone(users, ''), false);
+});
