@@ -20,7 +20,7 @@ import { CampaignRunner } from './campaigns.js';
 import { AutoReply } from './autoreply.js';
 import { Scheduler } from './scheduler.js';
 import { PendingInbox, extractPending, extractStalled } from './pending.js';
-import { LeadRouter, chatPreview } from './routing.js';
+import { centralLink, LeadRouter, chatPreview } from './routing.js';
 import { buildRanking, currentMonth } from './ranking.js';
 import { clearDemo, hasDemo, loadDemo } from './demo.js';
 import { Tunnel } from './tunnel.js';
@@ -3495,6 +3495,16 @@ app.get('/atendimento', (req, res) => {
   if (linkHits.size > 5000) linkHits.clear();
   const origin = String(req.query.o || 'link').replace(/[^a-z0-9-]/gi, '').slice(0, 20) || 'link';
   const office = SITE_OFFICES.get(hostOf(req)) || null;
+  // Central de Atendimento configurada: o botão do site e da live abre o WhatsApp da CENTRAL (ela atende e direciona aos vendedores).
+  const centralUrl = centralLink({ central: store.settings.crm?.centralWhatsapp, origin });
+  if (centralUrl) {
+    const clicksC = (store.data.linkClicks ||= []);
+    clicksC.push({ at: new Date().toISOString(), sellerId: null, origin, central: true });
+    if (clicksC.length > 20000) clicksC.splice(0, clicksC.length - 20000);
+    store.save();
+    const code = `${origin.toUpperCase()}-${String(clicksC.length).slice(-5)}`;
+    return res.set('Cache-Control', 'no-store').redirect(302, centralLink({ central: store.settings.crm.centralWhatsapp, origin, code }));
+  }
   const seller = crm.takeNextSeller(office);
   if (!seller) return res.status(503).type('text/plain; charset=utf-8').send('No momento não há atendente disponível. Tente de novo em instantes.');
   const clicks = (store.data.linkClicks ||= []);

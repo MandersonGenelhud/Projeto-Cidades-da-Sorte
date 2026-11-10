@@ -162,3 +162,15 @@ export class LeadRouter {
     };
   }
 }
+
+/**
+ * Botão "Falar com um especialista" do site e da live: com a Central de Atendimento configurada, o cliente abre o WhatsApp da CENTRAL
+ * (que faz o primeiro atendimento e direciona aos vendedores). Sem Central, devolve null e vale o rodízio direto entre vendedores.
+ */
+export function centralLink({ central = '', origin = 'link', code = '' } = {}) {
+  const phone = String(central || '').replace(/\D/g, '');
+  if (phone.length < 8) return null;
+  const from = origin === 'live' ? 'pela live da Migra' : 'pelo site da Migra';
+  const text = `Olá! Vim ${from} e quero iniciar o meu atendimento.${code ? ` Código: ${code}.` : ''}`;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+}

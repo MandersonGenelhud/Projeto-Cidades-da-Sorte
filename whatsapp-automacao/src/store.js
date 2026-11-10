@@ -46,6 +46,7 @@ const DEFAULT_DATA = {
       routing: { enabled: true, criteria: PRESET.crm?.routing?.criteria || '' },
       panelUrl: '', // endereço do painel na internet, para o link da ficha no aviso ao vendedor
       ownerPhone: '', // WhatsApp do Marcos: parcerias e assuntos de negócio vão direto para ele
+      centralWhatsapp: '', // WhatsApp da Central de Atendimento: os botões "Falar com um especialista" do site e da live abrem este número (vazio = rodízio direto entre vendedores)
       jobsContact: [{ name: 'Diego', whatsapp: '' }], // quem quer trabalhar na Migra (só o nome = WhatsApp da Equipe)
       mentoring: { enabled: true, price: 400, currency: 'USD', minutes: 60, priceBRL: 0 }, // priceBRL: valor do Pix em reais (0 = US$ × cotação do painel) // mentoria com o Marcos Miguel (único atendimento direto com ele)
       // Oferta do aplicativo de idiomas da Migra (ainda em desenvolvimento): só vale até a data que o Marcos escolher.
@@ -393,6 +394,13 @@ export class Store extends EventEmitter {
       const agOwner = this.data.settings.agent;
       if (agOwner && Number(agOwner.resumeAfterOwnerHours) === 6) agOwner.resumeAfterOwnerHours = 2;
       this.data.ownerResume2026 = true;
+      this.flush();
+    }
+    // Central de Atendimento (10/11/2026): os botões do site e da live abrem o número da Central, não o de um vendedor. Só em instalações que já têm usuários.
+    if (!this.data.central2026) {
+      const crmC = this.data.settings.crm;
+      if (crmC && (this.data.users || []).length && !crmC.centralWhatsapp) crmC.centralWhatsapp = '595984453784';
+      this.data.central2026 = true;
       this.flush();
     }
     // Regra da direção (10/11/2026): depois que uma pessoa falou com o cliente, a IA não volta sozinha. Uma vez, tira o prazo de retomada automática.

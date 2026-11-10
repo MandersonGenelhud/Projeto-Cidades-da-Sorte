@@ -608,3 +608,9 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - As fotos dos cartões, do "Como funciona" e da bandeira foram **recortadas do próprio modelo** (baixa resolução): trocar por fotos originais em alta quando houver. Sem oferta de curso na página. School aparece só como empresa do grupo ("Escola de idiomas", texto do modelo).
 - Teste: `test/site-host*.test.js` (página, arquivos novos e logos acessíveis no domínio do site).
 - Qualidade das fotos do novo layout (10/11/2026): as fotos recortadas do modelo (1024 px) foram suavizadas e ampliadas 3x (WebP), e no celular os cartões de soluções passaram a ficar em linha (foto pequena ao lado do texto) e as fotos que ficariam gigantes (Como funciona e bandeira) saem no celular. **Isso só reduz o serrilhado; a nitidez real só vem de fotos originais em alta resolução** (pendente com o Manderson).
+
+## Botões do site e da live abrem a Central, não o vendedor (10/11/2026)
+
+- Os botões "Falar com um especialista" do site e da live (`/atendimento`) escolhiam um vendedor em rodízio (ex.: a Geovana) e abriam o WhatsApp dele. Agora, com `crm.centralWhatsapp` configurado (Prospectos → Regras → "WhatsApp da Central de Atendimento"), abrem o WhatsApp da **Central** (+595 984 453 784, definido em 10/11), com a mensagem "Olá! Vim pelo site da Migra..." e o código do clique. A Central faz o primeiro atendimento e direciona aos vendedores. Vazio = rodízio direto entre vendedores, como antes. Instalações que já têm usuários recebem o número da Central uma vez, na atualização.
+- Limites: links gerados para um vendedor específico (indicação, retorno marcado, Instagram→vendedor) continuam apontando para ele; conversas já abertas com a Geovana seguem com ela.
+- Testes: `test/central-link.test.js`, `test/live.test.js`.

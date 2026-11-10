@@ -782,6 +782,7 @@ loaders.team = async () => {
   f.routingCriteria.value = c.routing?.criteria || '';
   f.panelUrl.value = c.panelUrl || '';
   f.ownerPhone.value = c.ownerPhone ? `+${c.ownerPhone}` : '';
+  f.centralWhatsapp.value = c.centralWhatsapp ? `+${c.centralWhatsapp}` : '';
   const ao = c.appOffer || {};
   f.appOfferEnabled.checked = ao.enabled !== false;
   f.appOfferPrice.value = ao.regularPrice ?? 59.99;
@@ -902,6 +903,7 @@ $('#formCrmSettings').addEventListener('submit', withBusy($('#formCrmSettings'),
       appOffer: { enabled: f.appOfferEnabled.checked, regularPrice: Number(f.appOfferPrice.value) || 0, discountPct: Number(f.appOfferPct.value) || 50, months: Number(f.appOfferMonths.value) || 6, period: f.appOfferPeriod.value, validUntil: f.appOfferUntil.value, gift: f.appOfferGift.value.trim().slice(0, 200) },
       panelUrl: f.panelUrl.value.trim(),
       ownerPhone: f.ownerPhone.value.replace(/\D/g, ''),
+      centralWhatsapp: f.centralWhatsapp.value.replace(/\D/g, ''),
       jobsContact: f.jobsContact.value.split(',').map((l) => l.split(/[=:]/).map((x) => x.trim())).filter(([n]) => n).map(([name, w = '']) => ({ name, whatsapp: w.replace(/\D/g, '') })),
       fx: { USD: Number(f.fxUSD.value) || 1, PYG: Number(f.fxPYG.value) || 0 },
     },
