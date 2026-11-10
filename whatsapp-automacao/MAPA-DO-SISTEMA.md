@@ -5,10 +5,10 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **150** · testes automatizados (arquivos): **148** · scripts do painel: **47**
+- Módulos em `src/`: **149** · testes automatizados (arquivos): **147** · scripts do painel: **47**
 - Rotas da API em `server.js`: **528** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
-- Módulos que ninguém usa: **1** (`src/site-standalone.js`)
+- Módulos que ninguém usa: **0**
 
 ## Como o sistema é montado (de baixo para cima)
 1. **`src/server.js`** liga tudo (é o único arquivo que conhece todos os módulos) e expõe a API e o painel. Funcionalidade nova entra num **módulo próprio** e o servidor só a liga, sem copiar a lógica para dentro dele.
@@ -24,7 +24,7 @@
 - Configuração nova vai em `settings` com **valor padrão** em `store.js`; mudança em dado já existente usa **migração de uma vez** com selo (veja abaixo), nunca sobrescreve o que o painel salvou.
 - Nada de segredo no código. Dados reais ficam em `data/` e nunca no Git.
 
-## Módulos (150)
+## Módulos (149)
 | Módulo | Linhas | Para que serve | Quem usa | Testes |
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
@@ -162,7 +162,6 @@
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
 | `site-content.js` | 90 | Conteúdo editável da página inicial do site (título, números confirmados, vídeos de depoimento e perguntas), | `server.js` | 1 |
 | `site-host.js` | 43 | Domínio próprio do site público da Migra (ex.: www.migraparaguay.com): no domínio do site só aparecem | `server.js` | 3 |
-| `site-standalone.js` | 23 | Página inicial do Grupo Migra em UM arquivo só (CSS e JavaScript dentro, endereços completos), para colocar em outro site | — | 1 |
 | `store.js` | 593 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 16 |
 | `support.js` | 135 | Suporte interno: qualquer pessoa da equipe abre um chamado (problema no sistema, dúvida, pedido), | `server.js` | 1 |
 | `tasks.js` | 65 | Tarefas da equipe: o que cada pessoa precisa fazer, com prazo e lembrete no WhatsApp (uma vez, no dia do prazo ou quando atrasar). | `server.js` | 1 |

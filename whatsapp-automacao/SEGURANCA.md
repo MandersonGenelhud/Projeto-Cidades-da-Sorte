@@ -594,9 +594,4 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Pendente de dados: Instagram da Migra Tech e da Migra School (não inventados), e "Migra Brasil"/"Migra Med" se forem empresas do grupo.
 - Dependência: o vídeo do Marcos, a cena e os depoimentos ainda são carregados de `migrapyassessoria.com/assets` (sistema antigo); se o antigo sair do ar, esses vídeos somem. Baixar para o Migra Hub antes de desligar o antigo.
 - Limite: o endereço www.migraparaguai.com hoje serve outro site (WordPress); esta página só aparece nele depois de o domínio apontar para a VPS (feito pelo dono do domínio, `deploy/trocar-dominio.sh`).
-
-## Página do Grupo Migra para o WordPress (migraparaguai.com) sem mexer no Hub (10/11/2026)
-
-- O migraparaguai.com (com I, WordPress na Hostinger) é um site separado do Migra Hub (migraparaguay.com, com Y). Eu **não** acesso o painel do WordPress nem a Hostinger (regra: nunca usar senha/acesso de terceiros, mesmo do dono). Em vez disso, `tools/pagina-wordpress.mjs` gera `docs/site-wordpress/grupo-migra.html`: a página inicial nova do Grupo Migra em **um arquivo só** (CSS e JS dentro, endereços completos), para o dono subir sozinho em `public_html/grupo-migra/index.html` (não mexe no WordPress) ou colar no Elementor.
-- Imagens das empresas e o botão "Falar com especialista" continuam vindo do Migra Hub (migraparaguay.com); os vídeos, do sistema antigo (migrapyassessoria.com), por enquanto.
-- Teste: `test/site-standalone.test.js`.
+- Ajuste: o vídeo do Marcos fica **no topo, centralizado, acima do título**, também no computador (antes ficava ao lado). O site que se altera é o `migraparaguay.com` (front-end servido pelo Migra Hub); o painel do Hub não foi mexido.
