@@ -5,7 +5,7 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **148** · testes automatizados (arquivos): **145** · scripts do painel: **47**
+- Módulos em `src/`: **148** · testes automatizados (arquivos): **146** · scripts do painel: **47**
 - Rotas da API em `server.js`: **528** · tarefas agendadas (`setInterval`): **21** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
@@ -166,7 +166,7 @@
 | `tasks.js` | 65 | Tarefas da equipe: o que cada pessoa precisa fazer, com prazo e lembrete no WhatsApp (uma vez, no dia do prazo ou quando atrasar). | `server.js` | 1 |
 | `transports/cloudapi.js` | 208 | WhatsApp Cloud API (API oficial da Meta): envio via Graph API e recebimento via webhook. | `server.js` | 1 |
 | `transports/instagram.js` | 283 | Instagram Direct pela API oficial (Instagram API com login do Instagram). | `connection.js`, `server.js` | 1 |
-| `transports/whatsapp-web.js` | 542 | Conexão com o WhatsApp via Baileys (protocolo do WhatsApp Web, sem navegador). | `server.js` | 6 |
+| `transports/whatsapp-web.js` | 556 | Conexão com o WhatsApp via Baileys (protocolo do WhatsApp Web, sem navegador). | `server.js` | 7 |
 | `tunnel.js` | 112 | Endereço na internet (https) para o próprio computador, sem VPS: | `server.js` | 1 |
 | `tutorials.js` | 225 | Tutoriais e treinamento semanal. Administrador lê o guia do administrador; vendedor lê só o dele (nunca vê a parte do administrador). | `server.js` | 2 |
 | `updater.js` | 120 | Atualização com um clique: baixa a versão mais nova do GitHub e troca só o código. | `server.js` | 1 |

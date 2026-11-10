@@ -557,3 +557,9 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - A data de corte é automática (primeira venda que nasceu no sistema novo) ou definida pelo administrador (`PUT /api/sales/cutoff`, registrada no registro de segurança). Só administrador altera.
 - Limite: a origem vem do carimbo `legacy` da importação; vendas antigas anteriores à importação sem o carimbo contam como novas.
 - Teste: `test/painel-conferencia.test.js`.
+
+## Quedas do WhatsApp: o mesmo erro não enche mais o registro (10/11/2026)
+
+- Três números desconectados (Eliezer, Eliezer Silvestre, Gabriel) tentavam reconectar a cada poucos minutos e cada tentativa gerava uma linha de "erro": o painel mostrava ~707 "erros hoje", escondendo problemas reais.
+- Agora o mesmo motivo de queda do mesmo número é anotado **uma vez a cada 30 minutos**, com a contagem das repetições; motivo diferente aparece na hora. A reconexão continua do mesmo jeito (sem mudança de comportamento ou de segurança).
+- Teste: `test/log-quedas.test.js`.

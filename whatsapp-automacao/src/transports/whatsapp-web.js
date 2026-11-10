@@ -83,6 +83,16 @@ export function describeClose(code, message = '') {
 }
 
 /**
+ * Aviso de queda no registro: o mesmo motivo repetido (ex.: número desconectado tentando de novo a cada poucos minutos) é anotado
+ * uma vez a cada 30 minutos, com a contagem das repetições, em vez de uma linha de erro por tentativa (eram ~700 "erros" por dia).
+ */
+export function dropLogDecision(prev, message, now = Date.now(), quietMs = 30 * 60_000) {
+  if (prev && prev.message === message && now - prev.at < quietMs) return { log: false, text: '', state: { ...prev, n: prev.n + 1 } };
+  const text = prev && prev.message === message && prev.n > 0 ? `${message} (repetiu ${prev.n}x nos últimos minutos)` : message;
+  return { log: true, text, state: { message, at: now, n: 0 } };
+}
+
+/**
  * Quanto esperar antes de reconectar (ms). Queda isolada: espera curta. Quedas repetidas (internet
  * oscilando, número aberto em outro lugar) esperam cada vez mais, para não ficar "batendo na porta" do WhatsApp:
  * 3 quedas em 10 minutos = 10 s, depois 20 s, 40 s... até 5 min.
@@ -199,7 +209,11 @@ export class WhatsAppClient extends EventEmitter {
         if (!normal) this.emit('drop', { at: new Date(nowMs).toISOString(), code: code || null, reason: this.lastError || '', wasUp, recent: this.drops.length });
         // Vai reconectar sozinho: mostra "conectando" (âmbar) em vez de vermelho, para não ficar piscando a cada oscilação.
         this.#setStatus(!this.stopping && !loggedOut ? 'connecting' : 'disconnected', { qr: null, me: null });
-        if (this.lastError && !loggedOut) this.emit('log', { type: 'error', message: `WhatsApp: ${this.lastError}` });
+        if (this.lastError && !loggedOut) {
+          const d = dropLogDecision(this.dropLogState, this.lastError, nowMs);
+          this.dropLogState = d.state;
+          if (d.log) this.emit('log', { type: 'error', message: `WhatsApp: ${d.text}` });
+        }
         // Sessão encerrada no celular, ou sessão salva que não abre mais (comum depois de "Desconectar"):
         // apaga a sessão antiga para gerar um QR Code novo.
         const stale = !state.creds?.registered || this.failures >= 3;

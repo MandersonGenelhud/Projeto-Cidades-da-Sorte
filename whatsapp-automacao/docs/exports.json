@@ -800,6 +800,7 @@
  "src/transports/whatsapp-web.js": [
   "WhatsAppClient",
   "describeClose",
+  "dropLogDecision",
   "isSelfChat",
   "normalizeMessage",
   "reconnectDelay"
