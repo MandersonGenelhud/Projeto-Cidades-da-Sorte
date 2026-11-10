@@ -508,6 +508,7 @@
   "buildClosedIndex",
   "declineNote",
   "detectDecline",
+  "humanSpoke",
   "isAck",
   "isProactive",
   "markDecline",

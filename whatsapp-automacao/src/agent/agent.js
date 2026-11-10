@@ -168,6 +168,7 @@ export class Agent {
     }
     if (text) this.remember(conv, 'assistant', text, { by: 'owner' });
     conv.ownerRepliedAt = Date.now();
+    conv.humanSpokeAt = conv.ownerRepliedAt; // marca permanente: a atendente nunca mais toma a iniciativa com este cliente
     if (this.config.pauseOnOwnerReply !== false && !conv.handoff) {
       conv.handoff = true;
       conv.handoffReason = OWNER_PAUSE;
@@ -605,7 +606,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       }
       // A pausa de "respondi pelo celular" termina sozinha se o dono ficou calado por horas e o cliente voltou a escrever.
       if (conv.handoff && conv.handoffReason === OWNER_PAUSE) {
-        const hours = Number(this.config.resumeAfterOwnerHours ?? 2);
+        const hours = Number(this.config.resumeAfterOwnerHours ?? 0); // 0 = nunca volta sozinha (regra da direção); só o administrador retoma
         if (hours > 0 && Date.now() - (conv.ownerRepliedAt || 0) > hours * 3_600_000) {
           conv.handoff = false;
           conv.handoffReason = '';

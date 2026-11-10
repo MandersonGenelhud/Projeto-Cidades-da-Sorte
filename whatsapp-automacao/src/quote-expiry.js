@@ -48,7 +48,7 @@ export function noticeExpiringQuotes({ store, agent, pending, quotes, sales = []
     if (conv.handoff && !(conv.handoffReason === OWNER_PAUSE && now - (conv.ownerRepliedAt || 0) >= resumeOwnerPauseHours * 3_600_000)) { skip('uma pessoa está atendendo esta conversa', 'comAtendente'); continue; }
     // Cliente que já recusou ou já fechou conosco não recebe lembrete de orçamento (o aviso fica registrado como visto, para não tentar de novo).
     const guard = outreachBlock(conv);
-    if (guard) { if (!dryRun) q.expiryNoticeAt = new Date(now).toISOString(); skip(guard === 'recusou' ? 'o cliente já disse que fechou com outro ou não quer mais' : guard === 'fechou_conosco' ? 'o cliente já fechou conosco' : 'o cliente acabou de receber outra mensagem nossa', 'bloqueados'); continue; }
+    if (guard) { if (!dryRun) q.expiryNoticeAt = new Date(now).toISOString(); skip(guard === 'recusou' ? 'o cliente já disse que fechou com outro ou não quer mais' : guard === 'fechou_conosco' ? 'o cliente já fechou conosco' : guard === 'humano' ? 'uma pessoa da equipe já falou com o cliente (a IA não toma mais a iniciativa)' : 'o cliente acabou de receber outra mensagem nossa', 'bloqueados'); continue; }
     if (pending.queue.includes(conv.key)) { skip('já está na fila de respostas', 'jaNaFila'); continue; }
     if (dryRun) { out.queued += 1; continue; }
     if (conv.handoff) { conv.handoff = false; conv.handoffReason = ''; }

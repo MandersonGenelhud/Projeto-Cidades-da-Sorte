@@ -110,7 +110,7 @@ const DEFAULT_DATA = {
       // Se o dono responder um cliente pelo celular, o agente para de responder aquele cliente.
       pauseOnOwnerReply: true,
       // Pausa por "respondi pelo celular" termina sozinha depois de tantas horas sem o dono falar de novo (0 = nunca).
-      resumeAfterOwnerHours: 2, // depois que o dono respondeu pelo celular, a IA volta sozinha se ele ficar calado por este tempo (antes: 6 h)
+      resumeAfterOwnerHours: 0, // regra da direção: depois que uma pessoa falou com o cliente, a IA NÃO volta sozinha (0). Só o administrador retoma. (Antes: 6 h, depois 2 h.)
       // Ritmo humano: espera para "ver", ler e digitar; divide a resposta em mensagens curtas.
       humanize: { enabled: true, noticeMin: 5, noticeMax: 20 },
       // Conversas sem resposta: considera mensagens dos últimos N dias e responde sozinho.
@@ -393,6 +393,13 @@ export class Store extends EventEmitter {
       const agOwner = this.data.settings.agent;
       if (agOwner && Number(agOwner.resumeAfterOwnerHours) === 6) agOwner.resumeAfterOwnerHours = 2;
       this.data.ownerResume2026 = true;
+      this.flush();
+    }
+    // Regra da direção (10/11/2026): depois que uma pessoa falou com o cliente, a IA não volta sozinha. Uma vez, tira o prazo de retomada automática.
+    if (!this.data.humanRule2026) {
+      const agH = this.data.settings.agent;
+      if (agH && Number(agH.resumeAfterOwnerHours) > 0) agH.resumeAfterOwnerHours = 0;
+      this.data.humanRule2026 = true;
       this.flush();
     }
     // Oferta relâmpago com vagas limitadas (20, Prata ou Ouro, à vista): troca uma vez o texto da versão anterior, sem mexer no que a direção já tiver ajustado nas datas e vagas.

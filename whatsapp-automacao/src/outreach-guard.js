@@ -125,9 +125,17 @@ export const isProactive = (p) => Boolean(p) && (p.restart === true || ['retomar
  * Decide se podemos procurar o cliente. Devolve '' (pode) ou o motivo: 'recusou', 'fechou_conosco' ou 'recente'.
  * getClosed() → índice de buildClosedIndex (montado e guardado pelo chamador).
  */
+/**
+ * REGRA DA DIREÇÃO: depois que uma pessoa (o Marcos ou qualquer vendedor) falou com o cliente, a atendente de IA NUNCA toma a iniciativa
+ * de falar de novo (retomada, lembrete, aviso de encerramento, orçamento vencendo...), por mais antiga que seja a conversa e mesmo que o
+ * cliente nunca tenha respondido. Vale para áudio, texto e para conversas que já vieram do celular.
+ */
+export const humanSpoke = (conv) => Boolean(conv?.humanSpokeAt || conv?.ownerRepliedAt) || (conv?.messages || []).some((m) => m && (m.by === 'owner' || m.by === 'human' || m.by === 'seller'));
+
 export function outreachBlock({ conv, item, getClosed = () => null, now = Date.now(), minGapHours = 12, paused = false }) {
   if (conv?.declined) return 'recusou';
   if (!isProactive(item)) return '';
+  if (humanSpoke(conv)) return 'humano';
   if (paused) return 'pausado';
   if (detectClosedByMessages(conv)) return 'fechou_conosco';
   if (conv?.lastProactiveAt && now - conv.lastProactiveAt < minGapHours * HOUR) return 'recente';

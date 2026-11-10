@@ -297,10 +297,10 @@ test('conversa pausada porque o dono respondeu pelo celular: a fila avisa em vez
   await waitFor(() => wa.sent.length === 1);
 });
 
-test('a pausa de "respondi pelo celular" termina sozinha depois de horas sem o dono falar, mas não antes', async () => {
+test('a pausa de "respondi pelo celular" só termina sozinha se o administrador ligar o prazo (por padrão a IA NÃO volta: regra da direção)', async () => {
   const { OWNER_PAUSE } = await import('../src/agent/agent.js');
   const { store, wa, inbox } = setup();
-  store.updateSettings({ agent: { humanize: { enabled: false } } });
+  store.updateSettings({ agent: { humanize: { enabled: false }, resumeAfterOwnerHours: 2 } }); // o administrador liga o prazo (o padrão é 0 = nunca)
   const jid = '595982222222@s.whatsapp.net';
   const conv = inbox.agent.conversation(jid);
   Object.assign(conv, { handoff: true, handoffReason: OWNER_PAUSE, ownerRepliedAt: Date.now() - 1 * 3_600_000 });

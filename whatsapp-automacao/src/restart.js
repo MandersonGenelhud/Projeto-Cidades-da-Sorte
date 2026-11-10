@@ -6,10 +6,11 @@ import { OWNER_PAUSE } from './agent/agent.js';
 import { detectClosedByMessages } from './closed-signals.js';
 import { qualRank } from './qualificacao.js';
 import { answeredOurOutreach } from './outreach-apology.js';
+import { humanSpoke } from './outreach-guard.js';
 
 const DAY = 86_400_000;
 /** O dono ou a equipe já falaram de verdade nesta conversa (pelo celular). */
-export const humanReplied = (conv) => Boolean(conv?.ownerRepliedAt) || (conv?.messages || []).some((m) => m.by === 'owner');
+export const humanReplied = (conv) => humanSpoke(conv);
 const CLOSED = new Set(['ganho', 'perdido']);
 
 /** Já procuramos esta pessoa (retorno, chamada ou aviso) e ela não respondeu: não repete; quem cuida é o aviso de encerramento. */

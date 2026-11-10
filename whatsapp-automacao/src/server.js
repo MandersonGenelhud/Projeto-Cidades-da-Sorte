@@ -5583,7 +5583,7 @@ if (process.env.NODE_ENV !== 'test') {
     // Cliente que continua parado: a administração NÃO recebe aviso. O próprio sistema recomeça o atendimento (a IA retoma de onde parou).
     for (const e of r.escalate) {
       e.lead.slaEscalatedAt = new Date().toISOString();
-      if (e.lead.conversationKey) restartAll({ onlyKeys: [e.lead.conversationKey], minSilentHours: 0, resumeOwnerPauseHours: 0, includeMarcos: true, skipHumanReplied: false });
+      if (e.lead.conversationKey) restartAll({ onlyKeys: [e.lead.conversationKey], minSilentHours: 0, resumeOwnerPauseHours: 0, includeMarcos: true });
       store.addLog({ type: 'system', message: `🔁 Cliente parado com ${auth.get(e.sellerId)?.name || 'vendedor'} há ${e.hours} h (${e.lead.name || e.lead.phone || 'novo'}): atendimento recomeçado pela IA` });
     }
     if (r.nudge.length || r.escalate.length) store.save();
@@ -5597,7 +5597,7 @@ if (process.env.NODE_ENV !== 'test') {
     }
   } catch (e) { store.addLog({ type: 'error', message: `Troca de corretor: ${e.message}` }); }
   // Rede de segurança: a cada 15 minutos, dentro do horário de trabalho, quem ficou esperando e não está na fila entra nela (últimos dias do prazo escolhido). Silenciosos só pelo botão.
-  setInterval(() => { try { if (agent.active && isWithinWorkHours(store.settings.agent?.workHours)) restartAll({ days: Number(store.settings.agent?.pendingMaxDays) || 30, includeSilent: false, includeMarcos: false, skipHumanReplied: false }); reconcileOverdue({ crm, store }); } catch (e) { store.addLog({ type: 'error', message: `Recomeçar parados: ${e.message}` }); } }, 15 * 60_000).unref();
+  setInterval(() => { try { if (agent.active && isWithinWorkHours(store.settings.agent?.workHours)) restartAll({ days: Number(store.settings.agent?.pendingMaxDays) || 30, includeSilent: false, includeMarcos: false }); reconcileOverdue({ crm, store }); } catch (e) { store.addLog({ type: 'error', message: `Recomeçar parados: ${e.message}` }); } }, 15 * 60_000).unref();
   // Orçamento a vencer (hoje ou amanhã): avisa uma vez, no horário de trabalho, pela conversa do cliente. Desligue com quoteExpiry.auto = false.
   setInterval(() => { try { if (agent.active && store.settings.agent?.quoteExpiry?.auto !== false && isWithinWorkHours(store.settings.agent?.workHours)) { const r = noticeQuotes({}); if (r.queued) store.addLog({ type: 'system', message: `Orçamentos a vencer: ${r.queued} cliente(s) avisados pela fila da IA.` }); } } catch (e) { store.addLog({ type: 'error', message: `Aviso de orçamento a vencer: ${e.message}` }); } }, 30 * 60_000).unref();
   // Cliente que sumiu: a cada 15 minutos, no horário de trabalho, chama de volta (4 h sem resposta) ou avisa o encerramento (24 h depois do aviso).

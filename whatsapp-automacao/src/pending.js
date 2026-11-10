@@ -50,7 +50,7 @@ export function extractPending(messages, { now = Date.now(), maxDays = 7 } = {})
     if (last.timestamp < limit) continue;
     // As 20 mensagens de antes (cliente e Marcos/equipe), para a IA entender a conversa.
     const before = list.slice(0, list.length - trailing.length).filter((m) => m.text).slice(-20)
-      .map((m) => ({ role: m.fromMe ? 'assistant' : 'user', content: m.text, at: new Date(m.timestamp).toISOString() }));
+      .map((m) => ({ role: m.fromMe ? 'assistant' : 'user', content: m.text, at: new Date(m.timestamp).toISOString(), ...(m.fromMe ? { by: 'owner' } : {}) }));
     out.push({
       context: before,
       jid,
@@ -91,7 +91,7 @@ export function extractStalled(messages, { now = Date.now(), maxDays = 15, minHo
       name: list.find((m) => m.name)?.name || '',
       username: list.find((m) => m.username)?.username || '',
       texts: mine.map((m) => m.text).slice(-3),
-      context: list.slice(-20).map((m) => ({ role: m.fromMe ? 'assistant' : 'user', content: m.text, at: new Date(m.timestamp).toISOString() })),
+      context: list.slice(-20).map((m) => ({ role: m.fromMe ? 'assistant' : 'user', content: m.text, at: new Date(m.timestamp).toISOString(), ...(m.fromMe ? { by: 'owner' } : {}) })),
       at: lastClient.timestamp,
       lastOurAt: last.timestamp,
     });
@@ -274,7 +274,7 @@ export class PendingInbox {
     const allowed = [];
     const blocked = [];
     // Por que alguém ficou de fora (cada canal segue a sua regra: só o Instagram tem a janela de 24 horas).
-    const reasons = { teste: 0, instagram24h: 0, desconectado: 0, recusou: 0, fechouConosco: 0, recente: 0, pausado: 0 };
+    const reasons = { teste: 0, instagram24h: 0, desconectado: 0, recusou: 0, fechouConosco: 0, recente: 0, pausado: 0, humano: 0 };
     const isConnected = (jid) => (this.wa.isConnected ? this.wa.isConnected(jid) : this.wa.status === 'connected');
     for (const jid of jids) {
       const p = this.items[jid];
@@ -287,8 +287,8 @@ export class PendingInbox {
       const guard = this.outreachBlock ? this.outreachBlock(jid, p) : '';
       if (guard) {
         blocked.push(jid);
-        reasons[guard === 'recusou' ? 'recusou' : guard === 'fechou_conosco' ? 'fechouConosco' : guard === 'pausado' ? 'pausado' : 'recente'] += 1;
-        if ((isProactive(p) && !(p.texts || []).length) || guard === 'recusou') delete this.items[jid]; // não fica pendurado em "esperando resposta"
+        reasons[guard === 'recusou' ? 'recusou' : guard === 'fechou_conosco' ? 'fechouConosco' : guard === 'pausado' ? 'pausado' : guard === 'humano' ? 'humano' : 'recente'] += 1;
+        if ((isProactive(p) && !(p.texts || []).length) || guard === 'recusou' || guard === 'humano') delete this.items[jid]; // não fica pendurado em "esperando resposta"
         continue;
       }
       if (connected && !igExpired && permitted) allowed.push(jid);
@@ -417,6 +417,18 @@ export class PendingInbox {
         let answered = false;
         let skip = false;
         const conv = this.agent.conversation(jid, { create: false });
+        // Última conferência ANTES de falar por iniciativa nossa: se nesse meio tempo uma pessoa falou com o cliente (ou ele recusou / já fechou),
+        // o envio é cancelado. Vale para tudo que já estava na fila (retomadas, lembretes, avisos de encerramento).
+        if (p && isProactive(p) && this.outreachBlock) {
+          const guard = this.outreachBlock(jid, p);
+          if (['humano', 'recusou', 'fechou_conosco', 'pausado'].includes(guard)) {
+            this.store.addLog({ type: 'system', phone: p.phone || jid, message: `🚫 Envio cancelado para ${p.name || p.phone || jid}: ${guard === 'humano' ? 'uma pessoa da equipe já falou com este cliente (a IA não toma mais a iniciativa)' : guard === 'recusou' ? 'o cliente já recusou' : guard === 'fechou_conosco' ? 'o cliente já fechou conosco' : 'chamadas automáticas pausadas'}` });
+            this.queue = this.queue.filter((j) => j !== jid);
+            delete this.items[jid];
+            this.#changed();
+            continue;
+          }
+        }
         // Conversa pausada (ex.: "você respondeu pelo celular"): a IA não entra. Avisa em vez de pular em silêncio.
         // Recomeçar: conversa que ficou "do Marcos" é reavaliada com a regra de venda (qualquer serviço da Migra volta para a IA).
         if (conv?.handoff && p?.reTriage && /^Conversa do Marcos/.test(conv.handoffReason || '') && this.agent.triageBacklog) {

@@ -578,3 +578,12 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Equipe no número da Central**: mensagem de número de usuário ativo da Equipe para qualquer número do sistema (inclusive as linhas) não é respondida como cliente nem vira prospecto.
 - Limite: o aviso vale para contratos enviados pela atendente ou pelos atalhos; contrato gerado à mão no painel não avisa (o Marcos já está olhando).
 - Testes: `test/autocontract.test.js`.
+
+## Regra da direção: depois que uma pessoa falou, a IA não toma mais a iniciativa (10/11/2026)
+
+- **Caso real**: o Marcos já tinha falado com uma cliente (inclusive por áudio) e a IA, dias depois, mandou o aviso de encerramento ("vou encerrar o seu atendimento... não faz sentido para você"), uma situação constrangedora.
+- **Regra** (vale para o Marcos e para qualquer vendedor, em qualquer número, em conversa nova ou antiga, mesmo que o cliente nunca tenha respondido): se uma pessoa da equipe falou com o cliente, a atendente **nunca** retoma, lembra, avisa encerramento ou avisa vencimento de orçamento por iniciativa própria. Ela só responde se o administrador retomar a conversa à mão.
+- **Como foi feito**: (1) `humanSpoke` em `src/outreach-guard.js` é a guarda central de todas as chamadas por iniciativa nossa (retomar, lembrar, encerramento, orçamento vencendo): motivo "humano". (2) Conferência de novo **na hora de enviar**: o que já estava na fila e deixou de valer é cancelado e anotado no registro ("Envio cancelado..."). (3) A marca `humanSpokeAt` é gravada quando o celular do dono fala (inclusive áudio, imagem, PDF) e as mensagens vindas do histórico do celular contam como de pessoa. (4) A retomada automática da IA depois de X horas do dono calado foi **desligada** (`resumeAfterOwnerHours = 0`, uma vez); os trabalhos automáticos de recomeçar deixaram de ignorar a regra.
+- **Contrapartida**: cliente que volta a escrever numa conversa em que uma pessoa já falou não é respondido pela IA; a pessoa precisa responder (ou o administrador usar "Retomar com a IA").
+- Limite: conversas em que a pessoa falou mas o sistema não tem registro (celular desligado da VPS na época) só são protegidas se o histórico do celular chegar ao sistema.
+- Testes: `test/humano-falou.test.js`.
