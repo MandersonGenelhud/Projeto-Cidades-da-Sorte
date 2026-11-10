@@ -79,7 +79,7 @@
     if (!confirm('Tirar da lista de contratos antigos os registros que na verdade são leads, clientes ou suporte (de cópias feitas antes da correção)? Os contratos de verdade não são mexidos.')) return;
     try {
       const r = await api('/api/legacy/purge-noise', { method: 'POST', body: {} });
-      toast(`Limpeza feita: ${r.removed} falso(s) contrato(s) removido(s); sobraram ${r.after}.${r.salesToCheck ? ` Atenção: ${r.salesToCheck} venda(s) já lançada(s) vieram desses registros; me avise para conferir.` : ''}`);
+      toast(`Limpeza feita: ${r.removed} falso(s) contrato(s) e ${r.salesRemoved || 0} venda(s) falsa(s) removido(s); sobraram ${r.after} contratos. ${r.undated || 0} contrato(s) sem data deixaram de contar como vendidos no mês.${r.salesToCheck ? ` Atenção: ${r.salesToCheck} venda(s) já tinham baixa feita aqui e ficaram; me avise para conferir.` : ''}`);
     } catch (e) { toast(e.message, true); }
   };
   async function loadAudit() {

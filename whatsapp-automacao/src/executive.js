@@ -67,8 +67,8 @@ export function buildExecutive({ sales, now = Date.now(), crm = null, extras = {
     months.push({
       key, label: d.toLocaleDateString('pt-BR', { month: 'short', timeZone: 'UTC' }).replace('.', ''),
       recebido: sum(parcels.filter((p) => p.paid && monthKey((p.paidAt || '').slice(0, 10)) === key), (p) => p.value),
-      vendido: sum(active.filter((s) => monthKey(String(s.createdAt || '').slice(0, 10)) === key), (s) => s.total),
-      vendas: active.filter((s) => monthKey(String(s.createdAt || '').slice(0, 10)) === key).length,
+      vendido: sum(active.filter((s) => !s.dateUnknown && monthKey(String(s.createdAt || '').slice(0, 10)) === key), (s) => s.total),
+      vendas: active.filter((s) => !s.dateUnknown && monthKey(String(s.createdAt || '').slice(0, 10)) === key).length,
     });
   }
 
@@ -89,7 +89,7 @@ export function buildExecutive({ sales, now = Date.now(), crm = null, extras = {
   for (const s of active) {
     const k = s.sellerName || 'Sem vendedor';
     const v = (vendedores[k] ||= { name: k, vendas: 0, vendido: 0, recebido: 0, comissaoAberta: 0 });
-    if (inR(String(s.createdAt || '').slice(0, 10), per.mes)) { v.vendas += 1; v.vendido += s.total; }
+    if (!s.dateUnknown && inR(String(s.createdAt || '').slice(0, 10), per.mes)) { v.vendas += 1; v.vendido += s.total; }
     v.recebido += sum((s.parcels || []).filter((p) => p.status === 'pago' && inR((p.paidAt || '').slice(0, 10), per.mes)), (p) => p.value);
     if (s.commission && s.commission.status !== 'paga') v.comissaoAberta += Number(s.commission.value) || 0;
   }

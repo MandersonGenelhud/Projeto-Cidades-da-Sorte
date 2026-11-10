@@ -537,3 +537,16 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Correção (`src/legacy-import.js`): listas que não são contratos (`/api/leads`, `/api/customers`, suporte, documentos, equipe, auditoria, marketing etc.) são ignoradas; contratos vêm de `/api/contracts`, `/api/processes`, cobrança e telas. Novo botão **"Limpar falsos contratos"** (administrador, registrado na auditoria) tira da lista os registros que vieram dessas listas, sem mexer nos contratos de verdade. Vendas já lançadas a partir deles não são apagadas: o sistema só conta e avisa para conferir.
 - Limite: só fica provado depois de rodar a cópia nova e comparar com o painel antigo.
 - Testes: `test/legacy-noise.test.js`.
+
+## Programa de cópia: abre a ficha de cada contrato e mostra o mapa completo (10/11/2026)
+
+- A cópia só abria a ficha de ~13 contratos (as linhas da lista não são links). Agora, quando a fila de telas acaba, ela abre `/contracts/<id>` de TODOS os contratos que o sistema antigo devolveu em `/api/contracts` (valores, forma de pagamento, histórico, assinatura, documentos). Continua **somente leitura**: o programa navega pelo endereço e **não clica** no menu do contrato (remover assinatura, remover e reenviar, desativar, excluir). Endereços com "remover", "excluir", "cancelar", "desativar" etc. seguem bloqueados.
+- O `mapa.txt` agora lista TODOS os endereços JSON diferentes (antes só os 40 primeiros) e os números do dashboard antigo por período (só números, sem nomes de clientes), para conferir contra o nosso painel.
+- Teste: `test/legacy-noise.test.js`. Leva mais tempo (uma página por contrato).
+
+## Painel executivo: contrato antigo sem data não vira "vendido no mês" (10/11/2026)
+
+- Comparando o painel executivo com o Dashboard antigo (nov/2026), os vendedores com contrato batiam centavo a centavo (Franciele 6 vendas R$ 105.776, Geovana 2 / R$ 34.554, Eliezer 1 / R$ 12.997), mas sobravam "Sem vendedor: 10 vendas" e uma venda a mais do Marcos. Causa provável: contratos importados sem data eram datados no dia da importação e contavam como venda do mês.
+- Agora: contrato antigo sem data recebe `dateUnknown` e fica fora de "vendido/vendas do período" (painel executivo e Vendas e contratos). O botão **Limpar falsos contratos** também marca os já importados e remove as vendas lançadas a partir de leads/clientes que não sejam contratos (só as sem nenhuma baixa feita aqui e sem contrato verdadeiro de mesmo número).
+- Limite: "recebido no mês" e "a receber total" só fecham depois da cópia nova, com os recebimentos e parcelas reais do sistema antigo.
+- Teste: `test/legacy-noise.test.js`.

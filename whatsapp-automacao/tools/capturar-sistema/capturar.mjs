@@ -161,6 +161,46 @@ const semHash = (u) => u.split('#')[0];
 const padrao = (u) => { try { const x = new URL(u); return x.pathname.replace(/\/\d+(?=\/|$)/g, '/{n}').replace(/[0-9a-f]{8,}/gi, '{id}'); } catch { return u; } };
 
 /**
+ * Endereços das fichas de contrato (/contracts/<id>) a partir das listas que o sistema antigo já devolveu (/api/contracts).
+ * O programa só ABRE cada ficha (leitura): não clica em nenhum botão do menu do contrato (remover assinatura, desativar, excluir...).
+ */
+export function fichasDeContrato(api, origem) {
+  const out = new Set();
+  for (const a of api || []) {
+    let u; try { u = new URL(a.url, origem); } catch { continue; }
+    if (u.pathname.replace(/\/+$/, '') !== '/api/contracts') continue;
+    const lista = Array.isArray(a.json?.data) ? a.json.data : Array.isArray(a.json?.rows) ? a.json.rows : Array.isArray(a.json) ? a.json : [];
+    for (const c of lista) if (c && typeof c === 'object' && /^[\w-]{8,64}$/.test(String(c.id || ''))) out.add(`${origem}/contracts/${c.id}`);
+  }
+  return [...out];
+}
+
+/** Resumo do mapa: TODOS os endereços JSON diferentes (com quantas vezes vieram) e os números do dashboard (só números, sem nomes de clientes). */
+export function resumoApi(api) {
+  const rotas = new Map(); const dash = [];
+  const numeros = (o, pre, out, prof = 0) => {
+    if (prof > 3 || o === null || typeof o !== 'object') return;
+    if (Array.isArray(o)) return;
+    for (const [k, v] of Object.entries(o)) {
+      if (typeof v === 'number' && Number.isFinite(v)) out.push(`${pre}${k}=${v}`);
+      else if (v && typeof v === 'object') numeros(v, `${pre}${k}.`, out, prof + 1);
+    }
+  };
+  for (const a of api || []) {
+    let u; try { u = new URL(a.url); } catch { continue; }
+    const k = padrao(a.url); const r = rotas.get(k) || { n: 0, campos: '' };
+    r.n += 1;
+    if (!r.campos) { const first = Array.isArray(a.json) ? a.json[0] : a.json; r.campos = first && typeof first === 'object' ? Object.keys(first).slice(0, 30).join(', ') : typeof first; }
+    rotas.set(k, r);
+    if (/^\/api\/dashboard\/?$/.test(u.pathname) && a.json && typeof a.json === 'object') {
+      const n = []; numeros(a.json, '', n);
+      dash.push(`  ${u.searchParams.get('from') || a.json.from || '?'} até ${u.searchParams.get('to') || a.json.to || '?'} (${a.json.periodLabel || ''}): ${n.slice(0, 80).join(' · ')}`);
+    }
+  }
+  return { rotas: [...rotas].map(([k, r]) => `  ${k} (${r.n}x): ${r.campos}`), dash };
+}
+
+/**
  * Listas que o sistema mostra aos poucos (ex.: "200 de 5462"): pede as páginas seguintes da MESMA lista (só leitura, GET),
  * até acabar ou parar de vir coisa nova. `get(url)` devolve o JSON ou null.
  */
@@ -267,7 +307,14 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
   process.once('SIGINT', aoParar); process.once('SIGTERM', aoParar);
   // A cada 40 páginas guarda um arquivo parcial: se o computador desligar, nada se perde (rode de novo e o sistema novo não duplica).
   const guardarParcial = () => { try { fs.writeFileSync(path.join(pasta, 'captura-parcial.json'), JSON.stringify({ feitoEm: new Date().toISOString(), parcial: true, origem, falhas, pages: paginas.map(({ links, ...p }) => p), api: api.slice(0, 1500) })); } catch { /* disco cheio: segue */ } };
-  while (fila.length && paginas.length < maxPaginas && !parar) {
+  // Quando a fila acaba, abre a ficha de cada contrato das listas do sistema (valores, forma de pagamento, histórico, assinatura): só leitura.
+  const reabastecer = () => {
+    let novos = 0;
+    for (const u of fichasDeContrato(api, origem)) { if (!vistos.has(u) && permitido(u)) { vistos.add(u); fila.push(u); novos += 1; } }
+    if (novos) log(`  Abrindo a ficha de ${novos} contrato(s) para ler valores e forma de pagamento (pode levar alguns minutos)…`);
+    return novos > 0;
+  };
+  while ((fila.length || reabastecer()) && paginas.length < maxPaginas && !parar) {
     const url = fila.shift();
     if (paginas.length > 0 && paginas.length % 100 === 0 && reciclou !== paginas.length) { reciclou = paginas.length; await reciclar(); }
     try {
@@ -386,8 +433,9 @@ export async function capturar(context, { inicio, pasta, maxPaginas = 3000, espe
   if (falhas.length) { linhas.push(`Páginas que não abriram (${falhas.length}):`); for (const f of falhas.slice(0, 60)) linhas.push(`  ${padrao(f.url)}: ${f.motivo}`); linhas.push(''); }
   if (videos.size) { linhas.push('Vídeos encontrados (endereços):'); for (const m of [...videos.values()].slice(0, 60)) linhas.push(`  ${m.title ? `${m.title} | ` : ''}${m.src}`); linhas.push(''); }
   if (modelos.length) { linhas.push('Modelos e amostras de contrato guardados na pasta "modelos" (podem ter dados de clientes: envie só os modelos em branco):'); for (const m of modelos) linhas.push(`  ${m.n}: ${padrao(m.url)}`); linhas.push(''); }
-  linhas.push('Respostas JSON (só os nomes dos campos):');
-  for (const a of api.slice(0, 40)) { const first = Array.isArray(a.json) ? a.json[0] : a.json; linhas.push(`  ${padrao(a.url)}: ${first && typeof first === 'object' ? Object.keys(first).slice(0, 30).join(', ') : typeof first}`); }
+  const resumo = resumoApi(api);
+  linhas.push('Respostas JSON (cada endereço diferente, quantas vezes veio e só os nomes dos campos):', ...resumo.rotas);
+  if (resumo.dash.length) linhas.push('', 'Números do dashboard do sistema antigo (só números, por período):', ...resumo.dash);
   fs.writeFileSync(path.join(pasta, 'mapa.txt'), linhas.join('\n'));
   return { paginas: paginas.length, pdfs: n, arquivos: baixados.size, api: api.length };
 }

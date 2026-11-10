@@ -284,7 +284,8 @@ export class Sales {
   summary(user, { from = '', to = '', seller = '', office = '' } = {}) {
     const inRange = (iso) => Boolean(iso) && (!from || iso.slice(0, 10) >= from) && (!to || iso.slice(0, 10) <= to);
     const all = this.list.filter((s) => this.canSee(user, s) && s.status !== 'cancelada' && (!seller || s.sellerId === seller) && (!office || this.officeOf(s) === office));
-    const sold = all.filter((s) => inRange(s.createdAt));
+    // Contrato antigo sem data conhecida (dateUnknown) não conta como "vendido" no período: ficou datado no dia da importação.
+    const sold = all.filter((s) => !s.dateUnknown && inRange(s.createdAt));
     const t = today();
     const sum = (arr, fn) => cents(arr.reduce((x, y) => x + fn(y), 0));
     const paidIn = (s) => s.parcels.filter((p) => p.status === 'pago' && inRange(p.paidAt));
@@ -293,7 +294,7 @@ export class Sales {
       const k = s.sellerId || 'sem';
       bySeller[k] ||= { sellerId: s.sellerId, name: s.sellerName || 'Sem vendedor', sales: 0, sold: 0, received: 0, commissionOpen: 0, commissionPaid: 0 };
       const b = bySeller[k];
-      if (inRange(s.createdAt)) { b.sales++; b.sold += s.total; }
+      if (!s.dateUnknown && inRange(s.createdAt)) { b.sales++; b.sold += s.total; }
       b.received += sum(paidIn(s), (p) => p.value);
       if (s.commission.status === 'paga') { if (inRange(s.commission.paidAt)) b.commissionPaid += s.commission.value; } else b.commissionOpen += s.commission.value;
     }

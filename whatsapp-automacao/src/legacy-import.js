@@ -534,7 +534,7 @@ export class LegacyContracts {
           items: [{ name: r.service || 'Contrato do sistema antigo', qty: 1, price: total, total }], total,
           parcels: parcels.map((p) => ({ label: p.label, value: p.value, due: p.due, status: p.paid ? 'pago' : 'pendente', ...(p.paid ? { paidAt: p.paidAt, method: 'Sistema antigo', confirmedBy: 'Importação' } : {}) })),
           commission: { pct: 0, value: 0, manual: true, status: 'paga', paidAt: null, note: 'Contrato do sistema antigo: sem comissão pelo sistema novo' }, affiliate: null,
-          status: /cancel|rescind|distrat/i.test(r.status || '') ? 'cancelada' : 'ativa', office: 'py', createdAt: created, createdBy: user?.name || 'Importação', history: [{ at: new Date().toISOString(), by: user?.name || 'Importação', text: `Importado do sistema antigo (contrato ${r.number})` }],
+          status: /cancel|rescind|distrat/i.test(r.status || '') ? 'cancelada' : 'ativa', office: 'py', createdAt: created, ...(r.date ? {} : { dateUnknown: true }), createdBy: user?.name || 'Importação', history: [{ at: new Date().toISOString(), by: user?.name || 'Importação', text: `Importado do sistema antigo (contrato ${r.number})` }],
         });
         hasContract.add(withBrazil55(r.phone) || norm(r.client));
         out.sales += 1;
@@ -567,9 +567,21 @@ export class LegacyContracts {
     const dropped = this.list.filter((r) => r.source && isNoiseApi(r.source));
     const droppedNumbers = new Set(dropped.map((r) => String(r.number)));
     this.store.data.legacyContracts = this.list.filter((r) => !dropped.includes(r));
-    const salesToCheck = sales ? sales.list.filter((s) => s.legacy && droppedNumbers.has(String(s.legacyNumber))).length : 0;
+    const keep = new Set(this.list.map((r) => String(r.number)));
+    let salesRemoved = 0; let salesToCheck = 0; let undated = 0;
+    if (sales) {
+      // Vendas lançadas a partir desses falsos contratos: saem SE ninguém mexeu nelas aqui (nenhuma baixa feita à mão) e não existe contrato verdadeiro com o mesmo número.
+      const fake = (s) => s.legacy && droppedNumbers.has(String(s.legacyNumber)) && !keep.has(String(s.legacyNumber));
+      const untouched = (s) => !s.parcels.some((x) => x.confirmedBy && x.confirmedBy !== 'Importação');
+      const toDrop = sales.list.filter((s) => fake(s) && untouched(s));
+      salesToCheck = sales.list.filter((s) => fake(s) && !untouched(s)).length;
+      if (toDrop.length) { const ids = new Set(toDrop.map((s) => s.id)); sales.list.splice(0, sales.list.length, ...sales.list.filter((s) => !ids.has(s.id))); salesRemoved = toDrop.length; }
+      // Contrato antigo sem data: deixa de contar como "vendido no mês" só porque foi importado hoje.
+      const noDate = new Set(this.list.filter((r) => !r.date).map((r) => String(r.number)));
+      for (const s of sales.list) if (s.legacy && !s.dateUnknown && noDate.has(String(s.legacyNumber))) { s.dateUnknown = true; undated += 1; }
+    }
     this.store.save();
-    return { before, removed: dropped.length, after: this.list.length, salesToCheck };
+    return { before, removed: dropped.length, after: this.list.length, salesRemoved, salesToCheck, undated };
   }
 
   /** Junta cadastros repetidos de clientes antigos: fica o primeiro, completa os campos vazios e tira os outros. */

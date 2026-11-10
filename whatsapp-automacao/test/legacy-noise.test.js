@@ -99,3 +99,51 @@ test('limpeza dos falsos contratos já importados: tira só os que vieram de lis
   assert.deepEqual([r.before, r.removed, r.after], [2, 1, 1]);
   assert.equal(lc.list[0].number, '2026-000215');
 });
+
+import { fichasDeContrato, resumoApi } from '../tools/capturar-sistema/capturar.mjs';
+test('cópia: abre a ficha de cada contrato das listas (só leitura) e o mapa mostra todos os endereços e os números do dashboard', () => {
+  const api = [
+    { url: 'https://velho.com/api/contracts?page=1', json: { count: 3, data: [{ id: 'a1b2c3d4-0000-4000-8000-000000000001' }, { id: 'a1b2c3d4-0000-4000-8000-000000000002' }] } },
+    { url: 'https://velho.com/api/contracts?page=2', json: { count: 3, data: [{ id: 'a1b2c3d4-0000-4000-8000-000000000003' }, { id: 'a1b2c3d4-0000-4000-8000-000000000001' }] } },
+    { url: 'https://velho.com/api/leads?page=1', json: { data: [{ id: 'x' }] } },
+  ];
+  const f = fichasDeContrato(api, 'https://velho.com');
+  assert.equal(f.length, 3, 'sem repetir');
+  assert.ok(f.every((u) => u.startsWith('https://velho.com/contracts/')));
+  assert.ok(!f.some((u) => /leads/.test(u)), 'só contratos');
+  const dash = [{ url: 'https://velho.com/api/dashboard?from=2026-11-01&to=2026-11-10', json: { periodLabel: 'Este mês', from: '2026-11-01', to: '2026-11-10', financialSummary: { totalToReceive: 308802, received: 44648.6, open: 294602 }, periodContracts: [{ client: 'Nome Secreto', value: 1 }] } }];
+  const r = resumoApi([...api, ...dash]);
+  assert.ok(r.rotas.some((x) => /\/api\/contracts \(2x\)/.test(x)), 'cada endereço uma vez, com a contagem');
+  assert.match(r.dash[0], /financialSummary\.received=44648\.6/);
+  assert.ok(!r.dash.join().includes('Nome Secreto'), 'dashboard no mapa: só números, nenhum nome de cliente');
+});
+
+import { Auth } from '../src/auth.js';
+import { Crm } from '../src/crm.js';
+import { Sales } from '../src/sales.js';
+
+test('limpeza: tira as vendas falsas (vindas de leads), mantém as de verdade e contrato sem data não conta como vendido no mês', () => {
+  const store = tempStore();
+  const auth = new Auth({ store, dataDir: store.dataDir });
+  const admin = auth.get(auth.create({ name: 'Marcos', login: 'marcos', password: 'segredo123', role: 'admin' }).id);
+  const crm = new Crm({ store, auth });
+  const sales = new Sales({ store, auth });
+  const lc = new LegacyContracts({ store });
+  const hoje = new Date().toISOString().slice(0, 10);
+  lc.list.push(
+    { id: 'f', number: '1001', client: 'Lead Falso', value: 5000, paid: 0, source: 'https://x.com/api/leads?page=1', raw: {} },
+    { id: 'v', number: '2026-000300', client: 'Maria', value: 8000, paid: 3000, date: '2026-05-10', source: 'sistema antigo (lista)', raw: {} },
+    { id: 's', number: '2026-000301', client: 'Sem Data', value: 7000, paid: 0, source: 'sistema antigo (lista)', raw: {} },
+  );
+  lc.apply({ sales, crm, user: admin });
+  assert.equal(sales.list.length, 3);
+  const semData = sales.list.find((s) => s.legacyNumber === '2026-000301');
+  assert.equal(semData.dateUnknown, true);
+  const r = lc.purgeNoise({ sales });
+  assert.deepEqual([r.removed, r.salesRemoved], [1, 1]);
+  assert.equal(sales.list.length, 2);
+  assert.ok(sales.list.every((s) => s.legacyNumber !== '1001'));
+  const sum = sales.summary(admin, { from: hoje.slice(0, 8) + '01', to: hoje });
+  assert.equal(sum.sales, 0, 'sem data não é venda do mês');
+  assert.equal(sum.periodo.contratos, 0);
+});
