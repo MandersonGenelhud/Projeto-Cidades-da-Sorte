@@ -133,6 +133,7 @@ const DEFAULT_DATA = {
       hours: '', // dias e horários em que o Marcos costuma receber
       notifyPhone: '', // WhatsApp que recebe os pedidos (vazio = administradores)
       bring: '', // o que o cliente deve trazer (vazio = texto padrão)
+      consultFeeUsd: 0, // taxa em dólares (US$); se > 0 vale no lugar da taxa em reais (o Pix sai em reais pela cotação do painel)
       consultFee: 250, // taxa de reserva do atendimento presencial: paga antes (Pix), estornada se o cliente fechar; 0 = sem taxa
       people: [], // quem cuida das visitas (Nome = WhatsApp, ou só o nome de quem está na Equipe)
     },

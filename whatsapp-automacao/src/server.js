@@ -1100,7 +1100,7 @@ agent.visitInfo = (conv) => {
     c.address ? `Endereço do escritório: ${c.address}.` : 'O escritório fica em Santa Rita, Alto Paraná; o endereço exato vai junto com a confirmação.',
     `O que trazer (lembre o cliente exatamente disto): ${c.bring || DEFAULT_BRING}`,
     isClientOfMigra(crm.findForConversation({ key: conv.key, phone: conv.phone })) ? 'ESTE CLIENTE JÁ É CLIENTE DA MIGRA (reserva paga): a visita ao escritório NÃO tem taxa para ele. Não fale em taxa.' : '',
-    !isClientOfMigra(crm.findForConversation({ key: conv.key, phone: conv.phone })) && visits.fee > 0 ? `Taxa de reserva do atendimento presencial: R$ ${visits.fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, paga ANTES pelo Pix (a ferramenta gera o Pix quando o cliente topar). Quem fecha com a Migra tem o valor ESTORNADO. Quem já é cliente não paga.` : 'A visita não tem taxa.',
+    !isClientOfMigra(crm.findForConversation({ key: conv.key, phone: conv.phone })) && visits.fee > 0 ? `Taxa de reserva do atendimento presencial com a equipe: ${visits.feeLabel}, paga ANTES pelo Pix (a ferramenta gera o Pix quando o cliente topar). Quem fecha com a Migra tem o valor ESTORNADO. Quem já é cliente não paga.` : 'A visita não tem taxa.',
     ...mine.map((v) => v.status === 'confirmada' ? `Este cliente JÁ TEM visita confirmada: ${v.date.split('-').reverse().join('/')} às ${v.time}.` : `Este cliente já pediu visita (${v.preferred || 'sem data'}); aguardando a equipe confirmar. Não registre outro pedido.`),
   ].filter(Boolean).join('\n');
 };

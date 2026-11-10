@@ -1160,6 +1160,7 @@ loaders.visits = async () => {
   f.enabled.checked = c.enabled !== false;
   for (const k of ['address', 'notifyPhone', 'hours', 'bring']) f[k].value = c[k] || '';
   f.consultFee.value = c.consultFee ?? 150;
+  f.consultFeeUsd.value = c.consultFeeUsd ?? 0;
   renderFeeNotice().catch(() => {});
   f.people.value = (c.people || []).map((p) => `${p.name}${p.whatsapp ? ` = +${p.whatsapp}` : ''}`).join('\n');
 };
@@ -1233,7 +1234,7 @@ $('#visitTable').addEventListener('click', async (e) => {
 });
 $('#formVisits').addEventListener('submit', withBusy($('#formVisits'), async (e) => {
   const f = e.target;
-  await api('/api/settings', { method: 'PUT', body: { visits: { enabled: f.enabled.checked, address: f.address.value.trim(), notifyPhone: f.notifyPhone.value.trim(), hours: f.hours.value.trim(), bring: f.bring.value.trim(), consultFee: Number(f.consultFee.value || 0),
+  await api('/api/settings', { method: 'PUT', body: { visits: { enabled: f.enabled.checked, address: f.address.value.trim(), notifyPhone: f.notifyPhone.value.trim(), hours: f.hours.value.trim(), bring: f.bring.value.trim(), consultFee: Number(f.consultFee.value || 0), consultFeeUsd: Number(f.consultFeeUsd.value || 0),
     people: f.people.value.split('\n').map((l) => l.split(/[=:]/).map((x) => x.trim())).filter(([n]) => n).map(([name, w = '']) => ({ name, whatsapp: w.replace(/\D/g, '') })) } } });
   toast('Salvo');
   loaders.visits();

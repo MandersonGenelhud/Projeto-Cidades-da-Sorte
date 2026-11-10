@@ -630,3 +630,10 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Número do Marcos sem responder:** a retomada da IA quando o cliente escreve depois de horas sem o dono falar (2 h) tinha sido desligada por engano (ficou "nunca"); isso deixava quem o Marcos já tinha respondido uma vez sem resposta para sempre. Voltou ao padrão de 2 h. A regra "depois que uma pessoa falou, a IA nunca toma a **iniciativa**" continua valendo (lembretes, retomadas, encerramento).
 - Limite: não consegui ver o servidor; se o número do Marcos continuar sem responder, o motivo é conexão (ver "Saúde do sistema") ou conversa pausada (botão "Retomar com a IA").
 - Testes: `test/central-direciona.test.js`, `test/humano-falou.test.js`, `test/pending.test.js`.
+
+## Agendamento antecipado: dois valores em dólares, Marcos x equipe (10/11/2026)
+
+- Quem fala em vir ao escritório, conversar pessoalmente ou falar com o Marcos ouve da atendente (e da Central) que o atendimento é **por horário agendado** (a demanda está muito alta) e que **reservar com antecedência** garante o atendimento excepcional. Os valores ficam claros e separados: **falar com o Marcos** = mentoria, **US$ 400 por hora** (já existia; dito em dólares por extenso, sem converter); **falar com a equipe** = taxa de reserva paga antes pelo Pix, **estornada se fechar**. Cliente da Migra não ouve valores.
+- A taxa da equipe agora pode ser definida **em dólares** (`visits.consultFeeUsd`, Visitas → "Taxa de reserva em DÓLARES"); o Pix sai em reais pela cotação do painel, como a mentoria. Sem valor em dólares, vale o valor em reais de antes (R$ 250). **O valor em dólares da equipe ainda não foi definido** (o Manderson precisa informar).
+- A atendente nunca inventa valores nem confirma data/horário: a equipe confirma depois da reserva.
+- Testes: `test/agendamento-antecipado.test.js`, `test/learnings.test.js`.

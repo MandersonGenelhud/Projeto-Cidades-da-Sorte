@@ -39,7 +39,21 @@ export class Visits {
 
   /** Taxa de assessoria presencial, paga antes de reservar o horário e estornada se o cliente fechar. 0 = sem taxa. */
   get fee() {
+    // Com o valor em dólares definido (consultFeeUsd), o Pix sai em reais pela cotação do painel (como a mentoria); senão vale o valor em reais.
+    const usd = this.feeUsd;
+    if (usd > 0) return Math.round(usd * (Number(this.store?.settings?.crm?.fx?.USD) || 5.5) * 100) / 100;
     return Number(this.config.consultFee ?? 250) || 0;
+  }
+
+  /** Valor da taxa em dólares (0 = a taxa é só em reais). */
+  get feeUsd() {
+    return Number(this.config.consultFeeUsd) || 0;
+  }
+
+  /** Como a atendente fala o valor: em dólares por extenso (quando definido) ou em reais. */
+  get feeLabel() {
+    const usd = this.feeUsd;
+    return usd > 0 ? `${usd} dólares americanos (US$ ${usd})` : `R$ ${this.fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   }
 
   #clientOf(v) {
