@@ -414,6 +414,32 @@ export class Store extends EventEmitter {
       this.data.centralFix2026 = true;
       this.flush();
     }
+    // Rodízio configurado pela direção (11/11/2026): todos FORA do rodízio para a direção ligar um a um na Equipe. Exceções: Diego (só imóveis/loteamentos)
+    // e Eliezer (só documentação). Marcos e Gabriel ficam desligados e sem área. As listas antigas de nomes dos setores passam para a marcação por pessoa
+    // (para ninguém perder a área) e são esvaziadas, de modo que o botão "Pausar rodízio" de cada pessoa manda em tudo.
+    if (!this.data.rodizio2026) {
+      const nm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+      const first = (u) => nm(u.name).split(' ')[0];
+      const users = this.data.users || [];
+      const secs = this.data.settings.crm?.sectors || {};
+      for (const [sid, cfg] of Object.entries(secs)) {
+        for (const p of cfg?.people || []) {
+          const n = nm(p.name);
+          const u = users.find((x) => n && (nm(x.name) === n || nm(x.name).startsWith(`${n} `)));
+          if (u) u.sectors = [...new Set([...(u.sectors || []), sid])];
+        }
+        if (cfg) cfg.people = [];
+      }
+      for (const u of users) {
+        const f = first(u);
+        u.receivesLeads = false;
+        if (f === 'diego') Object.assign(u, { receivesLeads: true, sectors: ['loteamentos'] });
+        else if (f === 'eliezer') Object.assign(u, { receivesLeads: true, sectors: ['documentacao'] });
+        else if (f === 'marcos' || f === 'gabriel') Object.assign(u, { receivesLeads: false, receivesAffiliateLeads: false, sectors: [] });
+      }
+      this.data.rodizio2026 = true;
+      this.flush();
+    }
     // Regra da direção (10/11/2026): depois que uma pessoa falou com o cliente, a IA não volta sozinha. Uma vez, tira o prazo de retomada automática.
     if (!this.data.humanRule2026) {
       const agH = this.data.settings.agent;

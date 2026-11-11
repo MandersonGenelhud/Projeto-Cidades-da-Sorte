@@ -140,6 +140,6 @@ test('central: reconhece pelo nome ou pela marca e a orientação traz o papel, 
   const t = centralNote({ agentName: 'Luana', memory: 'Priorize quem quer residência.' });
   assert.match(t, /CENTRAL DE ATENDIMENTO/);
   assert.match(t, /Luana/);
-  assert.match(t, /TODO CLIENTE vai para o vendedor/);
+  assert.match(t, /TODO CLIENTE vai para uma pessoa da equipe/);
   assert.match(t, /Priorize quem quer residência/);
 });

@@ -643,3 +643,11 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Quem recebe**: todos os vendedores ativos, com WhatsApp e "recebe clientes" ligado (sem a própria Central e sem o dono). Quem for cadastrado depois entra no rodízio sozinho. `crm.centralSellers` continua opcional: só restringe se alguém preencher; vazio = todos.
 - **Limite conhecido**: vendedor restrito a um setor que não inclui documentação (ex.: só loteamentos ou só veículos) não entra neste rodízio geral.
 - Teste: `test/central-direciona.test.js`, `test/autocontract.test.js`.
+
+## Rodízio configurado pela direção: todos desligados, Diego e Eliezer por área (11/11/2026)
+- **Problema**: o "Pôr/Pausar no rodízio" valia só para o rodízio geral; os **setores** (imóveis, veículos, documentação) escolhiam pessoas pelas áreas e pelas listas antigas de nomes, ignorando o botão. Por isso quem estava "fora" ainda podia receber cliente (inclusive um administrador).
+- **Agora o botão manda em tudo**: pessoa com o rodízio desligado não recebe cliente nem pelos setores (`src/sectors.js`).
+- **Migração única (`rodizio2026`, `src/store.js`)**: todos ficam desligados; **Diego** ligado só em loteamentos/imóveis; **Eliezer** ligado só em documentação; **Marcos e Gabriel** desligados e sem área. As listas antigas de nomes dos setores viram marcação por pessoa (ninguém perde a área) e são esvaziadas. Roda uma vez: o que a direção ligar depois não é desfeito.
+- **Central (Luana)**: imóvel vai ao corretor (setor loteamentos), veículo ao setor de veículos, o resto ao rodízio. A Central não fecha venda.
+- Não mexe em quem recebe indicações de parceiros (`receivesAffiliateLeads`), salvo Marcos e Gabriel (desligados).
+- Teste: `test/rodizio-2026.test.js`.

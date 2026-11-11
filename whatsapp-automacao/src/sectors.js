@@ -71,12 +71,12 @@ export class Sectors {
   }
 
   /**
-   * Quem atende o setor: as pessoas da Equipe marcadas com essa área (ativas e com WhatsApp)
+   * Quem atende o setor: as pessoas da Equipe marcadas com essa área (ativas, com WhatsApp e com o rodízio LIGADO; "Pausar rodízio" tira a pessoa também dos setores)
    * e, por compatibilidade, nomes antigos da lista de Regras que não têm cadastro na Equipe.
    */
   people(id, office = null) {
     const users = this.auth?.users || [];
-    const flagged = users.filter((u) => u.active !== false && !u.pending && u.whatsapp && (u.sectors || []).includes(id) && (!office || officeOfUser(u) === office)).map((u) => ({ name: u.name, whatsapp: u.whatsapp }));
+    const flagged = users.filter((u) => u.active !== false && !u.pending && u.whatsapp && (u.receivesLeads ?? u.role === 'seller') && (u.sectors || []).includes(id) && (!office || officeOfUser(u) === office)).map((u) => ({ name: u.name, whatsapp: u.whatsapp }));
     const legacy = (office && office !== 'py' ? [] : resolvePeople(this.config[id]?.people, users)).filter((p) => !flagged.some((f) => samePhone(f.whatsapp, p.whatsapp)));
     const all = [...flagged, ...legacy];
     // Setor exclusivo (ex.: terrenos só para o Diego): sem rodízio, ninguém mais recebe.
