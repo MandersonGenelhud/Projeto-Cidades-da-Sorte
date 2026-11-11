@@ -28,6 +28,8 @@ import { makeContractFlow, contractReady, CONTRACT_REQUIRED } from './autocontra
 import { makeSellerCommands } from './seller-commands.js';
 import { Learnings } from './learnings.js';
 import { ReceiptReader } from './receipts.js';
+import { ClientProofs } from './client-proof.js';
+import { FunnelSync } from './funnel-sync.js';
 import { OWNER_PAUSE } from './agent/agent.js';
 import { Migratech } from './migratech.js';
 import { Contabil } from './contabil.js';
@@ -62,7 +64,7 @@ import { makeContractPix } from './contract-pix.js';
 import { fullConversation, clientBrief } from './lead-brief.js';
 import { buildDirectory, searchDirectory } from './directory.js';
 import { enqueueSilence, silenceConfig } from './silence.js';
-import { detectDecline, markDecline, scanDeclined, buildClosedIndex, outreachBlock as guardOutreach, DECLINE_LABEL } from './outreach-guard.js';
+import { detectDecline, markDecline, scanDeclined, buildClosedIndex, outreachBlock as guardOutreach, DECLINE_LABEL, humanSpoke as humanSpokeConv } from './outreach-guard.js';
 import { fichaPedido } from './ficha-text.js';
 import { slaCheck } from './distribution.js';
 import { moveOldCorretorLeads } from './maintenance.js';
@@ -274,6 +276,9 @@ const teamSend = async (phone, payload) => {
   }
   throw lastErr;
 };
+// Envio a CLIENTE ou PARCEIRO por iniciativa do sistema (recibo, aviso de indicação): conversa de linha ou Instagram segue pelo mesmo canal; o resto sai pela
+// CENTRAL (o número principal, do Marcos, deixou de ser a porta de entrada). Sem a Central, o principal.
+const clientSend = (target, payload) => (/^ig:/.test(String(target)) || parseLineKey(target) ? wa.send(target, payload) : teamSend(String(target), payload));
 // Peneira feita: a IA passa o cliente para o vendedor da vez (rodízio).
 const router = new LeadRouter({
   store,
@@ -472,12 +477,12 @@ const affiliates = new Affiliates({
   auth,
   secret: auth.secret,
   notifyAffiliate: async (phone, text) => {
-    if (wa.status === 'connected') await wa.send(phone, { text, typing: false });
+    if (teamCanSend()) await clientSend(phone, { text, typing: false });
   },
 });// Escritório virtual, parte 2: saque em 24h, cessão de indicação, grupos rastreáveis e materiais de campanha.
 const affExtras = new AffiliateExtras({
   store, affiliates, crm, dataDir: DATA_DIR,
-  notifyAffiliate: async (phone, text) => { if (phone && wa.status === 'connected') await wa.send(phone, { text, typing: false }); },
+  notifyAffiliate: async (phone, text) => { if (phone && teamCanSend()) await clientSend(phone, { text, typing: false }); },
   notifyAdmins: (text) => notifyAdmins(text),
 });
 
@@ -498,8 +503,10 @@ crm.onWon = async (lead) => {
 async function notifyAdmins(text) {
   if (!teamCanSend()) return;
   const phones = new Set(auth.users.filter((u) => u.role === 'admin' && u.active !== false && u.whatsapp).map((u) => u.whatsapp));
-  const extra = normalizePhone(store.settings.payments?.notifyPhone);
-  if (extra) phones.add(extra);
+  // O número principal (do Marcos, crm.ownerPhone) e o número extra dos pagamentos também recebem, sem repetir quem já está na lista.
+  for (const extra of [normalizePhone(store.settings.payments?.notifyPhone), normalizePhone(store.settings.crm?.ownerPhone)]) {
+    if (extra && ![...phones].some((x) => samePhone(x, extra))) phones.add(extra);
+  }
   for (const phone of phones) await teamSend(phone, { text, typing: false }).catch(() => {});
 }
 // Na VPS o endereço fixo (PUBLIC_URL) sempre vale: os dados vindos do computador carregam o endereço provisório antigo.
@@ -513,7 +520,7 @@ const payments = new Payments({
   dataDir: DATA_DIR,
   secret: auth.secret,
   notify,
-  sendTo: (key, payload) => wa.send(key, { ...payload, typing: false }),
+  sendTo: (key, payload) => clientSend(key, { ...payload, typing: false }),
   notifyAdmins,
 });
 
@@ -670,14 +677,14 @@ const saleReceipts = new SaleReceipts({
   sendToClient: async (sale, payload) => {
     const lead = sale.leadId ? crm.byId(sale.leadId) : null;
     const target = lead?.conversationKey || lead?.phone || sale.client?.phone;
-    if (!target || wa.status !== 'connected') return false;
-    await wa.send(target, { ...payload, typing: false });
+    if (!target || !teamCanSend()) return false;
+    await clientSend(target, { ...payload, typing: false });
     try { agent.remember(target, 'assistant', `${payload.text} [recibo em PDF enviado]`); } catch { /* memória é opcional */ }
     return true;
   },
   notifyAdmins: (t) => notifyAdmins(t),
 });
-sales.onParcelPaid = (sale, index, user) => { saleReceipts.issueAndSend(sale.id, index, { by: user?.name || 'Sistema' }).catch((e) => store.addLog({ type: 'error', message: `Recibo da parcela: ${e.message}` })); };
+sales.onParcelPaid = (sale, index, user) => { funnelOne(sale.leadId); saleReceipts.issueAndSend(sale.id, index, { by: user?.name || 'Sistema' }).catch((e) => store.addLog({ type: 'error', message: `Recibo da parcela: ${e.message}` })); };
 sales.onParcelVoided = (sale, index, user) => saleReceipts.void(sale.id, index, user?.name || 'Sistema');
 // Níveis de comissão (meta do mês) e saques: a comissão da venda segue o nível quando os níveis estão ligados.
 const commissions = new Commissions({
@@ -1428,6 +1435,11 @@ wa.on('message', (msg) => {
   // Cliente com Pix em aberto mandou foto/PDF: se for o comprovante, a IA lê, confere e dá baixa; se não for, segue o atendimento.
   if (receipts.wants(msg)) {
     receipts.handle(msg).then((done) => done || routeIncoming(msg)).catch((err) => { store.addLog({ type: 'error', message: `Comprovante: ${err.message}` }); routeIncoming(msg); });
+    return;
+  }
+  // Comprovante enviado ao vendedor/Central (sem Pix do sistema em aberto): se o cliente tem contrato ou venda, a IA confere e dá baixa.
+  if (clientProofs.wants(msg)) {
+    clientProofs.handle(msg).then((done) => done || routeIncoming(msg)).catch((err) => { store.addLog({ type: 'error', message: `Comprovante do cliente: ${err.message}` }); routeIncoming(msg); });
     return;
   }
   routeIncoming(msg);
@@ -3891,6 +3903,7 @@ app.get('/api/affiliates-materials', (req, res) => { needAdmin(req); res.json({ 
 app.post('/api/affiliates-materials', materialUpload, (req, res) => res.json(affExtras.saveMaterial(req.user, null, req.body || {}, req.file || null)));
 app.patch('/api/affiliates-materials/:id', materialUpload, (req, res) => res.json(affExtras.saveMaterial(req.user, req.params.id, req.body || {}, req.file || null)));
 app.get('/api/affiliates', (_req, res) => res.json(affiliates.adminList()));
+app.get('/api/affiliates-flow', (req, res) => { needAdmin(req); res.json(affiliates.flow({ days: Math.min(365, Math.max(1, Number(req.query.days) || 30)) })); });
 app.get('/api/affiliates-meta', (_req, res) => res.json({ categories: affiliates.categories(), services: affiliates.services }));
 app.patch('/api/affiliates/:id', (req, res) => res.json(affiliates.publicAffiliate(affiliates.update(req.params.id, req.body))));
 app.get('/api/affiliates-commissions', (_req, res) => res.json(affiliates.adminCommissions()));
@@ -4563,6 +4576,7 @@ app.post('/api/quotes/:id/contract/sign-link', async (req, res) => {
     pix = await sendContractPix(q, { client: q.contract?.client, by: req.user.name, phase: 'envio' });
   }
   if (q.leadId) crm.addNote(req.user, q.leadId, `✍️ Contrato enviado para assinatura pelo celular${pix?.sent ? ` · Pix de ${pix.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} enviado junto` : ''}`);
+  funnelOne(q.leadId);
   res.json({ ...r, sent, pix });
 });
 // "Tudo certo? Clique aqui para dar início à sua reserva": o botão do orçamento abre a ficha de dados já preenchida com o que sabemos (nome, telefone, pacote, pessoas).
@@ -4661,6 +4675,7 @@ app.post('/api/public/contrato/:id/assinar', async (req, res) => {
   if (seller?.whatsapp && seller.role !== 'admin' && teamCanSend()) await teamSend(seller.whatsapp, { text: notice, media, typing: false }).catch(() => {});
   await notifyAdmins(notice).catch(() => {});
   if (q.leadId) crm.addNote({ name: 'Cliente', role: 'admin' }, q.leadId, `✍️ Contrato ${ct} assinado pelo cliente (código ${hash.slice(0, 10).toUpperCase()})`);
+  funnelOne(q.leadId);
   notify('crm', { id: q.leadId });
   res.json({ ok: true });
 });
@@ -5052,6 +5067,28 @@ const receipts = new ReceiptReader({
   audit: (text) => securityEvent('pagamento_comprovante', 'IA', null, text),
   getConfig: agentConfig,
 });
+// Comprovante que o cliente manda ao vendedor/Central: lê, confere, dá baixa, emite o recibo, fecha o prospecto e avisa o fechamento (src/client-proof.js).
+const clientProofs = new ClientProofs({
+  store, sales, crm, quotes, auth, dataDir: DATA_DIR,
+  reader: { read: (b, m) => receipts.read(b, m), receiverOk: (r) => receipts.receiverOk(r), get maxAuto() { return receipts.maxAuto; } },
+  download: (m) => wa.downloadAudio(m),
+  notifyClosing: (text) => notifyAdmins(text),
+  notifyAdmins: (text) => notifyAdmins(text),
+  notifyTeam: (phone, text) => (teamCanSend() ? teamSend(phone, { text, typing: false }) : Promise.resolve()),
+  say: (msg, text) => wa.send(msg.jid, { text, typing: false }),
+  humanSpoke: (key) => humanSpokeConv(agent.conversation(key, { create: false })),
+  audit: (text) => securityEvent('pagamento_comprovante_cliente', 'IA', null, text),
+});
+// Funil sempre em dia: contrato enviado/assinado e pagamento movem o prospecto sozinhos; vendedores recebem a lista dos atendimentos parados.
+const funnel = new FunnelSync({
+  store, crm, sales, quotes, payments, auth,
+  notifyTeam: (phone, text) => (teamCanSend() ? teamSend(phone, { text, typing: false }) : Promise.reject(new Error('sem WhatsApp'))),
+  notifyAdmins: (text) => notifyAdmins(text),
+  audit: (text) => securityEvent('funil_automatico', 'Sistema', null, text),
+});
+const funnelOne = (leadId) => { try { if (leadId) funnel.reconcileOne(leadId); } catch (e) { store.addLog({ type: 'error', message: `Funil automático: ${e.message}` }); } };
+app.get('/api/funnel', (req, res) => { needAdmin(req); res.json(funnel.reconcile({ dryRun: true })); });
+app.post('/api/funnel/reconcile', (req, res) => { needAdmin(req); const r = funnel.reconcile(); securityEvent('funil_conferido', req.user, req, `${r.changed} prospecto(s) movido(s)`); res.json(r); });
 app.use('/api/cash', (req, res, next) => {
   if (!cash.booksFor(req.user).length) return res.status(403).json({ error: 'O caixa é restrito: só os administradores liberados veem.' });
   next();
@@ -5686,6 +5723,17 @@ if (process.env.NODE_ENV !== 'test') {
   setInterval(() => { try { if (agent.active) { const r = repairLeads({}); if (r.created) store.addLog({ type: 'system', message: `Prospectos que faltavam: ${r.created} conversa(s) respondida(s) pela IA ganharam registro no CRM.` }); } } catch (e) { store.addLog({ type: 'error', message: `Reparo de prospectos: ${e.message}` }); } }, 30 * 60_000).unref();
   setInterval(() => slaTick().catch((e) => store.addLog({ type: 'error', message: `Cliente parado: ${e.message}` })), 10 * 60_000).unref();
   // Ana: resumo da manhã (04:30) e lembretes pessoais na hora marcada.
+  // Funil automático: confere os prospectos ao ligar e a cada hora; entre 9h e 19h cada vendedor recebe, uma vez por dia, a lista dos atendimentos parados.
+  const funnelSweep = () => {
+    try {
+      const r = funnel.reconcile();
+      if (r.changed) notifyAdmins(`🔄 *Funil atualizado sozinho*: ${r.changed} cliente(s) estavam na etapa errada e foram corrigidos.\n${r.changes.slice(0, 8).map((c) => `• ${c.name}: ${c.from} → ${c.to} (${c.why})`).join('\n')}`).catch(() => {});
+      const h = new Date().getHours();
+      if (h >= 9 && h < 19) funnel.digest().catch((e) => store.addLog({ type: 'error', message: `Aviso de atendimentos parados: ${e.message}` }));
+    } catch (e) { store.addLog({ type: 'error', message: `Funil automático: ${e.message}` }); }
+  };
+  setTimeout(funnelSweep, 120_000).unref();
+  setInterval(funnelSweep, 3_600_000).unref();
   setInterval(() => ana.tick().catch((e) => store.addLog({ type: 'error', message: `Ana: ${e.message}` })), 60_000).unref();
 
   const shutdown = async () => {

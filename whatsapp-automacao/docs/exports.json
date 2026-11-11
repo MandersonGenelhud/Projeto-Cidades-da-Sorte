@@ -185,6 +185,9 @@
   "CATEGORIES",
   "Cities"
  ],
+ "src/client-proof.js": [
+  "ClientProofs"
+ ],
  "src/closed-signals.js": [
   "detectClosedByMessages"
  ],
@@ -331,6 +334,9 @@
  "src/followups.js": [
   "AutoFollowUps",
   "isAck"
+ ],
+ "src/funnel-sync.js": [
+  "FunnelSync"
  ],
  "src/group-brief.js": [
   "HUB_OVERVIEW",

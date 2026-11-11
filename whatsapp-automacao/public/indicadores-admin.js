@@ -10,9 +10,24 @@
   const CH = { instagram: 'Post do Instagram', status: 'Status / Stories', whatsapp: 'Mensagem de WhatsApp', grupo: 'Grupo de WhatsApp' };
   async function load() {
     if (window.currentUser?.role !== 'admin') return;
-    const [pays, trs, groups, mats] = await Promise.all([api('/api/affiliates-payouts'), api('/api/affiliates-transfers'), api('/api/affiliates-groups'), api('/api/affiliates-materials')]);
+    const [pays, trs, groups, mats, flow] = await Promise.all([api('/api/affiliates-payouts'), api('/api/affiliates-transfers'), api('/api/affiliates-groups'), api('/api/affiliates-materials'), api('/api/affiliates-flow')]);
     const open = pays.filter((p) => p.status === 'pedido');
+    const T = flow.totais; const E = flow.etapas;
     box.innerHTML = `
+      <div class="panel"><h2>Fluxo das indicações</h2>
+        <p class="hint">Todas as pessoas indicadas por parceiros e em que ponto estão. "Parada" = aberta e sem movimento há ${flow.diasParada}+ dias (o vendedor recebe o aviso todo dia).</p>
+        <div class="grid2">
+          <div><b>${T.indicacoes}</b> indicações no total · <b>${T.novas}</b> nos últimos ${flow.dias} dias</div>
+          <div><b>${T.emAtendimento}</b> em atendimento · <b>${T.paradas}</b> paradas · <b>${T.fechadas}</b> fechadas · <b>${T.perdidas}</b> perdidas · conversão <b>${T.conversao}%</b></div>
+        </div>
+        <div class="hint">Por etapa: Novo ${E.novo} · Em contato ${E.em_contato} · Proposta enviada ${E.proposta} · Retomar depois ${E.aguardando} · Fechado ${E.ganho} · Perdido ${E.perdido}</div>
+        <div class="table-wrap"><table><thead><tr><th>Indicador</th><th>Indicações</th><th>Novas</th><th>Em atendimento</th><th>Paradas</th><th>Fechadas</th><th>Perdidas</th><th>Conversão</th></tr></thead><tbody>
+        ${flow.porIndicador.map((x) => `<tr><td>${esc(x.name)}</td><td>${x.total}</td><td>${x.novas}</td><td>${x.emAtendimento}</td><td>${x.paradas ? `<span class="badge paused">${x.paradas}</span>` : 0}</td><td>${x.fechadas}</td><td>${x.perdidas}</td><td>${x.conversao}%</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Ainda não há indicações.</td></tr>'}
+        </tbody></table></div>
+        <h3>Últimas indicações</h3>
+        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Indicado por</th><th>Etapa</th><th>Vendedor</th><th>Desde</th></tr></thead><tbody>
+        ${flow.recentes.map((x) => `<tr><td>${esc(x.name)} <span class="hint">${esc(x.code)}</span></td><td>${esc(x.indicador)}</td><td>${esc(x.etapa)}${x.parada ? ' <span class="badge paused">parada</span>' : ''}</td><td>${esc(x.vendedor || '—')}</td><td>${when(x.desde)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">—</td></tr>'}
+        </tbody></table></div></div>
       <div class="panel"><h2>Saques dos indicadores ${open.length ? `<span class="badge pending">${open.length} para pagar</span>` : ''}</h2>
         <p class="hint">Prazo combinado: até 24 horas depois do pedido. Faça o Pix e marque como pago (o indicador é avisado no WhatsApp).</p>
         <div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Indicador</th><th>Valor</th><th>Para</th><th>Prazo</th><th></th></tr></thead><tbody>

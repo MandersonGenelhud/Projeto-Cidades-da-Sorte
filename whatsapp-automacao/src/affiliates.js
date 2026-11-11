@@ -433,6 +433,29 @@ export class Affiliates {
     return this.data.list.map((a) => ({ ...this.publicAffiliate(a), stats: this.stats(a) }));
   }
 
+  /**
+   * Fluxo das indicações (para o dashboard): de todas as pessoas indicadas, em que etapa está cada uma, quantas estão paradas e como cada indicador está indo.
+   * Sem telefone de cliente (só nome e etapa). dias = janela para "novas" (padrão 30).
+   */
+  flow({ days = 30, staleDays = 7, now = new Date() } = {}) {
+    const leads = this.crm.leads.filter((l) => l.affiliateId);
+    const since = now.getTime() - days * 86_400_000;
+    const stale = now.getTime() - staleDays * 86_400_000;
+    const stages = { novo: 0, em_contato: 0, proposta: 0, aguardando: 0, ganho: 0, perdido: 0 };
+    for (const l of leads) if (l.stage in stages) stages[l.stage] += 1;
+    const open = leads.filter((l) => !['ganho', 'perdido'].includes(l.stage));
+    const parados = open.filter((l) => new Date(l.updatedAt || l.affiliateAt || 0).getTime() < stale);
+    const byAff = this.data.list.map((a) => {
+      const mine = leads.filter((l) => l.affiliateId === a.id);
+      const won = mine.filter((l) => l.stage === 'ganho').length;
+      return { id: a.id, name: a.name, total: mine.length, novas: mine.filter((l) => new Date(l.affiliateAt || 0).getTime() >= since).length, emAtendimento: mine.filter((l) => ['em_contato', 'proposta', 'aguardando'].includes(l.stage)).length, fechadas: won, perdidas: mine.filter((l) => l.stage === 'perdido').length, paradas: mine.filter((l) => parados.includes(l)).length, conversao: mine.length ? Math.round((won / mine.length) * 100) : 0 };
+    }).filter((x) => x.total).sort((a, b) => b.total - a.total);
+    const recentes = [...leads].sort((a, b) => String(b.affiliateAt || '').localeCompare(String(a.affiliateAt || ''))).slice(0, 15).map((l) => ({
+      code: l.code || '', name: l.name || 'Cliente', indicador: this.get(l.affiliateId)?.name || '—', etapa: STAGE_FRIENDLY[l.stage] || l.stage, stage: l.stage, desde: l.affiliateAt || '', vendedor: l.ownerId ? String(this.auth?.get(l.ownerId)?.name || '').split(' ')[0] : '', parada: parados.includes(l),
+    }));
+    return { totais: { indicacoes: leads.length, novas: leads.filter((l) => new Date(l.affiliateAt || 0).getTime() >= since).length, emAtendimento: open.length, paradas: parados.length, fechadas: stages.ganho, perdidas: stages.perdido, conversao: leads.length ? Math.round((stages.ganho / leads.length) * 100) : 0 }, etapas: stages, porIndicador: byAff, recentes, dias: days, diasParada: staleDays };
+  }
+
   adminCommissions() {
     return [...this.data.commissions].reverse().map((c) => ({ ...c, affName: this.get(c.affId)?.name || '—', affPix: payoutText(this.get(c.affId)) }));
   }
