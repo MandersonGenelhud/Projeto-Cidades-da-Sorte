@@ -75,4 +75,30 @@ export class Family {
     const rest = idx >= 0 && restFolded ? String(text).slice(idx).trim() : restFolded.trim();
     return { partner: p, rest };
   }
+
+  // ---------- MESMA pasta (ex.: o Marcos e a Silvani usam a mesma Ana e o mesmo banco de dados) ----------
+  get joint() { return (this.store.settings.ana?.joint || []).filter((j) => j && j.userId && j.withUserId); }
+  #saveJoint(list) { this.store.updateSettings({ ana: { joint: list } }); this.store.settings.ana.joint = list; this.store.save?.(); }
+
+  /** De quem é a pasta que esta pessoa usa: a dela mesma ou a da pessoa com quem ela divide. */
+  ownerOf(userId) { return this.joint.find((j) => j.userId === userId)?.withUserId || userId; }
+
+  /** Todos que usam a pasta de ownerId (ele mesmo primeiro). */
+  groupOf(ownerId) { return [ownerId, ...this.joint.filter((j) => j.withUserId === ownerId).map((j) => j.userId)]; }
+
+  /** userId passa a usar a MESMA pasta de withUserId. O que userId já tinha é juntado na pasta comum (nada se perde). */
+  addJoint({ userId, withUserId }, merge = () => ({})) {
+    const a = this.auth.get(userId); const b = this.auth.get(withUserId);
+    if (!a || !b) throw Object.assign(new Error('Escolha duas pessoas da equipe'), { status: 400 });
+    if (a.id === b.id) throw Object.assign(new Error('Escolha duas pessoas diferentes'), { status: 400 });
+    if (!a.whatsapp) throw Object.assign(new Error(`${a.name} está sem WhatsApp na Equipe. Cadastre o número dela em Equipe primeiro`), { status: 400 });
+    if (this.joint.some((j) => j.userId === a.id)) throw Object.assign(new Error(`${a.name} já divide a pasta com alguém. Remova antes para trocar`), { status: 400 });
+    if (this.joint.some((j) => j.userId === b.id)) throw Object.assign(new Error(`${b.name} já usa a pasta de outra pessoa; escolha quem é o dono da pasta`), { status: 400 });
+    if (this.joint.some((j) => j.withUserId === a.id)) throw Object.assign(new Error(`${a.name} já é dona de uma pasta dividida`), { status: 400 });
+    const moved = merge(a.id, b.id) || {};
+    this.#saveJoint([...this.joint, { userId: a.id, withUserId: b.id, at: new Date().toISOString() }]);
+    return { moved };
+  }
+
+  removeJoint(userId) { this.#saveJoint(this.joint.filter((j) => j.userId !== userId)); }
 }

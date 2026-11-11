@@ -20,6 +20,17 @@ export function cleanAgentName(v) {
 }
 /** Número da Central de Atendimento (porta de entrada que direciona aos vendedores): marcado como central ou com "Central" no nome. */
 export const isCentralLine = (line, owner = null) => Boolean(line) && (line.central === true || /^central\b/i.test(String(line.label || '')) || /^central\b/i.test(String(owner?.name || '')));
+/**
+ * Por onde sai um aviso para a EQUIPE (vendedor, administrador): primeiro pelo número da CENTRAL (se conectado), porque o número principal
+ * (do Marcos) deixou de ser a central e não deve mandar os clientes para os vendedores. Sem a Central, o principal; sem ele, qualquer linha conectada.
+ * Devolve [{ via: 'line', line } | { via: 'main' }] em ordem de tentativa.
+ */
+export function teamRoutes({ mainConnected, lines = [], ownerOf = () => null }) {
+  const on = lines.filter((l) => l.status === 'connected');
+  const central = on.filter((l) => isCentralLine(l, ownerOf(l)));
+  const others = on.filter((l) => !central.includes(l));
+  return [...central.map((line) => ({ via: 'line', line })), ...(mainConnected ? [{ via: 'main' }] : []), ...others.map((line) => ({ via: 'line', line }))];
+}
 export const lineKey = (id, jid) => `${LINE_PREFIX}${id}:${jid}`;
 
 /** "l:abc:5511...@s.whatsapp.net" → { id: 'abc', jid: '5511...@s.whatsapp.net' } */

@@ -414,7 +414,8 @@
   "isCentralLine",
   "lineKey",
   "matchSeller",
-  "parseLineKey"
+  "parseLineKey",
+  "teamRoutes"
  ],
  "src/live.js": [
   "DEFAULT_LIVE",

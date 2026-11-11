@@ -46,7 +46,8 @@ test('daqui a N dias, semanas, meses e anos (compromissos de 1 ou 2 anos)', () =
   assert.equal(w('ano que vem').date, '2027-11-06');
   assert.equal(w('mês que vem').date, '2026-12-06');
   assert.equal(w('semana que vem').date, '2026-11-13');
-  assert.equal(w('daqui a 9 anos').date, '', 'mais de 5 anos à frente é recusado');
+  assert.ok(w('daqui a 10 anos').date.startsWith('2036'), 'até 30 anos à frente é aceito');
+  assert.equal(w('daqui a 40 anos').date, '', 'mais de 30 anos à frente é recusado');
 });
 
 test('soma de meses respeita o fim do mês', () => {

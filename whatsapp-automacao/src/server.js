@@ -94,7 +94,7 @@ import { Motors } from './motors.js';
 import { School } from './school.js';
 import { Proposals, simulate as finSimulate, options as finOptions, schedule as finSchedule, isConfigured as finConfigured } from './finance.js';
 import { Affiliates } from './affiliates.js';
-import { LineManager, lineKey, matchSeller, parseLineKey, isCentralLine } from './lines.js';
+import { LineManager, lineKey, matchSeller, parseLineKey, isCentralLine, teamRoutes } from './lines.js';
 import { Closing, DEFAULT_TERM } from './closing.js';
 import { humanizeConfig, splitIntoBubbles } from './humanize.js';
 import { Visits, DEFAULT_BRING } from './visits.js';
@@ -219,7 +219,7 @@ const agent = new Agent({
   notify,
   notifyTeam: async (text) => {
     const phone = normalizePhone(store.settings.agent.handoffNotifyPhone);
-    if (phone && wa.status === 'connected') await wa.send(phone, { text, typing: false });
+    if (phone && teamCanSend()) await teamSend(phone, { text, typing: false });
   },
 });
 // Destrava conversas pausadas por engano (resposta da própria IA lida como se fosse do celular).
@@ -258,15 +258,21 @@ agent.onQualified = (conv, q) => {
   const cap = { sim: 'TEM condições de fechar', parcial: 'tem condições em parte', nao: 'sem condições agora', desconhecida: 'condições ainda desconhecidas' }[q.capacidade];
   crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `Termômetro de venda: ${cap}${q.evidencia ? ` ("${q.evidencia}")` : ''}. Urgência: ${q.urgencia}. Decide: ${q.decisor}.${q.objecoes ? ` Trava: ${q.objecoes}.` : ''}${q.previsao ? ` Previsão de ter o valor: ${q.previsao}.` : ''}${q.oferta ? ` Oferta relâmpago: ${{ interessou: 'interessou', vai_a_vista: 'VAI PAGAR À VISTA (brinde de 12 meses: confira o pagamento da entrada até a data)', vai_parcelado: 'vai fechar com a entrada e etapas (brinde de 12 meses: confira o pagamento da entrada até a data)', nao_a_vista: 'não vai fechar agora' }[q.oferta]}.` : ''}`);
 };
-// Avisos para a EQUIPE (vendedoras, administradores): saem pelo número principal e, se ele estiver fora do ar, por um número da equipe conectado (ex.: a Central).
+// Avisos para a EQUIPE (vendedoras, administradores): saem pelo número da CENTRAL (o principal, do Marcos, deixou de ser a central). Sem a Central, pelo principal ou por outra linha.
 // Antes, com o principal desconectado, nenhum aviso de "cliente para você" chegava às vendedoras (e ninguém via o erro).
-const connectedTeamLine = () => lines.list().find((l) => l.status === 'connected');
-const teamCanSend = () => wa.status === 'connected' || Boolean(connectedTeamLine());
+const teamRoutesNow = () => teamRoutes({ mainConnected: wa.status === 'connected', lines: lines.list(), ownerOf: (l) => (l.ownerId ? auth.get(l.ownerId) : null) });
+const teamCanSend = () => teamRoutesNow().length > 0;
+// Ordem: Central → número principal → outra linha. Se uma rota falhar no envio, tenta a próxima (o aviso não se perde).
 const teamSend = async (phone, payload) => {
-  if (wa.status === 'connected') return wa.send(phone, payload);
-  const l = connectedTeamLine();
-  if (!l) throw new Error('Nenhum WhatsApp conectado para avisar a equipe');
-  return wa.send(lineKey(l.id, `${String(phone).replace(/\D/g, '')}@s.whatsapp.net`), payload);
+  const routes = teamRoutesNow();
+  if (!routes.length) throw new Error('Nenhum WhatsApp conectado para avisar a equipe');
+  let lastErr = null;
+  for (const r of routes) {
+    try {
+      return r.via === 'main' ? await wa.send(phone, payload) : await wa.send(lineKey(r.line.id, `${String(phone).replace(/\D/g, '')}@s.whatsapp.net`), payload);
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr;
 };
 // Peneira feita: a IA passa o cliente para o vendedor da vez (rodízio).
 const router = new LeadRouter({
@@ -443,7 +449,7 @@ agent.videoBook = async (conv, args, { dryRun } = {}) => {
   if (!simulated) {
     notify('videocall', { id: b.id });
     const host = auth.get(b.hostId);
-    if (host?.whatsapp && wa.status === 'connected') wa.send(host.whatsapp, { text: `📹 *Nova videochamada marcada*\n${videocalls.fmt(b)} (${b.durationMin} min)\nCliente: ${b.name}${b.phone ? ` (+${b.phone})` : ''}${b.people ? `\nPessoas: ${b.people}` : ''}${b.notes ? `\nObs.: ${b.notes}` : ''}`, typing: false }).catch(() => {});
+    if (host?.whatsapp && teamCanSend()) teamSend(host.whatsapp, { text: `📹 *Nova videochamada marcada*\n${videocalls.fmt(b)} (${b.durationMin} min)\nCliente: ${b.name}${b.phone ? ` (+${b.phone})` : ''}${b.people ? `\nPessoas: ${b.people}` : ''}${b.notes ? `\nObs.: ${b.notes}` : ''}`, typing: false }).catch(() => {});
   }
   return { ok: true, simulacao: simulated || undefined, data: b.date, hora: b.time, duracao_minutos: b.durationMin, consultor: firstName(b.hostName), link: b.meetLink || '', instrucao: `Videochamada marcada para ${videocalls.fmt(b)}, com ${b.durationMin} minutos de bate-papo para tirar as dúvidas que ficaram e alinhar o início do procedimento. Confirme ao cliente com calor humano e peça que venha com o marido/a esposa. ${b.meetLink ? `Envie o link da sala: ${b.meetLink}` : 'Diga que o consultor envia o link da sala antes da hora.'}` };
 };
@@ -563,7 +569,7 @@ payments.onPaid = (p) => {
       if (p.convKey) wa.send(p.convKey, { text, typing: false }).then(() => conv && agent.remember(conv, 'assistant', text)).catch(() => {});
       const host = auth.get(b.hostId);
       const note = `📹 *Videochamada PAGA*\n${b.status === 'confirmed' ? videocalls.fmt(b) : 'sem horário livre: remarcar com o cliente'} (${b.durationMin} min)\nCliente: ${b.name}${b.phone ? ` (+${b.phone})` : ''}\n💵 R$ ${p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-      if (host?.whatsapp && wa.status === 'connected') wa.send(host.whatsapp, { text: note, typing: false }).catch(() => {});
+      if (host?.whatsapp && teamCanSend()) teamSend(host.whatsapp, { text: note, typing: false }).catch(() => {});
       notify('videocall', { id: b.id });
     } catch (e) { store.addLog({ type: 'error', message: `Videochamada paga: ${e.message}` }); }
     return;
@@ -678,7 +684,7 @@ const commissions = new Commissions({
   store, sales, auth,
   notify: async (kind, payload) => {
     if (kind === 'admins') return notifyAdmins(payload);
-    if (kind === 'seller' && payload.seller?.whatsapp && wa.status === 'connected') return wa.send(payload.seller.whatsapp, { text: payload.text, typing: false });
+    if (kind === 'seller' && payload.seller?.whatsapp && teamCanSend()) return teamSend(payload.seller.whatsapp, { text: payload.text, typing: false });
     return null;
   },
 });
@@ -690,7 +696,7 @@ const partnerProjects = new PartnerProjects({
   notify: async (kind, payload) => {
     if (kind === 'admins') return notifyAdmins(payload);
     const u = kind === 'owner' ? auth.get(payload.userId) : null;
-    if (u?.whatsapp && wa.status === 'connected') return wa.send(u.whatsapp, { text: payload.text, typing: false });
+    if (u?.whatsapp && teamCanSend()) return teamSend(u.whatsapp, { text: payload.text, typing: false });
     return null;
   },
 });
@@ -702,7 +708,7 @@ const support = new Support({
   notify: async (kind, payload) => {
     if (kind === 'admins') return notifyAdmins(payload);
     const u = kind === 'user' ? auth.get(payload.userId) : null;
-    if (u?.whatsapp && wa.status === 'connected') return wa.send(u.whatsapp, { text: payload.text, typing: false });
+    if (u?.whatsapp && teamCanSend()) return teamSend(u.whatsapp, { text: payload.text, typing: false });
     return null;
   },
 });
@@ -939,7 +945,7 @@ const mentoringNotice = (lead, args, conv, extra) => [
 ].filter(Boolean).join('\n');
 const tellMarcos = async (text) => {
   const owner = normalizePhone(store.settings.crm?.ownerPhone);
-  if (owner && wa.status === 'connected') await wa.send(owner, { text, typing: false }).catch(() => {});
+  if (owner && teamCanSend()) await teamSend(owner, { text, typing: false }).catch(() => {});
   else await notifyAdmins(text);
 };
 // Plano em PDF para quem NÃO tem condições de contratar a assessoria: só depois de registrado "sem condições" (com a frase do cliente). O PDF vai depois do pagamento.
@@ -1021,7 +1027,7 @@ agent.notifyOwner = async (conv, args, { dryRun } = {}) => {
     preview ? `\n💬 *Prévia da conversa:*\n${preview}` : '',
   ].filter(Boolean).join('\n');
   const target = hr?.whatsapp || normalizePhone(store.settings.crm?.ownerPhone);
-  if (target && wa.status === 'connected') await wa.send(target, { text, typing: false }).catch(() => {});
+  if (target && teamCanSend()) await teamSend(target, { text, typing: false }).catch(() => {});
   else await notifyAdmins(text);
   seen[noticeKey] = Date.now();
   store.save();
@@ -1319,9 +1325,9 @@ async function notifyFollowUps() {
     const targets = owner ? [owner] : auth.users.filter((u) => u.role === 'admin' && u.active !== false);
     const who = lead.name || (lead.phone ? `+${lead.phone}` : lead.instagram ? `@${lead.instagram}` : 'cliente');
     const text = `📅 *Retorno agendado para hoje*\nCliente: ${who}${lead.phone ? ` (+${lead.phone})` : ''}\nInteresse: ${lead.interest || '-'}\nMotivo da espera: ${lead.followUpReason || '-'}\n\nAbra o CRM em "Retornos" para retomar o atendimento.`;
-    if (store.settings.crm?.notifyFollowUps !== false && wa.status === 'connected') {
+    if (store.settings.crm?.notifyFollowUps !== false && teamCanSend()) {
       for (const u of targets) {
-        if (u.whatsapp) await wa.send(u.whatsapp, { text, typing: false }).catch(() => {});
+        if (u.whatsapp) await teamSend(u.whatsapp, { text, typing: false }).catch(() => {});
       }
     }
     store.addLog({ type: 'system', message: `📅 Retorno de hoje: ${who} (responsável: ${owner?.name || 'equipe'})` });
@@ -1685,7 +1691,7 @@ app.post('/api/public/precadastro', async (req, res) => {
   const r = affiliates.preRegister(b, ref);
   const { lead, owner, affiliate, service, extra } = r;
   const first = (n) => String(n || '').split(' ')[0];
-  const sent = (to, text) => (to && wa.status === 'connected' ? wa.send(to, { text, typing: false }).catch(() => {}) : Promise.resolve());
+  const sent = (to, text) => (to && teamCanSend() ? teamSend(to, { text, typing: false }).catch(() => {}) : Promise.resolve());
   const brief = `👤 ${lead.name} · +${lead.phone}\n🎯 ${service.label}${extra ? `\n📝 ${extra}` : ''}${affiliate ? `\n🤝 Indicado por ${affiliate.name} (${affiliate.code})` : ref.seller ? '\n🔗 Veio pelo seu link' : ''}`;
   if (owner) {
     await sent(owner.whatsapp, `📝 *Novo pré-cadastro* — ${lead.code}\n${brief}\n\nChame o cliente agora: https://wa.me/${lead.phone}\nO prospecto já está na sua carteira em Prospectos.`);
@@ -1813,7 +1819,7 @@ app.post('/api/public/lead', async (req, res) => {
   crm.addNote({ name: 'Site', role: 'admin' }, lead.id, `${brand.label}: ${item}${message ? ` · mensagem: ${message}` : ''}`);
   notify('crm', { id: lead.id });
   const text = `${brand.icon} *Novo interessado pelo site* (${brand.label}) — ${lead.code}\n👤 ${name} · +${phone}\n📌 ${item}${message ? `\n📝 ${message}` : ''}\n💬 Chame agora: https://wa.me/${phone}`;
-  if (person?.whatsapp && wa.status === 'connected') wa.send(person.whatsapp, { text, typing: false }).catch(() => {});
+  if (person?.whatsapp && teamCanSend()) teamSend(person.whatsapp, { text, typing: false }).catch(() => {});
   else if (!person) notifyAdmins(`${text}\n\n⚠️ Ninguém está marcado para este assunto na Equipe.`).catch(() => {});
   const target = person?.whatsapp || mainWhatsapp();
   const hello = `Olá! Vim pelo site (${item}). Meu nome é ${name}. Código: ${lead.code}.`;
@@ -2350,6 +2356,11 @@ function healthReport() {
   const lineList = lines.list().map((l) => ({ id: l.id, label: l.label, status: l.status, lastError: l.lastError || '', agent: l.agent !== false }));
   const off = lineList.filter((l) => l.status !== 'connected');
   if (off.length) add('warn', `${off.length} WhatsApp(s) de vendedor sem conexão: ${off.map((l) => l.label).join(', ')}.`);
+  const centralLines = lines.list().filter((l) => isCentralLine(l, l.ownerId ? auth.get(l.ownerId) : null));
+  if (!centralLines.length) add('warn', 'Nenhum número está marcado como Central de Atendimento. Os avisos da equipe sairão pelo número principal (do Marcos).');
+  else if (!centralLines.some((l) => l.status === 'connected')) add('bad', `A Central de Atendimento (${centralLines.map((l) => l.label).join(', ')}) está DESCONECTADA: ninguém atende quem chega por ela e os avisos aos vendedores saem pelo ${wa.status === 'connected' ? 'número principal' : 'que estiver conectado'}. Reconecte em Equipe → Conexões.`);
+  else add('ok', 'Central de Atendimento conectada: os avisos de cliente novo aos vendedores saem por ela, não pelo número do Marcos.');
+  if (!teamCanSend()) add('bad', 'Nenhum WhatsApp está conectado para avisar a equipe: vendedores e administradores NÃO recebem os avisos de cliente novo, contrato e pagamento.');
   const csNames = centralSellerNames();
   const vend = auth.users.filter(isSellerForCentral);
   add(vend.length ? 'ok' : 'bad', vend.length ? `A Central direciona os clientes em rodízio para as vendedoras: ${vend.map((u) => u.name.split(' ')[0]).join(', ')}.` : 'A Central não tem vendedora para quem direcionar (cadastre vendedoras ativas, com WhatsApp e "recebe clientes" ligado, na aba Equipe).');
@@ -3309,7 +3320,7 @@ async function runWeeklyTraining({ force = false } = {}) {
   if (!t) return null;
   let i = 0;
   for (const u of auth.users.filter((x) => x.role === 'seller' && x.active !== false && x.whatsapp)) {
-    if (wa.status === 'connected') await wa.send(u.whatsapp, { text: tutorials.noticeText(t, i++), typing: false }).catch(() => {});
+    if (teamCanSend()) await teamSend(u.whatsapp, { text: tutorials.noticeText(t, i++), typing: false }).catch(() => {});
   }
   store.addLog({ type: 'system', message: `Treinamento da semana criado: ${t.title}` });
   return t;
@@ -4090,8 +4101,8 @@ app.post('/api/users/:id/approve', async (req, res) => {
   const user = auth.update(u.id, { active: true });
   securityEvent('cadastro_liberado', req.user, req, u.name);
   const base = publicBase();
-  if (u.whatsapp && wa.status === 'connected') {
-    await wa.send(u.whatsapp, { text: `✅ Olá, ${u.name.split(' ')[0]}! Seu acesso ao sistema da Migra foi liberado.\n${base ? `Entre em: ${base}\n` : ''}No primeiro acesso, o sistema vai pedir para ligar a verificação em duas etapas (app Google Authenticator).`, typing: false }).catch(() => {});
+  if (u.whatsapp && teamCanSend()) {
+    await teamSend(u.whatsapp, { text: `✅ Olá, ${u.name.split(' ')[0]}! Seu acesso ao sistema da Migra foi liberado.\n${base ? `Entre em: ${base}\n` : ''}No primeiro acesso, o sistema vai pedir para ligar a verificação em duas etapas (app Google Authenticator).`, typing: false }).catch(() => {});
   }
   notify('users', {});
   res.json(user);
@@ -4647,7 +4658,7 @@ app.post('/api/public/contrato/:id/assinar', async (req, res) => {
   const who = sellerOf({ lead: q.leadId ? crm.byId(q.leadId) : null, convKey: q.convKey, quote: q })?.name || 'ainda sem vendedor (IA)';
   const notice = `✍️ *Contrato assinado pelo cliente*\n🧑‍💼 Quem atendeu: ${who}\n👤 ${c.client.nome}${c.client.cpf ? ` · CPF ${c.client.cpf}` : ''}\n📄 ${ct} · R$ ${q.plan.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n🕒 ${new Date(signedAt).toLocaleString('pt-BR')}\nO PDF assinado está no painel (Orçamentos → Contrato).`;
   const seller = q.createdBy?.id ? auth.get(q.createdBy.id) : null;
-  if (seller?.whatsapp && seller.role !== 'admin' && wa.status === 'connected') await wa.send(seller.whatsapp, { text: notice, media, typing: false }).catch(() => {});
+  if (seller?.whatsapp && seller.role !== 'admin' && teamCanSend()) await teamSend(seller.whatsapp, { text: notice, media, typing: false }).catch(() => {});
   await notifyAdmins(notice).catch(() => {});
   if (q.leadId) crm.addNote({ name: 'Cliente', role: 'admin' }, q.leadId, `✍️ Contrato ${ct} assinado pelo cliente (código ${hash.slice(0, 10).toUpperCase()})`);
   notify('crm', { id: q.leadId });
@@ -5137,13 +5148,27 @@ app.put('/api/ana', (req, res) => {
 // Pessoas da casa que usam a Ana pelo mesmo número (ex.: a esposa): sem painel, sem empresa; lista de compras e avisos divididos só com a pessoa ligada.
 app.get('/api/ana/family', (req, res) => {
   needAdmin(req);
-  res.json({ list: anaFamily.list.map((f) => ({ id: f.id, name: f.name, whatsapp: f.whatsapp, linkedUserId: f.linkedUserId, linkedName: auth.get(f.linkedUserId)?.name || '' })), people: auth.users.filter((u) => u.active !== false && u.role === 'admin').map((u) => ({ id: u.id, name: u.name })) });
+  res.json({ joint: anaFamily.joint.map((j) => ({ userId: j.userId, name: auth.get(j.userId)?.name || '', withUserId: j.withUserId, withName: auth.get(j.withUserId)?.name || '' })), list: anaFamily.list.map((f) => ({ id: f.id, name: f.name, whatsapp: f.whatsapp, linkedUserId: f.linkedUserId, linkedName: auth.get(f.linkedUserId)?.name || '' })), people: auth.users.filter((u) => u.active !== false && u.role === 'admin').map((u) => ({ id: u.id, name: u.name })), team: auth.users.filter((u) => u.active !== false && !u.pending).map((u) => ({ id: u.id, name: u.name, whatsapp: Boolean(u.whatsapp) })) });
 });
 app.post('/api/ana/family', (req, res) => {
   needAdmin(req);
   const f = anaFamily.add(req.body || {});
   securityEvent('ana_casa_adicionada', req.user, req, `${f.name} ligada à Ana de ${auth.get(f.linkedUserId)?.name || ''}`);
   res.json({ id: f.id });
+});
+// Duas pessoas da equipe na MESMA pasta da Ana (ex.: o Marcos e a Silvani): mesma agenda, mesmas anotações, mesmo financeiro pessoal.
+app.post('/api/ana/joint', (req, res) => {
+  needAdmin(req);
+  const b = req.body || {};
+  const r = anaFamily.addJoint({ userId: b.userId, withUserId: b.withUserId }, (from, to) => personal.mergeBox(from, to));
+  securityEvent('ana_pasta_dividida', req.user, req, `${auth.get(b.userId)?.name || ''} passou a usar a mesma pasta da Ana de ${auth.get(b.withUserId)?.name || ''}`);
+  res.json({ ok: true, moved: r.moved });
+});
+app.delete('/api/ana/joint/:userId', (req, res) => {
+  needAdmin(req);
+  anaFamily.removeJoint(req.params.userId);
+  securityEvent('ana_pasta_separada', req.user, req, 'Pasta da Ana deixou de ser dividida');
+  res.json({ ok: true });
 });
 app.delete('/api/ana/family/:id', (req, res) => {
   needAdmin(req);
@@ -5622,7 +5647,7 @@ if (process.env.NODE_ENV !== 'test') {
   // Videochamadas reservadas que não foram pagas voltam a ficar livres.
   setInterval(() => videocalls.expirePending(), 5 * 60_000).unref();
   // Lembretes de tarefas da equipe (WhatsApp de cada pessoa), a cada 10 minutos, só no horário comercial.
-  setInterval(() => { const h = new Date().getHours(); if (wa.status === 'connected' && h >= 8 && h < 19) tasks.remind((phone, text) => wa.send(phone, { text, typing: false })).catch(() => {}); }, 10 * 60_000).unref();
+  setInterval(() => { const h = new Date().getHours(); if (teamCanSend() && h >= 8 && h < 19) tasks.remind((phone, text) => teamSend(phone, { text, typing: false })).catch(() => {}); }, 10 * 60_000).unref();
   // Cobrança aprovada: manda uma mensagem por vez, respeitando limite, horário e intervalo.
   setInterval(() => collections.tick().catch((e) => store.addLog({ type: 'error', message: `Cobrança: ${e.message}` })), 20_000).unref();
   // Cliente parado: entregue ao vendedor e sem nenhuma ação dele no prazo (só no horário comercial). Lembra o vendedor; se continuar, avisa a administração.

@@ -50,6 +50,7 @@ export class Personal {
   constructor({ store, now = () => new Date() }) {
     this.store = store;
     this.now = now;
+    this.alias = null; // (userId) → userId da pasta que ele usa (quando divide a MESMA pasta com outra pessoa; ana-family.js)
     this.shareOf = null; // (userId) → { key, members } quando a lista de compras é dividida com a pessoa da casa (ana-family.js)
   }
 
@@ -58,14 +59,16 @@ export class Personal {
   /** A caixa de UMA pessoa. Sem id, ninguém: nunca devolve a de outra. */
   #box(userId) {
     if (!userId) throw err('Pessoa não identificada');
+    userId = this.alias?.(userId) || userId;
     const all = (this.store.data.personal ||= {});
     const b = (all[userId] ||= { items: [], entries: [], budgets: {}, settings: {}, last: null });
-    b.shopping ||= []; b.goals ||= []; b.series ||= {}; b.storeMap ||= {};
+    b.shopping ||= []; b.goals ||= []; b.series ||= {}; b.storeMap ||= {}; b.notes ||= [];
     return b;
   }
 
   /** A caixa da LISTA DE COMPRAS: a do casal (uma lista só) quando a pessoa está ligada a alguém da casa; senão, a própria. Só compras são divididas. */
   #shopBox(userId) {
+    userId = this.alias?.(userId) || userId;
     const sk = this.shareOf?.(userId);
     if (!sk) return this.#box(userId);
     const all = (this.store.data.personal ||= {});
@@ -81,6 +84,46 @@ export class Personal {
 
   settings(userId) { return this.#box(userId).settings; }
   setSetting(userId, k, v) { this.#box(userId).settings[k] = v; this.store.save(); }
+
+  // ---------- memória (notas de longo prazo) ----------
+  /** Guarda uma informação que a pessoa quer lembrar depois. Fica na caixa só dela (nunca na da empresa). */
+  addNote(userId, text, { by = '' } = {}) {
+    const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 600);
+    if (t.length < 3) throw err('Diga o que devo guardar');
+    const box = this.#box(userId);
+    if (box.notes.length >= 5000) throw err('A memória está cheia (5.000 notas). Peça para a equipe técnica arquivar as mais antigas');
+    const n = { id: newId(), text: t, by: by || '', at: this.now().toISOString() };
+    box.notes.push(n);
+    this.store.save();
+    return n;
+  }
+
+  /** Procura nas notas (todas as palavras do termo, sem acento). Sem termo, as mais recentes. */
+  notes(userId, term = '', limit = 8) {
+    const all = this.#box(userId).notes;
+    const words = fold1(term).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !['que','sobre','com','uma','pra','para','das','dos','nas','nos','minha','meu','tem'].includes(w));
+    const hit = words.length ? all.filter((n) => { const f = fold1(n.text); return words.every((w) => f.includes(w.length > 5 ? w.slice(0, -1) : w)); }) : all;
+    return hit.slice(-limit).reverse();
+  }
+
+  /** Junta tudo o que a pessoa tinha na própria pasta dentro da pasta comum (usado ao ligar duas pessoas na mesma Ana). Nada é apagado: a pasta antiga fica vazia. */
+  mergeBox(fromId, toId) {
+    const all = (this.store.data.personal ||= {});
+    const from = all[fromId]; if (!from) return { items: 0, entries: 0, notes: 0 };
+    const to = this.#box(toId);
+    const alias = this.alias; this.alias = null; // grava na pasta de destino de verdade
+    try {
+      const dest = (all[toId] ||= to);
+      const moved = { items: from.items?.length || 0, entries: from.entries?.length || 0, notes: from.notes?.length || 0 };
+      for (const k of ['items', 'entries', 'shopping', 'goals', 'notes']) { dest[k] = [...(dest[k] || []), ...(from[k] || [])]; from[k] = []; }
+      dest.series = { ...(from.series || {}), ...(dest.series || {}) }; from.series = {};
+      dest.storeMap = { ...(from.storeMap || {}), ...(dest.storeMap || {}) };
+      this.store.save();
+      return moved;
+    } finally { this.alias = alias; }
+  }
+
+  noteCount(userId) { return this.#box(userId).notes.length; }
 
   // ---------- agenda ----------
   /** kind: compromisso (com hora, avisa antes), lembrete (avisa na hora) ou conta (vencimento de parcela/conta). */

@@ -5,7 +5,7 @@
 const MONTHS = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const WEEKDAYS = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
 export const WEEKDAY_LABELS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
-export const MAX_YEARS_AHEAD = 5;
+export const MAX_YEARS_AHEAD = 30; // lembretes de até 30 anos ("daqui a 10 anos")
 
 /** Minúsculas e sem acento, mantendo o MESMO tamanho do texto (para cortar o título no lugar certo). */
 export const fold1 = (s) => [...String(s ?? '')].map((c) => c.normalize('NFD')[0]).join('').toLowerCase();

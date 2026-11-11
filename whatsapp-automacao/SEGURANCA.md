@@ -651,3 +651,10 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Central (Luana)**: imóvel vai ao corretor (setor loteamentos), veículo ao setor de veículos, o resto ao rodízio. A Central não fecha venda.
 - Não mexe em quem recebe indicações de parceiros (`receivesAffiliateLeads`), salvo Marcos e Gabriel (desligados).
 - Teste: `test/rodizio-2026.test.js`.
+
+## Avisos pela Central, Ana com memória, pasta dividida e Ana do Eliezer (11/11/2026)
+- **Avisos à equipe pela Central**: cliente novo, contrato, pagamento, retorno e demais avisos a vendedores e administradores saem primeiro pelo número da **Central**, depois pelo principal (do Marcos) e por último por outra linha conectada; se uma rota falhar, tenta a próxima (`teamRoutes` em `src/lines.js`). Avisos a parceiros/afiliados e respostas a clientes continuam como eram. "Saúde do sistema" avisa se a Central está desconectada ou se nenhum WhatsApp está disponível para a equipe.
+- **Ana (memória)**: "Ana, anote que..." guarda a nota na pasta **só da pessoa**; "o que eu anotei sobre..." procura. **Nunca guarda** senha, código de verificação, chave, token nem número de cartão (recusa e orienta a usar um cofre de senhas). Lembretes agora aceitam até **30 anos** à frente (antes 5).
+- **Mesma pasta (Marcos e Silvani)**: Equipe → "Ana e a casa" → "Mesma pasta da Ana". As duas pessoas usam a mesma agenda, anotações e financeiro pessoal; avisos e resumo da manhã chegam às duas, uma vez cada. O que a pessoa já tinha é **juntado** (nada é apagado). Só administrador configura; fica registrado no log de segurança. Recusa pessoa sem WhatsApp, pasta repetida ou em cadeia. O Manderson e o Marcos continuam com pastas separadas.
+- **Quem usa a Ana**: painel "Quem pode usar a Ana" (marque o Eliezer para ele ter a Ana dele, com pasta própria). A Ana não altera nem exclui nada da empresa (trava existente).
+- Testes: `test/aviso-pela-central.test.js`, `test/ana-memoria.test.js`, `test/ana-pasta.test.js`.
