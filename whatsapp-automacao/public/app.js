@@ -116,6 +116,7 @@ function renderStatus(state) {
     qr: 'Aguardando QR Code',
     connecting: 'Conectando…',
     disconnected: 'Desconectado',
+    off: 'Principal desligado',
   }[state.status];
 
   const mode = state.mode || 'qr';
@@ -130,7 +131,10 @@ function renderStatus(state) {
 
   $('#pairingBox').hidden = state.status === 'connected';
   const area = $('#qrArea');
-  if (state.status === 'connected') {
+  $('#btnMainOff').textContent = state.status === 'off' ? 'Religar o número principal (com um número novo)' : 'Desligar o número principal (banido ou sem uso)';
+  if (state.status === 'off') {
+    area.innerHTML = '<h2>Número principal desligado</h2><p class="muted">Não está pedindo QR Code. Os avisos e atendimentos seguem pela Central e pelos números da equipe. Para voltar a usar, clique em "Religar" e leia o QR Code do número novo.</p>';
+  } else if (state.status === 'connected') {
     area.innerHTML = `<div class="ok"></div><h2>WhatsApp conectado</h2><p>${esc(state.me?.name || '')} · ${esc(fmtPhone(state.me?.phone))}</p>`;
   } else if (state.status === 'qr' && state.qr) {
     area.innerHTML = `<img src="${state.qr}" alt="QR Code" /><p>Escaneie com o WhatsApp do celular</p>`;
@@ -147,6 +151,13 @@ $('#btnLogout').addEventListener('click', async () => {
   if (!confirm('Desconectar este número? Será preciso escanear o QR Code de novo.')) return;
   await api('/api/connection/logout', { method: 'POST' });
   toast('Número desconectado');
+});
+
+$('#btnMainOff').addEventListener('click', async () => {
+  const off = connState.status !== 'off';
+  if (off && !confirm('Desligar o número principal? Ele para de pedir QR Code e de tentar conectar. Os números da equipe, a Central e o Instagram continuam. Você pode religar quando tiver um número novo.')) return;
+  await api('/api/connection/off', { method: 'POST', body: { off } });
+  toast(off ? 'Número principal desligado' : 'Número principal religado: leia o QR Code do novo número');
 });
 
 // ---------- Painel ----------

@@ -64,7 +64,11 @@ export class ConnectionManager extends EventEmitter {
     return this.current.status;
   }
 
+  /** Número principal desligado de propósito (ex.: banido pelo WhatsApp): não tenta reconectar nem mostra "aguardando QR Code". */
+  get mainOff() { return this.store.settings.connection?.mainOff === true; }
+
   getState() {
+    if (this.mainOff) return { status: 'off', me: null, qr: null, error: '', mode: this.mode, mainOff: true };
     return { ...this.current.getState(), mode: this.mode };
   }
 
@@ -136,15 +140,30 @@ export class ConnectionManager extends EventEmitter {
   }
 
   async start() {
+    if (this.mainOff) return;
     await this.current.start();
   }
 
   async restart() {
+    if (this.mainOff) return;
     await this.current.restart();
   }
 
   async logout() {
     await this.current.logout();
+  }
+
+  /** Desliga (ou religa) o número principal. Desligado: encerra a sessão local e não volta a pedir QR Code; os números da equipe e o Instagram seguem. */
+  async setMainOff(off) {
+    if (off) {
+      this.store.updateSettings({ connection: { mainOff: true } });
+      try { await this.current.logout(); } catch { /* sessão já inválida (número banido) */ }
+      try { await this.current.stop(); } catch { /* já parado */ }
+    } else {
+      this.store.updateSettings({ connection: { mainOff: false } });
+      await this.current.start();
+    }
+    this.emit('status', this.getState());
   }
 
   /** Troca o modo de conexão, desligando o anterior. */

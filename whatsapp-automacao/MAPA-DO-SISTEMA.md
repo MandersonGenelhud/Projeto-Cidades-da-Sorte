@@ -5,8 +5,8 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **153** · testes automatizados (arquivos): **157** · scripts do painel: **49**
-- Rotas da API em `server.js`: **540** · tarefas agendadas (`setInterval`): **23** (todas com `unref`: sim)
+- Módulos em `src/`: **153** · testes automatizados (arquivos): **158** · scripts do painel: **49**
+- Rotas da API em `server.js`: **541** · tarefas agendadas (`setInterval`): **23** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
 
@@ -67,7 +67,7 @@
 | `collections.js` | 138 | Cobrança de vencidos e previsão de recebimento. | `server.js` | 2 |
 | `commissions.js` | 184 | Níveis de comissão (por meta de vendas do mês) e saques de comissão. | `server.js` | 2 |
 | `commitments.js` | 78 | Compromissos marcados com clientes (horários do calendário e videochamadas): a atendente chama o cliente NA HORA marcada | `server.js` | 1 |
-| `connection.js` | 163 | Gerencia as conexões: WhatsApp (QR Code ou API oficial da Meta, um de cada vez) | `server.js` | 3 |
+| `connection.js` | 182 | Gerencia as conexões: WhatsApp (QR Code ou API oficial da Meta, um de cada vez) | `server.js` | 4 |
 | `contabil.js` | 320 | Painel da Migra Contábil Paraguay: a carteira de empresas clientes do escritório contábil. | `server.js` | 1 |
 | `contract-cards.js` | 96 | Quadros dos contratos (um por contrato, com prévia), busca, filtros e a consulta que a IA faz sobre o contrato do PRÓPRIO cliente. | `server.js` | 1 |
 | `contract-pix.js` | 56 | REGRA: o Pix do que foi combinado (normalmente a reserva/entrada) vai ao cliente DEPOIS que ele assina o contrato (ordem do Marcos: ficha, assinatura, Pix). | `server.js` | 2 |
@@ -102,7 +102,7 @@
 | `legacy-ingest.js` | 116 | Envio automático da cópia do sistema antigo: o programa de cópia (no computador de quem tem o login do sistema antigo) | `server.js` | **0** |
 | `legacy-map.js` | 94 | Mapa das telas do sistema antigo (sem nenhum dado de cliente) e comparação com o que o Migra Hub já tem. | `server.js` | 1 |
 | `legacy-tool.js` | 62 | Monta o arquivo único CAPTURAR-CONTRATOS.bat que o administrador baixa pelo painel: | `server.js` | 3 |
-| `lines.js` | 231 | Números da equipe: um WhatsApp por vendedor (com o nome dele), cada um com o seu | `connection.js`, `send-profiles.js`, `server.js` | 6 |
+| `lines.js` | 231 | Números da equipe: um WhatsApp por vendedor (com o nome dele), cada um com o seu | `connection.js`, `send-profiles.js`, `server.js` | 7 |
 | `live.js` | 69 | Página de live: o Meet que a equipe já usa, com frase de "em breve" / "ao vivo", botão de entrar e botões dos grupos de WhatsApp. | `server.js` | 1 |
 | `maintenance.js` | 22 | Ajustes únicos de equipe, aplicados sozinhos na inicialização (cada um só uma vez). | `server.js` | 1 |
 | `maria-baixa.js` | 150 | Baixa de pagamento pela Maria: o vendedor manda o comprovante (foto ou PDF), a Maria lê, descobre de quem é o pagamento e qual parcela ou | `maria.js` | 1 |
@@ -159,7 +159,7 @@
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
 | `seller-pipeline.js` | 67 | Pipeline por vendedor: para cada pessoa da equipe (Eliezer, Giovana, Diego, Fran, Marcos…), quem ela está atendendo, quem recebeu orçamento, | `campanhas-funil.js`, `server.js` | 1 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 5856 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 5864 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
@@ -259,7 +259,7 @@
 - `contabil-painel.js`
 - `nav-hubs.js`
 
-## Rotas da API (540)
+## Rotas da API (541)
 - `GET /webhook`
 - `GET /webhook/instagram`
 - `POST /webhook/instagram`
@@ -341,6 +341,7 @@
 - `GET /api/health/detail`
 - `POST /api/health/test-send`
 - `POST /api/connection/logout`
+- `POST /api/connection/off`
 - `POST /api/connection/restart`
 - `POST /api/connection/pairing-code`
 - `POST /api/connection/mode`

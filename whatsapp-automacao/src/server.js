@@ -2394,7 +2394,8 @@ function healthReport() {
   const queue = pending.status();
   const tips = [];
   const add = (level, text) => tips.push({ level, text });
-  if (st.status === 'connected') add('ok', `WhatsApp conectado${st.me?.phone ? ` (+${st.me.phone})` : ''}.`);
+  if (st.status === 'off') add('ok', 'O número principal está DESLIGADO de propósito (não pede QR Code). Os avisos saem pela Central e pelos números da equipe.');
+  else if (st.status === 'connected') add('ok', `WhatsApp conectado${st.me?.phone ? ` (+${st.me.phone})` : ''}.`);
   else if (st.status === 'qr') add('bad', 'O WhatsApp está esperando a leitura do QR Code (Conexões). Enquanto isso, nenhuma mensagem é enviada nem recebida.');
   else add('bad', `O WhatsApp NÃO está conectado (${st.status}). ${st.lastError || 'Abra Conexões e reconecte.'}`);
   if (recent.filter((d) => d.code === 440).length >= 2) add('bad', 'O número está aberto em OUTRO lugar (440): provavelmente o sistema do computador e o da VPS estão ligados ao mesmo tempo. Feche o do computador. Os dois se derrubam e o envio para.');
@@ -2460,6 +2461,13 @@ app.post('/api/health/test-send', async (req, res) => {
 app.post('/api/connection/logout', async (_req, res) => {
   await wa.logout();
   res.json({ ok: true });
+});
+app.post('/api/connection/off', async (req, res) => {
+  needAdmin(req);
+  const off = req.body?.off !== false;
+  await wa.setMainOff(off);
+  securityEvent('whatsapp_principal', req.user, req, off ? 'Número principal desligado (não pede mais QR Code)' : 'Número principal religado');
+  res.json({ ok: true, off });
 });
 app.post('/api/connection/restart', async (_req, res) => {
   wa.restart();
