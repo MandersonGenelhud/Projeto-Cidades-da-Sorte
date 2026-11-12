@@ -519,7 +519,8 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
         try { this.onReply?.({ conv }); } catch { /* medição nunca derruba o atendimento */ }
         const finalText = professionalTone(fixGreeting(reply.content.trim(), this.now()));
         // Rede de segurança (Central): o sistema confere se a IA que "disse que encaminhou" realmente encaminhou.
-        try { Promise.resolve(this.afterReply?.({ conv, text: finalText, actions, dryRun })).catch((e) => this.store.addLog({ type: 'error', message: `Conferência do encaminhamento: ${e.message}` })); } catch { /* nunca derruba o atendimento */ }
+        // Primeiro encaminha, depois o cliente lê que foi encaminhado (o texto só sai depois que isto termina).
+        try { await this.afterReply?.({ conv, text: finalText, actions, dryRun }); } catch (e) { this.store.addLog({ type: 'error', message: `Conferência do encaminhamento: ${e.message}` }); }
         return { text: finalText, actions };
       }
       messages.push({ role: 'assistant', content: reply.content || null, tool_calls: reply.tool_calls, ...(reply._anthropic ? { _anthropic: reply._anthropic } : {}) });

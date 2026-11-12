@@ -758,7 +758,7 @@ loaders.team = async () => {
         <div class="meta">login: ${esc(u.login)}${u.whatsapp ? ` · WhatsApp ${esc(fmtPhone(u.whatsapp))}` : ' · sem WhatsApp (fora do rodízio)'}
           · ${u.trafficOnly ? 'acesso só ao Tráfego' : u.receivesLeads && u.whatsapp ? `no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : 'fora do rodízio'}
           · ${u.receivesAffiliateLeads ? 'recebe indicações de parceiros' : 'não recebe indicações de parceiros'}
-          · ${(() => { const l = lineOf(u); return !l ? 'WhatsApp não conectado' : l.status === 'connected' ? `WhatsApp conectado · ${l.agent !== false ? 'IA atendendo' : 'IA desligada'}` : `WhatsApp ${(LINE_STATUS[l.status] || l.status).toLowerCase()}`; })()}</div></div>
+          · ${(() => { const l = lineOf(u); return !l ? `WhatsApp não conectado${u.role !== 'admin' && !u.trafficOnly && u.active ? ' <button class="btn small primary" data-act="connectwa">Conectar WhatsApp</button>' : ''}` : l.status === 'connected' ? `WhatsApp conectado · ${l.agent !== false ? 'IA atendendo' : 'IA desligada'}` : `WhatsApp ${(LINE_STATUS[l.status] || l.status).toLowerCase()}`; })()}</div></div>
       ${u.active ? `<div class="sector-btns" title="Em que áreas esta pessoa atende">${SECTOR_BTNS.map(([id, label]) => `<button class="btn small ${(u.sectors || []).includes(id) ? 'primary' : ''}" data-act="sector" data-sector="${id}" aria-pressed="${(u.sectors || []).includes(id)}">${label}</button>`).join('')}</div>` : ''}
       ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? 'Pausar rodízio' : '▶Pôr no rodízio'}</button>
         <button class="btn small" data-act="affleads" title="Indicações de parceiros pagam comissão menor ao vendedor">${u.receivesAffiliateLeads ? 'Parar indicações' : 'Receber indicações'}</button>
@@ -812,6 +812,12 @@ $('#teamList').addEventListener('click', async (e) => {
   const id = e.target.closest('[data-user]')?.dataset.user;
   if (!act || !id) return;
   try {
+    if (act === 'connectwa') {
+      await api('/api/lines', { method: 'POST', body: { ownerId: id } });
+      toast('Abrindo a conexão: o QR Code aparece em alguns segundos.');
+      showTab('lines');
+      return;
+    }
     if (act === 'rotation') {
       const u = JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id);
       await api(`/api/users/${id}`, { method: 'PATCH', body: { receivesLeads: !u?.receivesLeads } });
@@ -884,6 +890,7 @@ $('#formUser').addEventListener('submit', withBusy($('#formUser'), async (e) => 
   f.reset();
   crmState.stages = [];
   loaders.team();
+  loaders.lines?.(); // já aparece em Conexões WhatsApp para conectar
 }));
 
 $('#formCrmSettings').addEventListener('submit', withBusy($('#formCrmSettings'), async (e) => {
@@ -1332,7 +1339,8 @@ loaders.lines = async () => {
   const people = users.filter((u) => u.active && !list.some((l) => l.ownerId === u.id));
   // Todo vendedor ativo aparece: conectado (cartão da conexão) ou com o botão para conectar.
   const me = window.currentUser;
-  const waiting = isAdmin() ? people.filter((u) => u.role === 'seller') : list.length ? [] : [me];
+  // Toda pessoa ativa da equipe que atende (não só quem tem o papel "Vendedor") aparece para conectar; quem é só do Tráfego fica de fora.
+  const waiting = isAdmin() ? people.filter((u) => u.role !== 'admin' && !u.pending && !u.trafficOnly) : list.length ? [] : [me];
   const html = list.map((l) => lineCard(l, people)).join('') + waiting.map(sellerSlot).join('')
     || `<p class="muted">${isAdmin() ? 'Cadastre os vendedores na aba Equipe: cada um aparece aqui para conectar o WhatsApp dele.' : ''}</p>`;
   $$('[data-lines-grid]').forEach((grid) => {

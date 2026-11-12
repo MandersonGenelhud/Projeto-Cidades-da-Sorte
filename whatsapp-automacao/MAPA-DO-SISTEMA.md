@@ -29,7 +29,7 @@
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
 | `affiliates.js` | 463 | Indicadores (afiliados): pessoas comuns que indicam clientes para a Migra e | `server.js` | 4 |
-| `agent/agent.js` | 770 | Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age. | `atendimento-plano.js`, `quote-expiry.js`, `restart.js`, `server.js` | 27 |
+| `agent/agent.js` | 771 | Agente de IA: conversa, lembra da conversa, responde sobre o negócio e age. | `atendimento-plano.js`, `quote-expiry.js`, `restart.js`, `server.js` | 27 |
 | `agent/calendar.js` | 231 | Agenda usada pelo agente: agenda interna (padrão) ou Cal.com. | `agent/prompt.js`, `crm-ai.js`, `crm.js`, `server.js`, `videocalls.js` | 7 |
 | `agent/central.js` | 22 | Orientação da CENTRAL DE ATENDIMENTO (o número que recebe quem chega, apresenta a Migra, tira as dúvidas e leva ao vendedor certo). | `server.js` | 3 |
 | `agent/claude.js` | 97 | Claude (Anthropic) como cérebro da atendente, pelo SDK oficial. | `agent/llm.js` | 1 |
@@ -60,7 +60,7 @@
 | `campanhas-funil.js` | 44 | Relatório de uma campanha: quantas pessoas vieram (por variante A, B… e "sem código"), quantas receberam orçamento, preencheram a ficha, assinaram, | `server.js` | 1 |
 | `campanhas.js` | 99 | Controle de campanhas de marketing: quantas pessoas vieram falar da oferta/promoção, de qual arte ou legenda (variante A, B…) e quantas fecharam. | `server.js` | 1 |
 | `cash.js` | 301 | Controle de caixa: o que entra (recebimentos dos clientes, já conhecidos pelo sistema) e o que sai | `assistant.js`, `server.js` | 6 |
-| `central-guard.js` | 24 | Rede de segurança da Central: a IA às vezes DIZ ao cliente que encaminhou ao vendedor sem chamar a ferramenta, e aí ninguém recebe nada. | `server.js` | 1 |
+| `central-guard.js` | 29 | Rede de segurança da Central: a IA às vezes DIZ ao cliente que encaminhou ao vendedor sem chamar a ferramenta, e aí ninguém recebe nada. | `server.js` | 1 |
 | `cities.js` | 119 | Guia de Cidades: números e endereços úteis de cada cidade do Paraguai para o cliente que está chegando. | `server.js` | 1 |
 | `client-proof.js` | 140 | Comprovante de pagamento que o CLIENTE manda ao vendedor (ou à Central) fora de uma cobrança Pix do sistema. | `server.js` | 1 |
 | `closed-signals.js` | 40 | Sinais de "já é nosso cliente" lidos das ÚLTIMAS 20 MENSAGENS da conversa (de quem for: cliente, equipe, IA, áudio transcrito). | `agent/agent.js`, `atendimento-plano.js`, `outreach-guard.js`, `restart.js` | 2 |
@@ -162,7 +162,7 @@
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
 | `seller-pipeline.js` | 67 | Pipeline por vendedor: para cada pessoa da equipe (Eliezer, Giovana, Diego, Fran, Marcos…), quem ela está atendendo, quem recebeu orçamento, | `campanhas-funil.js`, `server.js` | 1 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 5997 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 6003 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |

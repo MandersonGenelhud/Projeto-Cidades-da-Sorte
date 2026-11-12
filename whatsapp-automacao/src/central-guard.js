@@ -15,9 +15,14 @@ export function needsAutoForward({ conv, text, actions = [], lead, humanSpoke = 
   return { should: true, tellClient: !claims, claims };
 }
 
-/** Conversa em que a IA disse que encaminhou, mas nenhum vendedor recebeu (nem pessoa assumiu). */
-export function isStuck({ conv, lead, humanSpoke = false }) {
+/** Conversa em que a IA disse que encaminhou, mas nenhum vendedor recebeu o aviso (nem pessoa assumiu). */
+export function isStuck({ conv, lead, humanSpoke = false, now = Date.now(), recentDays = 3 }) {
   if (!conv || conv.simulation || conv.declined || humanSpoke || userCount(conv) < 1) return false;
-  if (!lead || lead.handoff?.at || ['ganho', 'perdido'].includes(lead.stage)) return false;
+  if (!lead || ['ganho', 'perdido'].includes(lead.stage)) return false;
+  if (lead.handoff?.at) {
+    // Encaminhado, mas o aviso ao vendedor não chegou (ou é de antes do registro de entrega): recente = reenviar.
+    if (lead.handoff.notifiedAt) return false;
+    if (now - new Date(lead.handoff.at).getTime() > recentDays * 86_400_000) return false;
+  }
   return (conv.messages || []).some((m) => m.role === 'assistant' && HANDOFF_CLAIM.test(String(m.content || '')));
 }

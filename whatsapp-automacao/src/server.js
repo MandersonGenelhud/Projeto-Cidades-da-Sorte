@@ -912,8 +912,10 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
     if (quote && fs.existsSync(quotes.file(quote))) await teamSend(to, { text: '', media: { path: quotes.file(quote), mimetype: 'application/pdf', fileName: `${quote.number}.pdf` }, typing: false });
   };
   if (teamCanSend()) {
-    if (closer?.whatsapp) await send(closer.whatsapp).catch((e) => store.addLog({ type: 'error', message: `Aviso ao vendedor ${closer.name}: ${e.message}` }));
-    else for (const u of auth.users.filter((x) => x.role === 'admin' && x.active !== false && x.whatsapp)) await send(u.whatsapp).catch(() => {});
+    let delivered = false;
+    if (closer?.whatsapp) delivered = await send(closer.whatsapp).then(() => true).catch((e) => { store.addLog({ type: 'error', message: `Aviso ao vendedor ${closer.name}: ${e.message}` }); return false; });
+    else for (const u of auth.users.filter((x) => x.role === 'admin' && x.active !== false && x.whatsapp)) delivered = (await send(u.whatsapp).then(() => true).catch(() => false)) || delivered;
+    if (delivered && lead?.handoff) { lead.handoff.notifiedAt = new Date().toISOString(); store.save(); }
   } else store.addLog({ type: 'error', message: `Nenhum WhatsApp conectado para avisar ${closer?.name || 'a equipe'} sobre ${who}` });
   let ai = null;
   if (aiLine && teamCanSend()) ai = await startSellerAi({ person: closer, line: aiLine, conv, lead, phone, who }).catch((e) => { store.addLog({ type: 'error', message: `IA do vendedor não chamou o cliente: ${e.message}` }); return null; });
@@ -5224,7 +5226,11 @@ const isEntryDeskConv = (conv) => {
 const centralStats = () => (store.data.centralStats ||= { auto: 0, semVendedor: 0, ultimoAuto: null });
 async function centralAutoForward(conv, { tellClient = false, why = 'Encaminhado automaticamente pela Central' } = {}) {
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone }) || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, channel: 'whatsapp' });
-  if (!lead || lead.handoff?.at || ['ganho', 'perdido'].includes(lead.stage)) return { skipped: true };
+  if (!lead || ['ganho', 'perdido'].includes(lead.stage)) return { skipped: true };
+  if (lead.handoff?.at) {
+    if (lead.handoff.notifiedAt) return { skipped: true };
+    lead.handoff = null; // encaminhado sem o aviso chegar ao vendedor: refaz
+  }
   const segment = segmentOf(lead, conv);
   const said = (conv.messages || []).filter((m) => m.role === 'user' && typeof m.content === 'string').slice(-4).map((m) => m.content.trim()).join(' | ');
   const resumo = (lead.aiSummary || `O cliente disse: ${said}`).slice(0, 500);

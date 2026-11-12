@@ -37,7 +37,10 @@ test('não encaminha de novo, nem por cima de pessoa, recusa, cliente fechado ou
 test('conversa "presa": disse que encaminhou, sem registro de encaminhamento', () => {
   const c = conv([['user', 'quero um terreno'], ['assistant', 'Vou te passar para o corretor, ele entra em contato.']]);
   assert.equal(isStuck({ conv: c, lead: {} }), true);
-  assert.equal(isStuck({ conv: c, lead: { handoff: { at: '2026-11-12' } } }), false);
+  const now = new Date('2026-11-12T18:00:00Z').getTime();
+  assert.equal(isStuck({ conv: c, lead: { handoff: { at: '2026-11-12T10:00:00Z', notifiedAt: '2026-11-12T10:00:05Z' } }, now }), false, 'aviso entregue ao vendedor');
+  assert.equal(isStuck({ conv: c, lead: { handoff: { at: '2026-11-12T10:00:00Z' } }, now }), true, 'encaminhado hoje, mas o aviso não chegou ao vendedor: reenviar');
+  assert.equal(isStuck({ conv: c, lead: { handoff: { at: '2026-11-01T10:00:00Z' } }, now }), false, 'antigo: não mexe');
   assert.equal(isStuck({ conv: c, lead: {}, humanSpoke: true }), false);
   assert.equal(isStuck({ conv: conv([['user', 'oi'], ['assistant', 'Olá! Qual seu interesse?']]), lead: {} }), false);
 });

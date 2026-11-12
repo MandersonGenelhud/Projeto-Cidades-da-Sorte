@@ -148,7 +148,7 @@ export class Sectors {
       this.crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `🏷️ Direcionado para ${person?.name || 'o Marcos'} (${label}): ${args.resumo || ''}`);
       this.store.save();
     }
-    if (person && this.canSend()) await this.send(person.whatsapp, text).catch(() => {});
+    if (person && this.canSend()) { const ok = await this.send(person.whatsapp, text).then(() => true).catch(() => false); if (ok && lead?.handoff) { lead.handoff.notifiedAt = new Date().toISOString(); this.store.save(); } }
     if (person && aiLine && this.canSend()) await this.startOnLine?.({ person, line: aiLine, conv, lead, phone, who }).catch((e) => this.store.addLog({ type: 'error', message: `IA do vendedor não chamou o cliente: ${e.message}` }));
     else if (id === 'loteamentos') {
       // Terreno, corretor e parceria imobiliária nunca vão para o Marcos nem para os administradores: ficam no CRM até o Diego ter WhatsApp cadastrado.
