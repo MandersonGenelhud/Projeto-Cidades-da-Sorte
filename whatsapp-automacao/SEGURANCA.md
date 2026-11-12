@@ -706,3 +706,9 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 ## Botão de conectar sempre visível na Equipe (12/11/2026)
 - Na Equipe, os botões "Conectar WhatsApp" (sem conexão) e "Ver QR Code" (conexão criada mas não conectada; reinicia a conexão para gerar um QR novo) ficam junto dos botões de ação de cada pessoa. Vale para toda pessoa ativa da equipe, menos quem é só do Tráfego. Em Conexões aparece também o administrador que está no rodízio. Só tela; as permissões do servidor não mudaram.
+
+## IA desligada respeitada no WhatsApp dos vendedores; nada sai pelo número deles; tela "Ao vivo" (12/11/2026)
+- **Trava única no agente**: número de vendedor com a IA desligada (Conexões → liga/desliga) faz o agente **não responder** (`handleIncoming`) e **não pensar** (`think` recusa), venha o pedido de onde vier (mensagem do cliente, fila, retomada, histórico do celular). Envios automáticos (retomada, lembrete, aviso de sumiço, orçamento vencendo, retorno agendado, compromissos) também são bloqueados (`ia_desligada`). A "Saúde/Por que não responde" mostra o motivo. Resposta manual pelo painel continua funcionando.
+- **Nada sai pelo número pessoal dos vendedores**: avisos à equipe e a clientes/parceiros saem só pela Central ou pelo número principal (antes, se os dois caíssem, iam por outra linha conectada). O encaminhamento em lote só pega conversas da Central/principal. No número de um vendedor, a IA (quando ligada) não encaminha o cliente a outra pessoa nem a outro setor.
+- **Ao vivo (Conversas)**: clientes novos de hoje e encaminhamentos de hoje, atualizando a cada 10 s, com o status "aviso entregue / NÃO entregue" ao vendedor; clique abre a conversa completa. Só administrador.
+- Teste: `test/ia-desligada-vendedor.test.js`.

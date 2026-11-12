@@ -22,14 +22,14 @@ export function cleanAgentName(v) {
 export const isCentralLine = (line, owner = null) => Boolean(line) && (line.central === true || /^central\b/i.test(String(line.label || '')) || /^central\b/i.test(String(owner?.name || '')));
 /**
  * Por onde sai um aviso para a EQUIPE (vendedor, administrador): primeiro pelo número da CENTRAL (se conectado), porque o número principal
- * (do Marcos) deixou de ser a central e não deve mandar os clientes para os vendedores. Sem a Central, o principal; sem ele, qualquer linha conectada.
+ * (do Marcos) deixou de ser a central e não deve mandar os clientes para os vendedores. Sem a Central, o principal. NUNCA pelo número pessoal de um vendedor.
  * Devolve [{ via: 'line', line } | { via: 'main' }] em ordem de tentativa.
  */
 export function teamRoutes({ mainConnected, lines = [], ownerOf = () => null }) {
   const on = lines.filter((l) => l.status === 'connected');
   const central = on.filter((l) => isCentralLine(l, ownerOf(l)));
-  const others = on.filter((l) => !central.includes(l));
-  return [...central.map((line) => ({ via: 'line', line })), ...(mainConnected ? [{ via: 'main' }] : []), ...others.map((line) => ({ via: 'line', line }))];
+  // Nunca pelo número pessoal de um vendedor: só a Central e o número principal.
+  return [...central.map((line) => ({ via: 'line', line })), ...(mainConnected ? [{ via: 'main' }] : [])];
 }
 export const lineKey = (id, jid) => `${LINE_PREFIX}${id}:${jid}`;
 

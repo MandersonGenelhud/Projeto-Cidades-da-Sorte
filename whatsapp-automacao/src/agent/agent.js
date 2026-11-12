@@ -101,6 +101,7 @@ export class Agent {
     if (!this.config.enabled) why.push('O agente está desligado (aba Agente IA).');
     else if (!this.llm.configured) why.push('Falta a chave da IA (aba Agente IA).');
     if (conv.handoff) why.push(`Pausada: ${conv.handoffReason || 'um humano assumiu'}.`);
+    if (this.aiOff?.(conv.key)) why.push('A IA está DESLIGADA neste número de vendedor (Equipe → Conexões): quem responde é o vendedor.');
     if (this.config.audience === 'test') why.push('Modo de teste: a IA só responde os números de teste.');
     return why;
   }
@@ -190,6 +191,8 @@ export class Agent {
    * Retorna { text, actions } — actions lista as ferramentas usadas.
    */
   async think(conv, { dryRun = false, delayed = false, extraSystem = '' } = {}) {
+    // TRAVA: número de vendedor com a IA DESLIGADA (Equipe → Conexões): a IA nunca escreve por ele, venha o pedido de onde vier.
+    if (!dryRun && this.aiOff?.(conv.key)) throw Object.assign(new Error('IA desligada neste número: quem responde é o vendedor'), { aiOff: true });
     const cfg = this.config;
     const settings = this.store.settings;
     const channel = String(conv.key).startsWith('ig:') ? 'Instagram' : 'WhatsApp';
@@ -554,6 +557,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
    * `send(text, { typingMs })` envia ao cliente; `hooks.markRead(ids)` marca como lida.
    */
   handleIncoming({ key, phone, name, username, text, id = null, delayed = false, resume = '' }, send, hooks = {}) {
+    if (this.aiOff?.(key)) return; // número de vendedor com a IA desligada: o vendedor atende, a IA fica calada
     let q = this.queues.get(key);
     if (!q) {
       q = { pending: [], ids: [], running: false, delayed: false, lastAt: 0, hooks: {} };

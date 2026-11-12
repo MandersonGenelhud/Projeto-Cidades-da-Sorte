@@ -132,7 +132,8 @@ export const isProactive = (p) => Boolean(p) && (p.restart === true || ['retomar
  */
 export const humanSpoke = (conv) => Boolean(conv?.humanSpokeAt || conv?.ownerRepliedAt) || (conv?.messages || []).some((m) => m && (m.by === 'owner' || m.by === 'human' || m.by === 'seller'));
 
-export function outreachBlock({ conv, item, getClosed = () => null, now = Date.now(), minGapHours = 12, paused = false }) {
+export function outreachBlock({ conv, item, getClosed = () => null, now = Date.now(), minGapHours = 12, paused = false, aiOff = false }) {
+  if (aiOff) return 'ia_desligada'; // número de vendedor com a IA desligada: nada automático sai por ele
   if (conv?.declined) return 'recusou';
   if (!isProactive(item)) return '';
   if (humanSpoke(conv)) return 'humano';

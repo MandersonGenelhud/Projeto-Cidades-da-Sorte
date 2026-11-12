@@ -4,10 +4,10 @@ import { teamRoutes } from '../src/lines.js';
 
 const L = (id, label, status = 'connected', extra = {}) => ({ id, label, status, ...extra });
 
-test('aviso à equipe sai primeiro pela Central, depois pelo número principal, depois por outra linha', () => {
+test('aviso à equipe sai pela Central, depois pelo número principal; NUNCA pelo número de um vendedor', () => {
   const lines = [L('a', 'Eliezer'), L('c', 'Central Atendimento'), L('d', 'Diego', 'disconnected')];
   const r = teamRoutes({ mainConnected: true, lines });
-  assert.deepEqual(r.map((x) => (x.via === 'main' ? 'main' : x.line.id)), ['c', 'main', 'a']);
+  assert.deepEqual(r.map((x) => (x.via === 'main' ? 'main' : x.line.id)), ['c', 'main']);
 });
 
 test('Central fora do ar: usa o principal; nada conectado: lista vazia (o chamador registra o erro)', () => {

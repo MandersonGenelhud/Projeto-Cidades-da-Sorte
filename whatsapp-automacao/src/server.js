@@ -309,7 +309,10 @@ const centralPoolFor = (conv, force = false) => {
   const names = centralSellerNames();
   return (u) => isSellerForCentral(u) && (!names.length || centralSellerMatch(u, names));
 };
-agent.routeLead = (conv, args, opts) => router.route(conv, args, { ...opts, pool: centralPoolFor(conv) });
+// IA desligada num número de vendedor (botão liga/desliga em Conexões): nenhuma mensagem automática da IA sai por ele.
+const aiOffFor = (key) => { const p = parseLineKey(key); if (!p) return false; const l = lines.get(p.id); return Boolean(l) && l.agent === false; };
+agent.aiOff = (key) => aiOffFor(key);
+agent.routeLead = (conv, args, opts) => (isSellerLineConv(conv) ? SELLER_LINE_NO_ROUTE : router.route(conv, args, { ...opts, pool: centralPoolFor(conv) }));
 agent.agentNameFor = (conv) => lines.get(parseLineKey(conv.key)?.id)?.agentName || '';
 agent.routeSpecialist = (conv, args, opts) => router.routeSpecialist(conv, args, opts);
 // Setores (loteamentos, documentação, veículos): a IA direciona e o atendente do setor recebe o resumo.
@@ -321,7 +324,10 @@ const sectors = new Sectors({
   canSend: () => teamCanSend(),
   notifyAdmins: (text) => notifyAdmins(text),
 });
-agent.routeSector = (conv, args, opts) => sectors.route(conv, args, opts);
+// No WhatsApp pessoal de um vendedor a IA (quando ligada) não passa o cliente para ninguém: quem atende é o dono do número.
+const isSellerLineConv = (conv) => { const p = parseLineKey(conv?.key); if (!p) return false; const l = lines.get(p.id); return Boolean(l) && !isCentralLine(l, l.ownerId ? auth.get(l.ownerId) : null); };
+const SELLER_LINE_NO_ROUTE = { ok: true, instrucao: 'Este é o WhatsApp do próprio consultor: NÃO encaminhe para outra pessoa nem para outro setor. Diga ao cliente que o consultor deste número vai cuidar disso pessoalmente.' };
+agent.routeSector = (conv, args, opts) => (isSellerLineConv(conv) ? SELLER_LINE_NO_ROUTE : sectors.route(conv, args, opts));
 sectors.migrate();
 // Escritório de uma conversa: pelo número de WhatsApp (cada número pertence a um escritório); o Instagram atual e o número principal são do Paraguai.
 const officeOfKey = (key) => {
@@ -390,7 +396,7 @@ const followups = new AutoFollowUps({
   crm,
   agent,
   send: (key, text) => wa.send(key, { text }),
-  canSend: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected') && agent.active,
+  canSend: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected') && agent.active && !aiOffFor(key),
   log: (l) => store.addLog(l),
 });
 agent.scheduleReturn = (conv, args, opts) => followups.schedule(conv, args, opts);
@@ -1668,7 +1674,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/trafego.js', '/encaminhar-lote.js', '/resgate.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js', '/contabil-painel.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/trafego.js', '/encaminhar-lote.js', '/resgate.js', '/mesa-ao-vivo.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js', '/contabil-painel.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -3112,8 +3118,8 @@ agent.onFailed = (conv) => {
 // Guarda de contato: não procura quem já recusou nem quem já fechou conosco (lido do banco, índice guardado por 5 minutos).
 let closedCache = { at: 0, idx: null };
 const closedIndex = () => { if (!closedCache.idx || Date.now() - closedCache.at > 5 * 60_000) closedCache = { at: Date.now(), idx: buildClosedIndex(directory.build({ role: 'admin' })) }; return closedCache.idx; };
-pending.outreachBlock = (jid, item) => guardOutreach({ conv: agent.conversation(jid, { create: false }), item: { ...item, jid }, getClosed: closedIndex, paused: store.settings.agent?.outreachPaused === true });
-const outreachFor = (conv) => guardOutreach({ conv, item: { restart: true, jid: conv.key, phone: conv.phone }, getClosed: closedIndex, paused: store.settings.agent?.outreachPaused === true });
+pending.outreachBlock = (jid, item) => guardOutreach({ conv: agent.conversation(jid, { create: false }), item: { ...item, jid }, getClosed: closedIndex, paused: store.settings.agent?.outreachPaused === true, aiOff: aiOffFor(jid) });
+const outreachFor = (conv) => guardOutreach({ conv, item: { restart: true, jid: conv.key, phone: conv.phone }, getClosed: closedIndex, paused: store.settings.agent?.outreachPaused === true, aiOff: aiOffFor(conv.key) });
 autoReply.onDecline = (msg, dc) => {
   const conv = agent.conversation(msg.jid);
   conv.phone ||= msg.phone || null;
@@ -5292,7 +5298,8 @@ app.post('/api/central/stuck/fix', async (req, res) => {
 // Encaminhar em lote os atendimentos que a IA conduz hoje: mensagem ao cliente + resumo ao vendedor do segmento (src/bulk-handoff.js).
 const bulkHandoff = new BulkHandoff({
   store, crm,
-  conversations: () => Object.values(store.data.conversations || {}),
+  // Só as conversas da Central (e do número principal como central): NUNCA manda mensagem pelo número de um vendedor.
+  conversations: () => Object.values(store.data.conversations || {}).filter((c) => isEntryDeskConv(c)),
   isClient: (lead) => isClientOfMigra(lead),
   humanSpoke: (conv) => humanSpokeConv(conv),
   isTeamPhone: (phone) => isTeamPhone(auth.users, phone),
@@ -5305,6 +5312,21 @@ const bulkHandoff = new BulkHandoff({
     if (segment === 'documentacao') await forwardToSeller({ conv, lead, brief: { resumo }, reason: 'Encaminhado em lote pela direção', forceRotation: true });
     else await sectors.route(conv, { setor: segment, resumo, nome: lead.name });
   },
+});
+// Mesa ao vivo (Conversas): clientes novos de hoje e encaminhamentos de hoje, com o status de entrega do aviso ao vendedor. Só administrador.
+app.get('/api/live-desk', (req, res) => {
+  needAdmin(req);
+  const tz = { timeZone: 'America/Asuncion' };
+  const dayOf = (iso) => (iso ? new Date(iso).toLocaleDateString('en-CA', tz) : '');
+  const day = dayOf(new Date().toISOString());
+  const lastOf = (key) => { const c = key ? agent.conversation(key, { create: false }) : null; return (c?.messages || []).filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').at(-1) || null; };
+  const novos = crm.leads.filter((l) => dayOf(l.createdAt) === day && !['manual', 'importacao', 'legacy'].includes(l.source || 'manual'))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, 100)
+    .map((l) => { const key = l.conversationKey || l.whatsappKey || ''; const last = lastOf(key); return { id: l.id, key, name: l.name || '', phone: l.phone || '', canal: traffic.channelOf(l), at: l.createdAt, ultima: last ? String(last.content).slice(0, 120) : '', ultimaDe: last?.role === 'user' ? 'cliente' : last ? 'atendente' : '', encaminhadoPara: l.handoff?.toName || '' }; });
+  const encaminhados = crm.leads.filter((l) => dayOf(l.handoff?.at) === day)
+    .sort((a, b) => String(b.handoff.at).localeCompare(String(a.handoff.at))).slice(0, 100)
+    .map((l) => ({ id: l.id, key: l.conversationKey || l.whatsappKey || '', name: l.name || '', phone: l.phone || '', para: l.handoff.toName || 'administradores', setor: l.handoff.sector || 'documentacao', at: l.handoff.at, entregue: Boolean(l.handoff.notifiedAt) }));
+  res.json({ dia: day, novos, encaminhados });
 });
 app.get('/api/handoff-bulk', (req, res) => { needAdmin(req); res.json(bulkHandoff.preview()); });
 app.post('/api/handoff-bulk/start', (req, res) => {
@@ -5938,7 +5960,7 @@ if (process.env.NODE_ENV !== 'test') {
     if (text) notifyAdmins(text).catch(() => {});
   }, 10 * 60_000).unref();
   // Horários marcados com clientes (calendário e videochamadas): chama na hora combinada e lembra antes. Nada fica esquecido.
-  const commitments = new Commitments({ store, agent, videocalls, send: (key, text) => wa.send(key, { text }), canSend: (key) => (key && wa.isConnected ? wa.isConnected(key) : wa.status === 'connected') && agent.active, log: (l) => store.addLog(l) });
+  const commitments = new Commitments({ store, agent, videocalls, send: (key, text) => wa.send(key, { text }), canSend: (key) => (key && wa.isConnected ? wa.isConnected(key) : wa.status === 'connected') && agent.active && !aiOffFor(key), log: (l) => store.addLog(l) });
   setInterval(() => { commitments.tickAppointments().catch((e) => store.addLog({ type: 'error', message: `Compromissos: ${e.message}` })); commitments.tickVideocalls().catch(() => {}); }, 3 * 60_000).unref();
   // Videochamadas reservadas que não foram pagas voltam a ficar livres.
   setInterval(() => videocalls.expirePending(), 5 * 60_000).unref();
