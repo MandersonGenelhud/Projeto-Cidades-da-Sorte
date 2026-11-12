@@ -712,3 +712,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Nada sai pelo número pessoal dos vendedores**: avisos à equipe e a clientes/parceiros saem só pela Central ou pelo número principal (antes, se os dois caíssem, iam por outra linha conectada). O encaminhamento em lote só pega conversas da Central/principal. No número de um vendedor, a IA (quando ligada) não encaminha o cliente a outra pessoa nem a outro setor.
 - **Ao vivo (Conversas)**: clientes novos de hoje e encaminhamentos de hoje, atualizando a cada 10 s, com o status "aviso entregue / NÃO entregue" ao vendedor; clique abre a conversa completa. Só administrador.
 - Teste: `test/ia-desligada-vendedor.test.js`.
+
+## Encaminhar todos os pendentes da Central e ver quem está fora do rodízio (12/11/2026)
+- **Pendente** = cliente da Central (últimos 7 dias) que escreveu e ainda não chegou a um **vendedor**: nunca encaminhado, encaminhado sem o aviso chegar, ou encaminhado só aos administradores por falta de vendedor. Ficam de fora: pessoa já falou, recusou, fechou/perdeu, conversa acontecendo agora (menos de 3 min) ou com mais de 7 dias.
+- **"Encaminhar todos os pendentes"** (Conversas, só administrador): roda em segundo plano, um a cada 2 s, pelo rodízio (imóvel ao corretor, veículo ao setor), sem mandar mensagem nova ao cliente; mostra o andamento e quantos foram para cada vendedor; fica no log de segurança. **Recusa começar se ninguém estiver no rodízio** (para não jogar tudo nos administradores).
+- **Rodízio transparente**: a tela e a Saúde do sistema mostram quem está no rodízio (e quantos recebeu hoje) e, para quem está fora, o motivo exato (rodízio desligado, sem WhatsApp, só imóveis/veículos, desativado, fora da lista da Central).

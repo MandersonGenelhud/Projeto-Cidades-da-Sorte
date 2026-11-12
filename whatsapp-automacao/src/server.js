@@ -34,7 +34,7 @@ import { contactsToVcf } from './vcard.js';
 import { listRescue, rescueThread, seedRescued } from './rescue.js';
 import { pickConversations, conversationsToHtml, conversationsToText } from './conv-export.js';
 import { BulkHandoff, segmentOf } from './bulk-handoff.js';
-import { needsAutoForward, isStuck } from './central-guard.js';
+import { needsAutoForward, isStuck, needsDelivery, rotationReasons } from './central-guard.js';
 import { FunnelSync } from './funnel-sync.js';
 import { OWNER_PAUSE } from './agent/agent.js';
 import { Migratech } from './migratech.js';
@@ -2432,6 +2432,8 @@ function healthReport() {
   else if (!centralLines.some((l) => l.status === 'connected')) add('bad', `A Central de Atendimento (${centralLines.map((l) => l.label).join(', ')}) está DESCONECTADA: ninguém atende quem chega por ela e os avisos aos vendedores saem pelo ${wa.status === 'connected' ? 'número principal' : 'que estiver conectado'}. Reconecte em Equipe → Conexões.`);
   else add('ok', 'Central de Atendimento conectada: os avisos de cliente novo aos vendedores saem por ela, não pelo número do Marcos.');
   if (centralLines.some((l) => l.agent === false)) add('bad', 'A IA da Central está DESLIGADA (Equipe → Conexões → Central → "IA responde"). Sem ela ninguém é atendido nem encaminhado.');
+  { const rep = rotationReport(); const fora = rep.filter((r) => !r.noRodizio && !r.motivos.includes('desativado') && !r.motivos.includes('acesso só ao Tráfego') && !r.motivos.includes('é o usuário da Central')); if (fora.length) add('warn', `Fora do rodízio da Central: ${fora.map((r) => `${r.name.split(' ')[0]} (${r.motivos.join(', ')})`).join('; ')}.`); }
+  { const pend = centralPending().length; if (pend) add('bad', `${pend} cliente(s) da Central ainda NÃO chegaram a um vendedor (últimos 7 dias). Em Conversas, clique em "Encaminhar todos os pendentes".`); }
   { const stuckN = centralStuck().length; if (stuckN) add('bad', `${stuckN} conversa(s) em que a Central DISSE que encaminhou ao vendedor, mas nenhum vendedor recebeu. Em Conversas, clique em "Corrigir agora".`); }
   { const cs = centralStats(); if (cs.auto) add('warn', `A rede de segurança da Central já encaminhou ${cs.auto} conversa(s) sozinha (a IA não tinha chamado a ferramenta)${cs.ultimoAuto ? `, a última em ${new Date(cs.ultimoAuto).toLocaleString('pt-BR')}` : ''}.${cs.semVendedor ? ` Em ${cs.semVendedor} não havia vendedor disponível: o aviso foi para os administradores.` : ''}`); }
   { const semZap = auth.users.filter((u) => u.active !== false && !u.pending && !u.whatsapp && (u.receivesLeads ?? u.role === 'seller') && !u.trafficOnly && !isCentralUser(u)); if (semZap.length) add('warn', `No rodízio mas SEM WhatsApp cadastrado (não recebem aviso nenhum): ${semZap.map((u) => u.name.split(' ')[0]).join(', ')}. Cadastre o número em Equipe.`); }
@@ -5241,8 +5243,8 @@ async function centralAutoForward(conv, { tellClient = false, why = 'Encaminhado
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone }) || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, channel: 'whatsapp' });
   if (!lead || ['ganho', 'perdido'].includes(lead.stage)) return { skipped: true };
   if (lead.handoff?.at) {
-    if (lead.handoff.notifiedAt) return { skipped: true };
-    lead.handoff = null; // encaminhado sem o aviso chegar ao vendedor: refaz
+    if (lead.handoff.notifiedAt && lead.handoff.toId) return { skipped: true };
+    lead.handoff = null; // encaminhado sem o aviso chegar a um VENDEDOR (falhou, ou foi só aos administradores): refaz pelo rodízio
   }
   const segment = segmentOf(lead, conv);
   const said = (conv.messages || []).filter((m) => m.role === 'user' && typeof m.content === 'string').slice(-4).map((m) => m.content.trim()).join(' | ');
@@ -5278,22 +5280,47 @@ const centralStuck = (days = 14) => {
   }
   return out;
 };
+// Quem está no rodízio da Central agora e, para quem está fora, o motivo (o administrador vê na hora por que alguém não recebe).
+const rotationReport = () => {
+  const names = centralSellerNames();
+  const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
+  const dayOf = (iso) => (iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' }) : '');
+  return auth.users.filter((u) => u.role !== 'admin' || u.receivesLeads).map((u) => {
+    const why = rotationReasons(u, { isCentral: isCentralUser(u), isOwner: isOwner(u, store.settings.crm?.ownerPhone) });
+    if (!why.length && names.length && !centralSellerMatch(u, names)) why.push('fora da lista "Vendedores que a Central direciona"');
+    return { id: u.id, name: u.name, noRodizio: !why.length, motivos: why, hoje: crm.leads.filter((l) => l.handoff?.toId === u.id && dayOf(l.handoff.at) === day).length };
+  }).sort((a, b) => Number(b.noRodizio) - Number(a.noRodizio) || a.name.localeCompare(b.name));
+};
+const centralPending = (days = 7) => Object.values(store.data.conversations || {}).filter((conv) => isEntryDeskConv(conv)).map((conv) => ({ conv, lead: crm.findForConversation({ key: conv.key, phone: conv.phone }) }))
+  .filter(({ conv, lead }) => needsDelivery({ conv, lead, humanSpoke: humanSpokeConv(conv), days }));
+const centralFixJob = { running: false, total: 0, ok: 0, falhas: 0, semVendedor: 0, startedAt: null, endedAt: null, porVendedor: {} };
 app.get('/api/central/stuck', (req, res) => {
   needAdmin(req);
-  const list = centralStuck();
-  res.json({ total: list.length, exemplos: list.slice(0, 8).map((x) => ({ nome: String(x.lead.name || '').split(' ')[0] || 'Cliente', segmento: segmentOf(x.lead, x.conv) })), stats: centralStats() });
+  const pend = centralPending();
+  res.json({ total: pend.length, disseQueEncaminhou: centralStuck().length, exemplos: pend.slice(0, 8).map((x) => ({ nome: String(x.lead?.name || x.conv.name || '').split(' ')[0] || 'Cliente', segmento: segmentOf(x.lead, x.conv) })), rodizio: rotationReport(), job: centralFixJob, stats: centralStats() });
 });
+app.get('/api/central/rotation', (req, res) => { needAdmin(req); res.json(rotationReport()); });
+// Encaminha TODOS os pendentes da Central (últimos 7 dias) pelo rodízio certo, em segundo plano, sem mandar mensagem nova ao cliente.
 app.post('/api/central/stuck/fix', async (req, res) => {
   needAdmin(req);
-  const list = centralStuck().slice(0, 150);
-  let ok = 0; let falhas = 0;
-  for (const x of list) {
-    try { const r = await centralAutoForward(x.conv, { tellClient: false, why: 'Encaminhado pela vistoria da Central (a IA tinha dito que encaminhou, mas ninguém recebeu)' }); if (!r.skipped) ok += 1; } catch (e) { falhas += 1; store.addLog({ type: 'error', message: `Vistoria da Central: ${e.message}` }); }
-    await sleep(1500);
-  }
-  securityEvent('central_vistoria', req.user, req, `${ok} encaminhado(s), ${falhas} falha(s)`);
-  res.json({ ok, falhas, total: list.length });
+  if (centralFixJob.running) throw httpError(409, 'O encaminhamento dos pendentes já está rodando');
+  const pool = rotationReport().filter((r) => r.noRodizio);
+  if (!pool.length) throw httpError(409, 'Ninguém está no rodízio agora: os clientes iriam só para os administradores. Em Equipe, ligue o rodízio das vendedoras (com WhatsApp cadastrado e a área Documentação) e tente de novo.');
+  const list = centralPending().slice(0, 400);
+  Object.assign(centralFixJob, { running: true, total: list.length, ok: 0, falhas: 0, semVendedor: 0, startedAt: new Date().toISOString(), endedAt: null, porVendedor: {} });
+  securityEvent('central_vistoria', req.user, req, `${list.length} pendente(s) para encaminhar; no rodízio: ${pool.map((p) => p.name.split(' ')[0]).join(', ')}`);
+  res.json({ total: list.length, rodizio: pool.map((p) => p.name) });
+  (async () => {
+    for (const x of list) {
+      try {
+        const r = await centralAutoForward(x.conv, { tellClient: false, why: 'Encaminhado pela vistoria da Central (estava parado sem chegar a um vendedor)' });
+        if (!r.skipped) { centralFixJob.ok += 1; const who = r.closer || (r.segment !== 'documentacao' ? `setor ${r.segment === 'loteamentos' ? 'imóveis' : 'veículos'}` : 'administradores (sem vendedor)'); centralFixJob.porVendedor[who] = (centralFixJob.porVendedor[who] || 0) + 1; if (!r.closer && r.segment === 'documentacao') centralFixJob.semVendedor += 1; }
+      } catch (e) { centralFixJob.falhas += 1; store.addLog({ type: 'error', message: `Vistoria da Central: ${e.message}` }); }
+      await sleep(2000);
+    }
+  })().finally(() => { centralFixJob.running = false; centralFixJob.endedAt = new Date().toISOString(); store.addLog({ type: 'system', message: `Vistoria da Central: ${centralFixJob.ok} encaminhado(s) (${Object.entries(centralFixJob.porVendedor).map(([k, v]) => `${k}: ${v}`).join(', ')}), ${centralFixJob.falhas} falha(s)` }); });
 });
+
 
 // Encaminhar em lote os atendimentos que a IA conduz hoje: mensagem ao cliente + resumo ao vendedor do segmento (src/bulk-handoff.js).
 const bulkHandoff = new BulkHandoff({

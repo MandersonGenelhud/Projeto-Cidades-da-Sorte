@@ -190,7 +190,9 @@
   "HANDOFF_CLAIM",
   "HANDOFF_TOOLS",
   "isStuck",
-  "needsAutoForward"
+  "needsAutoForward",
+  "needsDelivery",
+  "rotationReasons"
  ],
  "src/cities.js": [
   "CATEGORIES",
