@@ -871,6 +871,9 @@
   "workHourRange",
   "workHoursOf"
  ],
+ "src/vcard.js": [
+  "contactsToVcf"
+ ],
  "src/videocalls.js": [
   "DEFAULTS",
   "VideoCalls",

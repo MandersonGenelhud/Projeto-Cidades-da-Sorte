@@ -681,3 +681,6 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 ## Número principal desligado de propósito (12/11/2026)
 - Botão em Conexões: "Desligar o número principal". Encerra a sessão local, **não tenta mais reconectar nem pede QR Code**, mostra "Principal desligado" e a Saúde do sistema registra que é de propósito. Os números da equipe, a Central e o Instagram continuam; os avisos saem pela Central. Só administrador; fica no registro de segurança; "Religar" volta a conectar (QR Code do número novo).
 - Teste: `test/principal-desligado.test.js`.
+
+## Contatos para o celular em vCard (12/11/2026)
+- Contatos → "Baixar para o celular (.vcf)": arquivo que o iPhone e o Android importam direto na agenda. **Só administrador**, registra no log de segurança quantos contatos saíram (e a etiqueta). Nome com quebra de linha ou símbolos não cria campos falsos no arquivo; telefone inválido é ignorado. Teste: `test/vcard.test.js`.

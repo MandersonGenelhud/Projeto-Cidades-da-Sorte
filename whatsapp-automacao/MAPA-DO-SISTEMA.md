@@ -5,8 +5,8 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **153** · testes automatizados (arquivos): **158** · scripts do painel: **49**
-- Rotas da API em `server.js`: **541** · tarefas agendadas (`setInterval`): **23** (todas com `unref`: sim)
+- Módulos em `src/`: **154** · testes automatizados (arquivos): **159** · scripts do painel: **49**
+- Rotas da API em `server.js`: **542** · tarefas agendadas (`setInterval`): **23** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
 
@@ -24,7 +24,7 @@
 - Configuração nova vai em `settings` com **valor padrão** em `store.js`; mudança em dado já existente usa **migração de uma vez** com selo (veja abaixo), nunca sobrescreve o que o painel salvou.
 - Nada de segredo no código. Dados reais ficam em `data/` e nunca no Git.
 
-## Módulos (153)
+## Módulos (154)
 | Módulo | Linhas | Para que serve | Quem usa | Testes |
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
@@ -159,7 +159,7 @@
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
 | `seller-pipeline.js` | 67 | Pipeline por vendedor: para cada pessoa da equipe (Eliezer, Giovana, Diego, Fran, Marcos…), quem ela está atendendo, quem recebeu orçamento, | `campanhas-funil.js`, `server.js` | 1 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 5864 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 5874 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
@@ -177,6 +177,7 @@
 | `updater.js` | 120 | Atualização com um clique: baixa a versão mais nova do GitHub e troca só o código. | `server.js` | 1 |
 | `usage.js` | 199 | Consumo da IA por escritório (tokens e respostas) e calculadora de preço do serviço. | `server.js` | 1 |
 | `utils.js` | 224 | Funções utilitárias compartilhadas pelos módulos. | `affiliates.js`, `agent/agent.js`, `agent/calendar.js`, `ai-stalls.js`, `ana-family.js`, `assistant.js`, `auth.js`, `autoreply.js`, `campaigns.js`, `closing.js`, `crm.js`, `humanize.js`, `legacy-import.js`, `maria-baixa.js`, `maria.js`, `pending.js`, `phone-fix.js`, `quote-request.js`, `quotes.js`, `recordings.js`, `reengage.js`, `scheduler.js`, `sectors.js`, `send-profiles.js`, `server.js`, `transports/cloudapi.js`, `transports/whatsapp-web.js`, `videocalls.js` | 6 |
+| `vcard.js` | 15 | Contatos em vCard (.vcf): o arquivo que o iPhone, o Android e o Google Contatos importam direto para a agenda do celular. | `server.js` | 1 |
 | `videocalls.js` | 228 | Agenda de videochamadas com a equipe: a IA marca quando o cliente diz que vai falar com marido, esposa ou família. | `server.js` | 1 |
 | `visits.js` | 249 | Visitas ao escritório da Migra no Paraguai (consultoria presencial com a equipe). | `server.js` | 4 |
 | `voice.js` | 234 | Voz da Nina: clientes HTTP para o serviço de voz local (deploy/voz): faster-whisper entende o áudio | `assistant.js`, `lines.js`, `maria.js`, `server.js` | 3 |
@@ -259,7 +260,7 @@
 - `contabil-painel.js`
 - `nav-hubs.js`
 
-## Rotas da API (541)
+## Rotas da API (542)
 - `GET /webhook`
 - `GET /webhook/instagram`
 - `POST /webhook/instagram`
@@ -365,6 +366,7 @@
 - `POST /api/contacts/bulk-delete`
 - `POST /api/contacts/import`
 - `GET /api/contacts/export`
+- `GET /api/contacts/export.vcf`
 - `POST /api/contacts/check`
 - `GET /api/blacklist`
 - `POST /api/blacklist`

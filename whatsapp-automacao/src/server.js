@@ -30,6 +30,7 @@ import { Learnings } from './learnings.js';
 import { ReceiptReader } from './receipts.js';
 import { ClientProofs } from './client-proof.js';
 import { Traffic, trafficRouteAllowed } from './traffic.js';
+import { contactsToVcf } from './vcard.js';
 import { BulkHandoff } from './bulk-handoff.js';
 import { FunnelSync } from './funnel-sync.js';
 import { OWNER_PAUSE } from './agent/agent.js';
@@ -2678,6 +2679,15 @@ app.get('/api/contacts/export', (_req, res) => {
   res.set('Content-Type', 'text/csv; charset=utf-8');
   res.set('Content-Disposition', 'attachment; filename="contatos.csv"');
   res.send(`﻿${lines.join('\n')}`);
+});
+
+// Contatos para o celular (.vcf): importa direto na agenda do iPhone ou do Android. Só administrador; fica no registro de segurança.
+app.get('/api/contacts/export.vcf', (req, res) => {
+  needAdmin(req);
+  const tag = String(req.query.tag || '').toLowerCase();
+  const list = store.data.contacts.filter((c) => !tag || c.tags?.some((t) => t.toLowerCase() === tag));
+  securityEvent('contatos_exportados', req.user, req, `${list.length} contato(s) em vCard${tag ? ` (etiqueta ${tag})` : ''}`);
+  res.set('Content-Type', 'text/vcard; charset=utf-8').set('Content-Disposition', 'attachment; filename="contatos.vcf"').send(contactsToVcf(list));
 });
 
 app.post('/api/contacts/check', async (req, res) => {
