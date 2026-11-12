@@ -687,3 +687,6 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 ## Exportar conversas em arquivo legível (12/11/2026)
 - Contatos → "Baixar conversas do número principal" (HTML; `?format=txt` para texto; `?scope=all|line:<id>&days=N` para outros recortes). **Só administrador**, registra no log de segurança quantas conversas saíram. Não entram grupos, Instagram, simulações nem conversas vazias. O texto do cliente é escapado no HTML (não executa código). O arquivo avisa que contém dados de clientes. O Hub guarda as últimas 200 mensagens por conversa; o que passou disso, ou o que está só no WhatsApp banido, não está aqui. Teste: `test/conv-export.test.js`.
+
+## Resgate de conversas do número principal (12/11/2026)
+- Aba **Resgate de conversas** (Conversas): **só administrador**. Lista as conversas do número principal (sem linhas, grupos, Instagram e simulações), com busca. Ao responder, a mensagem sai por um **número da equipe conectado** (Central por padrão) e a conversa passa a existir nesse número, com o histórico copiado; a conversa fica **assumida pelo dono** (a IA não responde por cima) e a resposta do cliente aparece em Conversas e no Resgate ("respondeu"). Cada resposta fica no log de segurança e como nota no prospecto. Sem número conectado, o envio é recusado com explicação. Teste: `test/resgate.test.js`.

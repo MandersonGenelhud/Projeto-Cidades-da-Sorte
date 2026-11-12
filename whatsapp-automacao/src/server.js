@@ -31,6 +31,7 @@ import { ReceiptReader } from './receipts.js';
 import { ClientProofs } from './client-proof.js';
 import { Traffic, trafficRouteAllowed } from './traffic.js';
 import { contactsToVcf } from './vcard.js';
+import { listRescue, rescueThread, seedRescued } from './rescue.js';
 import { pickConversations, conversationsToHtml, conversationsToText } from './conv-export.js';
 import { BulkHandoff } from './bulk-handoff.js';
 import { FunnelSync } from './funnel-sync.js';
@@ -1664,7 +1665,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/trafego.js', '/encaminhar-lote.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js', '/contabil-painel.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/trafego.js', '/encaminhar-lote.js', '/resgate.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js', '/contabil-painel.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -2702,6 +2703,44 @@ app.get('/api/conversations/export', (req, res) => {
   const txt = String(req.query.format) === 'txt';
   res.set('Content-Type', txt ? 'text/plain; charset=utf-8' : 'text/html; charset=utf-8').set('Content-Disposition', `attachment; filename="conversas.${txt ? 'txt' : 'html'}"`)
     .send(txt ? conversationsToText(list, { ownerName }) : conversationsToHtml(list, { ownerName }));
+});
+
+// Resgate: conversas do número principal (parado) para o dono continuar pelo Hub, respondendo por um número conectado (a Central ou outro). Só administrador.
+const rescueLine = (id) => {
+  const on = lines.list().filter((l) => l.status === 'connected');
+  return (id && on.find((l) => l.id === id)) || on.find((l) => isCentralLine(l, l.ownerId ? auth.get(l.ownerId) : null)) || on[0] || null;
+};
+app.get('/api/rescue', (req, res) => {
+  needAdmin(req);
+  res.json({ list: listRescue(store.data.conversations, { q: req.query.q }), lines: lines.list().filter((l) => l.status === 'connected').map((l) => ({ id: l.id, label: l.label, central: isCentralLine(l, l.ownerId ? auth.get(l.ownerId) : null) })) });
+});
+app.get('/api/rescue/thread', (req, res) => {
+  needAdmin(req);
+  const t = rescueThread(store.data.conversations, String(req.query.key || ''));
+  if (!t) throw httpError(404, 'Conversa não encontrada');
+  res.json(t);
+});
+app.post('/api/rescue/send', async (req, res) => {
+  needAdmin(req);
+  const old = store.data.conversations[String(req.body?.key || '')];
+  if (!old || String(old.key).startsWith('l:') || String(old.key).startsWith('ig:') || String(old.key).includes('@g.us')) throw httpError(404, 'Conversa não encontrada');
+  const text = String(req.body?.text || '').trim().slice(0, 3000);
+  if (!text) throw httpError(400, 'Escreva a mensagem');
+  const phone = normalizePhone(old.phone || String(old.key).replace(/\D/g, ''));
+  if (!phone) throw httpError(400, 'Esta conversa não tem telefone');
+  const line = rescueLine(req.body?.lineId);
+  if (!line) throw httpError(409, 'Nenhum número da equipe está conectado para responder. Conecte um em Equipe → Conexões.');
+  const key = lineKey(line.id, `${phone}@s.whatsapp.net`);
+  await wa.send(key, { text, typing: false });
+  const conv = agent.conversation(key, { create: true });
+  seedRescued(old, conv);
+  agent.remember(conv, 'assistant', text, { by: 'owner', via: 'resgate' });
+  agent.setHandoff(key, true, 'Resgate: o dono assumiu a conversa'); // a IA não responde por cima; o dono continua pelo Hub
+  const lead = crm.findForConversation({ key: old.key, phone }) || crm.ensureFromConversation({ key, phone, name: old.name, channel: 'whatsapp' });
+  if (lead) { lead.whatsappKey = key; crm.addNote({ name: 'Sistema', role: 'admin' }, lead.id, `💬 ${req.user.name} retomou a conversa pelo Hub (número: ${line.label}): "${text.slice(0, 160)}"`); }
+  store.addLog({ type: 'sent', phone, message: `Resgate (${line.label}): ${text}` });
+  securityEvent('resgate_resposta', req.user, req, `resposta a +${phone} pelo número ${line.label}`);
+  res.json(rescueThread(store.data.conversations, old.key));
 });
 
 app.post('/api/contacts/check', async (req, res) => {
