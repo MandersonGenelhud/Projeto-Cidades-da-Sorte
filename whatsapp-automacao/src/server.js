@@ -32,6 +32,7 @@ import { ReceiptReader } from './receipts.js';
 import { ClientProofs } from './client-proof.js';
 import { Traffic, trafficRouteAllowed } from './traffic.js';
 import { contactsToVcf } from './vcard.js';
+import { sellerWaLink, nextLinkAction, remindText } from './seller-link.js';
 import { listRescue, rescueThread, seedRescued } from './rescue.js';
 import { pickConversations, conversationsToHtml, conversationsToText } from './conv-export.js';
 import { BulkHandoff, segmentOf } from './bulk-handoff.js';
@@ -876,6 +877,18 @@ async function startSellerAi({ person, line, conv, lead, phone, who }) {
 }
 sectors.aiLineFor = (person) => sellerAiLine(person);
 sectors.startOnLine = (args) => startSellerAi(args);
+// Modo "o cliente chama o vendedor" (padrão): a Central entrega o link do WhatsApp do vendedor com a mensagem pronta e o código do cliente.
+const linkMode = () => store.settings.crm?.handoffMode !== 'ai';
+const giveSellerLink = ({ person, lead }) => {
+  const seller = person?.id ? auth.get(person.id) : null;
+  const phone = seller?.whatsapp || person?.whatsapp;
+  if (!lead || !phone) return '';
+  const link = sellerWaLink({ sellerPhone: phone, sellerName: seller?.name || person?.name, code: lead.code });
+  if (link && lead.handoff) Object.assign(lead.handoff, { linkAt: new Date().toISOString(), link, remind1At: null, sellerAlertAt: null, remind2At: null, arrivedAt: null });
+  store.save();
+  return link;
+};
+sectors.linkFor = ({ person, lead, conv }) => (linkMode() && isEntryDeskConv(conv) ? giveSellerLink({ person, lead }) : '');
 async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', auto = false, forceRotation = false }) {
   convKey ||= conv?.key;
   conv ||= agent.conversation(convKey, { create: false }) || { key: convKey, messages: [] };
@@ -916,7 +929,8 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
   const who = lead?.name || conv.name || (phone ? `+${phone}` : 'Cliente');
   const preview = chatPreview(conv, 10);
   const q = lead?.qualification || {};
-  const aiLine = entryDesk && closer && phone ? sellerAiLine(closer) : null;
+  const useLink = entryDesk && linkMode() && Boolean(closer?.whatsapp) && Boolean(lead);
+  const aiLine = !useLink && entryDesk && closer && phone ? sellerAiLine(closer) : null;
   const text = [
     auto ? `⏰ *Cliente não pagou a entrada: continue com ele*` : '🤝 *Cliente para você continuar o atendimento*',
     `👤 ${who}${phone ? ` · +${phone}` : ''}${lead?.code ? ` · ${lead.code}` : ''}`,
@@ -933,6 +947,7 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
     brief.sugestao ? `🏁 *Sugestão para finalizar:* ${brief.sugestao}` : '',
     brief.moradia ? `🏠 Moradia: ${brief.moradia} (oportunidade para a Migra Imobiliária)` : '',
     preview ? `\n💬 *Prévia da conversa:*\n${preview}` : '',
+    useLink ? `\nO cliente recebeu o link para te chamar no seu WhatsApp${lead?.code ? ` (código ${lead.code})` : ''}. Responda assim que ele chamar. Se ele não chamar em 1 hora, você recebe outro aviso.` :
     aiLine ? `\nA IA do seu WhatsApp (${aiLine.label}) já vai chamar o cliente e continuar o atendimento. Quando quiser assumir, é só responder por lá.` : centralLine ? `\nA IA do seu número está desligada: o atendimento é SEU. Chame o cliente agora${phone ? `: https://wa.me/${phone}` : ' pelo painel (Conversas)'}` : `\nA IA continua disponível para o cliente. Chame ele${phone ? `: https://wa.me/${phone}` : ' pelo painel (Conversas)'}`,
   ].filter(Boolean).join('\n');
   if (lead) {
@@ -953,10 +968,11 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
     else for (const u of auth.users.filter((x) => x.role === 'admin' && x.active !== false && x.whatsapp)) delivered = (await send(u.whatsapp).then(() => true).catch(() => false)) || delivered;
     if (delivered && lead?.handoff) { lead.handoff.notifiedAt = new Date().toISOString(); store.save(); }
   } else store.addLog({ type: 'error', message: `Nenhum WhatsApp conectado para avisar ${closer?.name || 'a equipe'} sobre ${who}` });
+  const link = useLink ? giveSellerLink({ person: closer, lead }) : '';
   let ai = null;
   if (aiLine && teamCanSend()) ai = await startSellerAi({ person: closer, line: aiLine, conv, lead, phone, who }).catch((e) => { store.addLog({ type: 'error', message: `IA do vendedor não chamou o cliente: ${e.message}` }); return null; });
   notify('crm', { id: lead?.id });
-  return { closer, quote, ai };
+  return { closer, quote, ai, link };
 }
 
 // Quando o cliente sente receio (ou não consegue pagar a entrada agora), um atendente do escritório continua.
@@ -970,12 +986,13 @@ agent.closeHandoff = async (conv, args, { dryRun } = {}) => {
     interesse: args.interesse_real, situacao: args.situacao_atual, duvidas: args.duvidas_esclarecidas, objecao: args.objecao,
     tentativas: args.o_que_ja_foi_dito, dica: args.dica_de_fechamento, sugestao: args.sugestao, moradia: args.moradia, temperatura: args.temperatura,
   }).filter(([, v]) => v));
-  const { closer, ai } = await forwardToSeller({ conv, lead, brief, reason: args.objecao ? `Receio: ${args.objecao}` : '' });
+  const { closer, ai, link } = await forwardToSeller({ conv, lead, brief, reason: args.objecao ? `Receio: ${args.objecao}` : '' });
   const parsedC = parseLineKey(conv.key);
   const lineC = parsedC ? lines.get(parsedC.id) : null;
   if (((lineC && isCentralLine(lineC, lineC.ownerId ? auth.get(lineC.ownerId) : null)) || (!parsedC && mainAsCentral() && !String(conv.key).startsWith('ig:'))) && closer?.name) {
     const first = closer.name.split(' ')[0];
     const sayC = `Já passei o seu atendimento para ${first}, da nossa equipe, com tudo o que conversamos. ${first} vai entrar em contato com você ${ai?.mode === 'ia' ? 'pelo WhatsApp dele(a) em instantes, a assistente já está te chamando' : 'em instantes'}.`;
+    if (link) return { ok: true, quem: first, link, instrucao: `Diga ao cliente exatamente: "Já passei o seu atendimento para ${first}, da nossa equipe, com tudo o que conversamos. Para falar com ${first} agora, é só tocar aqui: ${link}" Use o link exatamente assim. Se ele escrever de novo aqui, lembre em uma frase que é só tocar no link.` };
     return { ok: true, quem: first, instrucao: `Diga ao cliente exatamente: "${sayC}" Não passe o número pessoal de ninguém. Se ele escrever de novo aqui, diga em uma frase que o atendimento já está com a equipe; não refaça perguntas.` };
   }
   return { ok: true, quem: closer?.name?.split(' ')[0] || 'o escritório', instrucao: `Diga ao cliente exatamente: "${say}" Depois continue disponível: se ele voltar a escrever, responda normalmente.` };
@@ -1276,9 +1293,9 @@ agent.channelNote = (conv) => {
   const parsed = parseLineKey(conv.key);
   const line = parsed ? lines.get(parsed.id) : null;
   const owner = line?.ownerId ? auth.get(line.ownerId) : null;
-  if (line && isCentralLine(line, owner)) return centralNote({ ...line, sellers: centralSellerNames().map((n) => n.split(' ')[0]) });
+  if (line && isCentralLine(line, owner)) return centralNote({ ...line, linkMode: linkMode(), sellers: centralSellerNames().map((n) => n.split(' ')[0]) });
   // Número principal como mesa de entrada: a IA só pergunta o interesse e encaminha ao rodízio (ligado por padrão; desligue em crm.mainAsCentral).
-  if (!parsed && mainAsCentral() && !String(conv.key).startsWith('ig:') && !String(conv.key).startsWith('sim:')) return centralNote({ sellers: centralSellerNames().map((n) => n.split(' ')[0]) });
+  if (!parsed && mainAsCentral() && !String(conv.key).startsWith('ig:') && !String(conv.key).startsWith('sim:')) return centralNote({ linkMode: linkMode(), sellers: centralSellerNames().map((n) => n.split(' ')[0]) });
   if (!owner) return '';
   const first = owner.name.split(' ')[0];
   const memory = line?.memory ? `\n\n# Memória deste agente (orientações de ${first}, valem para os clientes deste número)\n${line.memory}` : '';
@@ -1491,7 +1508,18 @@ lines.on('status', (state) => {
   }
   notify('lineStatus', { id: line.id });
 });
+// O cliente chamou o vendedor pelo link: marca a chegada (para os lembretes pararem e a tela "Ao vivo" mostrar).
+const markArrival = (msg) => {
+  if (!msg?.line || msg.fromMe || msg.isGroup || !msg.phone) return;
+  const lead = crm.leads.find((l) => l.handoff?.linkAt && !l.handoff.arrivedAt && l.phone && samePhone(l.phone, msg.phone));
+  if (!lead) return;
+  lead.handoff.arrivedAt = new Date().toISOString();
+  crm.addNote({ name: 'Sistema', role: 'admin' }, lead.id, `✅ O cliente chamou ${lead.handoff.toName || 'o vendedor'} pelo link da Central.`);
+  store.save();
+  notify('crm', { id: lead.id });
+};
 wa.on('message', (msg) => {
+  try { markArrival(msg); } catch { /* nunca derruba o recebimento */ }
   // Maria (assessora interna): tudo que chega no número dela é só dela; a atendente de clientes nunca responde ali.
   if (maria.isLine(msg)) {
     maria.handle(msg).catch((err) => store.addLog({ type: 'error', message: `Maria: ${err.message}` }));
@@ -5286,7 +5314,8 @@ async function centralAutoForward(conv, { tellClient = false, why = 'Encaminhado
   const st = centralStats(); st.auto += 1; st.ultimoAuto = new Date().toISOString();
   if (segment === 'documentacao' && !r?.closer) st.semVendedor += 1;
   if (tellClient) {
-    const t = 'Já passei o seu atendimento para a nossa equipe. Em instantes um consultor entra em contato com você. 🙂';
+    const lk = lead.handoff?.link; const nm = String(lead.handoff?.toName || '').split(' ')[0];
+    const t = lk ? `Já passei o seu atendimento para ${nm || 'a nossa equipe'}. Para falar direto, é só tocar aqui: ${lk}` : 'Já passei o seu atendimento para a nossa equipe. Em instantes um consultor entra em contato com você. 🙂';
     await wa.send(conv.key, { text: t, typing: false }).catch(() => {});
     agent.remember(conv, 'assistant', t);
   }
@@ -5383,7 +5412,7 @@ app.get('/api/live-desk', (req, res) => {
     .map((l) => { const key = l.conversationKey || l.whatsappKey || ''; const last = lastOf(key); return { id: l.id, key, name: l.name || '', phone: l.phone || '', canal: traffic.channelOf(l), at: l.createdAt, ultima: last ? String(last.content).slice(0, 120) : '', ultimaDe: last?.role === 'user' ? 'cliente' : last ? 'atendente' : '', encaminhadoPara: l.handoff?.toName || '' }; });
   const encaminhados = crm.leads.filter((l) => dayOf(l.handoff?.at) === day)
     .sort((a, b) => String(b.handoff.at).localeCompare(String(a.handoff.at))).slice(0, 100)
-    .map((l) => ({ id: l.id, key: l.conversationKey || l.whatsappKey || '', name: l.name || '', phone: l.phone || '', para: l.handoff.toName || 'administradores', setor: l.handoff.sector || 'documentacao', at: l.handoff.at, entregue: Boolean(l.handoff.notifiedAt) }));
+    .map((l) => ({ id: l.id, key: l.conversationKey || l.whatsappKey || '', name: l.name || '', phone: l.phone || '', para: l.handoff.toName || 'administradores', setor: l.handoff.sector || 'documentacao', at: l.handoff.at, entregue: Boolean(l.handoff.notifiedAt), link: Boolean(l.handoff.linkAt), chegou: l.handoff.arrivedAt || null, lembretes: [l.handoff.remind1At, l.handoff.remind2At].filter((x) => x && x !== 'pulado').length }));
   res.json({ dia: day, novos, encaminhados });
 });
 app.get('/api/handoff-bulk', (req, res) => { needAdmin(req); res.json(bulkHandoff.preview()); });
@@ -6073,6 +6102,33 @@ if (process.env.NODE_ENV !== 'test') {
   };
   // Relatório diário de tráfego: na hora escolhida (padrão 21h, horário do Paraguai), uma vez por dia.
   setInterval(() => { const h = Number(new Date().toLocaleString('en-GB', { timeZone: 'America/Asuncion', hour: '2-digit', hour12: false })); if (h === Number(traffic.config.reportHour ?? 21)) sendTrafficReport().catch((e) => store.addLog({ type: 'error', message: `Relatório de tráfego: ${e.message}` })); }, 5 * 60_000).unref();
+  // Retomada de quem recebeu o link e não chamou o vendedor: 1º lembrete em 15 min, aviso ao vendedor em 1 h, último lembrete em 20 h (src/seller-link.js).
+  const linkSweep = async () => {
+    const hour = Number(new Date().toLocaleString('en-GB', { timeZone: 'America/Asuncion', hour: '2-digit', hour12: false }));
+    const inHours = hour >= 8 && hour < 20;
+    for (const lead of crm.leads) {
+      const h = lead.handoff;
+      if (!h?.linkAt || h.arrivedAt || ['ganho', 'perdido'].includes(lead.stage)) continue;
+      const act = nextLinkAction(h, { inHours });
+      if (!act) continue;
+      const first = String(h.toName || '').split(' ')[0];
+      try {
+        if (act === 'sellerAlert') {
+          h.sellerAlertAt = new Date().toISOString(); store.save();
+          const seller = h.toId ? auth.get(h.toId) : null;
+          if (seller?.whatsapp && teamCanSend()) await teamSend(seller.whatsapp, { text: `⏳ *${lead.name || 'O cliente'} ainda não te chamou* pelo link da Central (há 1 hora)${lead.code ? ` · código ${lead.code}` : ''}.\nSe quiser, chame você mesmo com calma${lead.phone ? `: https://wa.me/${lead.phone}` : ''}. Ele recebe mais um lembrete da Central amanhã.`, typing: false });
+          continue;
+        }
+        const conv = lead.conversationKey ? agent.conversation(lead.conversationKey, { create: false }) : null;
+        if (!conv || conv.declined || humanSpokeConv(conv) || !isEntryDeskConv(conv) || !(wa.isConnected ? wa.isConnected(conv.key) : true)) { h[act === 'remind1' ? 'remind1At' : 'remind2At'] = 'pulado'; store.save(); continue; }
+        h[act === 'remind1' ? 'remind1At' : 'remind2At'] = new Date().toISOString(); store.save();
+        const text = remindText(first, h.link, act === 'remind2');
+        await wa.send(conv.key, { text, typing: false });
+        agent.remember(conv, 'assistant', text);
+      } catch (e) { store.addLog({ type: 'error', message: `Lembrete do link do vendedor (${lead.name || lead.id}): ${e.message}` }); }
+    }
+  };
+  setInterval(() => { linkSweep().catch(() => {}); }, 60_000).unref();
   setTimeout(funnelSweep, 120_000).unref();
   setInterval(funnelSweep, 3_600_000).unref();
   setInterval(() => ana.tick().catch((e) => store.addLog({ type: 'error', message: `Ana: ${e.message}` })), 60_000).unref();

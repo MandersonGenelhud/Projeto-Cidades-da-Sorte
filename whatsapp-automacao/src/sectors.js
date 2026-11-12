@@ -132,7 +132,9 @@ export class Sectors {
     const phone = conv.phone || normalizePhone(args.telefone) || lead?.phone || '';
     const who = args.nome || lead?.name || conv.name || (phone ? `+${phone}` : conv.username ? `@${conv.username}` : 'Cliente');
     const preview = chatPreview(conv, 8);
-    const aiLine = person && phone ? this.aiLineFor?.(person) || null : null;
+    // Modo link: o cliente recebe o link do WhatsApp do atendente e ELE chama (a IA do atendente não puxa conversa).
+    const link = person && lead ? this.linkFor?.({ person, lead, conv }) || '' : '';
+    const aiLine = !link && person && phone ? this.aiLineFor?.(person) || null : null;
     const text = [
       `🏷️ *Cliente para você: ${label}*`,
       `👤 ${who}${phone ? ` · +${phone}` : conv.username ? ` · @${conv.username} (Instagram)` : ''}${lead?.code ? ` · ${lead.code}` : ''}`,
@@ -140,11 +142,12 @@ export class Sectors {
       `📝 *O que ele quer:* ${args.resumo || '-'}`,
       args.detalhes ? `📍 *Detalhes:* ${args.detalhes}` : '',
       preview ? `\n💬 *Prévia da conversa:*\n${preview}` : '',
-      aiLine ? `\nA IA do seu WhatsApp (${aiLine.label}) já vai chamar o cliente e continuar o atendimento. Quando quiser assumir, é só responder por lá.` : '\nA atendente virtual avisou que você vai entrar em contato. A IA do seu número está desligada: o atendimento é seu. Chame o cliente o quanto antes.',
+      link ? `\nO cliente recebeu o link para te chamar no WhatsApp${lead?.code ? ` (código ${lead.code})` : ''}. Responda assim que ele chamar. Se ele não chamar em 1 hora, você recebe outro aviso.` : aiLine ? `\nA IA do seu WhatsApp (${aiLine.label}) já vai chamar o cliente e continuar o atendimento. Quando quiser assumir, é só responder por lá.` : '\nA atendente virtual avisou que você vai entrar em contato. A IA do seu número está desligada: o atendimento é seu. Chame o cliente o quanto antes.',
     ].filter(Boolean).join('\n');
     if (lead) {
       if (person?.id) this.crm.update({ name: 'IA', role: 'admin' }, lead.id, { ownerId: person.id });
       lead.handoff = { toId: person?.id || null, toName: person?.name || 'Marcos', at: new Date().toISOString(), reason: `${label}: ${args.resumo || ''}`.slice(0, 300), sector: id, auto: false };
+      if (link) Object.assign(lead.handoff, { linkAt: new Date().toISOString(), link, remind1At: null, sellerAlertAt: null, remind2At: null, arrivedAt: null });
       this.crm.addNote({ name: 'IA', role: 'admin' }, lead.id, `🏷️ Direcionado para ${person?.name || 'o Marcos'} (${label}): ${args.resumo || ''}`);
       this.store.save();
     }
@@ -155,6 +158,7 @@ export class Sectors {
       this.store.addLog({ type: 'error', message: `⚠️ ${label}: ninguém com WhatsApp cadastrado (Diego em Prospectos → Regras → Setores ou na Equipe). O contato ficou só no CRM.` });
     } else await this.notifyAdmins(`${text}\n\n⚠️ O setor "${label}" ainda não tem atendente cadastrado (Prospectos → Regras → Setores).`).catch(() => {});
     this.store.addLog({ type: 'system', message: `🏷️ ${who} direcionado para ${person?.name || 'o Marcos'} (${label})` });
+    if (link) { const first = String(person?.name || '').split(' ')[0]; return { ok: true, setor: label, link, instrucao: `Diga ao cliente, em uma frase: "Para um melhor atendimento, vou te passar para ${first || 'o nosso especialista'}, do setor de ${label}. É só tocar aqui para falar direto: ${link}" Use o link exatamente assim.` }; }
     return { ok: true, setor: label, instrucao: aiLine ? say.replace('por aqui em instantes', 'pelo WhatsApp dele em instantes') : say };
   }
 }
