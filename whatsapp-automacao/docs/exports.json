@@ -186,6 +186,12 @@
   "TITHE_PCT",
   "toCsv"
  ],
+ "src/central-guard.js": [
+  "HANDOFF_CLAIM",
+  "HANDOFF_TOOLS",
+  "isStuck",
+  "needsAutoForward"
+ ],
  "src/cities.js": [
   "CATEGORIES",
   "Cities"

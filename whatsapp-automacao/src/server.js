@@ -33,7 +33,8 @@ import { Traffic, trafficRouteAllowed } from './traffic.js';
 import { contactsToVcf } from './vcard.js';
 import { listRescue, rescueThread, seedRescued } from './rescue.js';
 import { pickConversations, conversationsToHtml, conversationsToText } from './conv-export.js';
-import { BulkHandoff } from './bulk-handoff.js';
+import { BulkHandoff, segmentOf } from './bulk-handoff.js';
+import { needsAutoForward, isStuck } from './central-guard.js';
 import { FunnelSync } from './funnel-sync.js';
 import { OWNER_PAUSE } from './agent/agent.js';
 import { Migratech } from './migratech.js';
@@ -2422,6 +2423,10 @@ function healthReport() {
   if (!centralLines.length) add('warn', 'Nenhum número está marcado como Central de Atendimento. Os avisos da equipe sairão pelo número principal (do Marcos).');
   else if (!centralLines.some((l) => l.status === 'connected')) add('bad', `A Central de Atendimento (${centralLines.map((l) => l.label).join(', ')}) está DESCONECTADA: ninguém atende quem chega por ela e os avisos aos vendedores saem pelo ${wa.status === 'connected' ? 'número principal' : 'que estiver conectado'}. Reconecte em Equipe → Conexões.`);
   else add('ok', 'Central de Atendimento conectada: os avisos de cliente novo aos vendedores saem por ela, não pelo número do Marcos.');
+  if (centralLines.some((l) => l.agent === false)) add('bad', 'A IA da Central está DESLIGADA (Equipe → Conexões → Central → "IA responde"). Sem ela ninguém é atendido nem encaminhado.');
+  { const stuckN = centralStuck().length; if (stuckN) add('bad', `${stuckN} conversa(s) em que a Central DISSE que encaminhou ao vendedor, mas nenhum vendedor recebeu. Em Conversas, clique em "Corrigir agora".`); }
+  { const cs = centralStats(); if (cs.auto) add('warn', `A rede de segurança da Central já encaminhou ${cs.auto} conversa(s) sozinha (a IA não tinha chamado a ferramenta)${cs.ultimoAuto ? `, a última em ${new Date(cs.ultimoAuto).toLocaleString('pt-BR')}` : ''}.${cs.semVendedor ? ` Em ${cs.semVendedor} não havia vendedor disponível: o aviso foi para os administradores.` : ''}`); }
+  { const semZap = auth.users.filter((u) => u.active !== false && !u.pending && !u.whatsapp && (u.receivesLeads ?? u.role === 'seller') && !u.trafficOnly && !isCentralUser(u)); if (semZap.length) add('warn', `No rodízio mas SEM WhatsApp cadastrado (não recebem aviso nenhum): ${semZap.map((u) => u.name.split(' ')[0]).join(', ')}. Cadastre o número em Equipe.`); }
   if (!teamCanSend()) add('bad', 'Nenhum WhatsApp está conectado para avisar a equipe: vendedores e administradores NÃO recebem os avisos de cliente novo, contrato e pagamento.');
   const csNames = centralSellerNames();
   const vend = auth.users.filter(isSellerForCentral);
@@ -5206,6 +5211,71 @@ const funnel = new FunnelSync({
 const funnelOne = (leadId) => { try { if (leadId) funnel.reconcileOne(leadId); } catch (e) { store.addLog({ type: 'error', message: `Funil automático: ${e.message}` }); } };
 app.get('/api/funnel', (req, res) => { needAdmin(req); res.json(funnel.reconcile({ dryRun: true })); });
 app.post('/api/funnel/reconcile', (req, res) => { needAdmin(req); const r = funnel.reconcile(); securityEvent('funil_conferido', req.user, req, `${r.changed} prospecto(s) movido(s)`); res.json(r); });
+// ---------- Rede de segurança da Central ----------
+// A IA às vezes DIZ que encaminhou ao vendedor sem chamar a ferramenta (aí ninguém recebe nada). O sistema confere depois de cada resposta da mesa de entrada
+// (Central ou número principal como central) e, se faltou o encaminhamento, faz ele mesmo: documentação pelo rodízio, imóvel ao corretor, veículo ao setor.
+const isEntryDeskConv = (conv) => {
+  const key = String(conv?.key || '');
+  if (!key || key.startsWith('sim:') || key.startsWith('ig:') || key.includes('@g.us')) return false;
+  const parsed = parseLineKey(key);
+  if (parsed) { const line = lines.get(parsed.id); return Boolean(line) && isCentralLine(line, line.ownerId ? auth.get(line.ownerId) : null); }
+  return mainAsCentral();
+};
+const centralStats = () => (store.data.centralStats ||= { auto: 0, semVendedor: 0, ultimoAuto: null });
+async function centralAutoForward(conv, { tellClient = false, why = 'Encaminhado automaticamente pela Central' } = {}) {
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone }) || crm.ensureFromConversation({ key: conv.key, phone: conv.phone, name: conv.name, channel: 'whatsapp' });
+  if (!lead || lead.handoff?.at || ['ganho', 'perdido'].includes(lead.stage)) return { skipped: true };
+  const segment = segmentOf(lead, conv);
+  const said = (conv.messages || []).filter((m) => m.role === 'user' && typeof m.content === 'string').slice(-4).map((m) => m.content.trim()).join(' | ');
+  const resumo = (lead.aiSummary || `O cliente disse: ${said}`).slice(0, 500);
+  const r = segment === 'documentacao'
+    ? await forwardToSeller({ conv, lead, brief: { resumo }, reason: why })
+    : await sectors.route(conv, { setor: segment, resumo, nome: lead.name });
+  const st = centralStats(); st.auto += 1; st.ultimoAuto = new Date().toISOString();
+  if (segment === 'documentacao' && !r?.closer) st.semVendedor += 1;
+  if (tellClient) {
+    const t = 'Já passei o seu atendimento para a nossa equipe. Em instantes um consultor entra em contato com você. 🙂';
+    await wa.send(conv.key, { text: t, typing: false }).catch(() => {});
+    agent.remember(conv, 'assistant', t);
+  }
+  store.addLog({ type: 'system', phone: conv.phone || conv.key, message: `🛟 Central: encaminhamento automático (${segment})${r?.closer ? ` para ${r.closer.name}` : ''}: a IA não tinha chamado a ferramenta` });
+  store.save();
+  return { segment, closer: r?.closer?.name || '' };
+}
+agent.afterReply = async ({ conv, text, actions, dryRun }) => {
+  if (dryRun || !isEntryDeskConv(conv)) return;
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
+  const d = needsAutoForward({ conv, text, actions, lead, humanSpoke: humanSpokeConv(conv) });
+  if (d.should) await centralAutoForward(conv, { tellClient: d.tellClient });
+};
+// Conversas da mesa de entrada em que a IA disse que encaminhou mas nenhum vendedor recebeu (para corrigir de uma vez).
+const centralStuck = (days = 14) => {
+  const since = Date.now() - days * 86_400_000;
+  const out = [];
+  for (const conv of Object.values(store.data.conversations || {})) {
+    if (!isEntryDeskConv(conv) || new Date(conv.updatedAt || 0).getTime() < since) continue;
+    const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
+    if (isStuck({ conv, lead, humanSpoke: humanSpokeConv(conv) })) out.push({ conv, lead });
+  }
+  return out;
+};
+app.get('/api/central/stuck', (req, res) => {
+  needAdmin(req);
+  const list = centralStuck();
+  res.json({ total: list.length, exemplos: list.slice(0, 8).map((x) => ({ nome: String(x.lead.name || '').split(' ')[0] || 'Cliente', segmento: segmentOf(x.lead, x.conv) })), stats: centralStats() });
+});
+app.post('/api/central/stuck/fix', async (req, res) => {
+  needAdmin(req);
+  const list = centralStuck().slice(0, 150);
+  let ok = 0; let falhas = 0;
+  for (const x of list) {
+    try { const r = await centralAutoForward(x.conv, { tellClient: false, why: 'Encaminhado pela vistoria da Central (a IA tinha dito que encaminhou, mas ninguém recebeu)' }); if (!r.skipped) ok += 1; } catch (e) { falhas += 1; store.addLog({ type: 'error', message: `Vistoria da Central: ${e.message}` }); }
+    await sleep(1500);
+  }
+  securityEvent('central_vistoria', req.user, req, `${ok} encaminhado(s), ${falhas} falha(s)`);
+  res.json({ ok, falhas, total: list.length });
+});
+
 // Encaminhar em lote os atendimentos que a IA conduz hoje: mensagem ao cliente + resumo ao vendedor do segmento (src/bulk-handoff.js).
 const bulkHandoff = new BulkHandoff({
   store, crm,
