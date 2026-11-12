@@ -726,3 +726,9 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 ## IA mais lenta: piso de segurança no ritmo das respostas (12/11/2026)
 - Por decisão da direção (risco de bloqueio), a IA ficou bem mais lenta e tem um **piso** que vale mesmo se alguma configuração antiga estiver mais rápida (`SAFE_FLOOR` em `src/humanize.js`): espera de **20 a 60 s** para "ver" a mensagem, espera o cliente parar de escrever por **10 s**, digita a **4 letras por segundo** (até 40 s por mensagem), no máximo **3 mensagens** por resposta, com **3 a 8 s** entre elas. Configuração mais lenta que o piso é respeitada; só `safeFloor: false` (decisão explícita) tira o piso. Teste: `test/humanize.test.js`.
+
+## Um cliente por vez, pausa enquanto alguém usa o número e avisos lentos aos vendedores (12/11/2026)
+- **Um cliente por vez em cada número**: enquanto a IA lê, pensa e responde um cliente, nenhum outro cliente do mesmo número recebe mensagem (as respostas nunca se misturam nem saem em paralelo). Números diferentes seguem independentes.
+- **Pessoa usando o número = IA parada naquele número**: quando alguém da equipe manda mensagem ou áudio pelo celular naquele número, a IA não envia nada para **nenhum** cliente daquele número até **2 minutos** depois da última mensagem da pessoa (configurável em `settings.connection.safety.humanPauseSec`, mínimo 30 s; espera máxima de 15 min por envio). Evita duplicação e mensagens atravessadas. Respostas digitadas pelo painel (Conversas, Resgate) não esperam essa pausa, porque são da própria pessoa.
+- **Avisos lentos aos vendedores**: cada vendedor recebe no máximo um aviso a cada **25 a 45 s** (um de cada vez, em fila), além dos limites gerais de cada número.
+- Teste: `test/um-cliente-por-vez.test.js`.

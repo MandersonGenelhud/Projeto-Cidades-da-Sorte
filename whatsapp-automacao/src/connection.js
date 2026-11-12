@@ -88,6 +88,12 @@ export class ConnectionManager extends EventEmitter {
     return this.current.downloadAudio?.(msg) ?? null;
   }
 
+  /** Quanto falta para a pessoa da equipe "parar" de usar este número pelo celular (ms; 0 = livre). */
+  humanWaitMs(to) {
+    const at = this.humanAt.get(accountOf(to)) || 0;
+    return Math.max(0, at + this.quietMs - Date.now());
+  }
+
   /** Envia pelo canal da conversa e avisa quem estiver ouvindo (ex.: lista de conversas sem resposta). */
   /** Apaga para todos uma mensagem enviada por nós (só WhatsApp). */
   async revoke(to, id) {

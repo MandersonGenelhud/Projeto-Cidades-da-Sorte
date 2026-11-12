@@ -578,6 +578,18 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
     return Promise.resolve(null);
   }
 
+  /** Fila por número: só um atendimento por vez em cada número (devolve a função que libera a vez). */
+  async #lockAccount(account) {
+    this.accountLocks ||= new Map();
+    const prev = this.accountLocks.get(account) || Promise.resolve();
+    let release;
+    const mine = new Promise((r) => { release = r; });
+    const chain = prev.then(() => mine);
+    this.accountLocks.set(account, chain);
+    await prev;
+    return () => { release(); if (this.accountLocks.get(account) === chain) this.accountLocks.delete(account); };
+  }
+
   /** Espera "ver" a mensagem e o cliente parar de escrever (máximo de alguns segundos). */
   async #waitLikeHuman(q, h) {
     const start = Date.now();
@@ -656,61 +668,67 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       // Um envio aos grupos está saindo agora (poucos segundos): a IA espera para as mensagens não saírem ao mesmo tempo.
       for (let w = 0; w < 40 && this.holdWhile?.(); w++) await this.wait(1500);
 
-      if (human) {
-        await q.hooks.markRead?.(ids);
-        await this.wait(readingTimeMs(texts.join('\n')));
-      }
-
-      let result;
-      const delayed = q.delayed;
-      q.delayed = false;
-      const thinkStart = Date.now();
-      // Falha da IA (limite por minuto, instabilidade, resposta vazia): tenta de novo ANTES de desistir. Antes, uma única falha deixava o cliente
-      // sem resposta e ainda apagava a mensagem dele da memória, e a atendente parecia ter "parado de falar".
-      const RETRY_WAIT = this.retryWaits;
-      let failure = null;
-      for (let attempt = 0; attempt <= RETRY_WAIT.length; attempt++) {
-        try {
-          result = await this.think(conv, { delayed, extraSystem: resumeNote });
-          failure = null;
-          break;
-        } catch (err) {
-          failure = err;
-          if (err.auth || attempt === RETRY_WAIT.length || q.pending.length) break; // chave errada não melhora; mensagem nova do cliente também vale como nova tentativa
-          this.store.addLog({ type: 'system', phone, message: `Agente IA: falhou (${err.message}); tentando de novo em ${Math.round(RETRY_WAIT[attempt] / 1000)} s (${attempt + 1}/${RETRY_WAIT.length})` });
-          await this.wait(RETRY_WAIT[attempt]);
+      // UM CLIENTE POR VEZ em cada número: enquanto a IA lê, pensa e responde um cliente, nenhum outro cliente do mesmo número recebe nada
+      // (as respostas nunca se misturam). E se uma pessoa da equipe está usando o número pelo celular, a IA espera ela parar.
+      const release = await this.#lockAccount(senderOf(key));
+      try {
+        for (let w = 0; w < 450 && (this.humanBusy?.(key) || 0) > 0; w++) await this.wait(2000);
+        if (human) {
+          await q.hooks.markRead?.(ids);
+          await this.wait(readingTimeMs(texts.join('\n')));
         }
-      }
-      if (failure) {
-        const err = failure;
-        // Nunca manda mensagem de erro para o cliente. A mensagem dele continua guardada e ele continua em "esperando resposta": a fila tenta de novo sozinha.
-        this.store.addLog({ type: 'error', phone, message: `Agente IA (cliente não respondido, vai ser tentado de novo pela fila): ${err.message}` });
-        if (err.quota) this.quotaHitAt = Date.now();
-        this.lastError = { at: new Date().toISOString(), message: err.message };
-        this.errorAt = Date.now();
-        conv.aiFailedAt = Date.now();
-        this.notify('agentError', this.lastError);
-        this.store.save();
-        try { this.onFailed?.(conv); } catch { /* a recuperação nunca derruba o atendimento */ }
-        continue;
-      }
-      delete conv.aiFailedAt;
-      this.lastError = null;
-      // Se chegaram mais mensagens enquanto a IA pensava, responde tudo junto.
-      if (q.pending.length) continue;
 
-      const bubbles = human && h.splitMessages ? splitIntoBubbles(result.text, 3) : [result.text]; // no máximo 3 mensagens seguidas por resposta
-      this.remember(conv, 'assistant', bubbles.join('\n\n'));
-      const thinking = Date.now() - thinkStart;
-      for (const [i, bubble] of bubbles.entries()) {
-        // O tempo que a IA levou pensando já conta como parte da digitação.
-        const typingMs = human ? Math.max(1200, typingTimeMs(bubble, h) - (i === 0 ? thinking : 0)) : undefined;
-        await send(bubble, { typingMs });
-        if (human && i < bubbles.length - 1) await this.wait(randomPause());
-      }
-      if (/oferta rel[âa]mpago|migra school|12 meses|brinde/i.test(result.text) && this.flashStatus?.()?.open) { try { this.onOfferPresented?.(conv); } catch { /* a contagem nunca derruba o atendimento */ } }
-      last = result;
-      Promise.resolve(this.onReplied(conv, { handoff: conv.handoff })).catch(() => {});
+        let result;
+        const delayed = q.delayed;
+        q.delayed = false;
+        const thinkStart = Date.now();
+        // Falha da IA (limite por minuto, instabilidade, resposta vazia): tenta de novo ANTES de desistir. Antes, uma única falha deixava o cliente
+        // sem resposta e ainda apagava a mensagem dele da memória, e a atendente parecia ter "parado de falar".
+        const RETRY_WAIT = this.retryWaits;
+        let failure = null;
+        for (let attempt = 0; attempt <= RETRY_WAIT.length; attempt++) {
+          try {
+            result = await this.think(conv, { delayed, extraSystem: resumeNote });
+            failure = null;
+            break;
+          } catch (err) {
+            failure = err;
+            if (err.auth || attempt === RETRY_WAIT.length || q.pending.length) break; // chave errada não melhora; mensagem nova do cliente também vale como nova tentativa
+            this.store.addLog({ type: 'system', phone, message: `Agente IA: falhou (${err.message}); tentando de novo em ${Math.round(RETRY_WAIT[attempt] / 1000)} s (${attempt + 1}/${RETRY_WAIT.length})` });
+            await this.wait(RETRY_WAIT[attempt]);
+          }
+        }
+        if (failure) {
+          const err = failure;
+          // Nunca manda mensagem de erro para o cliente. A mensagem dele continua guardada e ele continua em "esperando resposta": a fila tenta de novo sozinha.
+          this.store.addLog({ type: 'error', phone, message: `Agente IA (cliente não respondido, vai ser tentado de novo pela fila): ${err.message}` });
+          if (err.quota) this.quotaHitAt = Date.now();
+          this.lastError = { at: new Date().toISOString(), message: err.message };
+          this.errorAt = Date.now();
+          conv.aiFailedAt = Date.now();
+          this.notify('agentError', this.lastError);
+          this.store.save();
+          try { this.onFailed?.(conv); } catch { /* a recuperação nunca derruba o atendimento */ }
+          continue;
+        }
+        delete conv.aiFailedAt;
+        this.lastError = null;
+        // Se chegaram mais mensagens enquanto a IA pensava, responde tudo junto.
+        if (q.pending.length) continue;
+
+        const bubbles = human && h.splitMessages ? splitIntoBubbles(result.text, 3) : [result.text]; // no máximo 3 mensagens seguidas por resposta
+        this.remember(conv, 'assistant', bubbles.join('\n\n'));
+        const thinking = Date.now() - thinkStart;
+        for (const [i, bubble] of bubbles.entries()) {
+          // O tempo que a IA levou pensando já conta como parte da digitação.
+          const typingMs = human ? Math.max(1200, typingTimeMs(bubble, h) - (i === 0 ? thinking : 0)) : undefined;
+          await send(bubble, { typingMs });
+          if (human && i < bubbles.length - 1) await this.wait(randomPause());
+        }
+        if (/oferta rel[âa]mpago|migra school|12 meses|brinde/i.test(result.text) && this.flashStatus?.()?.open) { try { this.onOfferPresented?.(conv); } catch { /* a contagem nunca derruba o atendimento */ } }
+        last = result;
+        Promise.resolve(this.onReplied(conv, { handoff: conv.handoff })).catch(() => {});
+      } finally { release(); }
     }
     return last;
   }

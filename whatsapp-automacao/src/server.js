@@ -206,6 +206,9 @@ const sendGuard = new SendGuard({
 });
 const wa = new ConnectionManager({
   guard: sendGuard,
+  // Pessoa da equipe usando o número pelo celular (texto ou áudio): a IA fica parada naquele número até 2 min depois da última mensagem dela (no máximo 15 min de espera por envio).
+  quietMs: Math.max(30, Number(store.settings.connection?.safety?.humanPauseSec) || 120) * 1000,
+  maxQuietWaitMs: 15 * 60_000,
   store,
   instagram,
   lines,
@@ -282,7 +285,20 @@ agent.onQualified = (conv, q) => {
 const teamRoutesNow = () => teamRoutes({ mainConnected: wa.status === 'connected', lines: lines.list(), ownerOf: (l) => (l.ownerId ? auth.get(l.ownerId) : null) });
 const teamCanSend = () => teamRoutesNow().length > 0;
 // Ordem: Central → número principal → outra linha. Se uma rota falhar no envio, tenta a próxima (o aviso não se perde).
-const teamSend = async (phone, payload) => {
+// Avisos a cada vendedor saem DEVAGAR: no mínimo 25 a 45 s entre um aviso e outro para a mesma pessoa (protege a Central e não enterra o WhatsApp dela).
+const teamPace = new Map(); // telefone → { chain, nextAt }
+const teamSlow = (phone, fn) => {
+  const k = String(phone).replace(/\D/g, '');
+  const st = teamPace.get(k) || { chain: Promise.resolve(), nextAt: 0 };
+  const run = st.chain.catch(() => {}).then(async () => {
+    const wait = st.nextAt - Date.now();
+    if (wait > 0) await sleep(wait);
+    try { return await fn(); } finally { st.nextAt = Date.now() + 25_000 + Math.floor(Math.random() * 20_000); }
+  });
+  st.chain = run; teamPace.set(k, st);
+  return run;
+};
+const teamSendNow = async (phone, payload) => {
   const routes = teamRoutesNow();
   if (!routes.length) throw new Error('Nenhum WhatsApp conectado para avisar a equipe');
   let lastErr = null;
@@ -294,6 +310,7 @@ const teamSend = async (phone, payload) => {
   }
   throw lastErr;
 };
+const teamSend = (phone, payload) => (isTeamPhone(auth.users, phone) ? teamSlow(phone, () => teamSendNow(phone, payload)) : teamSendNow(phone, payload));
 // Envio a CLIENTE ou PARCEIRO por iniciativa do sistema (recibo, aviso de indicação): conversa de linha ou Instagram segue pelo mesmo canal; o resto sai pela
 // CENTRAL (o número principal, do Marcos, deixou de ser a porta de entrada). Sem a Central, o principal.
 const clientSend = (target, payload) => (/^ig:/.test(String(target)) || parseLineKey(target) ? wa.send(target, payload) : teamSend(String(target), payload));
@@ -324,6 +341,7 @@ const centralPoolFor = (conv, force = false) => {
 // IA desligada num número de vendedor (botão liga/desliga em Conexões): nenhuma mensagem automática da IA sai por ele.
 const aiOffFor = (key) => { const p = parseLineKey(key); if (!p) return false; const l = lines.get(p.id); return Boolean(l) && l.agent === false; };
 agent.aiOff = (key) => aiOffFor(key);
+agent.humanBusy = (key) => wa.humanWaitMs(key); // pessoa usando o número agora: a IA espera
 agent.routeLead = (conv, args, opts) => (isSellerLineConv(conv) ? SELLER_LINE_NO_ROUTE : router.route(conv, args, { ...opts, pool: centralPoolFor(conv) }));
 agent.agentNameFor = (conv) => lines.get(parseLineKey(conv.key)?.id)?.agentName || '';
 agent.routeSpecialist = (conv, args, opts) => router.routeSpecialist(conv, args, opts);
@@ -2759,7 +2777,7 @@ app.post('/api/rescue/send', async (req, res) => {
   const line = rescueLine(req.body?.lineId);
   if (!line) throw httpError(409, 'Nenhum número da equipe está conectado para responder. Conecte um em Equipe → Conexões.');
   const key = lineKey(line.id, `${phone}@s.whatsapp.net`);
-  await wa.send(key, { text, typing: false });
+  await wa.send(key, { text, typing: false, auto: false });
   const conv = agent.conversation(key, { create: true });
   seedRescued(old, conv);
   agent.remember(conv, 'assistant', text, { by: 'owner', via: 'resgate' });
@@ -3201,7 +3219,7 @@ app.post('/api/conversations/:key/reply', async (req, res) => {
   if (!conv) throw httpError(404, 'Conversa não encontrada');
   const text = String(req.body.text || '').trim();
   if (!text) throw httpError(400, 'Mensagem vazia');
-  await wa.send(conv.key, { text, typing: false });
+  await wa.send(conv.key, { text, typing: false, auto: false });
   agent.remember(conv, 'assistant', text);
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
   if (lead && crm.canSee(req.user, lead)) crm.addNote(req.user, lead.id, `💬 Respondeu o cliente: "${text.slice(0, 200)}"`);
