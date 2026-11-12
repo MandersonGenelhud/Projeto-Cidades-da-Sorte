@@ -132,10 +132,17 @@ export const isProactive = (p) => Boolean(p) && (p.restart === true || ['retomar
  */
 export const humanSpoke = (conv) => Boolean(conv?.humanSpokeAt || conv?.ownerRepliedAt) || (conv?.messages || []).some((m) => m && (m.by === 'owner' || m.by === 'human' || m.by === 'seller'));
 
-export function outreachBlock({ conv, item, getClosed = () => null, now = Date.now(), minGapHours = 12, paused = false, aiOff = false }) {
+/**
+ * REGRA DA DIREÇÃO (12/11/2026): só os LEADS NOVOS (primeiro contato a partir de `since`) recebem qualquer iniciativa nossa (retomada, lembrete,
+ * aviso, orçamento vencendo). Lead antigo é reconhecido (histórico e contexto continuam), mas NUNCA é procurado de novo; e mensagem antiga que
+ * ficou sem resposta (de antes de `since`) também não é respondida agora. Se o cliente antigo escrever de novo, a resposta normal continua.
+ */
+export function outreachBlock({ conv, item, getClosed = () => null, now = Date.now(), minGapHours = 12, paused = false, aiOff = false, since = 0, firstContactAt = 0 }) {
   if (aiOff) return 'ia_desligada'; // número de vendedor com a IA desligada: nada automático sai por ele
   if (conv?.declined) return 'recusou';
+  if (since && !isProactive(item) && item?.at && Number(item.at) < since) return 'antigo'; // mensagem velha esquecida: não responde agora
   if (!isProactive(item)) return '';
+  if (since && firstContactAt && firstContactAt < since) return 'antigo'; // lead antigo: nunca procurado de novo
   if (humanSpoke(conv)) return 'humano';
   if (paused) return 'pausado';
   if (detectClosedByMessages(conv)) return 'fechou_conosco';

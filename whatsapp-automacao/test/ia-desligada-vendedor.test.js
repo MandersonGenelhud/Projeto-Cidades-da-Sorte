@@ -52,3 +52,14 @@ test('avisos à equipe nunca saem pelo número de um vendedor', () => {
   const r = teamRoutes({ mainConnected: false, lines: [{ id: 'g', label: 'Giovana', status: 'connected' }] });
   assert.deepEqual(r, []);
 });
+
+test('regra dos leads novos: lead antigo nunca é procurado; mensagem antiga esquecida não é respondida; lead novo segue normal', () => {
+  const since = Date.parse('2026-11-11T03:00:00.000Z');
+  const antigo = Date.parse('2026-10-01T12:00:00Z'); const novo = Date.parse('2026-11-12T12:00:00Z');
+  assert.equal(outreachBlock({ conv: {}, item: { restart: true }, since, firstContactAt: antigo }), 'antigo');
+  assert.equal(outreachBlock({ conv: {}, item: { kind: 'nudge' }, since, firstContactAt: antigo }), 'antigo');
+  assert.equal(outreachBlock({ conv: {}, item: { restart: true }, since, firstContactAt: novo }), '');
+  assert.equal(outreachBlock({ conv: {}, item: { at: antigo, texts: ['oi'] }, since, firstContactAt: antigo }), 'antigo', 'mensagem de outubro que ficou sem resposta');
+  assert.equal(outreachBlock({ conv: {}, item: { at: novo, texts: ['oi'] }, since, firstContactAt: antigo }), '', 'cliente antigo que escreveu HOJE é respondido');
+  assert.equal(outreachBlock({ conv: {}, item: { restart: true }, firstContactAt: antigo }), '', 'sem data de corte, regra antiga');
+});

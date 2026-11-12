@@ -340,6 +340,15 @@ const centralPoolFor = (conv, force = false) => {
   return (u) => isSellerForCentral(u) && (!names.length || centralSellerMatch(u, names));
 };
 // IA desligada num número de vendedor (botão liga/desliga em Conexões): nenhuma mensagem automática da IA sai por ele.
+// Leads novos x antigos (regra da direção): primeiro contato a partir de crm.outreachSince.
+const outreachSince = () => { const t = Date.parse(store.settings.crm?.outreachSince || ''); return Number.isFinite(t) ? t : 0; };
+const firstContactOf = (conv) => {
+  if (!conv) return 0;
+  const lead = crm.findForConversation({ key: conv.key, phone: conv.phone, username: conv.username });
+  const times = [lead?.createdAt, (conv.messages || []).find((m) => m?.at)?.at].map((x) => Date.parse(x || '')).filter(Number.isFinite);
+  return times.length ? Math.min(...times) : 0;
+};
+const isOldLeadConv = (conv) => { const s = outreachSince(); const f = firstContactOf(conv); return Boolean(s && f && f < s); };
 const aiOffFor = (key) => { const p = parseLineKey(key); if (!p) return false; const l = lines.get(p.id); return Boolean(l) && l.agent === false; };
 agent.aiOff = (key) => aiOffFor(key);
 agent.humanBusy = (key) => wa.humanWaitMs(key); // pessoa usando o número agora: a IA espera
@@ -427,7 +436,7 @@ const followups = new AutoFollowUps({
   crm,
   agent,
   send: (key, text) => wa.send(key, { text }),
-  canSend: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected') && agent.active && !aiOffFor(key),
+  canSend: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected') && agent.active && !aiOffFor(key) && !isOldLeadConv(agent.conversation(key, { create: false })),
   log: (l) => store.addLog(l),
 });
 agent.scheduleReturn = (conv, args, opts) => followups.schedule(conv, args, opts);
@@ -2496,6 +2505,7 @@ function healthReport() {
   { const cs = centralStats(); if (cs.auto) add('warn', `A rede de segurança da Central já encaminhou ${cs.auto} conversa(s) sozinha (a IA não tinha chamado a ferramenta)${cs.ultimoAuto ? `, a última em ${new Date(cs.ultimoAuto).toLocaleString('pt-BR')}` : ''}.${cs.semVendedor ? ` Em ${cs.semVendedor} não havia vendedor disponível: o aviso foi para os administradores.` : ''}`); }
   { const semZap = auth.users.filter((u) => u.active !== false && !u.pending && !u.whatsapp && (u.receivesLeads ?? u.role === 'seller') && !u.trafficOnly && !isCentralUser(u)); if (semZap.length) add('warn', `No rodízio mas SEM WhatsApp cadastrado (não recebem aviso nenhum): ${semZap.map((u) => u.name.split(' ')[0]).join(', ')}. Cadastre o número em Equipe.`); }
   { const sf = { ...SAFETY_DEFAULTS, ...(store.settings.connection?.safety || {}) }; add(sf.enabled ? 'ok' : 'warn', sf.enabled ? `Proteção contra bloqueio ligada: intervalo de ${Math.round(sf.minGapMs / 1000)} a ${Math.round((sf.minGapMs + sf.jitterMs) / 1000)} s entre mensagens, no máximo ${sf.perMinute} por minuto e ${sf.newPerHour} contatos novos por hora em cada número.` : 'A proteção contra bloqueio está DESLIGADA: risco de o WhatsApp bloquear os números.'); }
+  if (outreachSince()) add('ok', `Regra dos leads novos: só quem chegou a partir de ${new Date(outreachSince()).toLocaleDateString('pt-BR', { timeZone: 'America/Asuncion' })} recebe retomada, lembrete ou encaminhamento automático. Os antigos ficam no histórico e nunca são procurados de novo (se escreverem, são respondidos).`);
   if (!teamCanSend()) add('bad', 'Nenhum WhatsApp está conectado para avisar a equipe: vendedores e administradores NÃO recebem os avisos de cliente novo, contrato e pagamento.');
   const csNames = centralSellerNames();
   const vend = auth.users.filter(isSellerForCentral);
@@ -3179,8 +3189,8 @@ agent.onFailed = (conv) => {
 // Guarda de contato: não procura quem já recusou nem quem já fechou conosco (lido do banco, índice guardado por 5 minutos).
 let closedCache = { at: 0, idx: null };
 const closedIndex = () => { if (!closedCache.idx || Date.now() - closedCache.at > 5 * 60_000) closedCache = { at: Date.now(), idx: buildClosedIndex(directory.build({ role: 'admin' })) }; return closedCache.idx; };
-pending.outreachBlock = (jid, item) => guardOutreach({ conv: agent.conversation(jid, { create: false }), item: { ...item, jid }, getClosed: closedIndex, paused: store.settings.agent?.outreachPaused === true, aiOff: aiOffFor(jid) });
-const outreachFor = (conv) => guardOutreach({ conv, item: { restart: true, jid: conv.key, phone: conv.phone }, getClosed: closedIndex, paused: store.settings.agent?.outreachPaused === true, aiOff: aiOffFor(conv.key) });
+pending.outreachBlock = (jid, item) => { const conv = agent.conversation(jid, { create: false }); return guardOutreach({ conv, item: { ...item, jid }, getClosed: closedIndex, paused: store.settings.agent?.outreachPaused === true, aiOff: aiOffFor(jid), since: outreachSince(), firstContactAt: firstContactOf(conv) }); };
+const outreachFor = (conv) => guardOutreach({ conv, item: { restart: true, jid: conv.key, phone: conv.phone }, getClosed: closedIndex, paused: store.settings.agent?.outreachPaused === true, aiOff: aiOffFor(conv.key), since: outreachSince(), firstContactAt: firstContactOf(conv) });
 autoReply.onDecline = (msg, dc) => {
   const conv = agent.conversation(msg.jid);
   conv.phone ||= msg.phone || null;
@@ -3422,6 +3432,8 @@ app.post('/api/reengage/import', reengageUpload, (req, res) => {
 });
 app.get('/api/reengage', (req, res) => res.json({ summary: reengage.summary(), items: reengage.list(req.query).slice(0, 500), templates: { ...REENGAGE_TEMPLATES, ...(store.settings.reengage?.templates || {}) } }));
 app.post('/api/reengage/send', (req, res) => {
+  // Regra da direção (12/11/2026): contatos antigos não são procurados de novo. A lista de retomada é de contatos antigos: o envio fica bloqueado.
+  if (outreachSince() && store.settings.crm?.allowOldOutreach !== true) throw httpError(403, 'Regra da direção: os contatos antigos não são mais procurados (só os leads novos, de 11/11 em diante). A lista fica guardada como histórico.');
   if (wa.status !== 'connected') throw httpError(400, 'Conecte o WhatsApp primeiro (aba Conexões)');
   const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
   if (!ids.length) throw httpError(400, 'Marque quem vai receber a mensagem.');
@@ -5351,7 +5363,7 @@ const rotationReport = () => {
     return { id: u.id, name: u.name, noRodizio: !why.length, motivos: why, hoje: crm.leads.filter((l) => l.handoff?.toId === u.id && dayOf(l.handoff.at) === day).length };
   }).sort((a, b) => Number(b.noRodizio) - Number(a.noRodizio) || a.name.localeCompare(b.name));
 };
-const centralPending = (days = 7) => Object.values(store.data.conversations || {}).filter((conv) => isEntryDeskConv(conv)).map((conv) => ({ conv, lead: crm.findForConversation({ key: conv.key, phone: conv.phone }) }))
+const centralPending = (days = 7) => Object.values(store.data.conversations || {}).filter((conv) => isEntryDeskConv(conv) && !isOldLeadConv(conv)).map((conv) => ({ conv, lead: crm.findForConversation({ key: conv.key, phone: conv.phone }) }))
   .filter(({ conv, lead }) => needsDelivery({ conv, lead, humanSpoke: humanSpokeConv(conv), days }));
 const centralFixJob = { running: false, total: 0, ok: 0, falhas: 0, semVendedor: 0, startedAt: null, endedAt: null, porVendedor: {} };
 app.get('/api/central/stuck', (req, res) => {
@@ -5386,7 +5398,7 @@ app.post('/api/central/stuck/fix', async (req, res) => {
 const bulkHandoff = new BulkHandoff({
   store, crm,
   // Só as conversas da Central (e do número principal como central): NUNCA manda mensagem pelo número de um vendedor.
-  conversations: () => Object.values(store.data.conversations || {}).filter((c) => isEntryDeskConv(c)),
+  conversations: () => Object.values(store.data.conversations || {}).filter((c) => isEntryDeskConv(c) && !isOldLeadConv(c)),
   isClient: (lead) => isClientOfMigra(lead),
   humanSpoke: (conv) => humanSpokeConv(conv),
   isTeamPhone: (phone) => isTeamPhone(auth.users, phone),

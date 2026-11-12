@@ -442,6 +442,13 @@ export class Store extends EventEmitter {
       this.data.rodizio2026 = true;
       this.flush();
     }
+    // Regra da direção (12/11/2026): só os leads NOVOS (de ontem, 11/11, em diante) recebem iniciativa nossa; os antigos nunca são procurados de novo.
+    if (!this.data.novosLeads2026) {
+      const c = this.data.settings.crm;
+      if (c && !c.outreachSince) c.outreachSince = '2026-11-11T03:00:00.000Z'; // 11/11/2026 00:00 no Paraguai
+      this.data.novosLeads2026 = true;
+      this.flush();
+    }
     // Regra da direção (10/11/2026): depois que uma pessoa falou com o cliente, a IA não volta sozinha. Uma vez, tira o prazo de retomada automática.
     if (!this.data.humanRule2026) {
       const agH = this.data.settings.agent;

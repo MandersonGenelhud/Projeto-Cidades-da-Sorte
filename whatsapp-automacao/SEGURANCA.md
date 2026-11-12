@@ -738,3 +738,9 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Retomada baseada em pesquisa** (MIT/InsideSales 2007: falar em 5 min vs 30 min dá ~100x mais contato e ~21x mais qualificação; Harvard Business Review 2011: agir dentro da 1ª hora qualifica ~7x mais; WhatsApp: janela de 24 h desde a última mensagem do cliente e no máximo 2 lembretes): **1º lembrete da Central em 15 min**, **aviso ao vendedor em 1 h** (ele decide se chama), **último lembrete em 20 h**; nada depois de 24 h. Lembretes ao cliente só das 8h às 20h; nunca se o cliente recusou, se uma pessoa já falou na conversa, se fechou/perdeu ou se ele já chamou o vendedor.
 - **Chegada medida**: quando o cliente escreve para o número do vendedor, o encaminhamento é marcado como "cliente chamou" (os lembretes param) e a tela "Ao vivo" mostra link enviado / lembretes / cliente chamou.
 - Teste: `test/link-vendedor.test.js`.
+
+## Só os leads novos recebem iniciativa nossa; os antigos nunca são procurados de novo (12/11/2026)
+- **Regra da direção** (`crm.outreachSince`, gravado uma vez como 11/11/2026 00:00 do Paraguai): só quem teve o **primeiro contato a partir dessa data** recebe qualquer iniciativa automática (retomada/"Recomeçar", chamada de quem sumiu, aviso de encerramento, orçamento vencendo, retorno agendado, encaminhamento em lote, encaminhar pendentes, lembretes do link).
+- **Lead antigo**: o sistema reconhece (histórico, contexto e ficha continuam) mas **nunca procura de novo**. Mensagem antiga que ficou sem resposta (de antes da data) é tirada da lista "esperando resposta" e **não** é respondida agora. Se o cliente antigo **escrever de novo**, a resposta normal continua.
+- **Retomada de contatos** (lista importada de contatos antigos): envio **bloqueado** pela regra; a lista fica como histórico.
+- A Saúde do sistema mostra a regra e a data. Teste: `test/ia-desligada-vendedor.test.js`.
