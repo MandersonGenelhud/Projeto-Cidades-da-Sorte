@@ -684,3 +684,6 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 ## Contatos para o celular em vCard (12/11/2026)
 - Contatos → "Baixar para o celular (.vcf)": arquivo que o iPhone e o Android importam direto na agenda. **Só administrador**, registra no log de segurança quantos contatos saíram (e a etiqueta). Nome com quebra de linha ou símbolos não cria campos falsos no arquivo; telefone inválido é ignorado. Teste: `test/vcard.test.js`.
+
+## Exportar conversas em arquivo legível (12/11/2026)
+- Contatos → "Baixar conversas do número principal" (HTML; `?format=txt` para texto; `?scope=all|line:<id>&days=N` para outros recortes). **Só administrador**, registra no log de segurança quantas conversas saíram. Não entram grupos, Instagram, simulações nem conversas vazias. O texto do cliente é escapado no HTML (não executa código). O arquivo avisa que contém dados de clientes. O Hub guarda as últimas 200 mensagens por conversa; o que passou disso, ou o que está só no WhatsApp banido, não está aqui. Teste: `test/conv-export.test.js`.

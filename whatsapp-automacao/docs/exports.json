@@ -244,6 +244,11 @@
   "fullAddress",
   "moneyWords"
  ],
+ "src/conv-export.js": [
+  "conversationsToHtml",
+  "conversationsToText",
+  "pickConversations"
+ ],
  "src/convsearch.js": [
   "searchConversations"
  ],

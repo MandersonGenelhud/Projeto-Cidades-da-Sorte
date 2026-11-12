@@ -31,6 +31,7 @@ import { ReceiptReader } from './receipts.js';
 import { ClientProofs } from './client-proof.js';
 import { Traffic, trafficRouteAllowed } from './traffic.js';
 import { contactsToVcf } from './vcard.js';
+import { pickConversations, conversationsToHtml, conversationsToText } from './conv-export.js';
 import { BulkHandoff } from './bulk-handoff.js';
 import { FunnelSync } from './funnel-sync.js';
 import { OWNER_PAUSE } from './agent/agent.js';
@@ -2688,6 +2689,19 @@ app.get('/api/contacts/export.vcf', (req, res) => {
   const list = store.data.contacts.filter((c) => !tag || c.tags?.some((t) => t.toLowerCase() === tag));
   securityEvent('contatos_exportados', req.user, req, `${list.length} contato(s) em vCard${tag ? ` (etiqueta ${tag})` : ''}`);
   res.set('Content-Type', 'text/vcard; charset=utf-8').set('Content-Disposition', 'attachment; filename="contatos.vcf"').send(contactsToVcf(list));
+});
+
+// Conversas guardadas em arquivo legível (HTML ou texto) para o dono consultar fora do sistema. Só administrador; fica no registro de segurança.
+app.get('/api/conversations/export', (req, res) => {
+  needAdmin(req);
+  const scope = /^(main|all|line:[a-f0-9]+)$/.test(String(req.query.scope || 'main')) ? String(req.query.scope || 'main') : 'main';
+  const days = Math.min(3650, Math.max(0, Math.floor(Number(req.query.days) || 0)));
+  const list = pickConversations(store.data.conversations, { scope, days });
+  const ownerName = (auth.users.find((u) => u.role === 'admin' && /^marcos\b/i.test(u.name))?.name || 'Marcos').split(' ')[0];
+  securityEvent('conversas_exportadas', req.user, req, `${list.length} conversa(s) (${scope}${days ? `, últimos ${days} dias` : ''})`);
+  const txt = String(req.query.format) === 'txt';
+  res.set('Content-Type', txt ? 'text/plain; charset=utf-8' : 'text/html; charset=utf-8').set('Content-Disposition', `attachment; filename="conversas.${txt ? 'txt' : 'html'}"`)
+    .send(txt ? conversationsToText(list, { ownerName }) : conversationsToHtml(list, { ownerName }));
 });
 
 app.post('/api/contacts/check', async (req, res) => {
