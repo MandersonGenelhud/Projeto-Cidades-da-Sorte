@@ -37,16 +37,17 @@ test('se ninguém da lista da Central estiver disponível, cai no rodízio comum
   assert.ok(s, 'algum vendedor recebe');
 });
 
-test('orientação da Central: pré-atendimento e TODO cliente vai para os vendedores; ela não fecha', () => {
+test('orientação da Central: UMA pergunta (interesse) e encaminha na hora; não faz triagem nem fecha', () => {
   const t = centralNote({ agentName: 'Luana' });
-  assert.match(t, /PRÉ-ATENDIMENTO/);
-  assert.match(t, /TODO CLIENTE vai para uma pessoa da equipe, sem exceção/);
+  assert.match(t, /UMA ÚNICA pergunta/);
+  assert.match(t, /documentação e residência no Paraguai, imóveis[\s\S]*veículos/);
+  assert.match(t, /NÃO faz triagem longa/);
+  assert.match(t, /Não pergunte nome, cidade/);
   assert.match(t, /passar_fechamento_para_humano/);
-  assert.match(t, /aos vendedores da equipe em rodízio/);
-  assert.match(t, /NÃO fecha venda/);
-  assert.doesNotMatch(t, /OBJETIVO[\s\S]*você mesma FECHA/);
+  assert.match(t, /todos os vendedores ativos no rodízio/);
+  assert.match(t, /NÃO monta orçamento, NÃO envia contrato/);
   assert.match(t, /acima de qualquer outra orientação/);
-  assert.match(centralNote({ agentName: 'Luana', sellers: ['Geovana', 'Fran'] }), /a Geovana e Fran em rodízio/);
+  assert.match(centralNote({ agentName: 'Luana', sellers: ['Geovana', 'Fran'] }), /Geovana e Fran/);
 });
 
 test('vendedor novo cadastrado entra no rodízio da Central sem mexer em lista', () => {
@@ -69,6 +70,6 @@ test('a Central direciona por papel: só vendedoras do rodízio; nunca a própri
 
 test('orientação da Central: imóvel vai ao corretor (loteamentos), veículo ao setor de veículos', () => {
   const t = centralNote({ agentName: 'Luana' });
-  assert.match(t, /direcionar_para_setor, setor "loteamentos"/);
+  assert.match(t, /direcionar_para_setor com setor "loteamentos"/);
   assert.match(t, /setor "veiculos"/);
 });

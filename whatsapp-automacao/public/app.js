@@ -1775,6 +1775,16 @@ $('#btnSignOut').addEventListener('click', async () => {
   if (admin || state.user.manager) $$('[data-staff]').forEach((el) => (el.hidden = false));
   if (state.user.visitDesk) $$('[data-visitdesk]').forEach((el) => el.removeAttribute('data-admin'));
   $('#userName').textContent = state.user.name;
+  // Equipe de tráfego: só a aba Tráfego (o servidor também recusa qualquer outra rota).
+  if (state.user.trafficOnly) {
+    document.body.classList.add('traffic-only');
+    document.querySelectorAll('nav button[data-tab]').forEach((b) => { if (b.dataset.tab === 'traffic') b.removeAttribute('data-admin'); else b.hidden = true; });
+    $('#userAvatar').textContent = state.user.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+    $('#userAvatar').title = 'Equipe de tráfego';
+    window.standbyTabs = new Set();
+    showTab('traffic');
+    return;
+  }
   // Escritório: o administrador geral escolhe qual enxergar; a equipe vê só o próprio.
   try {
     const o = await api('/api/offices');

@@ -756,7 +756,7 @@ loaders.team = async () => {
       <div class="grow"><b>${esc(u.name)}</b> ${u.role === 'admin' ? '<span class="badge running">Administrador geral</span>' : `<span class="badge pending">${u.officeAdmin ? 'Administrador do escritório' : 'Vendedor'}</span> <span class="office-chip">${esc((window.officeNames || {})[u.office] || '')}</span>`}
         ${u.active ? '' : '<span class="badge canceled">Inativo</span>'} ${u.lockedMin ? `<span class="badge canceled" title="Errou a senha várias vezes. Libera sozinho, ou toque em Liberar acesso.">Bloqueado por tentativas (${u.lockedMin} min)</span>` : ''} ${u.twoFactor ? '<span class="badge done">2 etapas</span>' : '<span class="badge paused">só senha</span>'}
         <div class="meta">login: ${esc(u.login)}${u.whatsapp ? ` · WhatsApp ${esc(fmtPhone(u.whatsapp))}` : ' · sem WhatsApp (fora do rodízio)'}
-          · ${u.receivesLeads && u.whatsapp ? `no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : 'fora do rodízio'}
+          · ${u.trafficOnly ? 'acesso só ao Tráfego' : u.receivesLeads && u.whatsapp ? `no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : 'fora do rodízio'}
           · ${u.receivesAffiliateLeads ? 'recebe indicações de parceiros' : 'não recebe indicações de parceiros'}
           · ${(() => { const l = lineOf(u); return !l ? 'WhatsApp não conectado' : l.status === 'connected' ? `WhatsApp conectado · ${l.agent !== false ? 'IA atendendo' : 'IA desligada'}` : `WhatsApp ${(LINE_STATUS[l.status] || l.status).toLowerCase()}`; })()}</div></div>
       ${u.active ? `<div class="sector-btns" title="Em que áreas esta pessoa atende">${SECTOR_BTNS.map(([id, label]) => `<button class="btn small ${(u.sectors || []).includes(id) ? 'primary' : ''}" data-act="sector" data-sector="${id}" aria-pressed="${(u.sectors || []).includes(id)}">${label}</button>`).join('')}</div>` : ''}
@@ -879,7 +879,7 @@ $('#teamList').addEventListener('click', async (e) => {
 
 $('#formUser').addEventListener('submit', withBusy($('#formUser'), async (e) => {
   const f = e.target;
-  await api('/api/users', { method: 'POST', body: { ...Object.fromEntries(new FormData(f)), receivesLeads: f.receivesLeads.checked, officeAdmin: f.officeAdmin?.checked || false, sectors: ['documentacao', 'loteamentos', 'veiculos'].filter((id) => f[`sec_${id}`].checked) } });
+  await api('/api/users', { method: 'POST', body: { ...Object.fromEntries(new FormData(f)), receivesLeads: f.receivesLeads.checked, officeAdmin: f.officeAdmin?.checked || false, trafficOnly: f.trafficOnly?.checked || false, sectors: ['documentacao', 'loteamentos', 'veiculos'].filter((id) => f[`sec_${id}`].checked) } });
   toast(`Cadastrado! Passe o login "${f.login.value}" e a senha. A pessoa já aparece em Conexões WhatsApp para conectar o WhatsApp dela.`);
   f.reset();
   crmState.stages = [];

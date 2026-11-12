@@ -132,6 +132,7 @@ export class Sectors {
     const phone = conv.phone || normalizePhone(args.telefone) || lead?.phone || '';
     const who = args.nome || lead?.name || conv.name || (phone ? `+${phone}` : conv.username ? `@${conv.username}` : 'Cliente');
     const preview = chatPreview(conv, 8);
+    const aiLine = person && phone ? this.aiLineFor?.(person) || null : null;
     const text = [
       `🏷️ *Cliente para você: ${label}*`,
       `👤 ${who}${phone ? ` · +${phone}` : conv.username ? ` · @${conv.username} (Instagram)` : ''}${lead?.code ? ` · ${lead.code}` : ''}`,
@@ -139,7 +140,7 @@ export class Sectors {
       `📝 *O que ele quer:* ${args.resumo || '-'}`,
       args.detalhes ? `📍 *Detalhes:* ${args.detalhes}` : '',
       preview ? `\n💬 *Prévia da conversa:*\n${preview}` : '',
-      '\nA atendente virtual avisou que você vai entrar em contato. Chame o cliente o quanto antes.',
+      aiLine ? `\nA IA do seu WhatsApp (${aiLine.label}) já vai chamar o cliente e continuar o atendimento. Quando quiser assumir, é só responder por lá.` : '\nA atendente virtual avisou que você vai entrar em contato. A IA do seu número está desligada: o atendimento é seu. Chame o cliente o quanto antes.',
     ].filter(Boolean).join('\n');
     if (lead) {
       if (person?.id) this.crm.update({ name: 'IA', role: 'admin' }, lead.id, { ownerId: person.id });
@@ -148,11 +149,12 @@ export class Sectors {
       this.store.save();
     }
     if (person && this.canSend()) await this.send(person.whatsapp, text).catch(() => {});
+    if (person && aiLine && this.canSend()) await this.startOnLine?.({ person, line: aiLine, conv, lead, phone, who }).catch((e) => this.store.addLog({ type: 'error', message: `IA do vendedor não chamou o cliente: ${e.message}` }));
     else if (id === 'loteamentos') {
       // Terreno, corretor e parceria imobiliária nunca vão para o Marcos nem para os administradores: ficam no CRM até o Diego ter WhatsApp cadastrado.
       this.store.addLog({ type: 'error', message: `⚠️ ${label}: ninguém com WhatsApp cadastrado (Diego em Prospectos → Regras → Setores ou na Equipe). O contato ficou só no CRM.` });
     } else await this.notifyAdmins(`${text}\n\n⚠️ O setor "${label}" ainda não tem atendente cadastrado (Prospectos → Regras → Setores).`).catch(() => {});
     this.store.addLog({ type: 'system', message: `🏷️ ${who} direcionado para ${person?.name || 'o Marcos'} (${label})` });
-    return { ok: true, setor: label, instrucao: say };
+    return { ok: true, setor: label, instrucao: aiLine ? say.replace('por aqui em instantes', 'pelo WhatsApp dele em instantes') : say };
   }
 }

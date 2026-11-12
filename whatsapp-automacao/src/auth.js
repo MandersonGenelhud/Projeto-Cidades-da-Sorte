@@ -51,6 +51,7 @@ const publicUser = (u) => (u ? {
   manager: Boolean(u.manager) && u.role !== 'admin',
   office: u.role === 'admin' ? null : normOffice(u.office) || 'py',
   officeAdmin: Boolean(u.officeAdmin) && u.role !== 'admin',
+  trafficOnly: Boolean(u.trafficOnly) && u.role !== 'admin',
 } : null);
 
 export class Auth {
@@ -86,7 +87,7 @@ export class Auth {
     return this.users.filter((u) => u.active !== false);
   }
 
-  create({ name, login, password, role = 'seller', whatsapp = '', receivesLeads, pending = false, sectors = [], office = 'py', officeAdmin = false, expiresAt = '' }) {
+  create({ name, login, password, role = 'seller', whatsapp = '', receivesLeads, pending = false, sectors = [], office = 'py', officeAdmin = false, expiresAt = '', trafficOnly = false }) {
     name = String(name || '').trim();
     login = String(login || '').trim().toLowerCase();
     if (!name) throw Object.assign(new Error('Informe o nome'), { status: 400 });
@@ -100,7 +101,8 @@ export class Auth {
       role: role === 'admin' ? 'admin' : 'seller',
       whatsapp: whatsapp ? normalizePhone(whatsapp) || '' : '',
       passwordHash: hashPassword(password),
-      receivesLeads: receivesLeads === undefined ? role !== 'admin' : Boolean(receivesLeads),
+      receivesLeads: trafficOnly && role !== 'admin' ? false : receivesLeads === undefined ? role !== 'admin' : Boolean(receivesLeads),
+      ...(trafficOnly && role !== 'admin' ? { trafficOnly: true } : {}),
       active: !pending,
       sectors: cleanSectors(sectors),
       office: role === 'admin' ? null : normOffice(office) || 'py',
@@ -149,7 +151,8 @@ export class Auth {
       if (e) u.expiresAt = e; else delete u.expiresAt;
       if (e && patch.active === undefined && u.active === false && u.expiredAt) { u.active = true; delete u.expiredAt; } // novo prazo reabre quem tinha vencido
     }
-    if (patch.receivesLeads !== undefined) u.receivesLeads = Boolean(patch.receivesLeads);
+    if (patch.trafficOnly !== undefined) { u.trafficOnly = u.role !== 'admin' && Boolean(patch.trafficOnly); if (u.trafficOnly) { u.receivesLeads = false; u.receivesAffiliateLeads = false; u.sectors = []; } }
+    if (patch.receivesLeads !== undefined && !u.trafficOnly) u.receivesLeads = Boolean(patch.receivesLeads);
     if (patch.sectors !== undefined) u.sectors = cleanSectors(patch.sectors);
     if (patch.manager !== undefined) u.manager = Boolean(patch.manager);
     if (patch.office !== undefined && u.role !== 'admin') u.office = normOffice(patch.office) || u.office || 'py';

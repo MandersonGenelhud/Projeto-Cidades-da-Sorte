@@ -29,6 +29,7 @@ import { makeSellerCommands } from './seller-commands.js';
 import { Learnings } from './learnings.js';
 import { ReceiptReader } from './receipts.js';
 import { ClientProofs } from './client-proof.js';
+import { Traffic, trafficRouteAllowed } from './traffic.js';
 import { FunnelSync } from './funnel-sync.js';
 import { OWNER_PAUSE } from './agent/agent.js';
 import { Migratech } from './migratech.js';
@@ -802,6 +803,35 @@ agent.sendQuote = async (conv, args, { dryRun } = {}) => {
 
 // Passa o cliente para o vendedor com tudo pronto: resumo, prévia da conversa e o PDF do orçamento.
 // Usado quando o cliente tem receio (a IA chama) e quando o Pix da entrada não veio (automático).
+// Continuidade pela IA do vendedor: se o vendedor tem número próprio conectado e a IA desse número está LIGADA, a IA dele chama o cliente (primeira
+// mensagem pronta, sem inventar nada) e continua o atendimento com o resumo da Central. IA desligada (ou número fora do ar): só o aviso, e o atendimento é do vendedor.
+const sellerAiLine = (person) => {
+  const u = person?.id ? auth.get(person.id) : auth.users.find((x) => x.whatsapp && person?.whatsapp && samePhone(x.whatsapp, person.whatsapp));
+  if (!u) return null;
+  const line = lines.list().find((l) => l.ownerId === u.id && !isCentralLine(l, u));
+  return line && line.agent !== false && line.status === 'connected' ? line : null;
+};
+async function startSellerAi({ person, line, conv, lead, phone, who }) {
+  const p = normalizePhone(phone);
+  if (!p || !line) return { mode: 'vendedor' };
+  const key = lineKey(line.id, `${p}@s.whatsapp.net`);
+  const existing = agent.conversation(key, { create: false });
+  if (existing && (humanSpokeConv(existing) || existing.declined)) return { mode: 'vendedor' };
+  if (existing?.messages?.length) return { mode: 'ia', jaTinha: true };
+  const u = person?.id ? auth.get(person.id) : null;
+  const sellerFirst = String(u?.name || person?.name || '').split(' ')[0];
+  const cli = String(who || '').replace(/^\+\d+$/, '').split(' ')[0];
+  const text = `Olá${cli ? `, ${cli}` : ''}! Aqui é a assistente de ${sellerFirst}, da Migra. A nossa Central me passou o seu contato e eu vou continuar o seu atendimento por aqui. Me conta um pouquinho mais do que você precisa?`;
+  await wa.send(key, { text, typing: false });
+  const c2 = agent.conversation(key, { create: true });
+  c2.phone = p; if (who && !/^\+\d+$/.test(who)) c2.name = who;
+  agent.remember(c2, 'assistant', text);
+  if (lead && !lead.whatsappKey) { lead.whatsappKey = key; store.save(); }
+  if (lead) crm.addNote({ name: 'Sistema', role: 'admin' }, lead.id, `🤖 A IA do número de ${sellerFirst} chamou o cliente e continua o atendimento (a Central já passou o resumo).`);
+  return { mode: 'ia', key };
+}
+sectors.aiLineFor = (person) => sellerAiLine(person);
+sectors.startOnLine = (args) => startSellerAi(args);
 async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', auto = false }) {
   convKey ||= conv?.key;
   conv ||= agent.conversation(convKey, { create: false }) || { key: convKey, messages: [] };
@@ -840,6 +870,7 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
   const who = lead?.name || conv.name || (phone ? `+${phone}` : 'Cliente');
   const preview = chatPreview(conv, 10);
   const q = lead?.qualification || {};
+  const aiLine = centralLine && closer && phone ? sellerAiLine(closer) : null;
   const text = [
     auto ? `⏰ *Cliente não pagou a entrada: continue com ele*` : '🤝 *Cliente para você continuar o atendimento*',
     `👤 ${who}${phone ? ` · +${phone}` : ''}${lead?.code ? ` · ${lead.code}` : ''}`,
@@ -856,7 +887,7 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
     brief.sugestao ? `🏁 *Sugestão para finalizar:* ${brief.sugestao}` : '',
     brief.moradia ? `🏠 Moradia: ${brief.moradia} (oportunidade para a Migra Imobiliária)` : '',
     preview ? `\n💬 *Prévia da conversa:*\n${preview}` : '',
-    `\nA IA continua disponível para o cliente. Chame ele${phone ? `: https://wa.me/${phone}` : ' pelo painel (Conversas)'}`,
+    aiLine ? `\nA IA do seu WhatsApp (${aiLine.label}) já vai chamar o cliente e continuar o atendimento. Quando quiser assumir, é só responder por lá.` : centralLine ? `\nA IA do seu número está desligada: o atendimento é SEU. Chame o cliente agora${phone ? `: https://wa.me/${phone}` : ' pelo painel (Conversas)'}` : `\nA IA continua disponível para o cliente. Chame ele${phone ? `: https://wa.me/${phone}` : ' pelo painel (Conversas)'}`,
   ].filter(Boolean).join('\n');
   if (lead) {
     if (Object.keys(brief).length) lead.closingBrief = { ...brief, at: new Date().toISOString() };
@@ -874,8 +905,10 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
     if (closer?.whatsapp) await send(closer.whatsapp).catch((e) => store.addLog({ type: 'error', message: `Aviso ao vendedor ${closer.name}: ${e.message}` }));
     else for (const u of auth.users.filter((x) => x.role === 'admin' && x.active !== false && x.whatsapp)) await send(u.whatsapp).catch(() => {});
   } else store.addLog({ type: 'error', message: `Nenhum WhatsApp conectado para avisar ${closer?.name || 'a equipe'} sobre ${who}` });
+  let ai = null;
+  if (aiLine && teamCanSend()) ai = await startSellerAi({ person: closer, line: aiLine, conv, lead, phone, who }).catch((e) => { store.addLog({ type: 'error', message: `IA do vendedor não chamou o cliente: ${e.message}` }); return null; });
   notify('crm', { id: lead?.id });
-  return { closer, quote };
+  return { closer, quote, ai };
 }
 
 // Quando o cliente sente receio (ou não consegue pagar a entrada agora), um atendente do escritório continua.
@@ -889,13 +922,13 @@ agent.closeHandoff = async (conv, args, { dryRun } = {}) => {
     interesse: args.interesse_real, situacao: args.situacao_atual, duvidas: args.duvidas_esclarecidas, objecao: args.objecao,
     tentativas: args.o_que_ja_foi_dito, dica: args.dica_de_fechamento, sugestao: args.sugestao, moradia: args.moradia, temperatura: args.temperatura,
   }).filter(([, v]) => v));
-  const { closer } = await forwardToSeller({ conv, lead, brief, reason: args.objecao ? `Receio: ${args.objecao}` : '' });
+  const { closer, ai } = await forwardToSeller({ conv, lead, brief, reason: args.objecao ? `Receio: ${args.objecao}` : '' });
   const parsedC = parseLineKey(conv.key);
   const lineC = parsedC ? lines.get(parsedC.id) : null;
   if (lineC && isCentralLine(lineC, lineC.ownerId ? auth.get(lineC.ownerId) : null) && closer?.name) {
     const first = closer.name.split(' ')[0];
-    const sayC = `Já passei o seu atendimento para ${first}, da nossa equipe, com tudo o que conversamos. ${first} vai entrar em contato com você por aqui em instantes.`;
-    return { ok: true, quem: first, instrucao: `Diga ao cliente exatamente: "${sayC}" Não passe o número pessoal de ninguém. Depois continue disponível para dúvidas simples, sem repetir o aviso.` };
+    const sayC = `Já passei o seu atendimento para ${first}, da nossa equipe, com tudo o que conversamos. ${first} vai entrar em contato com você ${ai?.mode === 'ia' ? 'pelo WhatsApp dele(a) em instantes, a assistente já está te chamando' : 'em instantes'}.`;
+    return { ok: true, quem: first, instrucao: `Diga ao cliente exatamente: "${sayC}" Não passe o número pessoal de ninguém. Se ele escrever de novo aqui, diga em uma frase que o atendimento já está com a equipe; não refaça perguntas.` };
   }
   return { ok: true, quem: closer?.name?.split(' ')[0] || 'o escritório', instrucao: `Diga ao cliente exatamente: "${say}" Depois continue disponível: se ele voltar a escrever, responda normalmente.` };
 };
@@ -1621,7 +1654,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js', '/contabil-painel.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/trafego.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js', '/contabil-painel.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -2139,6 +2172,11 @@ app.use('/api', (req, res, next) => {
     return res.status(403).json({ error: 'Ligue a verificação em duas etapas para usar o sistema.', setup2fa: true });
   }
   if (user.role === 'admin') return next();
+  // Equipe de gestão de tráfego: SÓ a aba Tráfego (números agregados, sem telefone nem nome de cliente). Qualquer outra rota é recusada.
+  if (user.trafficOnly) {
+    if (trafficRouteAllowed(req.method, req.path)) return next();
+    return res.status(403).json({ error: 'O seu acesso é só à aba Tráfego' });
+  }
   // Quem cuida das visitas (Silvani) confirma, remarca e cancela pela aba Visitas.
   if (/^\/visits(\/[a-f0-9]+\/(confirm|reschedule|cancel|done))?$/.test(req.path) && isVisitDesk(user)) return next();
   // Quem cuida dos documentos (setor de documentação) usa a aba Documentos.
@@ -5089,6 +5127,38 @@ const funnel = new FunnelSync({
 const funnelOne = (leadId) => { try { if (leadId) funnel.reconcileOne(leadId); } catch (e) { store.addLog({ type: 'error', message: `Funil automático: ${e.message}` }); } };
 app.get('/api/funnel', (req, res) => { needAdmin(req); res.json(funnel.reconcile({ dryRun: true })); });
 app.post('/api/funnel/reconcile', (req, res) => { needAdmin(req); const r = funnel.reconcile(); securityEvent('funil_conferido', req.user, req, `${r.changed} prospecto(s) movido(s)`); res.json(r); });
+// Tráfego: novos contatos por dia, por número e por anúncio (gestão de tráfego). Só números agregados.
+const traffic = new Traffic({
+  store, crm,
+  lineLabel: (id) => lines.get(id)?.label || '',
+  conversation: (key) => (key ? agent.conversation(key, { create: false }) : null),
+  mainLabel: () => store.settings.marketing?.traffic?.mainLabel || 'Número principal',
+});
+app.get('/api/traffic', (req, res) => res.json({ ...traffic.report({ from: req.query.from, to: req.query.to }), config: req.user.role === 'admin' ? traffic.config : undefined }));
+app.get('/api/traffic.csv', (req, res) => { res.type('text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="trafego.csv"').send(`\ufeff${traffic.csv(traffic.report({ from: req.query.from, to: req.query.to }))}`); });
+app.put('/api/traffic/config', (req, res) => {
+  needAdmin(req);
+  const b = req.body || {};
+  const phones = (Array.isArray(b.reportPhones) ? b.reportPhones : String(b.reportPhones || '').split(/[,;\n]/)).map((x) => normalizePhone(x)).filter(Boolean).slice(0, 5);
+  const hour = Math.min(23, Math.max(0, Math.floor(Number(b.reportHour ?? 21))));
+  store.updateSettings({ marketing: { traffic: { reportPhones: phones, reportHour: hour, reportOn: b.reportOn !== false, mainLabel: String(b.mainLabel || 'Número principal').slice(0, 40) } } });
+  securityEvent('trafego_config', req.user, req, `relatório diário ${b.reportOn === false ? 'desligado' : `às ${hour}h`}; ${phones.length} número(s) extra(s)`);
+  res.json({ ok: true, config: traffic.config });
+});
+app.post('/api/traffic/send-report', async (req, res) => {
+  needAdmin(req);
+  await sendTrafficReport({ force: true });
+  res.json({ ok: true });
+});
+async function sendTrafficReport({ force = false } = {}) {
+  const c = traffic.config; const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
+  if (!force && (c.reportOn === false || store.data.trafficReportDay === day)) return;
+  if (!teamCanSend()) return;
+  store.data.trafficReportDay = day; store.save();
+  const text = traffic.dailyText(day);
+  await notifyAdmins(text).catch(() => {});
+  for (const ph of c.reportPhones || []) await teamSend(ph, { text, typing: false }).catch(() => {});
+}
 app.use('/api/cash', (req, res, next) => {
   if (!cash.booksFor(req.user).length) return res.status(403).json({ error: 'O caixa é restrito: só os administradores liberados veem.' });
   next();
@@ -5732,6 +5802,8 @@ if (process.env.NODE_ENV !== 'test') {
       if (h >= 9 && h < 19) funnel.digest().catch((e) => store.addLog({ type: 'error', message: `Aviso de atendimentos parados: ${e.message}` }));
     } catch (e) { store.addLog({ type: 'error', message: `Funil automático: ${e.message}` }); }
   };
+  // Relatório diário de tráfego: na hora escolhida (padrão 21h, horário do Paraguai), uma vez por dia.
+  setInterval(() => { const h = Number(new Date().toLocaleString('en-GB', { timeZone: 'America/Asuncion', hour: '2-digit', hour12: false })); if (h === Number(traffic.config.reportHour ?? 21)) sendTrafficReport().catch((e) => store.addLog({ type: 'error', message: `Relatório de tráfego: ${e.message}` })); }, 5 * 60_000).unref();
   setTimeout(funnelSweep, 120_000).unref();
   setInterval(funnelSweep, 3_600_000).unref();
   setInterval(() => ana.tick().catch((e) => store.addLog({ type: 'error', message: `Ana: ${e.message}` })), 60_000).unref();

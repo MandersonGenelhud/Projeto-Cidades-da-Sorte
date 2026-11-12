@@ -14,7 +14,7 @@
     { id: 'contabil', label: 'Migra Contábil Paraguay', icon: 'contabil', tabs: ['contabil'] },
     { id: 'servicos', label: 'Serviços e preços', icon: 'pricing', tabs: ['services', 'pricing'] },
     { id: 'parceiros', label: 'Indicadores e sócios', icon: 'affiliates', tabs: ['affiliates', 'share', 'projects'] },
-    { id: 'marketing', label: 'Marketing', icon: 'marketing', tabs: ['marketing', 'campaigns', 'schedules', 'send', 'livepage'] },
+    { id: 'marketing', label: 'Marketing', icon: 'marketing', tabs: ['marketing', 'traffic', 'campaigns', 'schedules', 'send', 'livepage'] },
     { id: 'ia', label: 'Atendimento automático', icon: 'agent', tabs: ['agent', 'test', 'connection', 'rules'] },
     { id: 'imoveis', label: 'Imóveis e site', icon: 'realty', tabs: ['realty', 'lots', 'finance', 'site'] },
     { id: 'empresas', label: 'Outras empresas', icon: 'motors', tabs: ['motors', 'school', 'migratech', 'devocional'] },

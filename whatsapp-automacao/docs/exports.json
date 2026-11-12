@@ -802,6 +802,10 @@
  "src/tasks.js": [
   "Tasks"
  ],
+ "src/traffic.js": [
+  "Traffic",
+  "trafficRouteAllowed"
+ ],
  "src/transports/cloudapi.js": [
   "CloudApiClient"
  ],
