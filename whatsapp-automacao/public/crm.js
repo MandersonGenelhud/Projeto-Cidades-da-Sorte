@@ -758,13 +758,14 @@ loaders.team = async () => {
         <div class="meta">login: ${esc(u.login)}${u.whatsapp ? ` · WhatsApp ${esc(fmtPhone(u.whatsapp))}` : ' · sem WhatsApp (fora do rodízio)'}
           · ${u.trafficOnly ? 'acesso só ao Tráfego' : u.receivesLeads && u.whatsapp ? `no rodízio · ${u.leadsReceived} cliente(s) recebido(s)` : 'fora do rodízio'}
           · ${u.receivesAffiliateLeads ? 'recebe indicações de parceiros' : 'não recebe indicações de parceiros'}
-          · ${(() => { const l = lineOf(u); return !l ? `WhatsApp não conectado${u.role !== 'admin' && !u.trafficOnly && u.active ? ' <button class="btn small primary" data-act="connectwa">Conectar WhatsApp</button>' : ''}` : l.status === 'connected' ? `WhatsApp conectado · ${l.agent !== false ? 'IA atendendo' : 'IA desligada'}` : `WhatsApp ${(LINE_STATUS[l.status] || l.status).toLowerCase()}`; })()}</div></div>
+          · ${(() => { const l = lineOf(u); return !l ? 'WhatsApp não conectado' : l.status === 'connected' ? `WhatsApp conectado · ${l.agent !== false ? 'IA atendendo' : 'IA desligada'}` : `WhatsApp ${(LINE_STATUS[l.status] || l.status).toLowerCase()}`; })()}</div></div>
       ${u.active ? `<div class="sector-btns" title="Em que áreas esta pessoa atende">${SECTOR_BTNS.map(([id, label]) => `<button class="btn small ${(u.sectors || []).includes(id) ? 'primary' : ''}" data-act="sector" data-sector="${id}" aria-pressed="${(u.sectors || []).includes(id)}">${label}</button>`).join('')}</div>` : ''}
       ${u.active ? `<button class="btn small" data-act="rotation">${u.receivesLeads ? 'Pausar rodízio' : '▶Pôr no rodízio'}</button>
         <button class="btn small" data-act="affleads" title="Indicações de parceiros pagam comissão menor ao vendedor">${u.receivesAffiliateLeads ? 'Parar indicações' : 'Receber indicações'}</button>
         ${u.role !== 'admin' && window.currentUser?.role === 'admin' ? `<button class="btn small ${u.officeAdmin ? 'primary' : ''}" data-act="officeadmin" title="Administrador do escritório cuida da equipe e dos resultados só do escritório dele">${u.officeAdmin ? 'É admin do escritório' : 'Tornar admin do escritório'}</button><button class="btn small" data-act="office">Mudar de escritório</button>` : ''}
         ${window.currentUser?.role === 'admin' && u.id !== window.currentUser.id ? `<button class="btn small ${u.role === 'admin' ? 'primary' : ''}" data-act="generaladmin" title="Administrador geral vê e gerencia os dois escritórios e todo o sistema">${u.role === 'admin' ? 'É administrador geral' : 'Tornar administrador geral'}</button>` : ''}
         ${u.role !== 'admin' ? `<button class="btn small ${u.manager ? 'primary' : ''}" data-act="manager" title="Gerente cadastra mapas, lotes, veículos e alunos (nunca exclui)">${u.manager ? 'É gerente' : 'Tornar gerente'}</button>` : ''}` : ''}
+      ${u.active && !u.trafficOnly ? (() => { const l = lineOf(u); return !l ? '<button class="btn small primary" data-act="connectwa">Conectar WhatsApp</button>' : l.status !== 'connected' ? `<button class="btn small primary" data-act="showqr" data-line="${esc(l.id)}">Ver QR Code</button>` : ''; })() : ''}
       <button class="btn small" data-act="edit">Editar</button>
       <button class="btn small" data-act="password">Senha</button>
       ${u.lockedMin ? '<button class="btn small primary" data-act="unlock">Liberar acesso</button>' : ''}
@@ -815,6 +816,13 @@ $('#teamList').addEventListener('click', async (e) => {
     if (act === 'connectwa') {
       await api('/api/lines', { method: 'POST', body: { ownerId: id } });
       toast('Abrindo a conexão: o QR Code aparece em alguns segundos.');
+      showTab('lines');
+      return;
+    }
+    if (act === 'showqr') {
+      const lineId = e.target.closest('[data-line]')?.dataset.line;
+      if (lineId) await api(`/api/lines/${lineId}/restart`, { method: 'POST' }).catch(() => {});
+      toast('O QR Code aparece em alguns segundos em Conexões WhatsApp.');
       showTab('lines');
       return;
     }
@@ -1340,7 +1348,7 @@ loaders.lines = async () => {
   // Todo vendedor ativo aparece: conectado (cartão da conexão) ou com o botão para conectar.
   const me = window.currentUser;
   // Toda pessoa ativa da equipe que atende (não só quem tem o papel "Vendedor") aparece para conectar; quem é só do Tráfego fica de fora.
-  const waiting = isAdmin() ? people.filter((u) => u.role !== 'admin' && !u.pending && !u.trafficOnly) : list.length ? [] : [me];
+  const waiting = isAdmin() ? people.filter((u) => !u.pending && !u.trafficOnly && (u.role !== 'admin' || u.receivesLeads)) : list.length ? [] : [me];
   const html = list.map((l) => lineCard(l, people)).join('') + waiting.map(sellerSlot).join('')
     || `<p class="muted">${isAdmin() ? 'Cadastre os vendedores na aba Equipe: cada um aparece aqui para conectar o WhatsApp dele.' : ''}</p>`;
   $$('[data-lines-grid]').forEach((grid) => {

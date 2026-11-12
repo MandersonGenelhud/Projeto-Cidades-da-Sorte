@@ -703,3 +703,6 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 ## Troca de nome de alguém da Equipe (12/11/2026)
 - Ao trocar o nome de uma pessoa (Equipe → Editar), o número de WhatsApp dela em Conexões passa a mostrar o nome novo também, e a troca fica no registro de segurança (nome antigo → nome novo). Login, senha, clientes e histórico continuam os mesmos.
+
+## Botão de conectar sempre visível na Equipe (12/11/2026)
+- Na Equipe, os botões "Conectar WhatsApp" (sem conexão) e "Ver QR Code" (conexão criada mas não conectada; reinicia a conexão para gerar um QR novo) ficam junto dos botões de ação de cada pessoa. Vale para toda pessoa ativa da equipe, menos quem é só do Tráfego. Em Conexões aparece também o administrador que está no rodízio. Só tela; as permissões do servidor não mudaram.
