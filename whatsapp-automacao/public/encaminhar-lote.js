@@ -20,7 +20,7 @@
     const dentro = rod.filter((x) => x.noRodizio); const fora = rod.filter((x) => !x.noRodizio);
     box.innerHTML = `<div class="panel" style="margin:0 0 12px">
         <h2>Clientes da Central que ainda não chegaram a um vendedor</h2>
-        <p><b>${st.total || 0}</b> pendente(s) nos últimos 7 dias${st.disseQueEncaminhou ? ` (em ${st.disseQueEncaminhou} a Central disse ao cliente que encaminhou)` : ''}. Os clientes não recebem mensagem nova: só os vendedores são avisados, um a cada 2 segundos, pelo rodízio.</p>
+        <p><b>${st.total || 0}</b> pendente(s) nos últimos 7 dias${st.disseQueEncaminhou ? ` (em ${st.disseQueEncaminhou} a Central disse ao cliente que encaminhou)` : ''}. Os clientes não recebem mensagem nova: só os vendedores são avisados, pelo rodízio, um a cada 20 a 40 segundos (devagar de propósito, para a Central não ser bloqueada).</p>
         <p class="hint"><b>No rodízio agora:</b> ${dentro.map((x) => `${esc(x.name.split(' ')[0])} (${x.hoje} hoje)`).join(', ') || '<b>ninguém</b>: ligue o rodízio em Equipe antes de encaminhar'}${fora.length ? `<br><b>Fora do rodízio:</b> ${fora.map((x) => `${esc(x.name.split(' ')[0])} (${esc(x.motivos.join(', '))})`).join('; ')}` : ''}</p>
         ${j.running ? `<p><b>Encaminhando…</b> ${j.ok + j.falhas} de ${j.total}</p>` : j.endedAt ? `<p class="hint">Última vez: ${j.ok} encaminhado(s)${j.falhas ? `, ${j.falhas} falha(s)` : ''}. ${Object.entries(j.porVendedor || {}).map(([k, v]) => `${esc(k)}: ${v}`).join(' · ')}</p>` : ''}
         <button class="btn primary" data-a="fixstuck" ${st.total && !j.running && dentro.length ? '' : 'disabled'}>Encaminhar todos os pendentes (${st.total || 0})</button></div><h2>Encaminhar aos vendedores os atendimentos em andamento</h2>

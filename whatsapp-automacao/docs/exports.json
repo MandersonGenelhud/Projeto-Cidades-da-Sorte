@@ -764,6 +764,10 @@
   "makeSellerOf",
   "stageOf"
  ],
+ "src/send-guard.js": [
+  "SAFETY_DEFAULTS",
+  "SendGuard"
+ ],
  "src/send-profiles.js": [
   "cleanProfile",
   "profileFor",

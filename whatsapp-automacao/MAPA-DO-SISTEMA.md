@@ -5,7 +5,7 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **157** · testes automatizados (arquivos): **163** · scripts do painel: **51**
+- Módulos em `src/`: **158** · testes automatizados (arquivos): **164** · scripts do painel: **51**
 - Rotas da API em `server.js`: **550** · tarefas agendadas (`setInterval`): **23** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
@@ -24,7 +24,7 @@
 - Configuração nova vai em `settings` com **valor padrão** em `store.js`; mudança em dado já existente usa **migração de uma vez** com selo (veja abaixo), nunca sobrescreve o que o painel salvou.
 - Nada de segredo no código. Dados reais ficam em `data/` e nunca no Git.
 
-## Módulos (157)
+## Módulos (158)
 | Módulo | Linhas | Para que serve | Quem usa | Testes |
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
@@ -68,7 +68,7 @@
 | `collections.js` | 138 | Cobrança de vencidos e previsão de recebimento. | `server.js` | 2 |
 | `commissions.js` | 184 | Níveis de comissão (por meta de vendas do mês) e saques de comissão. | `server.js` | 2 |
 | `commitments.js` | 78 | Compromissos marcados com clientes (horários do calendário e videochamadas): a atendente chama o cliente NA HORA marcada | `server.js` | 1 |
-| `connection.js` | 182 | Gerencia as conexões: WhatsApp (QR Code ou API oficial da Meta, um de cada vez) | `server.js` | 4 |
+| `connection.js` | 193 | Gerencia as conexões: WhatsApp (QR Code ou API oficial da Meta, um de cada vez) | `server.js` | 5 |
 | `contabil.js` | 320 | Painel da Migra Contábil Paraguay: a carteira de empresas clientes do escritório contábil. | `server.js` | 1 |
 | `contract-cards.js` | 96 | Quadros dos contratos (um por contrato, com prévia), busca, filtros e a consulta que a IA faz sobre o contrato do PRÓPRIO cliente. | `server.js` | 1 |
 | `contract-pix.js` | 56 | REGRA: o Pix do que foi combinado (normalmente a reserva/entrada) vai ao cliente DEPOIS que ele assina o contrato (ordem do Marcos: ficha, assinatura, Pix). | `server.js` | 2 |
@@ -161,8 +161,9 @@
 | `security.js` | 119 | Segurança do login: verificação em duas etapas (código do app autenticador, padrão TOTP/RFC 6238), | `server.js` | 28 |
 | `seller-commands.js` | 147 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 3 |
 | `seller-pipeline.js` | 67 | Pipeline por vendedor: para cada pessoa da equipe (Eliezer, Giovana, Diego, Fran, Marcos…), quem ela está atendendo, quem recebeu orçamento, | `campanhas-funil.js`, `server.js` | 1 |
+| `send-guard.js` | 60 | Proteção do número contra bloqueio do WhatsApp: cada número (conta) envia com intervalo mínimo variável entre mensagens, um teto por minuto | `server.js` | 1 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 6059 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 6072 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |

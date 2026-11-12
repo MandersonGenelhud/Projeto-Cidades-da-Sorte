@@ -12,17 +12,21 @@ export const accountOf = (to) => {
   if (s.startsWith(LINE_PREFIX)) return `linha:${s.split(':')[1]}`;
   return s.startsWith(IG_PREFIX) ? 'instagram' : 'principal';
 };
+/** O destinatário (só os dígitos do número), igual para "l:linha:5545...@s.whatsapp.net" e "5545...". */
+const destOf = (to) => (String(to).split(':').pop().split('@')[0] || '').replace(/\D/g, '');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export class ConnectionManager extends EventEmitter {
-  constructor({ store, clients, instagram = null, lines = null, quietMs = 6000, maxQuietWaitMs = 20_000 }) {
+  constructor({ store, clients, instagram = null, lines = null, quietMs = 6000, maxQuietWaitMs = 20_000, guard = null }) {
     super();
+    this.guard = guard; // proteção do número (src/send-guard.js): intervalo, teto por minuto e de contatos novos por hora
     // Uma mensagem de cada vez em cada conta: duas respostas automáticas nunca saem juntas pelo mesmo número (contas diferentes seguem em paralelo).
     this.sendChain = new Map(); // conta → fim da última mensagem na fila
     this.humanAt = new Map(); // conta → quando a pessoa da equipe digitou pelo celular pela última vez
     this.quietMs = quietMs;
     this.maxQuietWaitMs = maxQuietWaitMs;
     this.on('ownerMessage', (msg) => this.humanAt.set(accountOf(msg?.jid), Date.now()));
+    this.on('message', (msg) => { if (msg?.jid) this.guard?.noteInbound(accountOf(msg.jid), destOf(msg.jid)); });
     this.store = store;
     this.lines = lines; // LineManager: números da equipe (chaves "l:…")
     if (lines) {
@@ -102,7 +106,14 @@ export class ConnectionManager extends EventEmitter {
     const run = async () => {
       const wait = Math.min(this.maxQuietWaitMs, Math.max(0, (this.humanAt.get(account) || 0) + this.quietMs - Date.now()));
       if (wait > 0 && payload?.auto !== false) await sleep(wait);
-      return this.#sendNow(to, payload);
+      // Proteção do número: espera a vez (intervalo e teto por minuto); contato novo além do teto da hora é recusado.
+      if (this.guard && !String(to).startsWith(IG_PREFIX)) {
+        const g = this.guard.plan(account, destOf(to), { team: payload?.team === true });
+        if (g > 0) await sleep(g);
+      }
+      const result = await this.#sendNow(to, payload);
+      if (this.guard && !String(to).startsWith(IG_PREFIX)) this.guard.record(account, destOf(to), { team: payload?.team === true });
+      return result;
     };
     const next = prev.catch(() => {}).then(run);
     this.sendChain.set(account, next.catch(() => {}));

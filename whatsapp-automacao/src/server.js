@@ -15,6 +15,7 @@ import { Store } from './store.js';
 import { WhatsAppClient } from './transports/whatsapp-web.js';
 import { CloudApiClient } from './transports/cloudapi.js';
 import { InstagramClient } from './transports/instagram.js';
+import { SendGuard, SAFETY_DEFAULTS } from './send-guard.js';
 import { ConnectionManager } from './connection.js';
 import { CampaignRunner } from './campaigns.js';
 import { AutoReply } from './autoreply.js';
@@ -194,7 +195,17 @@ const lines = new LineManager({
   dataDir: DATA_DIR,
   createClient: ({ authDir }) => new WhatsAppClient({ authDir, logLevel: process.env.LOG_LEVEL || 'silent' }),
 });
+// Proteção dos números contra bloqueio (intervalo entre mensagens, teto por minuto e de contatos novos por hora). Ajustável em settings.connection.safety.
+const sendGuard = new SendGuard({
+  config: () => ({ ...SAFETY_DEFAULTS, ...(store.settings.connection?.safety || {}) }),
+  // Quem já escreveu para este número (conversa guardada) não é contato novo.
+  isKnown: (account, dest) => {
+    const key = account === 'principal' ? `${dest}@s.whatsapp.net` : account.startsWith('linha:') ? `l:${account.slice(6)}:${dest}@s.whatsapp.net` : '';
+    return Boolean(key && (store.data.conversations?.[key]?.messages || []).some((m) => m.role === 'user'));
+  },
+});
 const wa = new ConnectionManager({
+  guard: sendGuard,
   store,
   instagram,
   lines,
@@ -277,7 +288,8 @@ const teamSend = async (phone, payload) => {
   let lastErr = null;
   for (const r of routes) {
     try {
-      return r.via === 'main' ? await wa.send(phone, payload) : await wa.send(lineKey(r.line.id, `${String(phone).replace(/\D/g, '')}@s.whatsapp.net`), payload);
+      const p = isTeamPhone(auth.users, phone) ? { ...payload, team: true } : payload; // aviso à equipe não conta como contato novo
+      return r.via === 'main' ? await wa.send(phone, p) : await wa.send(lineKey(r.line.id, `${String(phone).replace(/\D/g, '')}@s.whatsapp.net`), p);
     } catch (e) { lastErr = e; }
   }
   throw lastErr;
@@ -1252,7 +1264,7 @@ agent.channelNote = (conv) => {
   if (!owner) return '';
   const first = owner.name.split(' ')[0];
   const memory = line?.memory ? `\n\n# Memória deste agente (orientações de ${first}, valem para os clientes deste número)\n${line.memory}` : '';
-  return `Você atende pelo WhatsApp de ${owner.name}, consultor(a) da equipe. Os clientes daqui são de ${first}. Apresente-se como a assistente de ${first} na Migra (ex.: "Oi! Aqui é a assistente de ${first}, da Migra"). ${first} acompanha as conversas e assume quando o cliente precisar. Não encaminhe para outro vendedor: este cliente já é de ${first}.${memory}`;
+  return `Você atende pelo WhatsApp de ${owner.name}, consultor(a) da equipe. Os clientes daqui são de ${first}. Apresente-se como a assistente de ${first} na Migra (ex.: "Oi! Aqui é a assistente de ${first}, da Migra"). ${first} acompanha as conversas e assume quando o cliente precisar. Não encaminhe para outro vendedor: este cliente já é de ${first}. Cuidado com o número pessoal dele(a): responda com calma e em poucas mensagens curtas, uma de cada vez; não mande links, arquivos ou áudios sem o cliente pedir; não puxe conversa com quem não respondeu.${memory}`;
 };
 // Histórico de orçamentos deste número (inclusive os desativados por prazo): a IA retoma de onde o cliente parou.
 agent.quoteContext = (conv) => {
@@ -2437,6 +2449,7 @@ function healthReport() {
   { const stuckN = centralStuck().length; if (stuckN) add('bad', `${stuckN} conversa(s) em que a Central DISSE que encaminhou ao vendedor, mas nenhum vendedor recebeu. Em Conversas, clique em "Corrigir agora".`); }
   { const cs = centralStats(); if (cs.auto) add('warn', `A rede de segurança da Central já encaminhou ${cs.auto} conversa(s) sozinha (a IA não tinha chamado a ferramenta)${cs.ultimoAuto ? `, a última em ${new Date(cs.ultimoAuto).toLocaleString('pt-BR')}` : ''}.${cs.semVendedor ? ` Em ${cs.semVendedor} não havia vendedor disponível: o aviso foi para os administradores.` : ''}`); }
   { const semZap = auth.users.filter((u) => u.active !== false && !u.pending && !u.whatsapp && (u.receivesLeads ?? u.role === 'seller') && !u.trafficOnly && !isCentralUser(u)); if (semZap.length) add('warn', `No rodízio mas SEM WhatsApp cadastrado (não recebem aviso nenhum): ${semZap.map((u) => u.name.split(' ')[0]).join(', ')}. Cadastre o número em Equipe.`); }
+  { const sf = { ...SAFETY_DEFAULTS, ...(store.settings.connection?.safety || {}) }; add(sf.enabled ? 'ok' : 'warn', sf.enabled ? `Proteção contra bloqueio ligada: intervalo de ${Math.round(sf.minGapMs / 1000)} a ${Math.round((sf.minGapMs + sf.jitterMs) / 1000)} s entre mensagens, no máximo ${sf.perMinute} por minuto e ${sf.newPerHour} contatos novos por hora em cada número.` : 'A proteção contra bloqueio está DESLIGADA: risco de o WhatsApp bloquear os números.'); }
   if (!teamCanSend()) add('bad', 'Nenhum WhatsApp está conectado para avisar a equipe: vendedores e administradores NÃO recebem os avisos de cliente novo, contrato e pagamento.');
   const csNames = centralSellerNames();
   const vend = auth.users.filter(isSellerForCentral);
@@ -5316,7 +5329,7 @@ app.post('/api/central/stuck/fix', async (req, res) => {
         const r = await centralAutoForward(x.conv, { tellClient: false, why: 'Encaminhado pela vistoria da Central (estava parado sem chegar a um vendedor)' });
         if (!r.skipped) { centralFixJob.ok += 1; const who = r.closer || (r.segment !== 'documentacao' ? `setor ${r.segment === 'loteamentos' ? 'imóveis' : 'veículos'}` : 'administradores (sem vendedor)'); centralFixJob.porVendedor[who] = (centralFixJob.porVendedor[who] || 0) + 1; if (!r.closer && r.segment === 'documentacao') centralFixJob.semVendedor += 1; }
       } catch (e) { centralFixJob.falhas += 1; store.addLog({ type: 'error', message: `Vistoria da Central: ${e.message}` }); }
-      await sleep(2000);
+      await sleep(20_000 + Math.floor(Math.random() * 20_000)); // devagar: protege a Central e não enterra o WhatsApp dos vendedores
     }
   })().finally(() => { centralFixJob.running = false; centralFixJob.endedAt = new Date().toISOString(); store.addLog({ type: 'system', message: `Vistoria da Central: ${centralFixJob.ok} encaminhado(s) (${Object.entries(centralFixJob.porVendedor).map(([k, v]) => `${k}: ${v}`).join(', ')}), ${centralFixJob.falhas} falha(s)` }); });
 });
