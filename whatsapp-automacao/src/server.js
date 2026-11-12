@@ -30,6 +30,7 @@ import { Learnings } from './learnings.js';
 import { ReceiptReader } from './receipts.js';
 import { ClientProofs } from './client-proof.js';
 import { Traffic, trafficRouteAllowed } from './traffic.js';
+import { BulkHandoff } from './bulk-handoff.js';
 import { FunnelSync } from './funnel-sync.js';
 import { OWNER_PAUSE } from './agent/agent.js';
 import { Migratech } from './migratech.js';
@@ -294,10 +295,13 @@ const centralSellerNames = () => (store.settings.crm?.centralSellers || []).map(
 const centralSellerMatch = (u, names = centralSellerNames()) => { const un = normNome(u.name); return names.some((n) => { const x = normNome(n); return un === x || un.startsWith(`${x} `); }); };
 const isCentralUser = (u) => /^central\b/i.test(String(u?.name || '')) || lines.list().some((l) => l.central === true && l.ownerId === u?.id);
 const isSellerForCentral = (u) => u.active !== false && !u.pending && u.whatsapp && !isCentralUser(u) && !isOwner(u, store.settings.crm?.ownerPhone) && (u.receivesLeads ?? u.role === 'seller') && (!u.sectors?.length || u.sectors.includes('documentacao'));
-const centralPoolFor = (conv) => {
+// A conversa é de uma "mesa de entrada" (Central, ou o número principal quando crm.mainAsCentral está ligado)? Aí o cliente vai para o rodízio dos vendedores.
+const mainAsCentral = () => store.settings.crm?.mainAsCentral !== false;
+const centralPoolFor = (conv, force = false) => {
   const parsed = parseLineKey(conv?.key);
   const line = parsed ? lines.get(parsed.id) : null;
-  if (!line || !isCentralLine(line, line.ownerId ? auth.get(line.ownerId) : null)) return null;
+  const desk = force || (line ? isCentralLine(line, line.ownerId ? auth.get(line.ownerId) : null) : (!parsed && mainAsCentral() && !String(conv?.key || '').startsWith('ig:')));
+  if (!desk) return null;
   const names = centralSellerNames();
   return (u) => isSellerForCentral(u) && (!names.length || centralSellerMatch(u, names));
 };
@@ -832,7 +836,7 @@ async function startSellerAi({ person, line, conv, lead, phone, who }) {
 }
 sectors.aiLineFor = (person) => sellerAiLine(person);
 sectors.startOnLine = (args) => startSellerAi(args);
-async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', auto = false }) {
+async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', auto = false, forceRotation = false }) {
   convKey ||= conv?.key;
   conv ||= agent.conversation(convKey, { create: false }) || { key: convKey, messages: [] };
   const parsed = parseLineKey(convKey);
@@ -843,9 +847,11 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
   // documentação (Camila e Fran); o Marcos não recebe mais vendas.
   // Número da CENTRAL: o dono da linha é a própria Central (não é vendedor). Quem recebe o cliente são os vendedores da Central (ex.: Geovana e Fran), em rodízio.
   const centralLine = Boolean(parsed) && isCentralLine(lines.get(parsed.id), lineOwner);
-  let closer = lineOwner && !centralLine && !isOwner(lineOwner, ownerPhone) ? lineOwner : null;
-  if (!closer && centralLine) {
-    const pool = centralPoolFor({ key: convKey });
+  // "Mesa de entrada": a Central, o número principal (com mainAsCentral ligado) ou o encaminhamento em lote: o cliente vai para o rodízio dos vendedores.
+  const entryDesk = centralLine || forceRotation || (!parsed && mainAsCentral() && !String(convKey || '').startsWith('ig:'));
+  let closer = lineOwner && !entryDesk && !isOwner(lineOwner, ownerPhone) ? lineOwner : null;
+  if (!closer && entryDesk) {
+    const pool = centralPoolFor({ key: convKey }, forceRotation);
     closer = (lead ? crm.routeLead(lead, { reason: 'direcionado pela Central de Atendimento', pool, fallback: true }) : crm.nextSeller(pool)) || null;
   }
   if (!closer) {
@@ -870,7 +876,7 @@ async function forwardToSeller({ conv, convKey, lead, brief = {}, reason = '', a
   const who = lead?.name || conv.name || (phone ? `+${phone}` : 'Cliente');
   const preview = chatPreview(conv, 10);
   const q = lead?.qualification || {};
-  const aiLine = centralLine && closer && phone ? sellerAiLine(closer) : null;
+  const aiLine = entryDesk && closer && phone ? sellerAiLine(closer) : null;
   const text = [
     auto ? `⏰ *Cliente não pagou a entrada: continue com ele*` : '🤝 *Cliente para você continuar o atendimento*',
     `👤 ${who}${phone ? ` · +${phone}` : ''}${lead?.code ? ` · ${lead.code}` : ''}`,
@@ -925,7 +931,7 @@ agent.closeHandoff = async (conv, args, { dryRun } = {}) => {
   const { closer, ai } = await forwardToSeller({ conv, lead, brief, reason: args.objecao ? `Receio: ${args.objecao}` : '' });
   const parsedC = parseLineKey(conv.key);
   const lineC = parsedC ? lines.get(parsedC.id) : null;
-  if (lineC && isCentralLine(lineC, lineC.ownerId ? auth.get(lineC.ownerId) : null) && closer?.name) {
+  if (((lineC && isCentralLine(lineC, lineC.ownerId ? auth.get(lineC.ownerId) : null)) || (!parsedC && mainAsCentral() && !String(conv.key).startsWith('ig:'))) && closer?.name) {
     const first = closer.name.split(' ')[0];
     const sayC = `Já passei o seu atendimento para ${first}, da nossa equipe, com tudo o que conversamos. ${first} vai entrar em contato com você ${ai?.mode === 'ia' ? 'pelo WhatsApp dele(a) em instantes, a assistente já está te chamando' : 'em instantes'}.`;
     return { ok: true, quem: first, instrucao: `Diga ao cliente exatamente: "${sayC}" Não passe o número pessoal de ninguém. Se ele escrever de novo aqui, diga em uma frase que o atendimento já está com a equipe; não refaça perguntas.` };
@@ -1229,6 +1235,8 @@ agent.channelNote = (conv) => {
   const line = parsed ? lines.get(parsed.id) : null;
   const owner = line?.ownerId ? auth.get(line.ownerId) : null;
   if (line && isCentralLine(line, owner)) return centralNote({ ...line, sellers: centralSellerNames().map((n) => n.split(' ')[0]) });
+  // Número principal como mesa de entrada: a IA só pergunta o interesse e encaminha ao rodízio (ligado por padrão; desligue em crm.mainAsCentral).
+  if (!parsed && mainAsCentral() && !String(conv.key).startsWith('ig:') && !String(conv.key).startsWith('sim:')) return centralNote({ sellers: centralSellerNames().map((n) => n.split(' ')[0]) });
   if (!owner) return '';
   const first = owner.name.split(' ')[0];
   const memory = line?.memory ? `\n\n# Memória deste agente (orientações de ${first}, valem para os clientes deste número)\n${line.memory}` : '';
@@ -1654,7 +1662,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/trafego.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js', '/contabil-painel.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/trafego.js', '/encaminhar-lote.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js', '/contabil-painel.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -5127,6 +5135,33 @@ const funnel = new FunnelSync({
 const funnelOne = (leadId) => { try { if (leadId) funnel.reconcileOne(leadId); } catch (e) { store.addLog({ type: 'error', message: `Funil automático: ${e.message}` }); } };
 app.get('/api/funnel', (req, res) => { needAdmin(req); res.json(funnel.reconcile({ dryRun: true })); });
 app.post('/api/funnel/reconcile', (req, res) => { needAdmin(req); const r = funnel.reconcile(); securityEvent('funil_conferido', req.user, req, `${r.changed} prospecto(s) movido(s)`); res.json(r); });
+// Encaminhar em lote os atendimentos que a IA conduz hoje: mensagem ao cliente + resumo ao vendedor do segmento (src/bulk-handoff.js).
+const bulkHandoff = new BulkHandoff({
+  store, crm,
+  conversations: () => Object.values(store.data.conversations || {}),
+  isClient: (lead) => isClientOfMigra(lead),
+  humanSpoke: (conv) => humanSpokeConv(conv),
+  isTeamPhone: (phone) => isTeamPhone(auth.users, phone),
+  canSend: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected'),
+  send: (key, text) => wa.send(key, { text, typing: false }),
+  remember: (conv, role, text) => agent.remember(conv, role, text),
+  audit: (text) => securityEvent('encaminhamento_em_lote', 'Sistema', null, text),
+  forward: async ({ conv, lead, segment }) => {
+    const resumo = lead.aiSummary || `Atendimento em andamento com a IA${lead.interest ? ` (interesse: ${lead.interest})` : ''}. Encaminhado em lote para os vendedores.`;
+    if (segment === 'documentacao') await forwardToSeller({ conv, lead, brief: { resumo }, reason: 'Encaminhado em lote pela direção', forceRotation: true });
+    else await sectors.route(conv, { setor: segment, resumo, nome: lead.name });
+  },
+});
+app.get('/api/handoff-bulk', (req, res) => { needAdmin(req); res.json(bulkHandoff.preview()); });
+app.post('/api/handoff-bulk/start', (req, res) => {
+  needAdmin(req);
+  const h = Number(new Date().toLocaleString('en-GB', { timeZone: 'America/Asuncion', hour: '2-digit', hour12: false }));
+  if (h < 8 || h >= 20) throw httpError(400, 'Só envio entre 8h e 20h (hora do Paraguai), para não incomodar os clientes.');
+  const r = bulkHandoff.start({ limit: req.body?.limit });
+  securityEvent('encaminhamento_em_lote_iniciado', req.user, req, `${r.total} atendimento(s)`);
+  res.json(r);
+});
+app.post('/api/handoff-bulk/stop', (req, res) => { needAdmin(req); bulkHandoff.stop(); res.json({ ok: true }); });
 // Tráfego: novos contatos por dia, por número e por anúncio (gestão de tráfego). Só números agregados.
 const traffic = new Traffic({
   store, crm,

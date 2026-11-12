@@ -47,6 +47,7 @@ const DEFAULT_DATA = {
       panelUrl: '', // endereço do painel na internet, para o link da ficha no aviso ao vendedor
       ownerPhone: '', // WhatsApp do Marcos: parcerias e assuntos de negócio vão direto para ele
       centralSellers: [], // vendedores que a Central direciona (nomes), em rodízio; vazio = rodízio comum de todos
+      mainAsCentral: true, // o número principal também é mesa de entrada: a IA pergunta só o interesse e encaminha ao rodízio dos vendedores
       centralWhatsapp: '', // WhatsApp da Central de Atendimento: os botões "Falar com um especialista" do site e da live abrem este número (vazio = rodízio direto entre vendedores)
       jobsContact: [{ name: 'Diego', whatsapp: '' }], // quem quer trabalhar na Migra (só o nome = WhatsApp da Equipe)
       mentoring: { enabled: true, price: 400, currency: 'USD', minutes: 60, priceBRL: 0 }, // priceBRL: valor do Pix em reais (0 = US$ × cotação do painel) // mentoria com o Marcos Miguel (único atendimento direto com ele)

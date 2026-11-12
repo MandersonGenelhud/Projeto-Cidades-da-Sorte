@@ -160,6 +160,11 @@
   "encrypt",
   "loadKey"
  ],
+ "src/bulk-handoff.js": [
+  "BULK_MESSAGE",
+  "BulkHandoff",
+  "segmentOf"
+ ],
  "src/campaigns.js": [
   "CampaignRunner"
  ],
