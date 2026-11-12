@@ -4,16 +4,32 @@ import { professionalTone } from './agent/greeting.js';
 
 export const DEFAULT_HUMANIZE = {
   enabled: true,
-  noticeMin: 5, // segundos até "ver" a mensagem
-  noticeMax: 20,
-  quietSeconds: 6, // espera o cliente parar de mandar mensagens
-  maxWaitSeconds: 60, // nunca espera mais que isso para começar
-  typingCharsPerSecond: 7, // ~ 80 palavras por minuto no celular
-  maxTypingSeconds: 25, // limite do "digitando…" por mensagem
+  noticeMin: 20, // segundos até "ver" a mensagem (ritmo seguro: protege o número contra bloqueio)
+  noticeMax: 60,
+  quietSeconds: 10, // espera o cliente parar de mandar mensagens
+  maxWaitSeconds: 90, // nunca espera mais que isso para começar
+  typingCharsPerSecond: 4, // digitação calma no celular
+  maxTypingSeconds: 40, // limite do "digitando…" por mensagem
   splitMessages: true, // ideias separadas viram mensagens separadas
 };
 
-export const humanizeConfig = (cfg) => ({ ...DEFAULT_HUMANIZE, ...(cfg || {}) });
+/**
+ * PISO DE SEGURANÇA (direção, 12/11/2026): resposta rápida demais é o que mais chama a atenção do WhatsApp. Mesmo que alguma configuração
+ * antiga esteja mais rápida, a IA nunca fica abaixo destes tempos. Só `safeFloor: false` (decisão explícita do administrador) tira o piso.
+ */
+export const SAFE_FLOOR = { noticeMin: 20, noticeMax: 60, quietSeconds: 10, maxWaitSeconds: 90, typingCharsPerSecond: 4, maxTypingSeconds: 40 };
+
+export const humanizeConfig = (cfg) => {
+  const c = { ...DEFAULT_HUMANIZE, ...(cfg || {}) };
+  if (c.enabled === false || c.safeFloor === false) return c;
+  c.noticeMin = Math.max(Number(c.noticeMin) || 0, SAFE_FLOOR.noticeMin);
+  c.noticeMax = Math.max(Number(c.noticeMax) || 0, SAFE_FLOOR.noticeMax, c.noticeMin + 10);
+  c.quietSeconds = Math.max(Number(c.quietSeconds) || 0, SAFE_FLOOR.quietSeconds);
+  c.maxWaitSeconds = Math.max(Number(c.maxWaitSeconds) || 0, SAFE_FLOOR.maxWaitSeconds);
+  c.typingCharsPerSecond = Math.min(Number(c.typingCharsPerSecond) || SAFE_FLOOR.typingCharsPerSecond, SAFE_FLOOR.typingCharsPerSecond);
+  c.maxTypingSeconds = Math.max(Number(c.maxTypingSeconds) || 0, SAFE_FLOOR.maxTypingSeconds);
+  return c;
+};
 
 /** Tempo até perceber a mensagem (aleatório, como alguém olhando o celular). */
 export function noticeDelayMs(cfg) {

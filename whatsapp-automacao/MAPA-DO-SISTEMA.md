@@ -95,7 +95,7 @@
 | `funnel-sync.js` | 90 | Funil sempre em dia: o sistema confere o que realmente aconteceu com cada cliente (contrato enviado, contrato assinado, pagamento recebido) | `server.js` | 1 |
 | `group-brief.js` | 120 | Resumo AO VIVO do Grupo Migra para a Maria (a secretária da equipe): imóveis e loteamentos, financiamento de lotes, veículos, | `server.js` | 2 |
 | `group-broadcast.js` | 107 | Envio da MESMA postagem (texto + imagem ou vídeo) para vários grupos do WhatsApp, UM DE CADA VEZ, com pausa aleatória entre eles. | `server.js` | 1 |
-| `humanize.js` | 82 | Ritmo humano: quanto tempo uma pessoa levaria para ver, ler e digitar. | `agent/agent.js`, `pending.js`, `server.js` | 2 |
+| `humanize.js` | 98 | Ritmo humano: quanto tempo uma pessoa levaria para ver, ler e digitar. | `agent/agent.js`, `pending.js`, `server.js` | 2 |
 | `lead-brief.js` | 77 | Ficha do vendedor: a conversa COMPLETA que o cliente teve antes de chegar a ele (Instagram, site ou WhatsApp, em ordem de tempo) e um resumo | `server.js` | 1 |
 | `lead-repair.js` | 56 | Conversas que a atendente respondeu mas não viraram prospecto no CRM (nada gravado para o vendedor ver): cria o prospecto que faltou. | `routes/controle.js` | 1 |
 | `learnings.js` | 90 | Aprendizados de vendas: a cada venda confirmada, a IA lê a conversa e anota o que funcionou | `server.js` | 1 |

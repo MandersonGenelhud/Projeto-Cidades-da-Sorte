@@ -723,3 +723,6 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Envios em lote mais devagar**: "Encaminhar todos os pendentes" passou a avisar um vendedor a cada 20 a 40 s (antes 2 s); o encaminhamento em lote dos atendimentos segue em 20 a 45 s e só entre 8h e 20h.
 - **IA no número pessoal do vendedor** (quando ligada): orientação de responder com calma, em poucas mensagens curtas, sem links/arquivos/áudios não pedidos e sem puxar conversa com quem não respondeu.
 - Teste: `test/protecao-numero.test.js`.
+
+## IA mais lenta: piso de segurança no ritmo das respostas (12/11/2026)
+- Por decisão da direção (risco de bloqueio), a IA ficou bem mais lenta e tem um **piso** que vale mesmo se alguma configuração antiga estiver mais rápida (`SAFE_FLOOR` em `src/humanize.js`): espera de **20 a 60 s** para "ver" a mensagem, espera o cliente parar de escrever por **10 s**, digita a **4 letras por segundo** (até 40 s por mensagem), no máximo **3 mensagens** por resposta, com **3 a 8 s** entre elas. Configuração mais lenta que o piso é respeitada; só `safeFloor: false` (decisão explícita) tira o piso. Teste: `test/humanize.test.js`.

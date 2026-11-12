@@ -15,7 +15,7 @@ import { detectClosedByMessages } from '../closed-signals.js';
 
 const MAX_STORED_MESSAGES = 200;
 const MAX_TOOL_ROUNDS = 6;
-const randomPause = () => 600 + Math.floor(Math.random() * 1400); // entre uma mensagem e outra
+const randomPause = () => 3000 + Math.floor(Math.random() * 5000); // entre uma mensagem e outra: 3 a 8 s (ritmo seguro)
 
 export const OWNER_PAUSE = 'Você respondeu pelo celular';
 
@@ -699,7 +699,7 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       // Se chegaram mais mensagens enquanto a IA pensava, responde tudo junto.
       if (q.pending.length) continue;
 
-      const bubbles = human && h.splitMessages ? splitIntoBubbles(result.text) : [result.text];
+      const bubbles = human && h.splitMessages ? splitIntoBubbles(result.text, 3) : [result.text]; // no máximo 3 mensagens seguidas por resposta
       this.remember(conv, 'assistant', bubbles.join('\n\n'));
       const thinking = Date.now() - thinkStart;
       for (const [i, bubble] of bubbles.entries()) {

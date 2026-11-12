@@ -367,6 +367,7 @@
  ],
  "src/humanize.js": [
   "DEFAULT_HUMANIZE",
+  "SAFE_FLOOR",
   "humanizeConfig",
   "noticeDelayMs",
   "readingTimeMs",
