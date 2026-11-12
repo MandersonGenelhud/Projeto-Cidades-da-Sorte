@@ -700,3 +700,6 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Ordem**: na mesa de entrada, a conferência do encaminhamento roda **antes** de a resposta sair para o cliente: o vendedor é avisado primeiro e só depois o cliente lê que foi encaminhado.
 - **Entrega registrada**: cada encaminhamento guarda quando o aviso chegou ao vendedor (`handoff.notifiedAt`). Conversa encaminhada nos últimos 3 dias **sem** aviso entregue entra na lista "Corrigir agora" e é reenviada (inclusive as de hoje, que eram de antes deste registro). Encaminhamento antigo não é mexido.
 - **Vendedor novo**: ao cadastrar alguém na Equipe, a pessoa aparece na hora em Conexões WhatsApp para conectar, e a ficha dela na Equipe ganha o botão "Conectar WhatsApp". Aparece toda pessoa ativa que atende (não só o papel "Vendedor"); quem é só do Tráfego fica de fora.
+
+## Troca de nome de alguém da Equipe (12/11/2026)
+- Ao trocar o nome de uma pessoa (Equipe → Editar), o número de WhatsApp dela em Conexões passa a mostrar o nome novo também, e a troca fica no registro de segurança (nome antigo → nome novo). Login, senha, clientes e histórico continuam os mesmos.

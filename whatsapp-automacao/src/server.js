@@ -4215,7 +4215,14 @@ app.patch('/api/users/:id', (req, res) => {
   // Virar (ou deixar de ser) administrador geral: só outro administrador geral faz, nunca em si mesmo; fica no registro de segurança e os demais são avisados.
   const roleChange = body.role !== undefined && (body.role === 'admin') !== (target.role === 'admin');
   if (roleChange && target.id === req.user.id) throw httpError(403, 'Você não pode mudar o seu próprio nível de acesso. Peça a outro administrador geral.');
+  const oldName = target.name;
   const user = auth.update(req.params.id, body);
+  // Nome trocado: o número de WhatsApp da pessoa (Conexões) passa a mostrar o nome novo também.
+  if (body.name !== undefined && String(body.name).trim() && String(body.name).trim() !== oldName) {
+    const line = lines.byOwner?.(target.id);
+    if (line) lines.update(line.id, { label: String(body.name).trim() });
+    securityEvent('nome_alterado', req.user, req, `${oldName} → ${String(body.name).trim()}`);
+  }
   if (body.password) { loginGuard.unlock(target.login); securityEvent('acesso_liberado', req.user, req, `${target.name}: senha trocada, tentativas zeradas`); } // senha nova também tira o bloqueio por tentativas
   if (roleChange) {
     const made = user.role === 'admin';
