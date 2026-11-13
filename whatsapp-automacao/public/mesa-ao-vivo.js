@@ -15,6 +15,7 @@
     const r = await api('/api/live-desk');
     const ce = await api('/api/clientes-esperando').catch(() => null);
     const ceShow = ce && ce.linhas?.length;
+    const dg = ce?.linhas?.length ? await api('/api/diagnostico-numero').catch(() => null) : null;
     box.hidden = false;
     const naoEntregues = r.encaminhados.filter((x) => !x.entregue).length;
     const esperaHtml = ceShow ? (() => {
@@ -27,7 +28,8 @@
         ${j.running ? `<p class="hint"><b>Atendendo…</b> ${j.iniciados} de ${j.total}${j.atual ? ` · agora: ${esc(j.atual)}` : ''}</p><button class="btn danger" data-a="ceStop">Parar</button>` : `<button class="btn primary" data-a="ceStart" ${prontos ? '' : 'disabled'}>Atender agora (${prontos})</button>`}
       </div>`;
     })() : '';
-    box.innerHTML = `${esperaHtml}<h2>Ao vivo: hoje</h2>
+    const dgHtml = dg ? `<details ${dg.problemas ? 'open' : ''} style="margin-bottom:12px"><summary><b>Diagnóstico da IA do seu WhatsApp</b> ${dg.problemas ? `<span class="badge canceled">${dg.problemas} problema(s)</span>` : '<span class="badge running">tudo certo</span>'}</summary><div class="meta" style="white-space:pre-wrap;margin-top:6px">${esc(dg.linhas.join('\n'))}</div></details>` : '';
+    box.innerHTML = `${dgHtml}${esperaHtml}<h2>Ao vivo: hoje</h2>
       <p class="hint">Atualiza sozinho a cada 10 segundos. Clique em um cliente para ver a conversa completa logo abaixo.</p>
       <div class="grid2" style="align-items:start">
         <div><h3>Clientes novos (${r.novos.length})</h3><div style="max-height:40vh;overflow:auto">

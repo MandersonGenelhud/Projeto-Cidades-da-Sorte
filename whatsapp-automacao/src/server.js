@@ -52,6 +52,7 @@ import { Personal } from './personal.js';
 import { planPdfPrice, loadPlanPdf } from './plano-pdf.js';
 import { registerFechamentosRoutes } from './routes/fechamentos.js';
 import { registerClientesEsperandoRoutes } from './routes/clientes-esperando.js';
+import { registerDiagnosticoNumeroRoutes, diagnosisText } from './routes/diagnostico-numero.js';
 import { FlashOffer } from './flash-offer.js';
 import { GroupBroadcasts } from './group-broadcast.js';
 import { Campaigns } from './campanhas.js';
@@ -3275,6 +3276,12 @@ app.post('/api/group-broadcasts/:id/:action', (req, res) => {
 });
 app.delete('/api/group-broadcasts/:id', (req, res) => { needAdmin(req); groupBroadcasts.remove(req.params.id); res.json({ ok: true }); });
 registerFechamentosRoutes(app, { campanhas, flashOffer, wa, needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), store, crm, quotes, payments, dataDir: DATA_DIR });
+// "Por que a minha IA não responde?": diagnóstico do próprio número (atalho /diagnostico e GET /api/diagnostico-numero).
+const diagnosticoNumero = registerDiagnosticoNumeroRoutes(app, {
+  store, agent, wa, lines, pending,
+  isWithinWorkHours: () => isWithinWorkHours(store.settings.agent?.workHours),
+  convWhyNot: (conv) => convWhyNot(conv),
+});
 // Clientes da Migra que ficaram sem resposta no WhatsApp dos vendedores (e os "Só um momento"): a IA do número começa a atender, um de cada vez.
 const clientesEsperando = registerClientesEsperandoRoutes(app, {
   store, agent, wa, lines, sleep,
@@ -4874,13 +4881,23 @@ const sellerCommands = makeSellerCommands({
   packages: () => [...(store.settings.crm?.packages || []), ...serviceCatalog.activeNames()],
   say: async (convKey, text) => { await wa.send(convKey, { text, typing: false }); const c = agent.conversation(convKey, { create: false }); if (c) agent.remember(c, 'assistant', text); },
   tell: async (owner, text) => {
-    if (owner?.whatsapp) return wa.send(owner.whatsapp, { text, typing: false });
+    // A resposta do atalho volta na conversa "Você" do próprio WhatsApp onde ele foi digitado (antes ia pelo número principal, que pode estar
+    // desligado: a resposta do /ia, /retomar ou o aviso do "Só um momento" se perdia sem ninguém saber).
+    if (owner?.replyTo && wa.isConnected(owner.replyTo)) return wa.send(owner.replyTo, { text, typing: false, team: true });
+    if (owner?.whatsapp) return teamSend(owner.whatsapp, { text, typing: false });
     store.addLog({ type: 'error', message: `Atalho: não sei para qual número mandar a resposta (cadastre o WhatsApp do Marcos em Configurações). ${text.slice(0, 120)}` });
   },
   revoke: (jid, id) => wa.revoke(jid, id),
   // Quem digitou: o dono da linha (consultor) ou, no número principal, o administrador.
   // A resposta do atalho vai para o dono do número (Marcos ou o próprio número conectado, na conversa "Você"); nunca para o cliente.
-  ownerOf: (msg) => { const l = parseLineKey(msg.jid); const u = l ? auth.get(lines.get(l.id)?.ownerId) : null; return u || { name: 'Administração', role: 'admin', whatsapp: marcosPhone() }; },
+  ownerOf: (msg) => {
+    const l = parseLineKey(msg.jid);
+    const line = l ? lines.get(l.id) : null;
+    const u = line ? auth.get(line.ownerId) : null;
+    const own = String(line?.phone || '').replace(/\D/g, '');
+    const replyTo = line && own ? lineKey(line.id, `${own}@s.whatsapp.net`) : '';
+    return u ? { ...u, replyTo } : { name: 'Administração', role: 'admin', whatsapp: marcosPhone(), replyTo };
+  },
   sendQuote: (conv, args) => agent.sendQuote(conv, args),
   sendForm: (conv, args) => agent.sendForm(conv, args),
   setHandoff: (key, value, reason) => agent.setHandoff(key, value, reason),
@@ -4901,6 +4918,12 @@ const sellerCommands = makeSellerCommands({
       store.addLog({ type: 'autoreply', phone: conv.phone || msg.jid, message: text, rule: 'Atendente de IA (depois de "só um momento")' });
     });
     return { ok: true, respondendo: true };
+  },
+  diagnostico: (msg) => {
+    const lid = parseLineKey(msg.jid)?.id;
+    const line = lid ? lines.get(lid) : null;
+    if (!line) return 'Use /diagnostico no WhatsApp de um vendedor conectado ao sistema.';
+    return diagnosisText(line.label, diagnosticoNumero.forLine(line.id));
   },
   // /retomar (no WhatsApp do vendedor): a IA começa a atender os clientes da Migra que ficaram sem resposta naquele número.
   retomar: (msg) => {

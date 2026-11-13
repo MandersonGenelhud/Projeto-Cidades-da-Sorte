@@ -11,11 +11,12 @@ export const COMMANDS = {
   lembrar: { admin: false, help: '/lembrar amanhã 14h ligar para ele: cria uma tarefa com aviso para você' },
   status: { admin: false, help: '/status: mostra para você o contrato e as parcelas deste cliente' },
   retomar: { admin: false, help: '/retomar (na conversa "Você" ou em qualquer conversa): a IA começa a atender os clientes da Migra que ficaram sem resposta neste número, um de cada vez' },
+  diagnostico: { admin: false, help: '/diagnostico: mostra por que a IA do seu número não está respondendo (conexão, IA ligada, horário, fila e os clientes esperando)' },
   ajuda: { admin: false, help: '/ajuda: lista os atalhos' },
   resumo: { admin: true, help: '/resumo (administrador): vencidos, vencimentos e avisos do dia' },
   saude: { admin: true, help: '/saude (administrador): como está o WhatsApp, a IA e a fila' },
 };
-const ALIAS = { orçamento: 'orcamento', orcamentos: 'orcamento', 'orçamentos': 'orcamento', saúde: 'saude', contract: 'contrato', contratos: 'contrato', fichas: 'ficha', lembrete: 'lembrar' };
+const ALIAS = { diagnóstico: 'diagnostico', diag: 'diagnostico', orçamento: 'orcamento', orcamentos: 'orcamento', 'orçamentos': 'orcamento', saúde: 'saude', contract: 'contrato', contratos: 'contrato', fichas: 'ficha', lembrete: 'lembrar' };
 
 /**
  * Atalho NATURAL: o consultor escreve só "Só um momento" (ou "só um momentinho", "um momento, por favor") na conversa do cliente.
@@ -112,13 +113,18 @@ export function makeSellerCommands(deps) {
     if (cmd.cmd === 'ajuda') { await reply(helpText(isAdmin)); return true; }
     if (cmd.cmd === 'resumo') { await reply(deps.digest() || 'Nada pendente hoje.'); audit(`/resumo · ${owner?.name}`); return true; }
     if (cmd.cmd === 'saude') { await reply(deps.health()); audit(`/saude · ${owner?.name}`); return true; }
+    if (cmd.cmd === 'diagnostico') {
+      await reply(deps.diagnostico ? deps.diagnostico(msg) : 'Atalho indisponível.');
+      audit(`/diagnostico · ${owner?.name || 'consultor'}`);
+      return true;
+    }
     if (cmd.cmd === 'retomar') {
       const r = deps.retomar ? deps.retomar(msg) : { erro: 'Atalho indisponível.' };
       await reply(r?.erro ? `⚠️ /retomar: ${r.erro}` : `▶️ A IA vai atender ${r.total} cliente(s) da Migra que estavam esperando neste número, um de cada vez: ${r.nomes.slice(0, 10).join(', ')}${r.total > 10 ? '…' : ''}.`);
       audit(`/retomar · ${owner?.name || 'consultor'}`);
       return true;
     }
-    if (self) { await reply('Para esse atalho, digite na conversa do cliente. Aqui valem /resumo, /saude, /retomar e /ajuda.'); return true; }
+    if (self) { await reply('Para esse atalho, digite na conversa do cliente. Aqui valem /resumo, /saude, /retomar, /diagnostico e /ajuda.'); return true; }
 
     const conv = agent.conversation(msg.jid);
     conv.phone ||= msg.phone;

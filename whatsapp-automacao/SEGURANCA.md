@@ -781,3 +781,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Respeita o número**: a **Central e a Maria não entram** (têm regras próprias). Número com a **IA desligada** ou desconectado aparece como bloqueado e não recebe nada. Só funciona no horário da IA. Um envio de cada vez no sistema inteiro, com botão **Parar**.
 - **Permissão (regra da direção)**: cada pessoa, **inclusive o administrador**, vê e atende **só o próprio número** (pelo painel ou por /retomar). Os números dos outros vendedores **não são tocados**: continuam como estão.
 - **Não repete**: quem já foi respondido sai da lista. Testes: `test/clientes-esperando.test.js`.
+
+## Diagnóstico do número e resposta dos atalhos (13/11/2026)
+
+- **/diagnostico** (ou /diag) no WhatsApp do vendedor, e o quadro "Diagnóstico da IA do seu WhatsApp" em Conversas → Ao vivo, mostram **só o próprio número**. O diagnóstico confere: conexão, IA do número ligada, agente geral com chave, modo de teste, respostas automáticas ligadas, horário, pausa por uso do celular, fila de "sem resposta", os últimos clientes sem resposta com o motivo de cada um, e os erros das últimas 2 horas. Só leitura: não muda nada.
+- **Resposta dos atalhos**: /ia, /retomar, /diagnostico e o aviso do "Só um momento" agora voltam na conversa **"Você" do próprio WhatsApp** onde foram digitados. Se aquele número não estiver conectado, a resposta vai pela Central para o WhatsApp do cadastro. Antes ia pelo número principal; com o principal desligado, a resposta se perdia em silêncio. A resposta nunca vai para o cliente. Testes: `test/diagnostico-numero.test.js`.

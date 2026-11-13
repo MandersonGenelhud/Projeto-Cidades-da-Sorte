@@ -111,6 +111,7 @@ Digite o atalho na conversa do cliente, como se fosse uma mensagem. O sistema en
 3. Controle da IA na conversa
 - /pausa  → a IA para de responder aquele cliente (use quando for assumir a conversa).
 - /ia  → devolve a conversa para a IA.
+- /diagnostico  → mostra por que a IA do seu número não está respondendo (conexão, IA ligada, horário, fila e os clientes esperando).
 - /retomar  → a IA começa a atender, um de cada vez, os clientes da Migra que ficaram sem resposta no seu número (inclusive quem recebeu só "Só um momento"). Conversas pessoais ficam de fora.
 - Dica: quando você responde pelo celular, a IA já pausa sozinha. Use /ia quando quiser que ela volte.
 

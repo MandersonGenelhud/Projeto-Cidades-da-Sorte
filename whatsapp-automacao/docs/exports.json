@@ -717,6 +717,11 @@
  "src/routes/controle.js": [
   "registerControleRoutes"
  ],
+ "src/routes/diagnostico-numero.js": [
+  "diagnosisText",
+  "lineDiagnosis",
+  "registerDiagnosticoNumeroRoutes"
+ ],
  "src/routes/fechamentos.js": [
   "registerFechamentosRoutes"
  ],
