@@ -786,3 +786,21 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 - **/diagnostico** (ou /diag) no WhatsApp do vendedor, e o quadro "Diagnóstico da IA do seu WhatsApp" em Conversas → Ao vivo, mostram **só o próprio número**. O diagnóstico confere: conexão, IA do número ligada, agente geral com chave, modo de teste, respostas automáticas ligadas, horário, pausa por uso do celular, fila de "sem resposta", os últimos clientes sem resposta com o motivo de cada um, e os erros das últimas 2 horas. Só leitura: não muda nada.
 - **Resposta dos atalhos**: /ia, /retomar, /diagnostico e o aviso do "Só um momento" agora voltam na conversa **"Você" do próprio WhatsApp** onde foram digitados. Se aquele número não estiver conectado, a resposta vai pela Central para o WhatsApp do cadastro. Antes ia pelo número principal; com o principal desligado, a resposta se perdia em silêncio. A resposta nunca vai para o cliente. Testes: `test/diagnostico-numero.test.js`.
+
+## Retomar atendimentos parados um por um (13/11/2026)
+
+- Em Conversas → Recomeçar atendimentos parados, o quadro **"Um por um"** lista cada conversa parada com o número, a situação (esperando resposta, parou de responder, retorno marcado) e a última mensagem. Cada uma tem o seu botão **Retomar**. O botão antigo, que retoma tudo junto, foi para "Retomar vários de uma vez".
+- **As mesmas travas de antes**: só administrador. Ficam fora da lista quem já é cliente, quem recusou e quem já foi atendido por uma pessoa da equipe. Quem tem impedimento (lead antigo, chamado há pouco, IA desligada no número, número desconectado) aparece **com o motivo** e o botão desligado. Com a pausa geral ligada, nada sai. Cada retomada é registrada (`retomar_atendimento`) e vai para a fila da IA no ritmo seguro do número. Testes: `test/retomar-um.test.js`.
+
+## Link direto do anúncio para o vendedor (rodízio) (13/11/2026)
+
+- **O que faz**: o anúncio usa como destino `https://<painel>/v` (ou `/v/<campanha>`). Quem clica cai direto no WhatsApp do **próximo vendedor do rodízio de documentação** (o mesmo rodízio da Central: **o Diego, só de imóveis, fica fora**). A mensagem já vem pronta, com um código do anúncio (`AN-XXXX`), e não passa pela atendente.
+- **Proteções**:
+  - O robô que monta a miniatura do link (Meta, WhatsApp e outros) **não conta como clique** e não gasta a vez de ninguém.
+  - Quem clica de novo em até 24 h (cookie `mg_v`, só com o código, sem dado pessoal) volta para o **mesmo vendedor** e o mesmo código, e o rodízio não anda.
+  - O sistema prefere o vendedor com o WhatsApp **conectado ao sistema**, para a conversa aparecer no Hub.
+  - Sem vendedor disponível, ou com o link desligado em Tráfego, a pessoa vai para a **Central**: nunca fica sem destino.
+  - Os cliques com mais de 60 dias são apagados.
+- **Por que é seguro para o número do vendedor**: quem começa a conversa é o **cliente**; o número do vendedor não manda nada para gente nova.
+- **Quando o cliente manda a mensagem com o código**: o sistema marca a chegada, liga o prospecto ao vendedor do rodízio e ao anúncio/campanha (aparece no relatório de Tráfego) e deixa uma nota no prospecto. O código só vale uma vez.
+- **Painel**: Tráfego → "Link direto para o vendedor", só para administrador. Mostra o link, quem está no rodízio e os cliques e chegadas de hoje por vendedor, e tem o botão liga/desliga. Testes: `test/link-direto.test.js`.

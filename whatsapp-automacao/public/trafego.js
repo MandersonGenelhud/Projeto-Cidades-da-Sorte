@@ -14,6 +14,7 @@
     const r = await api(`/api/traffic?from=${range.from}&to=${range.to}`);
     const t = r.totais; const admin = window.currentUser?.role === 'admin';
     const c = r.config || {};
+    const ld = admin ? await api('/api/link-direto').catch(() => null) : null;
     sec.innerHTML = `<div class="page-head"><h1>Tráfego</h1></div>
       <p class="hint">Quantas pessoas chegaram, por qual número e por qual anúncio. Só números: nenhum nome nem telefone de cliente aparece aqui. Horário do Paraguai.</p>
       <div class="panel"><div class="row">
@@ -32,6 +33,12 @@
         ${r.numeros.map((n) => `<tr><td>${esc(n.numero)}</td><td><b>${n.novos}</b></td><td>${n.deAnuncio}</td><td>${n.encaminhados}</td><td>${n.fechados}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">—</td></tr>'}</tbody></table></div></div>
         <div class="panel"><h2>Por anúncio</h2><div class="table-wrap"><table><thead><tr><th>Anúncio</th><th>Novos</th><th>Encaminhados</th><th>Fechados</th></tr></thead><tbody>
         ${r.anuncios.map((a) => `<tr><td>${esc(a.anuncio)}</td><td><b>${a.novos}</b></td><td>${a.encaminhados}</td><td>${a.fechados}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Nenhum contato de anúncio identificado neste período.</td></tr>'}</tbody></table></div></div></div>
+      ${ld ? `<div class="panel"><h2>Link direto para o vendedor (rodízio)</h2>
+        <p class="hint">Use este link como destino do anúncio (anúncio com botão para site/link). Quem clica cai direto no WhatsApp do <b>próximo vendedor do rodízio de documentação</b>, com a mensagem pronta e um código do anúncio: só toca em enviar. O Diego (imóveis) fica fora; os vendedores indicam o Diego quando precisar. Quem clica de novo em 24 h volta para o mesmo vendedor. Sem vendedor disponível, vai para a Central.</p>
+        <p><b>Link:</b> <code>${esc(ld.url)}</code> <button class="btn small" data-a="ldCopy" data-url="${esc(ld.url)}">Copiar</button><br><span class="hint">Para separar por campanha: <code>${esc(ld.url)}/nome-da-campanha</code> (ex.: ${esc(ld.url)}/residencia-novembro).</span></p>
+        <label class="check"><input type="checkbox" id="ldOn" ${ld.enabled ? 'checked' : ''} /> Link ligado (desligado, quem clica vai para a Central)</label>
+        <p class="hint"><b>No rodízio agora:</b> ${ld.rodizio.map((v) => `${esc(v.nome)}${v.temNumero ? '' : ' (sem WhatsApp)'}${v.conectado ? '' : ' (WhatsApp fora do sistema)'}`).join(', ') || 'ninguém (ligue "recebe clientes" em Equipe)'}.</p>
+        ${ld.hoje.length ? `<div class="table-wrap"><table><thead><tr><th>Hoje</th><th>Cliques</th><th>Chegaram (mandaram a mensagem)</th></tr></thead><tbody>${ld.hoje.map((x) => `<tr><td>${esc(x.vendedor)}</td><td>${x.cliques}</td><td>${x.chegaram}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Nenhum clique hoje ainda.</p>'}</div>` : ''}
       ${admin ? `<div class="panel"><h2>Relatório diário</h2>
         <p class="hint">Todo dia, no horário escolhido, o resumo do dia vai para os administradores e para os números abaixo (ex.: o gestor de tráfego). Vai só o resumo em números.</p>
         <label class="check"><input type="checkbox" id="trOn" ${c.reportOn === false ? '' : 'checked'} /> Enviar o relatório todo dia</label>
@@ -41,6 +48,7 @@
         <button class="btn primary" data-a="save">Salvar</button> <button class="btn" data-a="send">Enviar o relatório de hoje agora</button></div>
       <div class="panel"><h2>Acesso da equipe de tráfego</h2><p class="hint">Em Equipe, cadastre o login do gestor de tráfego e marque "Equipe de tráfego: acesso SÓ à aba Tráfego". Ele não vê clientes, vendas, conversas nem configurações.</p></div>` : ''}`;
   }
+  sec.addEventListener('change', async (e) => { if (e.target.id !== 'ldOn') return; try { await api('/api/link-direto', { method: 'PUT', body: { enabled: e.target.checked } }); toast(e.target.checked ? 'Link direto ligado.' : 'Link direto desligado: quem clicar vai para a Central.'); } catch (err) { toast(err.message, true); } });
   sec.addEventListener('click', async (e) => {
     const q = e.target.closest('[data-q]'); const a = e.target.closest('[data-a]');
     try {
@@ -48,6 +56,7 @@
       if (!a) return;
       if (a.dataset.a === 'go') { range = { from: sec.querySelector('#trFrom').value, to: sec.querySelector('#trTo').value }; await load(); }
       if (a.dataset.a === 'save') { await api('/api/traffic/config', { method: 'PUT', body: { reportOn: sec.querySelector('#trOn').checked, reportHour: sec.querySelector('#trHour').value, mainLabel: sec.querySelector('#trMain').value, reportPhones: sec.querySelector('#trPhones').value } }); toast('Salvo.'); await load(); }
+      if (a.dataset.a === 'ldCopy') { await navigator.clipboard?.writeText(a.dataset.url); toast('Link copiado.'); }
       if (a.dataset.a === 'send') { await api('/api/traffic/send-report', { method: 'POST', body: {} }); toast('Relatório enviado.'); }
     } catch (err) { toast(err.message, true); }
   });

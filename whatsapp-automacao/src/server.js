@@ -53,6 +53,7 @@ import { planPdfPrice, loadPlanPdf } from './plano-pdf.js';
 import { registerFechamentosRoutes } from './routes/fechamentos.js';
 import { registerClientesEsperandoRoutes } from './routes/clientes-esperando.js';
 import { registerDiagnosticoNumeroRoutes, diagnosisText } from './routes/diagnostico-numero.js';
+import { registerLinkDiretoRoutes } from './routes/link-direto.js';
 import { FlashOffer } from './flash-offer.js';
 import { GroupBroadcasts } from './group-broadcast.js';
 import { Campaigns } from './campanhas.js';
@@ -1605,6 +1606,8 @@ function routeIncoming(msg) {
       // e a atendente passa a ver o histórico de lá.
       if (msg.channel !== 'instagram') crm.linkByCode({ text: msg.text, key: msg.jid, phone: msg.phone });
       const lead = crm.ensureFromConversation({ key: msg.jid, phone: msg.phone, name: msg.name, username: msg.username, channel: msg.channel || 'whatsapp', referral: msg.referral, ownerId: msg.ownerId });
+      // Veio pelo link direto do anúncio (código AN-xxxx): liga ao vendedor do rodízio e ao anúncio.
+      if (msg.line) linkDireto.onIncoming(msg, lead);
       // Veio pelo link de um indicador ("código de indicação: ana482")?
       const aff = affiliates.codeInText(msg.text);
       if (aff && lead) affiliates.attach(lead, aff, 'WhatsApp');
@@ -1742,7 +1745,7 @@ app.post('/webhook', (req, res) => {
 if (PANEL_PASSWORD) {
   const expected = Buffer.from(`${PANEL_USER}:${PANEL_PASSWORD}`);
   // Páginas públicas (site de imóveis, portal do indicador, recibos) ficam fora da senha extra.
-  const PUBLIC = /^\/(imoveis|parceiros|indicacao|r\/|recibo\/|ficha\/|termo\/|etapas\/|orcamento\/|contrato\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
+  const PUBLIC = /^\/(v(\/|$)|imoveis|parceiros|indicacao|r\/|recibo\/|ficha\/|termo\/|etapas\/|orcamento\/|contrato\/|site\/|img\/|brand\/|privacidade\.html|api\/public\/|api\/affiliate\/)/;
   app.use((req, res, next) => {
     if (PUBLIC.test(req.path)) return next();
     const [scheme, encoded] = (req.headers.authorization || '').split(' ');
@@ -3276,6 +3279,13 @@ app.post('/api/group-broadcasts/:id/:action', (req, res) => {
 });
 app.delete('/api/group-broadcasts/:id', (req, res) => { needAdmin(req); groupBroadcasts.remove(req.params.id); res.json({ ok: true }); });
 registerFechamentosRoutes(app, { campanhas, flashOffer, wa, needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), store, crm, quotes, payments, dataDir: DATA_DIR });
+// Link direto do anúncio para o próximo vendedor do rodízio de documentação (sem passar pela atendente; o Diego, só de imóveis, fica fora).
+const linkDireto = registerLinkDiretoRoutes(app, {
+  store, auth, crm, lines, wa,
+  pool: (u) => centralPoolFor(null, true)(u),
+  centralPhone: () => store.settings.crm?.centralWhatsapp || '',
+  needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), publicBase: () => publicBase(),
+});
 // "Por que a minha IA não responde?": diagnóstico do próprio número (atalho /diagnostico e GET /api/diagnostico-numero).
 const diagnosticoNumero = registerDiagnosticoNumeroRoutes(app, {
   store, agent, wa, lines, pending,

@@ -9,6 +9,16 @@
   box.id = 'restartPanel';
   box.hidden = true;
   box.innerHTML = `<h2>Recomeçar atendimentos parados</h2>
+    <div class="panel" id="oneBox">
+      <h3>Um por um</h3>
+      <p class="hint">Veja cada atendimento parado e retome só os que você escolher. Clique no nome para abrir a conversa. Quem já é cliente, recusou ou já foi atendido por uma pessoa da equipe não aparece aqui.</p>
+      <div class="row"><label>Últimos <select id="oneDays"><option value="7">7 dias</option><option value="15">15 dias</option><option value="30" selected>30 dias</option><option value="60">60 dias</option></select></label>
+        <label>Número <select id="oneNum"><option value="">Todos</option></select></label>
+        <label>Situação <select id="oneKind"><option value="">Todas</option><option value="esperando">Esperando resposta</option><option value="silenciou">Parou de responder</option><option value="reagendado">Retorno marcado</option></select></label>
+        <button class="btn primary" id="oneLoad" type="button">Ver a lista</button></div>
+      <div id="oneOut"></div>
+    </div>
+    <details id="bulkBox"><summary><b>Retomar vários de uma vez</b> (passo a passo antigo)</summary>
     <div class="panel" id="stepsBox">
       <h3>Passo a passo (comece por aqui)</h3>
       <ol class="hint">
@@ -24,6 +34,7 @@
       <label class="check"><input type="checkbox" id="rsSilent" checked /> Incluir quem parou de responder e retornos combinados</label>
       <button class="btn" id="rsCount">Ver quantos são</button> <button class="btn primary" id="rsGo">Recomeçar agora</button></div>
     <div id="rsOut" class="muted"></div>
+    </details>
     <h3>Quem já fechou com outro ou não quer mais</h3>
     <p class="hint">O sistema lê o que o cliente disse (por exemplo "já fechei com um amigo", "não tenho mais interesse", "não me chame mais") e para de procurar essa pessoa: o prospecto vai para perdido com o motivo. Quem já fechou conosco (contrato assinado, venda, Pix pago ou cliente ganho no banco de dados) também não recebe mais chamada de iniciativa nossa. Este botão lê todas as conversas antigas de uma vez.</p>
     <div class="row"><button class="btn" id="dcCount" type="button">Ver quantas conversas</button> <button class="btn primary" id="dcGo" type="button">Marcar quem já recusou</button></div><div id="dcOut" class="muted"></div>
@@ -62,6 +73,44 @@
     $('#rsOn').checked = o.enabled !== false; $('#rsHours').value = o.minHours ?? 6; $('#rsT1').value = o.template || ''; $('#rsT2').value = o.templateNoDate || '';
   };
   $('#rsTpl').addEventListener('toggle', (e) => { if (e.target.open) loadTpl().catch(() => {}); });
+  // ---- Um por um ----
+  const KIND = { esperando: 'Esperando resposta', silenciou: 'Parou de responder', reagendado: 'Retorno marcado' };
+  let oneRows = [];
+  const fmtAt = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '');
+  const renderOne = () => {
+    const num = $('#oneNum').value; const kind = $('#oneKind').value;
+    const list = oneRows.filter((r) => (!num || r.numero === num) && (!kind || r.tipo === kind));
+    $('#oneOut').innerHTML = `<p class="hint">${list.length} atendimento(s) parado(s)${list.length !== oneRows.length ? ` (de ${oneRows.length})` : ''}.</p>` + (list.map((r) => `<div class="item" data-k="${esc(r.key)}"><div class="grow">
+        <a href="#" data-open="${esc(r.key)}"><b>${esc(r.nome || (r.phone ? `+${r.phone}` : r.username ? `@${r.username}` : 'Cliente'))}</b></a>
+        <span class="badge">${esc(r.numero)}</span> <span class="badge ${r.tipo === 'esperando' ? 'pending' : ''}">${esc(KIND[r.tipo] || r.tipo)}</span>${r.pausada ? ' <span class="badge">pausada</span>' : ''}${r.naFila ? ' <span class="badge running">na fila da IA</span>' : ''}${r.bloqueio ? ` <span class="badge canceled">${esc(r.bloqueio)}</span>` : ''}${r.conectado ? '' : ' <span class="badge canceled">número desconectado</span>'}
+        <div class="meta">${esc(fmtAt(r.ultimaAt || r.lastAt))}${r.ultima ? ` · "${esc(r.ultima)}"` : ''}${r.motivo ? ` · retorno combinado: ${esc(r.motivo)}` : ''}</div></div>
+        <button class="btn small primary" data-retomar="${esc(r.key)}" ${r.naFila || r.bloqueio || !r.conectado ? 'disabled' : ''}>${r.naFila ? 'Na fila' : 'Retomar'}</button></div>`).join('') || '<p class="muted">Nenhum atendimento parado com esses filtros.</p>');
+  };
+  const loadOne = async () => {
+    const r = await api(`/api/atendimento/lista?days=${$('#oneDays').value}`);
+    oneRows = r.rows;
+    const nums = [...new Set(oneRows.map((x) => x.numero))].sort();
+    const cur = $('#oneNum').value;
+    $('#oneNum').innerHTML = `<option value="">Todos</option>${nums.map((n) => `<option ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('')}`;
+    renderOne();
+  };
+  box.addEventListener('change', (e) => { if (e.target.id === 'oneNum' || e.target.id === 'oneKind') renderOne(); if (e.target.id === 'oneDays') loadOne().catch((err) => toast(err.message, true)); });
+  box.addEventListener('click', async (e) => {
+    const op = e.target.closest('[data-open]');
+    if (op) { e.preventDefault(); try { await openConversation(op.dataset.open); document.querySelector('#convHeader')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (err) { toast(err.message, true); } return; }
+    const rb = e.target.closest('[data-retomar]');
+    if (rb) {
+      rb.disabled = true;
+      try {
+        await api('/api/atendimento/retomar-um', { method: 'POST', body: { key: rb.dataset.retomar, days: Number($('#oneDays').value) } });
+        const row = oneRows.find((x) => x.key === rb.dataset.retomar); if (row) row.naFila = true;
+        toast('Entrou na fila da IA: ela retoma este atendimento no ritmo seguro do número.');
+        renderOne();
+      } catch (err) { toast(err.message, true); rb.disabled = false; }
+      return;
+    }
+    if (e.target.id === 'oneLoad') { try { await loadOne(); } catch (err) { toast(err.message, true); } }
+  });
   box.addEventListener('click', async (e) => {
     const id = e.target.id;
     if (id === 'stPlan') { try { await loadPlan(); } catch (err) { toast(err.message, true); } return; }

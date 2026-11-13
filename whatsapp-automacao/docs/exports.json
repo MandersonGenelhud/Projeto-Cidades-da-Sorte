@@ -725,6 +725,12 @@
  "src/routes/fechamentos.js": [
   "registerFechamentosRoutes"
  ],
+ "src/routes/link-direto.js": [
+  "codeIn",
+  "directText",
+  "registerLinkDiretoRoutes",
+  "waLink"
+ ],
  "src/routing.js": [
   "LeadRouter",
   "REPEAT_MS",

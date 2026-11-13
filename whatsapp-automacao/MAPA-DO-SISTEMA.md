@@ -5,8 +5,8 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **162** · testes automatizados (arquivos): **173** · scripts do painel: **51**
-- Rotas da API em `server.js`: **557** · tarefas agendadas (`setInterval`): **24** (todas com `unref`: sim)
+- Módulos em `src/`: **163** · testes automatizados (arquivos): **175** · scripts do painel: **51**
+- Rotas da API em `server.js`: **563** · tarefas agendadas (`setInterval`): **24** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
 
@@ -24,7 +24,7 @@
 - Configuração nova vai em `settings` com **valor padrão** em `store.js`; mudança em dado já existente usa **migração de uma vez** com selo (veja abaixo), nunca sobrescreve o que o painel salvou.
 - Nada de segredo no código. Dados reais ficam em `data/` e nunca no Git.
 
-## Módulos (162)
+## Módulos (163)
 | Módulo | Linhas | Para que serve | Quem usa | Testes |
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
@@ -48,7 +48,7 @@
 | `app-signups.js` | 109 | Cadastros de aplicativos da Migra (hoje: Migra Devocional) chegando no Migra Hub para acompanhar quantos usuários há. | `server.js` | 1 |
 | `assistant-guard.js` | 42 | Trava de segurança da Maria e da Ana: elas só CRIAM (cadastro novo, orçamento, contrato) e ENVIAM. Nunca excluem nem alteram | `maria.js` | 1 |
 | `assistant.js` | 449 | Nina: a secretária financeira do Marcos (e dos administradores liberados no Caixa). | `ana.js`, `server.js` | 1 |
-| `atendimento-plano.js` | 31 | Plano de atendimento: separa TODAS as conversas dos últimos dias em grupos claros, para o administrador saber o que o botão "Começar" vai fazer. | `routes/controle.js` | 2 |
+| `atendimento-plano.js` | 42 | Plano de atendimento: separa TODAS as conversas dos últimos dias em grupos claros, para o administrador saber o que o botão "Começar" vai fazer. | `routes/controle.js` | 3 |
 | `attendants.js` | 122 | Visão por atendente: separa as conversas e os prospectos de cada pessoa (e do | `routes/controle.js`, `server.js` | 1 |
 | `audit.js` | 125 | Trilha de auditoria: registra QUEM criou, alterou ou excluiu cada coisa | `server.js` | 1 |
 | `auth.js` | 279 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 69 |
@@ -147,13 +147,14 @@
 | `reengage.js` | 272 | Retomada de contatos: pessoas que pediram atendimento (Instagram, Facebook, site, quiz) e ainda não | `server.js` | 2 |
 | `reports-csv.js` | 56 | Relatórios em planilha (CSV): vendas, parcelas em aberto, contratos cancelados e auditoria. Só administrador. | `server.js` | 1 |
 | `rescue.js` | 41 | Resgate: as conversas que ficaram no número principal (que parou de funcionar) para o dono continuar PELO Hub, respondendo por outro número conectado. | `server.js` | 1 |
-| `restart.js` | 91 | Recomeçar os atendimentos parados: varre as conversas guardadas dos últimos 30 dias (de todos os números e do Instagram) e põe na fila da IA | `atendimento-plano.js`, `routes/controle.js` | 4 |
+| `restart.js` | 91 | Recomeçar os atendimentos parados: varre as conversas guardadas dos últimos 30 dias (de todos os números e do Instagram) e põe na fila da IA | `atendimento-plano.js`, `routes/controle.js` | 5 |
 | `resumes.js` | 108 | Banco de currículos: quem pergunta por vaga ou manda currículo fica guardado aqui (com o arquivo), | `server.js` | 1 |
 | `routes/assinatura-contratada.js` | 88 | Assinatura da empresa (CONTRATADA) nos contratos: a própria pessoa cadastra a imagem da assinatura e autoriza o uso (nunca é desenhada nem imitada). | `server.js` | **0** |
 | `routes/clientes-esperando.js` | 174 | "Clientes da Migra esperando no WhatsApp do vendedor": acha, no número de cada vendedor, quem escreveu sobre a Migra e ainda não foi | `server.js` | 1 |
-| `routes/controle.js` | 206 | Rotas de CONTROLE das conversas e do atendimento (só administrador): quadros por pessoa, auditoria dos números, envio por número, | `server.js` | **0** |
+| `routes/controle.js` | 237 | Rotas de CONTROLE das conversas e do atendimento (só administrador): quadros por pessoa, auditoria dos números, envio por número, | `server.js` | **0** |
 | `routes/diagnostico-numero.js` | 75 | Diagnóstico do número de um vendedor: "por que a minha IA não responde?". Mostra, em português simples, cada coisa que pode estar travando | `server.js` | 1 |
 | `routes/fechamentos.js` | 69 | Rotas do painel de FECHAMENTOS (só administrador): funil depois do orçamento, checklist de acompanhamento, radar de objeções | `server.js` | **0** |
+| `routes/link-direto.js` | 131 | LINK DIRETO PARA O VENDEDOR (rodízio sem passar pela atendente): o anúncio aponta para https://<painel>/v (ou /v/<campanha>). | `server.js` | 1 |
 | `routing.js` | 177 | Encaminhamento: a IA fez a peneira no Direct/WhatsApp, o cliente está pronto | `digest.js`, `sectors.js`, `server.js` | 4 |
 | `sale-receipts.js` | 92 | Recibo da PARCELA de uma venda/contrato: quando uma parcela é dada como recebida (pelo painel, pela Maria lendo o comprovante ou pelo Pix automático), | `server.js` | 1 |
 | `sales-coach.js` | 77 | A Maria como vendedora da equipe: roteiro de venda (o mesmo espírito do atendente de IA) e leitura do CRM para dizer | `maria.js` | 1 |
@@ -167,7 +168,7 @@
 | `seller-pipeline.js` | 67 | Pipeline por vendedor: para cada pessoa da equipe (Eliezer, Giovana, Diego, Fran, Marcos…), quem ela está atendendo, quem recebeu orçamento, | `campanhas-funil.js`, `server.js` | 1 |
 | `send-guard.js` | 60 | Proteção do número contra bloqueio do WhatsApp: cada número (conta) envia com intervalo mínimo variável entre mensagens, um teto por minuto | `server.js` | 1 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 6336 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 6346 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
@@ -274,7 +275,7 @@
 - `contabil-painel.js`
 - `nav-hubs.js`
 
-## Rotas da API (557)
+## Rotas da API (563)
 - `GET /webhook`
 - `GET /webhook/instagram`
 - `POST /webhook/instagram`
@@ -818,6 +819,8 @@
 - `POST /api/restart-stalled`
 - `GET /api/atendimento/plano`
 - `POST /api/atendimento/comecar`
+- `GET /api/atendimento/lista`
+- `POST /api/atendimento/retomar-um`
 - `POST /api/atendimento/pausa`
 - `GET /api/maria-receipts`
 - `GET /api/distribution`
@@ -832,3 +835,7 @@
 - `POST /api/flash-offer/claims/:id/:action`
 - `POST /api/flash-offer/count-groups`
 - `GET /api/flash-offer/legenda`
+- `GET /v`
+- `GET /v/:campanha`
+- `GET /api/link-direto`
+- `PUT /api/link-direto`

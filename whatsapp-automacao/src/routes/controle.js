@@ -133,6 +133,37 @@ app.post('/api/atendimento/comecar', (req, res) => {
   securityEvent('comecar_atendimento', req.user, req, `${plano.retomar} para retomar (${retomada.queued} na fila), ${plano.fechados} já clientes e ${plano.recusaram} que recusaram ficaram de fora; ${recusas.marked} recusas marcadas; ${orcamentos.queued} avisos de orçamento`);
   res.json({ plano, recusasMarcadas: recusas.marked, retomada, orcamentos: { total: orcamentos.total, queued: orcamentos.queued } });
 });
+// Lista dos atendimentos parados, um por um (com o número por onde o cliente falou e, se houver, o que impede a retomada).
+const BLOQUEIO = { recusou: 'o cliente recusou', fechou_conosco: 'já é cliente', recente: 'já foi chamado nas últimas horas', humano: 'uma pessoa da equipe já falou com ele', pausado: 'chamadas de iniciativa nossa pausadas', antigo: 'lead antigo (antes de 11/11): não é procurado de novo', ia_desligada: 'IA desligada neste número' };
+app.get('/api/atendimento/lista', (req, res) => {
+  needAdmin(req);
+  const days = Math.min(60, Math.max(1, Number(req.query.days) || 30));
+  const p = buildPlan({ store, now: Date.now(), days, withRows: true, leadOf: (c) => crm.findForConversation({ key: c.key, phone: c.phone, username: c.username }), closedFor: (x) => ctx.closedFor?.(x) || '', isBlocked: (ph) => store.isBlacklisted(ph) });
+  const rows = (p.rows || []).filter((r) => inOffice(req, conversationOffice({ key: r.key }))).map((r) => {
+    const conv = store.data.conversations?.[r.key];
+    let guard = '';
+    try { guard = conv && ctx.outreachFor ? ctx.outreachFor(conv) : ''; } catch { guard = ''; }
+    return { ...r, numero: convLabel(r.key), naFila: pending.queue.includes(r.key), bloqueio: guard ? (BLOQUEIO[guard] || guard) : '', conectado: wa.isConnected ? wa.isConnected(r.key) : true };
+  });
+  res.json({ days, total: rows.length, rows });
+});
+// Retomar UM atendimento parado (botão "Retomar" na lista).
+app.post('/api/atendimento/retomar-um', (req, res) => {
+  needAdmin(req);
+  const key = String(req.body?.key || '');
+  if (!key || !store.data.conversations?.[key]) throw httpError(404, 'Conversa não encontrada');
+  if (store.settings.agent?.outreachPaused === true) throw httpError(409, 'O atendimento de iniciativa nossa está pausado. Clique em "Continuar" antes.');
+  const days = Math.min(60, Math.max(1, Number(req.body?.days) || 30));
+  const r = restartAll({ days, includeSilent: true, onlyKeys: [key] });
+  const conv = store.data.conversations[key];
+  securityEvent('retomar_atendimento', req.user, req, `${conv.name || conv.phone || key}: ${r.queued ? 'entrou na fila da IA' : 'não entrou na fila'}`);
+  if (!r.total) throw httpError(409, 'Esta conversa não está mais parada (já foi respondida ou mudou de situação).');
+  if (!r.queued) {
+    const why = Object.entries(r.reasons || {}).filter(([, n]) => n).map(([k]) => ({ teste: 'modo de teste', instagram24h: 'Instagram fora das 24 h', desconectado: 'número desconectado', recusou: 'o cliente recusou', fechouConosco: 'já é cliente', recente: 'já foi chamado há pouco', pausado: 'chamadas pausadas', humano: 'uma pessoa da equipe já falou com ele', antigo: 'lead antigo (antes de 11/11)' }[k] || k));
+    throw httpError(409, `Não entrou na fila: ${why.join(', ') || r.error || 'motivo desconhecido'}.`);
+  }
+  res.json({ ok: true, queued: r.queued });
+});
 app.post('/api/atendimento/pausa', (req, res) => {
   needAdmin(req);
   const paused = req.body?.paused === true;
