@@ -7,9 +7,10 @@
   sec.className = 'tab';
   host.appendChild(sec);
   const fmt = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '');
-  let state = { q: '', list: [], lines: [], open: null };
+  let state = { q: '', list: [], lines: [], open: null, notice: null, days: 30 };
 
   async function loadList() {
+    state.notice = await api(`/api/marcos-notice?days=${state.days}`).catch(() => null);
     const r = await api(`/api/rescue?q=${encodeURIComponent(state.q)}`);
     state.list = r.list; state.lines = r.lines;
     render();
@@ -22,6 +23,15 @@
   function render() {
     const o = state.open;
     sec.innerHTML = `<div class="page-head"><h1>Resgate de conversas</h1></div>
+      ${(() => { const n = state.notice; if (!n) return ''; const j = n.job; return `<div class="panel"><h2>Avisar o número novo do Marcos (pela Maria)</h2>
+        <p class="hint">A Maria manda UMA mensagem curta para quem conversava com o Marcos no número antigo: saudação, o assunto da conversa (quando o sistema sabe) e o link que abre direto o WhatsApp novo dele. Quem responder é atendido pela Maria (tira dúvidas e pode vender). Vai devagar (uma a cada 1,5 a 2,5 min), só das 8h às 20h, e ninguém recebe duas vezes.</p>
+        <label>Conversas dos últimos <select id="ntDays">${[7, 15, 30, 60, 90].map((d) => `<option value="${d}" ${n.days === d ? 'selected' : ''}>${d} dias</option>`).join('')}</select></label>
+        <p><b>${n.total}</b> pessoa(s) para avisar${n.jaAvisados ? ` · ${n.jaAvisados} já avisada(s)` : ''}${n.exemplos.length ? ` · ex.: ${n.exemplos.map((x) => `${esc(x.nome)}${x.assunto ? ` (${esc(x.assunto)})` : ''}`).join(', ')}` : ''}</p>
+        <p class="hint"><b>Prévia:</b> ${esc(n.previa)}</p>
+        ${n.mariaConectada ? '' : '<p class="err">O número da Maria não está conectado: conecte em Conexões antes de enviar.</p>'}
+        ${j ? `<p class="hint">${j.running ? `<b>Enviando…</b> ${j.enviados + j.falhas} de ${j.total}` : `Último envio: ${j.enviados} enviado(s)${j.falhas ? `, ${j.falhas} falha(s)` : ''}${j.interrompido ? ' · interrompido' : ''}${j.pausadoHorario ? ' · parou às 20h (clique de novo amanhã para continuar)' : ''}`}</p>` : ''}
+        <button class="btn primary" data-a="ntstart" ${n.total && n.mariaConectada && !j?.running ? '' : 'disabled'}>Enviar o aviso pela Maria</button>
+        <button class="btn danger" data-a="ntstop" ${j?.running ? '' : 'disabled'}>Parar</button></div>`; })()}
       <p class="hint">As conversas que ficaram no número principal. Clique em uma, leia o histórico e responda por aqui: a resposta sai por um número da equipe que esteja conectado (por padrão, a Central). A conversa continua pelo Hub, e a IA não responde por cima enquanto você estiver conduzindo.</p>
       <div class="grid2" style="align-items:start">
         <div class="panel"><input id="rsQ" placeholder="Buscar por nome, telefone ou assunto" value="${esc(state.q)}" />
@@ -37,6 +47,13 @@
     const item = e.target.closest('[data-key]'); const a = e.target.closest('[data-a]');
     try {
       if (item) return await openThread(item.dataset.key);
+      if (a?.dataset.a === 'ntstart') {
+        if (!confirm(`Enviar pela Maria o aviso do número novo do Marcos para ${state.notice.total} pessoa(s)? Vai devagar e só das 8h às 20h.`)) return;
+        const r = await api('/api/marcos-notice/start', { method: 'POST', body: { days: state.days } });
+        toast(`Começou: ${r.total} pessoa(s), uma de cada vez.`);
+        return await loadList();
+      }
+      if (a?.dataset.a === 'ntstop') { await api('/api/marcos-notice/stop', { method: 'POST', body: {} }); toast('Vai parar depois da mensagem atual.'); return await loadList(); }
       if (a?.dataset.a === 'send') {
         const text = sec.querySelector('#rsText').value.trim();
         if (!text) return toast('Escreva a mensagem', true);
@@ -50,6 +67,7 @@
     } catch (err) { toast(err.message, true); render(); }
   });
   let timer = null;
+  sec.addEventListener('change', (e) => { if (e.target.id === 'ntDays') { state.days = Number(e.target.value) || 30; loadList().catch(() => {}); } });
   sec.addEventListener('input', (e) => {
     if (e.target.id !== 'rsQ') return;
     state.q = e.target.value; clearTimeout(timer);

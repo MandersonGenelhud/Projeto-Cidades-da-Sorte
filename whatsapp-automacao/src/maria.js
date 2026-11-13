@@ -313,7 +313,7 @@ export class Maria {
     if (msg.fromMe || msg.isGroup || msg.channel === 'instagram') return true; // nunca responde grupo nem o próprio aparelho
     const user = this.personFor(msg);
     if (!this.enabled && !this.ana?.enabled) return true;
-    if (!user) return this.#unknown(msg);
+    if (!user) { try { if (this.onExternal?.(msg)) return true; } catch { /* segue o aviso padrão */ } return this.#unknown(msg); }
     // Pessoa da casa (sem painel): só a Ana, só com o nome dela no começo; nada da empresa, nem a Maria.
     if (user.role === 'familia') return this.#familyChat(msg, user);
     const profile = this.profileOf(user);

@@ -34,6 +34,7 @@ import { Traffic, trafficRouteAllowed } from './traffic.js';
 import { contactsToVcf } from './vcard.js';
 import { sellerWaLink, nextLinkAction, remindText } from './seller-link.js';
 import { listRescue, rescueThread, seedRescued } from './rescue.js';
+import { noticeCandidates, noticeText, MARCOS_NEW } from './marcos-notice.js';
 import { pickConversations, conversationsToHtml, conversationsToText } from './conv-export.js';
 import { BulkHandoff, segmentOf } from './bulk-handoff.js';
 import { needsAutoForward, isStuck, needsDelivery, rotationReasons } from './central-guard.js';
@@ -365,7 +366,8 @@ const firstContactOf = (conv) => {
   return times.length ? Math.min(...times) : 0;
 };
 const isOldLeadConv = (conv) => { const s = outreachSince(); const f = firstContactOf(conv); return Boolean(s && f && f < s); };
-const aiOffFor = (key) => { const p = parseLineKey(key); if (!p) return false; const l = lines.get(p.id); return Boolean(l) && l.agent === false; };
+const isMariaKey = (key) => { const p = parseLineKey(key); if (!p) return false; try { return maria.isLine({ line: p.id }); } catch { return false; } };
+const aiOffFor = (key) => { const p = parseLineKey(key); if (!p || isMariaKey(key)) return false; const l = lines.get(p.id); return Boolean(l) && l.agent === false; };
 agent.aiOff = (key) => aiOffFor(key);
 agent.humanBusy = (key) => wa.humanWaitMs(key); // pessoa usando o número agora: a IA espera
 agent.routeLead = (conv, args, opts) => (isSellerLineConv(conv) ? SELLER_LINE_NO_ROUTE : router.route(conv, args, { ...opts, pool: centralPoolFor(conv) }));
@@ -381,7 +383,7 @@ const sectors = new Sectors({
   notifyAdmins: (text) => notifyAdmins(text),
 });
 // No WhatsApp pessoal de um vendedor a IA (quando ligada) não passa o cliente para ninguém: quem atende é o dono do número.
-const isSellerLineConv = (conv) => { const p = parseLineKey(conv?.key); if (!p) return false; const l = lines.get(p.id); return Boolean(l) && !isCentralLine(l, l.ownerId ? auth.get(l.ownerId) : null); };
+const isSellerLineConv = (conv) => { const p = parseLineKey(conv?.key); if (!p || isMariaKey(conv?.key)) return false; const l = lines.get(p.id); return Boolean(l) && !isCentralLine(l, l.ownerId ? auth.get(l.ownerId) : null); };
 const SELLER_LINE_NO_ROUTE = { ok: true, instrucao: 'Este é o WhatsApp do próprio consultor: NÃO encaminhe para outra pessoa nem para outro setor. Diga ao cliente que o consultor deste número vai cuidar disso pessoalmente.' };
 agent.routeSector = (conv, args, opts) => (isSellerLineConv(conv) ? SELLER_LINE_NO_ROUTE : sectors.route(conv, args, opts));
 sectors.migrate();
@@ -1319,6 +1321,7 @@ agent.channelNote = (conv) => {
   const parsed = parseLineKey(conv.key);
   const line = parsed ? lines.get(parsed.id) : null;
   const owner = line?.ownerId ? auth.get(line.ownerId) : null;
+  if (line && isMariaKey(conv.key)) return `Você é a MARIA, secretária do Grupo Migra (apresente-se como Maria, do atendimento do Grupo Migra). Esta pessoa conversava com o Marcos no número antigo dele (que parou de funcionar) e recebeu da Maria o aviso do número novo do Marcos: +595 982 543 275, link https://wa.me/${MARCOS_NEW}. Se ela quiser falar com o Marcos, passe esse link. Se tiver dúvidas sobre os serviços do Grupo Migra ou quiser comprar, atenda você mesma com calma: tire as dúvidas pela base do negócio e conduza a venda normalmente (orçamento, ficha, contrato). Nunca invente preço, prazo nem promessa. Fale curto.`;
   if (line && isCentralLine(line, owner)) return centralNote({ ...line, linkMode: linkMode(), sellers: centralSellerNames().map((n) => n.split(' ')[0]) });
   // Número principal como mesa de entrada: a IA só pergunta o interesse e encaminha ao rodízio (ligado por padrão; desligue em crm.mainAsCentral).
   if (!parsed && mainAsCentral() && !String(conv.key).startsWith('ig:') && !String(conv.key).startsWith('sim:')) return centralNote({ linkMode: linkMode(), sellers: centralSellerNames().map((n) => n.split(' ')[0]) });
@@ -2842,6 +2845,62 @@ app.post('/api/rescue/send', async (req, res) => {
   store.addLog({ type: 'sent', phone, message: `Resgate (${line.label}): ${text}` });
   securityEvent('resgate_resposta', req.user, req, `resposta a +${phone} pelo número ${line.label}`);
   res.json(rescueThread(store.data.conversations, old.key));
+});
+
+// Aviso do número novo do Marcos, pela Maria, para quem conversava com ele no número antigo (src/marcos-notice.js). Só administrador.
+const marcosNotice = () => (store.data.marcosNotice ||= { done: {}, recipients: {}, job: null });
+const mariaLineId = () => store.settings.maria?.lineId || lines.list().find((l) => maria.isLine({ line: l.id }))?.id || '';
+const noticeList = (days) => noticeCandidates(Object.values(store.data.conversations || {}), {
+  days, done: marcosNotice().done, isTeam: (p) => isTeamPhone(auth.users, p), isBlocked: (p) => store.isBlacklisted(p),
+  leadOf: (c) => crm.findForConversation({ key: c.key, phone: c.phone }),
+});
+let noticeStop = false;
+app.get('/api/marcos-notice', (req, res) => {
+  needAdmin(req);
+  const days = Math.min(180, Math.max(1, Number(req.query.days) || 30));
+  const list = noticeList(days);
+  const lid = mariaLineId();
+  res.json({ days, total: list.length, exemplos: list.slice(0, 6).map((x) => ({ nome: x.name.split(' ')[0] || `+${x.phone.slice(0, 5)}…`, assunto: x.assunto })), previa: noticeText({ name: list[0]?.name || 'Ana', assunto: list[0]?.assunto || '' }), mariaConectada: Boolean(lid && wa.isConnected(lineKey(lid, '1@s.whatsapp.net'))), jaAvisados: Object.keys(marcosNotice().done).length, job: marcosNotice().job });
+});
+app.post('/api/marcos-notice/stop', (req, res) => { needAdmin(req); noticeStop = true; res.json({ ok: true }); });
+app.post('/api/marcos-notice/start', (req, res) => {
+  needAdmin(req);
+  const st = marcosNotice();
+  if (st.job?.running) throw httpError(409, 'O aviso já está sendo enviado');
+  const h = Number(new Date().toLocaleString('en-GB', { timeZone: 'America/Asuncion', hour: '2-digit', hour12: false }));
+  if (h < 8 || h >= 20) throw httpError(400, 'Só envio entre 8h e 20h (hora do Paraguai).');
+  const lid = mariaLineId();
+  if (!lid || !wa.isConnected(lineKey(lid, '1@s.whatsapp.net'))) throw httpError(409, 'O número da Maria não está conectado (Conexões).');
+  const days = Math.min(180, Math.max(1, Number(req.body?.days) || 30));
+  const list = noticeList(days).slice(0, Math.min(200, Math.max(1, Number(req.body?.limit) || 200)));
+  st.job = { running: true, total: list.length, enviados: 0, falhas: 0, startedAt: new Date().toISOString(), endedAt: null };
+  noticeStop = false;
+  store.save();
+  securityEvent('aviso_numero_marcos', req.user, req, `${list.length} contato(s) dos últimos ${days} dias, pela Maria`);
+  res.json({ total: list.length });
+  (async () => {
+    for (const x of list) {
+      if (noticeStop) { st.job.interrompido = true; break; }
+      const hh = Number(new Date().toLocaleString('en-GB', { timeZone: 'America/Asuncion', hour: '2-digit', hour12: false }));
+      if (hh < 8 || hh >= 20) { st.job.pausadoHorario = true; break; } // passou das 20h: para; o resto sai amanhã com um novo clique
+      const key = lineKey(lid, `${x.phone}@s.whatsapp.net`);
+      const text = noticeText({ name: x.name, assunto: x.assunto });
+      try {
+        st.done[x.phone] = new Date().toISOString(); // marca antes: nunca manda duas vezes
+        await wa.send(key, { text, typing: false });
+        st.recipients[x.phone] = { assunto: x.assunto, at: new Date().toISOString() };
+        const conv = agent.conversation(key); conv.phone = x.phone; if (x.name) conv.name = x.name;
+        agent.remember(conv, 'assistant', text);
+        st.job.enviados += 1;
+      } catch (e) {
+        st.job.falhas += 1;
+        if (/limite de \d+ contatos novos/.test(e.message)) delete st.done[x.phone]; // a proteção do número segurou: fica para depois
+        store.addLog({ type: 'error', message: `Aviso do número do Marcos (+${x.phone}): ${e.message}` });
+      }
+      store.save();
+      await sleep(90_000 + Math.floor(Math.random() * 60_000)); // 1,5 a 2,5 min entre cada: contato novo para o número da Maria
+    }
+  })().finally(() => { st.job.running = false; st.job.endedAt = new Date().toISOString(); store.save(); store.addLog({ type: 'system', message: `Aviso do número novo do Marcos: ${st.job.enviados} enviado(s), ${st.job.falhas} falha(s)` }); });
 });
 
 app.post('/api/contacts/check', async (req, res) => {
@@ -5317,6 +5376,16 @@ const maria = new Maria({
   audit: (text) => securityEvent('maria_whatsapp', { name: 'Maria' }, null, text),
   log: (l) => store.addLog(l),
 });
+// Quem recebeu o aviso e responde à Maria: a Maria atende como secretária do Grupo Migra (pode tirar dúvidas e vender).
+maria.onExternal = (msg) => {
+  const ph = String(msg.phone || '').replace(/\D/g, '');
+  if (!ph || !marcosNotice().recipients[ph] || msg.isGroup) return false;
+  agent.handleIncoming({ key: msg.jid, phone: ph, name: msg.name || '', text: String(msg.text || '') }, async (text, { typingMs } = {}) => {
+    await wa.send(msg.jid, { text, typingMs });
+    store.addLog({ type: 'autoreply', phone: ph, message: text, rule: 'Maria (aviso do número do Marcos)' });
+  });
+  return true;
+};
 const receipts = new ReceiptReader({
   store, payments, llm,
   download: (m) => wa.downloadAudio(m),

@@ -449,6 +449,12 @@
  "src/maintenance.js": [
   "moveOldCorretorLeads"
  ],
+ "src/marcos-notice.js": [
+  "MARCOS_NEW",
+  "noticeCandidates",
+  "noticeText",
+  "topicOf"
+ ],
  "src/maria-baixa.js": [
   "alreadyUsed",
   "cpfMatches",
