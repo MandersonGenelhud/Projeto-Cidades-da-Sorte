@@ -91,8 +91,52 @@ export class Agent {
   listConversations() {
     return Object.values(this.store.data.conversations)
       .filter((c) => !c.simulation)
-      .map(({ messages, ...rest }) => ({ ...rest, count: messages.length, last: messages.at(-1) || null }))
+      .map(({ messages, inbox, ...rest }) => ({ ...rest, count: messages.length + (inbox?.length || 0), last: inbox?.length ? { role: 'user', content: inbox.at(-1).content, at: inbox.at(-1).at } : messages.at(-1) || null }))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  /**
+   * TEMPO REAL: a mensagem do cliente aparece no painel NO INSTANTE em que chega (antes só aparecia quando a IA a "lia", 20 a 60 s depois,
+   * e nos números com a IA desligada nunca aparecia). Duas formas, para nunca bagunçar a ordem que a IA lê:
+   *  - direct (número com a IA desligada): entra direto na conversa (a IA não vai responder, então não há o que reordenar);
+   *  - senão: vai para a "caixa de entrada" da conversa (conv.inbox) e aparece na tela; quando a IA (ou uma pessoa) responde, a caixa
+   *    entra na conversa como UMA mensagem, exatamente como antes.
+   */
+  recordInbound({ key, phone, name, username, text, id = null, at = Date.now() }, { direct = false } = {}) {
+    if (!key || !text) return null;
+    const conv = this.conversation(key);
+    conv.phone ||= phone || null;
+    if (name) conv.name ||= name;
+    if (username) conv.username ||= username;
+    const when = new Date(at || Date.now()).toISOString();
+    if (direct) conv.messages.push({ role: 'user', content: String(text), at: when, ...(id ? { id } : {}) });
+    else {
+      conv.inbox ||= [];
+      if (id && conv.inbox.some((x) => x.id === id)) return conv;
+      conv.inbox.push({ content: String(text), at: when, ...(id ? { id } : {}) });
+      if (conv.inbox.length > 40) conv.inbox.splice(0, conv.inbox.length - 40);
+    }
+    if (conv.messages.length > MAX_STORED_MESSAGES) conv.messages.splice(0, conv.messages.length - MAX_STORED_MESSAGES);
+    conv.updatedAt = new Date().toISOString();
+    this.store.save();
+    this.notify('conversation', { key, live: true });
+    return conv;
+  }
+
+  /** Passa a caixa de entrada para a conversa (UMA mensagem do cliente, com a hora da primeira). Devolve o texto, ou '' se estava vazia. */
+  flushInbox(conv, { ids = null, texts = null } = {}) {
+    if (!conv?.inbox?.length) return '';
+    // Com ids/texts: só as mensagens deste lote (as que chegaram depois ficam para a próxima resposta, na ordem certa).
+    const pick = ids || texts ? conv.inbox.filter((x) => (x.id && ids?.includes(x.id)) || texts?.includes(x.content)) : conv.inbox;
+    if (!pick.length) return '';
+    const text = pick.map((x) => x.content).join('\n');
+    conv.messages.push({ role: 'user', content: text, at: pick[0].at });
+    conv.inbox = conv.inbox.filter((x) => !pick.includes(x));
+    if (!conv.inbox.length) delete conv.inbox;
+    if (conv.messages.length > MAX_STORED_MESSAGES) conv.messages.splice(0, conv.messages.length - MAX_STORED_MESSAGES);
+    conv.updatedAt = new Date().toISOString();
+    this.store.save();
+    return text;
   }
 
   /** Por que a IA não responde esta conversa? (lista de motivos em português; vazia = nada impede). */
@@ -167,6 +211,7 @@ export class Agent {
       const lastAi = [...(conv.messages || [])].reverse().find((m) => m.role === 'assistant');
       if (lastAi && Date.now() - Date.parse(lastAi.at) < 30_000) return conv;
     }
+    this.flushInbox(conv); // o que o cliente mandou antes vem antes da resposta da pessoa
     if (text) this.remember(conv, 'assistant', text, { by: 'owner' });
     conv.ownerRepliedAt = Date.now();
     conv.humanSpokeAt = conv.ownerRepliedAt; // marca permanente: a atendente nunca mais toma a iniciativa com este cliente
@@ -176,7 +221,7 @@ export class Agent {
       this.store.save();
       this.store.addLog({ type: 'system', phone: phone || key, message: '🙋 Você respondeu pelo celular: o agente pausou nesta conversa' });
       this.notify('conversation', { key, handoff: true });
-    }
+    } else this.notify('conversation', { key, live: true }); // a resposta digitada no celular aparece no painel na hora
     return conv;
   }
 
@@ -616,7 +661,15 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
       // Se a última mensagem da memória já é exatamente esta (ficou sem resposta por falha da IA e voltou pela fila), não grava duas vezes.
       const joined = texts.join('\n');
       const lastMem = conv.messages.at(-1);
-      if (texts.length && !(lastMem?.role === 'user' && lastMem.content === joined)) this.remember(conv, 'user', joined);
+      // A mensagem já está na caixa de entrada (tempo real): entra na conversa a partir dela, sem gravar duas vezes.
+      const inboxIds = new Set((conv.inbox || []).map((x) => x.id).filter(Boolean));
+      const fromInbox = texts.length && conv.inbox?.length && (ids.some((i) => inboxIds.has(i)) || conv.inbox.some((x) => texts.includes(x.content)));
+      if (fromInbox) {
+        this.flushInbox(conv, { ids, texts });
+        const rest = texts.filter((t) => !conv.messages.at(-1).content.split('\n').includes(t)); // texto do lote que não estava na caixa
+        if (rest.length) conv.messages.at(-1).content += `\n${rest.join('\n')}`;
+      }
+      else if (texts.length && !(lastMem?.role === 'user' && lastMem.content === joined)) this.remember(conv, 'user', joined);
       if (texts.length) { try { this.onInbound?.(conv, joined); } catch { /* a contagem de campanhas nunca derruba o atendimento */ } }
       let resumeNote = q.resume || '';
       q.resume = '';

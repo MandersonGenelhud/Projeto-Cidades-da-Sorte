@@ -54,6 +54,7 @@ import { registerFechamentosRoutes } from './routes/fechamentos.js';
 import { registerClientesEsperandoRoutes } from './routes/clientes-esperando.js';
 import { registerDiagnosticoNumeroRoutes, diagnosisText } from './routes/diagnostico-numero.js';
 import { registerLinkDiretoRoutes } from './routes/link-direto.js';
+import { SseHub } from './sse-hub.js';
 import { FlashOffer } from './flash-offer.js';
 import { GroupBroadcasts } from './group-broadcast.js';
 import { Campaigns } from './campanhas.js';
@@ -229,10 +230,10 @@ const wa = new ConnectionManager({
 });
 
 // ---- Eventos em tempo real (Server-Sent Events) ----
-const clients = new Set();
+// Tempo real do painel com filtro por pessoa (src/sse-hub.js): vendedor só recebe o que pode ver; tráfego só o estado da conexão.
+const sse = new SseHub({ canSeeConv: (user, key) => canSeeConv(user, key) });
 function notify(event, data) {
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  for (const res of clients) res.write(payload);
+  sse.notify(event, data);
 }
 
 const llm = new LLMClient({ getConfig: agentConfig });
@@ -1603,6 +1604,13 @@ function routeIncoming(msg) {
   // (Para testar a atendente use a aba Testar; ou ligue "Responder também a equipe" em Agente IA, settings.agent.answerTeam.)
   if (!msg.isGroup && msg.phone && store.settings.agent?.answerTeam !== true && isTeamPhone(auth.users, msg.phone)) { notify('message', msg); return; }
   pending.onIncoming(msg);
+  // Tempo real: a mensagem aparece na conversa do painel na hora em que chega (em todos os números).
+  if (!msg.isGroup && msg.text) {
+    try {
+      const willAnswer = store.settings.autoReplyEnabled !== false && !aiOffFor(msg.jid) && !(msg.phone && store.isBlacklisted(msg.phone)) && autoReply.agentAllowed(msg);
+      agent.recordInbound({ key: msg.jid, phone: msg.phone, name: msg.name, username: msg.username, text: msg.text, id: msg.id || null, at: msg.timestamp ? Number(msg.timestamp) : Date.now() }, { direct: !willAnswer });
+    } catch (err) { store.addLog({ type: 'error', message: `Tempo real: ${err.message}` }); }
+  }
   if (!msg.isGroup) {
     try {
       // Chegou no WhatsApp (da Migra ou de um vendedor) com o código do Instagram: liga ao prospecto
@@ -2661,9 +2669,9 @@ app.get('/api/events', (req, res) => {
   res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
   res.flushHeaders();
   res.write(`event: status\ndata: ${JSON.stringify(wa.getState())}\n\n`);
-  clients.add(res);
+  sse.add(res, req.user);
   const ping = setInterval(() => res.write(': ping\n\n'), 25_000);
-  req.on('close', () => { clearInterval(ping); clients.delete(res); });
+  req.on('close', () => { clearInterval(ping); sse.remove(res); });
 });
 
 app.get('/api/stats', (_req, res) => {
@@ -3228,10 +3236,17 @@ app.get('/api/conversations', (req, res) => {
   const ids = new Set(auth.users.map((u) => u.id));
   const names = new Map(auth.users.map((u) => [u.id, u.name]));
   const admin = req.user.role === 'admin';
-  res.json(agent.listConversations().filter((c) => canSeeConv(req.user, c.key) && inOffice(req, conversationOffice(c))).map((c) => {
-    const base = { ...c, channelLabel: convLabel(c.key) };
+  const findLead = crm.lookupIndex(); // índice uma vez por pedido (antes: todos os prospectos percorridos para cada conversa)
+  const limit = Math.max(0, Number(req.query.limit) || 0);
+  let list = agent.listConversations().filter((c) => canSeeConv(req.user, c.key) && inOffice(req, conversationOffice(c)));
+  const total = list.length;
+  if (limit) list = list.slice(0, limit); // as mais recentes (a busca acha as antigas)
+  if (limit) res.set('X-Total-Count', String(total));
+  // Só o que a lista mostra (antes ia a conversa inteira menos as mensagens: análises, qualificação, etc.).
+  res.json(list.map((c) => {
+    const base = { key: c.key, name: c.name || '', phone: c.phone || '', username: c.username || '', handoff: Boolean(c.handoff), updatedAt: c.updatedAt, count: c.count, last: c.last ? { role: c.last.role, content: String(c.last.content || '').slice(0, 160), at: c.last.at } : null, channelLabel: convLabel(c.key) };
     if (!admin) return base;
-    const id = attendantOf(c, { ids, lineOwner: lineOwnerOf, findLead: (x) => crm.findForConversation({ key: x.key, phone: x.phone, username: x.username }) });
+    const id = attendantOf(c, { ids, lineOwner: lineOwnerOf, findLead });
     return { ...base, attendantId: id, attendantName: names.get(id) || (id.startsWith('line:') ? id.slice(5) : 'IA conversando (ainda não direcionada)') };
   }));
 });
@@ -3389,7 +3404,9 @@ const convWhyNot = (conv) => {
 app.get('/api/conversations/:key', (req, res) => {
   const conv = agent.conversation(req.params.key, { create: false });
   if (!conv) throw httpError(404, 'Conversa não encontrada');
-  res.json({ ...conv, channelLabel: convLabel(conv.key), whyNot: convWhyNot(conv) });
+  const { inbox, ...rest } = conv;
+  // A caixa de entrada (mensagens que acabaram de chegar e a IA ainda vai ler) aparece no fim, como no WhatsApp.
+  res.json({ ...rest, messages: [...conv.messages, ...(inbox || []).map((x) => ({ role: 'user', content: x.content, at: x.at, chegando: true }))], channelLabel: convLabel(conv.key), whyNot: convWhyNot(conv) });
 });
 app.post('/api/conversations/:key/handoff', (req, res) => {
   res.json(agent.setHandoff(req.params.key, Boolean(req.body.value), 'Assumido pelo painel'));
@@ -3400,6 +3417,7 @@ app.post('/api/conversations/:key/reply', async (req, res) => {
   const text = String(req.body.text || '').trim();
   if (!text) throw httpError(400, 'Mensagem vazia');
   await wa.send(conv.key, { text, typing: false, auto: false });
+  agent.flushInbox(conv); // o que o cliente mandou vem antes da resposta
   agent.remember(conv, 'assistant', text);
   const lead = crm.findForConversation({ key: conv.key, phone: conv.phone });
   if (lead && crm.canSee(req.user, lead)) crm.addNote(req.user, lead.id, `💬 Respondeu o cliente: "${text.slice(0, 200)}"`);

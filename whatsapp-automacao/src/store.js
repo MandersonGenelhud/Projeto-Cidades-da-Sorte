@@ -655,16 +655,22 @@ export class Store extends EventEmitter {
     }
   }
 
-  /** Agenda a gravação para agrupar várias alterações seguidas. */
+  /**
+   * Agenda a gravação para agrupar várias alterações seguidas. Grava no máximo uma vez a cada 300 ms e NUNCA adia para sempre: antes, cada
+   * alteração reiniciava a espera, e com mensagens chegando sem parar a gravação ficava sendo empurrada (risco de perder dados numa queda)
+   * e depois saía tudo de uma vez.
+   */
   save() {
-    clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => this.flush(), 200);
+    if (this.saveTimer) return;
+    this.saveTimer = setTimeout(() => this.flush(), 300);
   }
 
   flush() {
     clearTimeout(this.saveTimer);
+    this.saveTimer = null;
     const tmp = `${this.file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2));
+    // Sem espaços de formatação: o arquivo fica bem menor e a gravação (que trava o sistema enquanto acontece) muito mais rápida.
+    fs.writeFileSync(tmp, JSON.stringify(this.data));
     fs.renameSync(tmp, this.file);
   }
 

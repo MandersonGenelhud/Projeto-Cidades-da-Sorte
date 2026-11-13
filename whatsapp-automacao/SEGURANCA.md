@@ -814,3 +814,22 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - O indicador no rodapé do menu mostra só o **número principal** ("Principal desconectado" ou "Principal desligado"). Os números da equipe ficam em Conexões.
 
 - **(diagnóstico)** Um erro de **conexão** de antes da última vez que o número conectou aparece como "já foi resolvido: o número reconectou às HH:MM" e **não conta como problema**. Se o número cair de novo depois de conectar, volta a aparecer em "Erros recentes".
+
+## Tempo real filtrado por pessoa, conversas ao vivo e sistema mais leve (13/11/2026)
+
+- **Vazamento corrigido**: o "tempo real" do painel mandava **todos** os eventos para **todos** os navegadores logados: mensagens de clientes (nome e texto) e registros do sistema chegavam também a vendedores e à equipe de tráfego. Agora (`src/sse-hub.js`):
+  - o administrador recebe tudo;
+  - o vendedor recebe mensagens e conversas **só das conversas que ele pode ver**, e nunca os registros;
+  - a equipe de tráfego recebe só o estado da conexão;
+  - a mensagem vai resumida, sem o conteúdo bruto do WhatsApp.
+- **Conversas ao vivo**:
+  - a mensagem do cliente aparece na conversa do painel **no instante em que chega**, em todos os números. Antes só aparecia quando a IA a lia, 20 a 60 s depois, e nos números com a IA desligada nunca aparecia;
+  - a resposta digitada no celular também aparece na hora;
+  - para não mudar o que a IA lê, a mensagem fica numa caixa de entrada da conversa (`conv.inbox`) e entra na conversa **uma vez só e na ordem certa** quando a IA (ou uma pessoa) responde. No número com a IA desligada, ela entra direto.
+- **Mais leve**:
+  - a lista de conversas monta o índice dos prospectos **uma vez por pedido** (antes percorria todos os prospectos para cada conversa);
+  - a lista manda só os campos da tela e as **600 mais recentes** (as antigas aparecem pela busca);
+  - o navegador agrupa vários eventos seguidos numa única atualização (conversa aberta em cerca de 0,4 s, lista em cerca de 1,5 s), ignora mensagens de grupo e não recarrega os quadros extras a cada mensagem;
+  - o banco é gravado **sem formatação** (arquivo menor, gravação mais rápida), no máximo uma vez a cada 300 ms e **sem adiar para sempre**. Antes, com mensagens chegando sem parar, a gravação podia ficar sendo empurrada.
+  - Nada do banco foi apagado nem convertido: o arquivo continua sendo o mesmo JSON, só sem espaços.
+- Testes: `test/tempo-real.test.js`.

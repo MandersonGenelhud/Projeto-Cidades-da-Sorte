@@ -66,5 +66,6 @@
     load().catch(() => {}).finally(() => { timer = setTimeout(tick, 10000); });
   };
   const prev = loaders.conversations;
-  loaders.conversations = (...args) => { tick(); return prev?.(...args); };
+  // Só quando a pessoa abre a aba (não a cada mensagem que chega: a tela "Ao vivo" já se atualiza sozinha a cada 10 s).
+  loaders.conversations = (opts = {}) => { if (!opts.keepThread) tick(); return prev?.(opts); };
 })();

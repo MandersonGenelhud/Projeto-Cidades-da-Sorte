@@ -1345,7 +1345,7 @@ $('#convMode').addEventListener('click', (e) => {
   $$('#convMode [data-mode]').forEach((x) => x.classList.toggle('primary', x === b));
   loaders.conversations();
 });
-loaders.conversations = async () => {
+loaders.conversations = async (opts = {}) => {
   $('#convSearchForm').hidden = window.currentUser?.role !== 'admin';
   if (convSearching) return;
   loadPending();
@@ -1353,7 +1353,7 @@ loaders.conversations = async () => {
   $('#convMode').hidden = !adminNow;
   if (adminNow) loadIgManual().catch(() => {});
   if (adminNow && convMode === 'quadros' && !convChannel) { $('#convAttendants').hidden = true; return renderBoards(); }
-  const all = await api('/api/conversations');
+  const all = await api('/api/conversations?limit=600'); // as 600 mais recentes; as antigas pela busca
   const list = all.filter((c) => (!convChannel || (convChannel === 'ig') === String(c.key).startsWith('ig:')) && (!convAttendant || c.attendantId === convAttendant));
   const item = (c) => `
     <div class="conv-item ${c.key === currentConv ? 'active' : ''}" data-key="${esc(c.key)}">
@@ -1375,8 +1375,17 @@ loaders.conversations = async () => {
   $('#convList').innerHTML = (admin && !convAttendant
     ? [...groups].map(([id, items]) => `<h3 class="conv-group">${esc(items[0].attendantName)} <span class="badge pending">${items.length}</span></h3>${items.map(item).join('')}`).join('')
     : list.map(item).join('')) || '<p class="muted">Nenhuma conversa ainda. Quando clientes falarem com o agente, elas aparecem aqui.</p>';
-  if (currentConv) openConversation(currentConv);
+  if (currentConv && !opts.keepThread) openConversation(currentConv);
 };
+// Tempo real sem pesar: vários eventos seguidos viram UMA atualização. A conversa aberta atualiza em ~0,4 s; a lista, em ~1,5 s.
+const convRefresh = (() => {
+  let tThread = null; let tList = null;
+  return (key) => {
+    if (!$('#tab-conversations').classList.contains('active')) return;
+    if (currentConv && (!key || key === currentConv)) { clearTimeout(tThread); tThread = setTimeout(() => openConversation(currentConv).catch(() => {}), 400); }
+    clearTimeout(tList); tList = setTimeout(() => loaders.conversations({ keepThread: true }).catch(() => {}), 1500);
+  };
+})();
 $('#convAttendants').addEventListener('click', (e) => {
   const b = e.target.closest('[data-att]');
   if (!b) return;
@@ -1624,7 +1633,7 @@ function connectEvents() {
   });
   es.addEventListener('log', (e) => {
     const log = JSON.parse(e.data);
-    if (log.type === 'autoreply' && $('#tab-conversations').classList.contains('active')) loaders.conversations();
+    if (log.type === 'autoreply') convRefresh();
     if ($('#tab-logs').classList.contains('active') && (!$('#logType').value || $('#logType').value === log.type)) {
       $('#logsList').insertAdjacentHTML('afterbegin', logItem(log));
     }
@@ -1640,7 +1649,7 @@ function connectEvents() {
   const refreshIfActive = (tab) => () => {
     if ($(`#tab-${tab}`).classList.contains('active')) loaders[tab]();
   };
-  es.addEventListener('conversation', refreshIfActive('conversations'));
+  es.addEventListener('conversation', (e) => { try { convRefresh(JSON.parse(e.data || '{}')?.key); } catch { convRefresh(); } });
   es.addEventListener('instagramStatus', (e) => renderInstagram(JSON.parse(e.data)));
   es.addEventListener('pending', () => {
     if ($('#tab-conversations').classList.contains('active')) loadPending();
@@ -1662,7 +1671,7 @@ function connectEvents() {
   });
   es.addEventListener('crmAssigned', (e) => onCrmAssigned(JSON.parse(e.data)));
   es.addEventListener('crmDue', () => onCrmDue());
-  es.addEventListener('message', refreshIfActive('conversations'));
+  es.addEventListener('message', (e) => { try { const m = JSON.parse(e.data || '{}'); if (!m.isGroup) convRefresh(m.key || m.jid); } catch { /* evento inválido */ } });
   es.onerror = () => renderStatus({ ...connState, status: 'disconnected' });
 }
 

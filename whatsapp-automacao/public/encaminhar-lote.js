@@ -52,5 +52,5 @@
     } catch (err) { toast(err.message, true); }
   });
   const prev = loaders.conversations;
-  loaders.conversations = (...args) => { load().catch(() => {}); return prev?.(...args); };
+  loaders.conversations = (opts = {}) => { if (!opts?.keepThread) load().catch(() => {}); return prev?.(opts); };
 })();

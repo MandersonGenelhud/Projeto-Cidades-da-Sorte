@@ -467,6 +467,22 @@ export class Crm {
   }
 
   // ---------- Integração com as conversas ----------
+  /**
+   * Mesmo resultado de findForConversation, mas para MUITAS conversas de uma vez: monta os índices uma vez (O(prospectos)) em vez de
+   * percorrer todos os prospectos para cada conversa (era o que deixava a lista de conversas lenta).
+   */
+  lookupIndex() {
+    const byKey = new Map(); const byPhone = new Map(); const byIg = new Map();
+    for (const l of this.leads) {
+      if (l.conversationKey && !byKey.has(l.conversationKey)) byKey.set(l.conversationKey, l);
+      if (l.whatsappKey && !byKey.has(l.whatsappKey)) byKey.set(l.whatsappKey, l);
+      if (!OPEN.has(l.stage)) continue;
+      if (l.phone && !byPhone.has(l.phone)) byPhone.set(l.phone, l);
+      if (l.instagram && !byIg.has(l.instagram.toLowerCase())) byIg.set(l.instagram.toLowerCase(), l);
+    }
+    return ({ key, phone, username }) => byKey.get(key) || (phone && byPhone.get(phone)) || (username && byIg.get(String(username).toLowerCase())) || null;
+  }
+
   findForConversation({ key, phone, username }) {
     return (
       this.leads.find((l) => l.conversationKey === key || l.whatsappKey === key) ||

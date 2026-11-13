@@ -851,6 +851,11 @@
   "siteHostsFrom",
   "siteOfficeMap"
  ],
+ "src/sse-hub.js": [
+  "SseHub",
+  "allowEvent",
+  "slimMessage"
+ ],
  "src/store.js": [
   "Store",
   "deepMerge"
