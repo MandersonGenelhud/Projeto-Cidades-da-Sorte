@@ -2857,7 +2857,7 @@ const noticeList = (days) => noticeCandidates(Object.values(store.data.conversat
 let noticeStop = false;
 app.get('/api/marcos-notice', (req, res) => {
   needAdmin(req);
-  const days = Math.min(180, Math.max(1, Number(req.query.days) || 30));
+  const days = Math.min(180, Math.max(1, Number(req.query.days) || 15));
   const list = noticeList(days);
   const lid = mariaLineId();
   res.json({ days, total: list.length, exemplos: list.slice(0, 6).map((x) => ({ nome: x.name.split(' ')[0] || `+${x.phone.slice(0, 5)}…`, assunto: x.assunto })), previa: noticeText({ name: list[0]?.name || 'Ana', assunto: list[0]?.assunto || '', video: store.settings.crm?.marcosVideoUrl ?? MARCOS_VIDEO }), mariaConectada: Boolean(lid && wa.isConnected(lineKey(lid, '1@s.whatsapp.net'))), jaAvisados: Object.keys(marcosNotice().done).length, job: marcosNotice().job });
@@ -2871,8 +2871,13 @@ app.post('/api/marcos-notice/start', (req, res) => {
   if (h < 8 || h >= 20) throw httpError(400, 'Só envio entre 8h e 20h (hora do Paraguai).');
   const lid = mariaLineId();
   if (!lid || !wa.isConnected(lineKey(lid, '1@s.whatsapp.net'))) throw httpError(409, 'O número da Maria não está conectado (Conexões).');
-  const days = Math.min(180, Math.max(1, Number(req.body?.days) || 30));
-  const list = noticeList(days).slice(0, Math.min(200, Math.max(1, Number(req.body?.limit) || 200)));
+  const days = Math.min(180, Math.max(1, Number(req.body?.days) || 15));
+  // Teto por DIA no número da Maria (contatos novos para ela): o que passar fica para o dia seguinte.
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
+  const sentToday = Object.values(st.done).filter((t) => new Date(t).toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' }) === today).length;
+  const perDay = Math.max(1, Number(store.settings.crm?.marcosNoticePerDay) || 60);
+  if (sentToday >= perDay) throw httpError(429, `Hoje a Maria já avisou ${sentToday} pessoa(s), o limite seguro do dia (${perDay}). Continue amanhã a partir das 8h.`);
+  const list = noticeList(days).slice(0, Math.min(perDay - sentToday, Math.max(1, Number(req.body?.limit) || 200)));
   st.job = { running: true, total: list.length, enviados: 0, falhas: 0, startedAt: new Date().toISOString(), endedAt: null };
   noticeStop = false;
   store.save();
@@ -2883,6 +2888,8 @@ app.post('/api/marcos-notice/start', (req, res) => {
       if (noticeStop) { st.job.interrompido = true; break; }
       const hh = Number(new Date().toLocaleString('en-GB', { timeZone: 'America/Asuncion', hour: '2-digit', hour12: false }));
       if (hh < 8 || hh >= 20) { st.job.pausadoHorario = true; break; } // passou das 20h: para; o resto sai amanhã com um novo clique
+      if (!wa.isConnected(lineKey(lid, '1@s.whatsapp.net'))) { st.job.paradoDesconectado = true; break; } // a Maria caiu: para tudo
+      if ((st.job.falhasSeguidas || 0) >= 3) { st.job.paradoFalhas = true; break; } // 3 falhas seguidas: para e avisa (pode ser sinal de bloqueio)
       const key = lineKey(lid, `${x.phone}@s.whatsapp.net`);
       const text = noticeText({ name: x.name, assunto: x.assunto, video: store.settings.crm?.marcosVideoUrl ?? MARCOS_VIDEO });
       try {
@@ -2891,16 +2898,18 @@ app.post('/api/marcos-notice/start', (req, res) => {
         st.recipients[x.phone] = { assunto: x.assunto, at: new Date().toISOString() };
         const conv = agent.conversation(key); conv.phone = x.phone; if (x.name) conv.name = x.name;
         agent.remember(conv, 'assistant', text);
-        st.job.enviados += 1;
+        st.job.enviados += 1; st.job.falhasSeguidas = 0;
       } catch (e) {
-        st.job.falhas += 1;
+        st.job.falhas += 1; st.job.falhasSeguidas = (st.job.falhasSeguidas || 0) + 1;
         if (/limite de \d+ contatos novos/.test(e.message)) delete st.done[x.phone]; // a proteção do número segurou: fica para depois
         store.addLog({ type: 'error', message: `Aviso do número do Marcos (+${x.phone}): ${e.message}` });
       }
       store.save();
-      await sleep(90_000 + Math.floor(Math.random() * 60_000)); // 1,5 a 2,5 min entre cada: contato novo para o número da Maria
+      // 2 a 4 minutos entre cada (contato novo para o número da Maria) e, a cada 10 enviadas, uma pausa maior de 10 a 20 minutos.
+      await sleep(120_000 + Math.floor(Math.random() * 120_000));
+      if (st.job.enviados && st.job.enviados % 10 === 0) await sleep(600_000 + Math.floor(Math.random() * 600_000));
     }
-  })().finally(() => { st.job.running = false; st.job.endedAt = new Date().toISOString(); store.save(); store.addLog({ type: 'system', message: `Aviso do número novo do Marcos: ${st.job.enviados} enviado(s), ${st.job.falhas} falha(s)` }); });
+  })().finally(() => { st.job.running = false; st.job.endedAt = new Date().toISOString(); store.save(); store.addLog({ type: 'system', message: `Aviso do número novo do Marcos: ${st.job.enviados} enviado(s), ${st.job.falhas} falha(s)` }); if (st.job.paradoFalhas || st.job.paradoDesconectado) notifyAdmins(`⚠️ *Aviso do número do Marcos parou*: ${st.job.paradoDesconectado ? 'o WhatsApp da Maria desconectou' : '3 falhas seguidas no envio (pode ser sinal de bloqueio)'}. ${st.job.enviados} pessoa(s) já avisada(s). Confira o celular da Maria antes de continuar.`).catch(() => {}); });
 });
 
 app.post('/api/contacts/check', async (req, res) => {

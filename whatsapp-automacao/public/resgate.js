@@ -7,7 +7,7 @@
   sec.className = 'tab';
   host.appendChild(sec);
   const fmt = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '');
-  let state = { q: '', list: [], lines: [], open: null, notice: null, days: 30 };
+  let state = { q: '', list: [], lines: [], open: null, notice: null, days: 15 };
 
   async function loadList() {
     state.notice = await api(`/api/marcos-notice?days=${state.days}`).catch(() => null);
@@ -24,12 +24,12 @@
     const o = state.open;
     sec.innerHTML = `<div class="page-head"><h1>Resgate de conversas</h1></div>
       ${(() => { const n = state.notice; if (!n) return ''; const j = n.job; return `<div class="panel"><h2>Avisar o número novo do Marcos (pela Maria)</h2>
-        <p class="hint">A Maria manda UMA mensagem curta para quem conversava com o Marcos no número antigo: saudação, o assunto da conversa (quando o sistema sabe) e o link que abre direto o WhatsApp novo dele. Quem responder é atendido pela Maria (tira dúvidas e pode vender). Vai devagar (uma a cada 1,5 a 2,5 min), só das 8h às 20h, e ninguém recebe duas vezes.</p>
+        <p class="hint">A Maria manda UMA mensagem curta para quem conversava com o Marcos no número antigo: saudação, o assunto da conversa (quando o sistema sabe) e o link que abre direto o WhatsApp novo dele. Quem responder é atendido pela Maria (tira dúvidas e pode vender). Vai bem devagar para proteger o número da Maria: uma mensagem a cada 2 a 4 min, uma pausa de 10 a 20 min a cada 10, no máximo 60 por dia, só das 8h às 20h. Para sozinho se a Maria desconectar ou se der 3 falhas seguidas. Ninguém recebe duas vezes.</p>
         <label>Conversas dos últimos <select id="ntDays">${[7, 15, 30, 60, 90].map((d) => `<option value="${d}" ${n.days === d ? 'selected' : ''}>${d} dias</option>`).join('')}</select></label>
         <p><b>${n.total}</b> pessoa(s) para avisar${n.jaAvisados ? ` · ${n.jaAvisados} já avisada(s)` : ''}${n.exemplos.length ? ` · ex.: ${n.exemplos.map((x) => `${esc(x.nome)}${x.assunto ? ` (${esc(x.assunto)})` : ''}`).join(', ')}` : ''}</p>
         <p class="hint"><b>Prévia:</b> ${esc(n.previa)}</p>
         ${n.mariaConectada ? '' : '<p class="err">O número da Maria não está conectado: conecte em Conexões antes de enviar.</p>'}
-        ${j ? `<p class="hint">${j.running ? `<b>Enviando…</b> ${j.enviados + j.falhas} de ${j.total}` : `Último envio: ${j.enviados} enviado(s)${j.falhas ? `, ${j.falhas} falha(s)` : ''}${j.interrompido ? ' · interrompido' : ''}${j.pausadoHorario ? ' · parou às 20h (clique de novo amanhã para continuar)' : ''}`}</p>` : ''}
+        ${j ? `<p class="hint">${j.running ? `<b>Enviando…</b> ${j.enviados + j.falhas} de ${j.total}` : `Último envio: ${j.enviados} enviado(s)${j.falhas ? `, ${j.falhas} falha(s)` : ''}${j.interrompido ? ' · interrompido' : ''}${j.pausadoHorario ? ' · parou às 20h (clique de novo amanhã para continuar)' : ''}${j.paradoDesconectado ? ' · PAROU: a Maria desconectou' : ''}${j.paradoFalhas ? ' · PAROU: 3 falhas seguidas (confira o celular da Maria)' : ''}`}</p>` : ''}
         <button class="btn primary" data-a="ntstart" ${n.total && n.mariaConectada && !j?.running ? '' : 'disabled'}>Enviar o aviso pela Maria</button>
         <button class="btn danger" data-a="ntstop" ${j?.running ? '' : 'disabled'}>Parar</button></div>`; })()}
       <p class="hint">As conversas que ficaram no número principal. Clique em uma, leia o histórico e responda por aqui: a resposta sai por um número da equipe que esteja conectado (por padrão, a Central). A conversa continua pelo Hub, e a IA não responde por cima enquanto você estiver conduzindo.</p>
@@ -67,7 +67,7 @@
     } catch (err) { toast(err.message, true); render(); }
   });
   let timer = null;
-  sec.addEventListener('change', (e) => { if (e.target.id === 'ntDays') { state.days = Number(e.target.value) || 30; loadList().catch(() => {}); } });
+  sec.addEventListener('change', (e) => { if (e.target.id === 'ntDays') { state.days = Number(e.target.value) || 15; loadList().catch(() => {}); } });
   sec.addEventListener('input', (e) => {
     if (e.target.id !== 'rsQ') return;
     state.q = e.target.value; clearTimeout(timer);
