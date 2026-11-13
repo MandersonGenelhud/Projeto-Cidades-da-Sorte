@@ -96,7 +96,7 @@ test('Atender agora: tira a pausa, a IA responde cada um (um de cada vez) e resp
     handleIncoming: async ({ key, resume }, send) => { handled.push({ key, resume }); await send('Oi! Desculpe a demora.', {}); conversations[key].messages.push({ role: 'assistant', content: 'Oi! Desculpe a demora.', at: new Date().toISOString() }); },
   };
   const wa = { isConnected: () => true, send: async (to, p) => { sent.push([to, p.text]); } };
-  const lines = { list: () => [{ id: 'mand', label: 'Manderson' }, { id: 'giovana', label: 'Giovana' }, { id: 'central', label: 'Central' }], byOwner: () => null };
+  const lines = { list: () => [{ id: 'mand', label: 'Manderson' }, { id: 'giovana', label: 'Giovana' }, { id: 'central', label: 'Central' }], byOwner: (id) => (id === 'u-mand' ? { id: 'mand' } : null) };
   const app = fakeApp();
   const ce = registerClientesEsperandoRoutes(app, {
     store, agent, wa, lines, sleep: async () => {},
@@ -105,9 +105,11 @@ test('Atender agora: tira a pausa, a IA responde cada um (um de cada vez) e resp
     httpError: (code, msg) => Object.assign(new Error(msg), { status: code }),
   });
   let out = null;
-  app.routes['GET /api/clientes-esperando']({ user: { role: 'admin' }, query: {} }, { json: (x) => { out = x; } });
-  assert.ok(out.esperando.find((x) => x.linha === 'giovana').bloqueio, 'Giovana com IA desligada aparece como bloqueada');
-  assert.ok(!out.linhas.some((l) => l.id === 'central'), 'a Central não entra (tem regra própria)');
+  app.routes['GET /api/clientes-esperando']({ user: { role: 'admin', id: 'u-mand' }, query: {} }, { json: (x) => { out = x; } });
+  assert.deepEqual(out.linhas.map((l) => l.id), ['mand'], 'só o número de quem está logado, mesmo sendo administrador');
+  assert.ok(!out.esperando.some((x) => x.linha !== 'mand'), 'os outros números ficam como estão');
+  app.routes['GET /api/clientes-esperando']({ user: { role: 'admin', id: 'marcos-sem-numero' }, query: {} }, { json: (x) => { out = x; } });
+  assert.deepEqual(out.linhas, [], 'administrador sem número próprio não mexe no número de ninguém');
 
   const r = ce.start(lines.list().filter((l) => l.id !== 'central'), 'Manderson');
   assert.equal(r.total, 3, 'só os 3 do Manderson (Giovana está com a IA desligada)');
@@ -120,7 +122,7 @@ test('Atender agora: tira a pausa, a IA responde cada um (um de cada vez) e resp
   assert.throws(() => ce.start([{ id: 'mand' }], 'x'), /Nenhum cliente/, 'depois de atendidos, não repete');
 });
 
-test('vendedor só vê o próprio número; fora do horário não começa', () => {
+test('cada um só vê o próprio número (vendedor e administrador); fora do horário não começa', () => {
   const app = fakeApp();
   const ce = registerClientesEsperandoRoutes(app, {
     store: { data: { conversations: base() }, settings: {}, addLog: () => {} }, agent: { active: true }, wa: { isConnected: () => true },
@@ -130,5 +132,6 @@ test('vendedor só vê o próprio número; fora do horário não começa', () =>
   });
   assert.deepEqual(ce.linesFor({ role: 'seller', id: 'u-gio' }).map((l) => l.id), ['giovana']);
   assert.deepEqual(ce.linesFor({ role: 'seller', id: 'outro' }), []);
+  assert.deepEqual(ce.linesFor({ role: 'admin', id: 'outro' }), [], 'administrador também só o próprio');
   assert.throws(() => ce.start([{ id: 'mand' }], 'x'), /Fora do horário/);
 });

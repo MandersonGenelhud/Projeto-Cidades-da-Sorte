@@ -91,7 +91,7 @@ export function registerClientesEsperandoRoutes(app, ctx) {
   const linesFor = (user) => {
     // Central e Maria têm as próprias regras (a Central encaminha; a Maria é da equipe): aqui só os números dos vendedores.
     const all = lines.list().filter((l) => !ctx.isMariaKey(`l:${l.id}:1@s.whatsapp.net`) && !isCentralLine(l));
-    if (user?.role === 'admin') return all;
+    // Regra da direção (13/11/2026): cada pessoa só mexe no PRÓPRIO número, administrador também. Os números dos outros ficam como estão.
     const own = lines.byOwner?.(user?.id);
     return own ? all.filter((l) => l.id === own.id) : [];
   };
