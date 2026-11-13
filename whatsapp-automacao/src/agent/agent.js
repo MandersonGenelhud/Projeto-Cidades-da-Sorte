@@ -670,9 +670,11 @@ Corretor de imóveis do Brasil (CRECI, "ramo imobiliário", "como funciona a ven
 
       // UM CLIENTE POR VEZ em cada número: enquanto a IA lê, pensa e responde um cliente, nenhum outro cliente do mesmo número recebe nada
       // (as respostas nunca se misturam). E se uma pessoa da equipe está usando o número pelo celular, a IA espera ela parar.
+      // A espera por "pessoa usando o celular" acontece ANTES de pegar a vez do número: assim uma conversa em pausa não segura os outros clientes.
+      for (let w = 0; w < 450 && (this.humanBusy?.(key) || 0) > 0; w++) await this.wait(2000);
       const release = await this.#lockAccount(senderOf(key));
       try {
-        for (let w = 0; w < 450 && (this.humanBusy?.(key) || 0) > 0; w++) await this.wait(2000);
+        for (let w = 0; w < 15 && (this.humanBusy?.(key) || 0) > 0; w++) await this.wait(2000);
         if (human) {
           await q.hooks.markRead?.(ids);
           await this.wait(readingTimeMs(texts.join('\n')));

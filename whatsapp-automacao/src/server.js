@@ -208,8 +208,13 @@ const sendGuard = new SendGuard({
 });
 const wa = new ConnectionManager({
   guard: sendGuard,
-  // Pessoa da equipe usando o número pelo celular (texto ou áudio): a IA fica parada naquele número até 2 min depois da última mensagem dela (no máximo 15 min de espera por envio).
+  // Pessoa da equipe usando o número pelo celular (texto ou áudio): NA CONVERSA em que ela digitou a IA espera 2 min depois da última
+  // mensagem dela; nas outras conversas do mesmo número, só 10 s (para não sair tudo colado). Com connection.safety.humanPauseScope = 'numero'
+  // volta o jeito antigo (o número inteiro para). No máximo 15 min de espera por envio.
   quietMs: Math.max(30, Number(store.settings.connection?.safety?.humanPauseSec) || 120) * 1000,
+  numberGapMs: store.settings.connection?.safety?.humanPauseScope === 'numero'
+    ? Math.max(30, Number(store.settings.connection?.safety?.humanPauseSec) || 120) * 1000
+    : Math.max(0, Number(store.settings.connection?.safety?.humanNumberGapSec ?? 10)) * 1000,
   maxQuietWaitMs: 15 * 60_000,
   store,
   instagram,
@@ -1500,6 +1505,9 @@ wa.on('instagramStatus', (state) => {
   if (state.status === 'connected') console.log(`✅ Instagram conectado: @${state.me?.username}`);
   if (state.error) console.log(`⚠️  Instagram: ${state.error}`);
 });
+// Os atalhos digitados na conversa (/ia, /pausa, /contrato…, "Só um momento") não contam como "pessoa usando o celular":
+// antes, o próprio /ia ou "Só um momento" deixava a IA esperando mais 2 minutos naquele número.
+wa.ignoreOwner = (msg) => !msg?.isGroup && !maria.isLine(msg) && sellerCommands.wants(msg);
 wa.on('ownerMessage', (msg) => {
   if (maria.isLine(msg)) return; // o número da Maria é só da equipe
   // Atalho do consultor na conversa do cliente ("/contrato"): gera o contrato e não pausa a IA.
@@ -3336,7 +3344,7 @@ const convWhyNot = (conv) => {
   if (!(wa.isConnected ? wa.isConnected(key) : wa.status === 'connected')) why.push('Este número está DESCONECTADO (Conexões): nada sai nem chega por ele.');
   if (!isWithinWorkHours(store.settings.agent?.workHours)) why.push('Fora do horário da IA (Agente IA → horário de trabalho): ela responde quando o horário abrir.');
   const busy = wa.humanWaitMs ? wa.humanWaitMs(key) : 0;
-  if (busy > 0) why.push(`Alguém da equipe usou este número pelo celular há pouco: a IA espera ${Math.ceil(busy / 1000)} s sem ninguém mexer antes de responder (para não atravessar).`);
+  if (busy > 0) why.push(`Alguém da equipe escreveu pelo celular há pouco (nesta conversa ou neste número): a IA espera mais ${Math.ceil(busy / 1000)} s antes de responder (para não atravessar).`);
   const acc = parseLineKey(key) ? `linha:${parseLineKey(key).id}` : 'principal';
   if ([...(agent.accountLocks?.keys?.() || [])].includes(acc)) why.push('A IA está atendendo outro cliente deste número agora (um por vez): esta conversa está na fila.');
   if (isOldLeadConv(conv)) why.push('Lead antigo (antes de 11/11): a IA responde se ele escrever, mas não toma a iniciativa.');

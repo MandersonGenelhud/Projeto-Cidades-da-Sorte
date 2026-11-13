@@ -41,7 +41,7 @@ test('uma falha de envio não trava a fila daquele número', async () => {
 });
 
 test('se a pessoa da equipe acabou de digitar pelo celular naquele número, a resposta automática espera um pouco antes de sair', async () => {
-  const { cm, log } = setup();
+  const { cm, log } = setup({ numberGapMs: 60 });
   cm.emit('ownerMessage', { jid: '5511900000009@s.whatsapp.net', text: 'oi, estou atendendo' });
   const t0 = Date.now();
   await cm.send('5511900000001@s.whatsapp.net', { text: 'auto' });
@@ -51,4 +51,26 @@ test('se a pessoa da equipe acabou de digitar pelo celular naquele número, a re
   await cm.send('l:fran:5511900000002@s.whatsapp.net', { text: 'outro' });
   assert.ok(Date.now() - t1 < 50);
   assert.ok(log.length >= 4);
+});
+
+test('pausa por conversa: onde a pessoa digitou espera a pausa inteira; as outras conversas do número só um intervalo curto', async () => {
+  const { cm } = setup({ quietMs: 400, numberGapMs: 30, maxQuietWaitMs: 2000 });
+  cm.emit('ownerMessage', { jid: 'l:mand:5569900000001@s.whatsapp.net', text: 'oi mãe' });
+  assert.ok(cm.humanWaitMs('l:mand:5569900000001@s.whatsapp.net') > 300, 'na conversa da mãe: pausa inteira');
+  const outra = cm.humanWaitMs('l:mand:5527999568520@s.whatsapp.net');
+  assert.ok(outra <= 30, `cliente novo no mesmo número: só o intervalo curto (${outra} ms)`);
+  assert.equal(cm.humanWaitMs('l:outro:5527999568520@s.whatsapp.net'), 0, 'outro número: livre');
+  const t0 = Date.now();
+  await cm.send('l:mand:5527999568520@s.whatsapp.net', { text: 'resposta da IA ao cliente' });
+  assert.ok(Date.now() - t0 < 300, 'o cliente não esperou a pausa da conversa da mãe');
+});
+
+test('atalhos (/ia, "Só um momento") digitados no celular não pausam a IA', () => {
+  const { cm } = setup({ quietMs: 400, numberGapMs: 400 });
+  cm.ignoreOwner = (msg) => /^\/ia$|s[oó] um momento/i.test(msg.text);
+  cm.emit('ownerMessage', { jid: 'l:mand:5527999568520@s.whatsapp.net', text: '/ia' });
+  cm.emit('ownerMessage', { jid: 'l:mand:5527999568520@s.whatsapp.net', text: 'Só um momento' });
+  assert.equal(cm.humanWaitMs('l:mand:5527999568520@s.whatsapp.net'), 0);
+  cm.emit('ownerMessage', { jid: 'l:mand:5527999568520@s.whatsapp.net', text: 'bom dia, tudo bem?' });
+  assert.ok(cm.humanWaitMs('l:mand:5527999568520@s.whatsapp.net') > 300, 'mensagem de verdade pausa');
 });

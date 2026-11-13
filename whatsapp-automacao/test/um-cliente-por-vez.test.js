@@ -41,3 +41,20 @@ test('pessoa da equipe usando o número pelo celular: a IA espera ela parar ante
   assert.deepEqual(events.slice(0, 3), ['espera', 'espera', 'espera']);
   assert.equal(events.at(-1), 'envia A');
 });
+
+test('conversa em pausa porque a pessoa está digitando nela NÃO segura os outros clientes do mesmo número', async () => {
+  const { agent, events } = setup();
+  const KA = 'l:mand:5545988880001@s.whatsapp.net';
+  const KB = 'l:mand:5545988880002@s.whatsapp.net';
+  let busyA = true;
+  agent.humanBusy = (key) => (key === KA && busyA ? 1000 : 0);
+  agent.wait = async () => { await new Promise((r) => setTimeout(r, 5)); };
+  const a = agent.handleIncoming({ key: KA, phone: '5545988880001', text: 'A' }, async () => events.push('envia A'));
+  await new Promise((r) => setTimeout(r, 20));
+  await agent.handleIncoming({ key: KB, phone: '5545988880002', text: 'B' }, async () => events.push('envia B'));
+  assert.ok(events.includes('envia B'), 'B foi respondido enquanto A esperava');
+  assert.ok(!events.includes('envia A'));
+  busyA = false;
+  await a;
+  assert.ok(events.includes('envia A'));
+});
