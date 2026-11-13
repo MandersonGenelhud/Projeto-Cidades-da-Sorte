@@ -668,6 +668,7 @@
   "ReceiptReader"
  ],
  "src/reconcile.js": [
+  "financialPanorama",
   "findDuplicates",
   "findIssues",
   "identityOf",

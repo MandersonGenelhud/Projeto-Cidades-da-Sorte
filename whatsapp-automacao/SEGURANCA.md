@@ -847,3 +847,15 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Maria**: ao mostrar um contrato, diz quantos documentos estão na pasta e de que tipo. Ela **nunca envia os arquivos**: para baixar, abre-se o contrato no painel.
 - **Relatórios da Maria**: "contratos Ouro dos últimos 7 dias" filtra pelo pacote ou serviço, e cada contrato vem com a **data de entrada**.
 - Testes: `test/pasta-cliente.test.js`, `test/maria.test.js`.
+
+## Panorama do dinheiro: Hub × sistema antigo (13/11/2026)
+
+- Em Financeiro → Cobrança e previsão → Conferência → **Conferir agora**, aparece o panorama de hoje, separado em total, "veio do sistema antigo" e "nasceu no Hub". Ele mostra:
+  - contratos ativos, quitados e cancelados;
+  - **vencidos com saldo** (a última parcela já passou e ainda falta receber) e **vencendo** (a última parcela cai nos próximos 30 dias);
+  - contratos com parcela vencida, parcelas vencidas e o valor vencido;
+  - parcelas e valor a vencer em 30 dias;
+  - valor dos contratos, recebido, a receber e **comissões a pagar**.
+- **Bate com o sistema antigo?** compara só o que veio de lá com a última cópia (sem os cancelados): quantidade, valor, pago e saldo, com a diferença de cada um. O Hub tem a mais os contratos novos, que ficam fora dessa comparação.
+- As listas de vencidos, vencendo e com parcela vencida mostram até 200 contratos cada.
+- É **só leitura** e só para administrador; nada é alterado. Teste: `test/panorama-financeiro.test.js`.

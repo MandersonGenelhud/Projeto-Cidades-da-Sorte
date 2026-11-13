@@ -6,7 +6,7 @@ import { auditMessaging } from '../messaging-audit.js';
 import { cleanProfile, profileFor } from '../send-profiles.js';
 import { distributionReport } from '../distribution.js';
 import { noticeExpiringQuotes } from '../quote-expiry.js';
-import { reconcile } from '../reconcile.js';
+import { reconcile, financialPanorama } from '../reconcile.js';
 import { fixPhones } from '../phone-fix.js';
 import { stallReport } from '../ai-stalls.js';
 import { repairMissingLeads, dataHealth } from '../lead-repair.js';
@@ -67,6 +67,11 @@ const scopedSales = (req) => sales.list.filter((s) => inOffice(req, sales.office
 app.get('/api/reconcile', (req, res) => {
   needAdmin(req);
   res.json(reconcile({ sales: scopedSales(req), legacy: legacy.list }));
+});
+// Panorama financeiro lado a lado (Hub × cópia do sistema antigo): vencidos, vencendo, parcelas, a receber, recebido, a pagar.
+app.get('/api/conferencia-financeira', (req, res) => {
+  needAdmin(req);
+  res.json(financialPanorama({ sales: scopedSales(req), legacy: legacy.list }));
 });
 app.post('/api/reconcile/archive', (req, res) => {
   needAdmin(req);

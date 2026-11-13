@@ -136,3 +136,76 @@ export function reconcile({ sales, legacy = [], today = new Date().toISOString()
     duplicates, issues, diffs, issueCounts: count(issues, 'kind'), diffCounts: count(diffs, 'kind'),
   };
 }
+
+/**
+ * PANORAMA FINANCEIRO lado a lado: o que o Migra Hub mostra e o que a cópia do sistema antigo mostra, para conferir se os números batem.
+ * Hub: contratos ativos, quitados, vencidos com saldo (a última parcela já passou e ainda falta receber), vencendo (última parcela nos
+ * próximos 30 dias), parcelas vencidas, parcelas a vencer (30 dias), a receber, recebido e comissões a pagar; separado por origem
+ * (veio do sistema antigo × nasceu aqui). Sistema antigo: quantidade, valor, pago e saldo dos registros da cópia (sem os cancelados).
+ * A comparação justa é "Hub, só o que veio do sistema antigo" × "cópia do sistema antigo"; o Hub tem a mais os contratos novos.
+ */
+export function financialPanorama({ sales, legacy = [], today = new Date().toISOString().slice(0, 10) }) {
+  const in30 = new Date(Date.parse(`${today}T12:00:00Z`) + 30 * DAY).toISOString().slice(0, 10);
+  const blank = () => ({ contratos: 0, ativos: 0, quitados: 0, cancelados: 0, vencidosComSaldo: 0, vencendo30: 0, comParcelaVencida: 0, valorContratos: 0, recebido: 0, aReceber: 0, parcelasVencidas: 0, valorVencido: 0, parcelasAVencer30: 0, valorAVencer30: 0, comissoesAPagar: 0 });
+  const side = { todos: blank(), antigo: blank(), novo: blank() };
+  const listas = { vencidosComSaldo: [], vencendo30: [], comParcelaVencida: [] };
+  for (const s of sales) {
+    const parts = [side.todos, s.legacy ? side.antigo : side.novo];
+    for (const t of parts) t.contratos += 1;
+    if (s.status === 'cancelada') { for (const t of parts) t.cancelados += 1; continue; }
+    const parcels = s.parcels || [];
+    const open = parcels.filter((p) => p.status !== 'pago');
+    const paid = paidOf(s);
+    const aberto = cents(open.reduce((a, p) => a + Number(p.value || 0), 0));
+    const lastDue = parcels.map((p) => p.due).filter(Boolean).sort().at(-1) || '';
+    const late = open.filter((p) => p.due && p.due < today);
+    const soon = open.filter((p) => p.due && p.due >= today && p.due <= in30);
+    const brief2 = { id: s.id, number: s.legacyNumber || s.number, client: s.client?.nome || '', aberto, ultimaParcela: lastDue, origem: s.legacy ? 'antigo' : 'novo' };
+    for (const t of parts) {
+      t.valorContratos += Number(s.total || 0);
+      t.recebido += paid;
+      t.aReceber += aberto;
+      if (aberto <= 0.005) t.quitados += 1; else t.ativos += 1;
+      if (aberto > 0.005 && lastDue && lastDue < today) t.vencidosComSaldo += 1;
+      if (aberto > 0.005 && lastDue >= today && lastDue <= in30) t.vencendo30 += 1;
+      if (late.length) t.comParcelaVencida += 1;
+      t.parcelasVencidas += late.length;
+      t.valorVencido += late.reduce((a, p) => a + Number(p.value || 0), 0);
+      t.parcelasAVencer30 += soon.length;
+      t.valorAVencer30 += soon.reduce((a, p) => a + Number(p.value || 0), 0);
+      if (s.commission && s.commission.status !== 'paga') t.comissoesAPagar += Number(s.commission.value || 0);
+    }
+    if (aberto > 0.005 && lastDue && lastDue < today) listas.vencidosComSaldo.push(brief2);
+    if (aberto > 0.005 && lastDue >= today && lastDue <= in30) listas.vencendo30.push(brief2);
+    if (late.length) listas.comParcelaVencida.push({ ...brief2, vencidas: late.length, valorVencido: cents(late.reduce((a, p) => a + Number(p.value || 0), 0)) });
+  }
+  for (const t of Object.values(side)) for (const k of ['valorContratos', 'recebido', 'aReceber', 'valorVencido', 'valorAVencer30', 'comissoesAPagar']) t[k] = cents(t[k]);
+  // Sistema antigo (a cópia): só o que ela trouxe por contrato (valor, pago, situação).
+  const old = { registros: 0, cancelados: 0, valorContratos: 0, pago: 0, saldo: 0, semValor: 0 };
+  for (const r of legacy) {
+    old.registros += 1;
+    if (/cancel|rescind|distrat/i.test(r.status || '')) { old.cancelados += 1; continue; }
+    if (!(Number(r.value) > 0)) { old.semValor += 1; continue; }
+    old.valorContratos += Number(r.value);
+    old.pago += Number(r.paid || 0);
+    old.saldo += Math.max(0, Number(r.value) - Number(r.paid || 0));
+  }
+  for (const k of ['valorContratos', 'pago', 'saldo']) old[k] = cents(old[k]);
+  const a = side.antigo;
+  const ativosAntigo = old.registros - old.cancelados - old.semValor;
+  const comparacao = [
+    { item: 'Contratos (sem cancelados)', antigo: ativosAntigo, hub: a.contratos - a.cancelados },
+    { item: 'Valor dos contratos', antigo: old.valorContratos, hub: a.valorContratos, dinheiro: true },
+    { item: 'Pago / recebido', antigo: old.pago, hub: a.recebido, dinheiro: true },
+    { item: 'Saldo a receber', antigo: old.saldo, hub: a.aReceber, dinheiro: true },
+  ].map((x) => ({ ...x, diferenca: x.dinheiro ? cents(x.hub - x.antigo) : x.hub - x.antigo, bate: x.dinheiro ? Math.abs(x.hub - x.antigo) <= 1 : x.hub === x.antigo }));
+  const sortBy = (k, dir = 1) => (x, y) => (String(x[k]).localeCompare(String(y[k]))) * dir;
+  return {
+    today, hub: side, antigo: old, comparacao, temCopia: legacy.length > 0,
+    listas: {
+      vencidosComSaldo: listas.vencidosComSaldo.sort(sortBy('ultimaParcela')).slice(0, 200),
+      vencendo30: listas.vencendo30.sort(sortBy('ultimaParcela')).slice(0, 200),
+      comParcelaVencida: listas.comParcelaVencida.sort((x, y) => y.valorVencido - x.valorVencido).slice(0, 200),
+    },
+  };
+}

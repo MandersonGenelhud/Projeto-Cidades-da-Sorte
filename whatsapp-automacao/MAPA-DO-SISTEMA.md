@@ -5,8 +5,8 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **165** · testes automatizados (arquivos): **177** · scripts do painel: **52**
-- Rotas da API em `server.js`: **567** · tarefas agendadas (`setInterval`): **24** (todas com `unref`: sim)
+- Módulos em `src/`: **165** · testes automatizados (arquivos): **178** · scripts do painel: **52**
+- Rotas da API em `server.js`: **568** · tarefas agendadas (`setInterval`): **24** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
 
@@ -142,7 +142,7 @@
 | `ranking.js` | 93 | Ranking da equipe: pontos, metas do mês, níveis de bonificação e conquistas. | `server.js` | 1 |
 | `realty.js` | 273 | Migra Imóveis: imóveis avulsos (casas, terrenos, galpões…) e loteamentos com | `server.js` | 3 |
 | `receipts.js` | 179 | Comprovante de pagamento enviado pelo cliente na conversa: a IA abre o arquivo, lê, confere com a cobrança | `server.js` | 1 |
-| `reconcile.js` | 139 | Conferência dos contratos e do dinheiro: acha contratos repetidos, valores que não fecham e diferenças em relação ao sistema antigo | `routes/controle.js` | 1 |
+| `reconcile.js` | 212 | Conferência dos contratos e do dinheiro: acha contratos repetidos, valores que não fecham e diferenças em relação ao sistema antigo | `routes/controle.js` | 2 |
 | `recordings.js` | 38 | Reuniões gravadas: biblioteca de links (Drive, YouTube, Meet) com título, data e assunto. Não guarda vídeo, só o endereço. | `server.js` | 1 |
 | `reengage.js` | 272 | Retomada de contatos: pessoas que pediram atendimento (Instagram, Facebook, site, quiz) e ainda não | `server.js` | 2 |
 | `reports-csv.js` | 56 | Relatórios em planilha (CSV): vendas, parcelas em aberto, contratos cancelados e auditoria. Só administrador. | `server.js` | 1 |
@@ -151,7 +151,7 @@
 | `resumes.js` | 108 | Banco de currículos: quem pergunta por vaga ou manda currículo fica guardado aqui (com o arquivo), | `server.js` | 1 |
 | `routes/assinatura-contratada.js` | 88 | Assinatura da empresa (CONTRATADA) nos contratos: a própria pessoa cadastra a imagem da assinatura e autoriza o uso (nunca é desenhada nem imitada). | `server.js` | **0** |
 | `routes/clientes-esperando.js` | 174 | "Clientes da Migra esperando no WhatsApp do vendedor": acha, no número de cada vendedor, quem escreveu sobre a Migra e ainda não foi | `server.js` | 1 |
-| `routes/controle.js` | 253 | Rotas de CONTROLE das conversas e do atendimento (só administrador): quadros por pessoa, auditoria dos números, envio por número, | `server.js` | 1 |
+| `routes/controle.js` | 258 | Rotas de CONTROLE das conversas e do atendimento (só administrador): quadros por pessoa, auditoria dos números, envio por número, | `server.js` | 1 |
 | `routes/diagnostico-numero.js` | 85 | Diagnóstico do número de um vendedor: "por que a minha IA não responde?". Mostra, em português simples, cada coisa que pode estar travando | `server.js` | 1 |
 | `routes/fechamentos.js` | 69 | Rotas do painel de FECHAMENTOS (só administrador): funil depois do orçamento, checklist de acompanhamento, radar de objeções | `server.js` | **0** |
 | `routes/link-direto.js` | 141 | LINK DIRETO PARA O VENDEDOR (rodízio sem passar pela atendente): o anúncio aponta para https://<painel>/v (ou /v/<campanha>). | `server.js` | 1 |
@@ -278,7 +278,7 @@
 - `contabil-painel.js`
 - `nav-hubs.js`
 
-## Rotas da API (567)
+## Rotas da API (568)
 - `GET /webhook`
 - `GET /webhook/instagram`
 - `POST /webhook/instagram`
@@ -815,6 +815,7 @@
 - `GET /api/phones-fix`
 - `POST /api/phones-fix`
 - `GET /api/reconcile`
+- `GET /api/conferencia-financeira`
 - `POST /api/reconcile/archive`
 - `POST /api/reconcile/restore`
 - `GET /api/quotes-expiring`
