@@ -888,6 +888,7 @@ async function startSellerAi({ person, line, conv, lead, phone, who }) {
   const existing = agent.conversation(key, { create: false });
   if (existing && (humanSpokeConv(existing) || existing.declined)) return { mode: 'vendedor' };
   if (existing?.messages?.length) return { mode: 'ia', jaTinha: true };
+  { const h = Number(new Date().toLocaleString('en-GB', { timeZone: 'America/Asuncion', hour: '2-digit', hour12: false })); if (h < 8 || h >= 20) return { mode: 'vendedor', foraDoHorario: true }; }
   const u = person?.id ? auth.get(person.id) : null;
   const sellerFirst = String(u?.name || person?.name || '').split(' ')[0];
   const cli = String(who || '').replace(/^\+\d+$/, '').split(' ')[0];
@@ -3260,10 +3261,23 @@ app.use('/api/conversations/:key', (req, _res, next) => {
   if (!canSeeConv(req.user, req.params.key)) throw httpError(403, 'Esta conversa é de outro vendedor');
   next();
 });
+// Por que a IA não está respondendo esta conversa agora (aparece no topo da conversa, no painel).
+const convWhyNot = (conv) => {
+  const why = agent.whyNot(conv);
+  const key = conv.key;
+  if (!(wa.isConnected ? wa.isConnected(key) : wa.status === 'connected')) why.push('Este número está DESCONECTADO (Conexões): nada sai nem chega por ele.');
+  if (!isWithinWorkHours(store.settings.agent?.workHours)) why.push('Fora do horário da IA (Agente IA → horário de trabalho): ela responde quando o horário abrir.');
+  const busy = wa.humanWaitMs ? wa.humanWaitMs(key) : 0;
+  if (busy > 0) why.push(`Alguém da equipe usou este número pelo celular há pouco: a IA espera ${Math.ceil(busy / 1000)} s sem ninguém mexer antes de responder (para não atravessar).`);
+  const acc = parseLineKey(key) ? `linha:${parseLineKey(key).id}` : 'principal';
+  if ([...(agent.accountLocks?.keys?.() || [])].includes(acc)) why.push('A IA está atendendo outro cliente deste número agora (um por vez): esta conversa está na fila.');
+  if (isOldLeadConv(conv)) why.push('Lead antigo (antes de 11/11): a IA responde se ele escrever, mas não toma a iniciativa.');
+  return why;
+};
 app.get('/api/conversations/:key', (req, res) => {
   const conv = agent.conversation(req.params.key, { create: false });
   if (!conv) throw httpError(404, 'Conversa não encontrada');
-  res.json({ ...conv, channelLabel: convLabel(conv.key) });
+  res.json({ ...conv, channelLabel: convLabel(conv.key), whyNot: convWhyNot(conv) });
 });
 app.post('/api/conversations/:key/handoff', (req, res) => {
   res.json(agent.setHandoff(req.params.key, Boolean(req.body.value), 'Assumido pelo painel'));
@@ -4782,19 +4796,22 @@ const sellerCommands = makeSellerCommands({
   sendForm: (conv, args) => agent.sendForm(conv, args),
   setHandoff: (key, value, reason) => agent.setHandoff(key, value, reason),
   // "Só um momento": a IA volta a atender esta conversa e continua de onde parou (pedido explícito de quem atende; vale mesmo depois que uma pessoa falou).
-  resumeAI: async (msg) => {
+  resumeAI: async (msg, { command = false } = {}) => {
     if (aiOffFor(msg.jid)) return { erro: 'A IA está desligada neste número (Conexões). Ligue a IA do número primeiro.' };
     if (!agent.active) return { erro: 'O agente de IA está desligado.' };
     agent.setHandoff(msg.jid, false, '');
     const conv = agent.conversation(msg.jid);
     conv.phone ||= msg.phone;
-    agent.remember(conv, 'assistant', String(msg.text || 'Só um momento').trim(), { by: 'owner' }); // o que o cliente viu, para a IA ter o contexto
+    if (!command) agent.remember(conv, 'assistant', String(msg.text || 'Só um momento').trim(), { by: 'owner' }); // o que o cliente viu, para a IA ter o contexto
+    // Com /ia (que é apagado da conversa): só responde agora se o cliente está esperando (a última mensagem é dele).
+    const lastIsClient = (conv.messages || []).filter((m) => m.role === 'user' || m.role === 'assistant').at(-1)?.role === 'user';
+    if (command && !lastIsClient) return { ok: true, respondendo: false };
     const note = '# QUEM ATENDE PASSOU A CONVERSA PARA VOCÊ\nA pessoa da equipe acabou de escrever ao cliente "Só um momento" e pediu que você continue. Continue o atendimento exatamente de onde parou, respondendo ao que o cliente perguntou por último, de forma natural, como a mesma pessoa voltando depois de um instante. NÃO se apresente de novo, NÃO diga que é outra pessoa ou uma IA, NÃO peça desculpas pela espera longa: siga a conversa.';
     agent.handleIncoming({ key: msg.jid, phone: conv.phone, name: conv.name, text: '', resume: note }, async (text, { typingMs } = {}) => {
       await wa.send(msg.jid, { text, typingMs });
       store.addLog({ type: 'autoreply', phone: conv.phone || msg.jid, message: text, rule: 'Atendente de IA (depois de "só um momento")' });
     });
-    return { ok: true };
+    return { ok: true, respondendo: true };
   },
   addTask: (user, body) => tasks.add(user, body),
   contractSummary: (phone) => contractCards.summarizeFor(phone),

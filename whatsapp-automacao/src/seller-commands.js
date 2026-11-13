@@ -137,8 +137,9 @@ export function makeSellerCommands(deps) {
         if (r.erro) await reply(`⚠️ Ficha de ${who}: ${r.erro}`);
         else { await say(msg.jid, `Para dar continuidade, preencha seus dados neste link (é só tocar e preencher, uns 2 minutos):\n${r.link}`); await reply(`✅ Ficha de dados enviada para ${who}.`); }
       } else if (cmd.cmd === 'ia') {
-        deps.setHandoff(msg.jid, false, '');
-        await reply(`🤖 A IA voltou a responder ${who}.`);
+        // Devolve E retoma: se o cliente está esperando resposta, a IA responde agora (antes ela esperava ele escrever de novo).
+        const r = deps.resumeAI ? await deps.resumeAI(msg, { command: true }).catch((e) => ({ erro: e.message })) : (deps.setHandoff(msg.jid, false, ''), { ok: true });
+        await reply(r?.erro ? `⚠️ ${who}: ${r.erro}` : `🤖 A IA voltou a atender ${who}${r?.respondendo ? ' e já está respondendo o que ele mandou' : ''}.`);
       } else if (cmd.cmd === 'pausa') {
         deps.setHandoff(msg.jid, true, 'o consultor pediu pausa (/pausa)');
         await reply(`⏸️ A IA não responde mais ${who}. Para devolver, digite /ia nesta conversa.`);

@@ -1436,6 +1436,7 @@ async function openConversation(key) {
       <button class="btn small" id="btnHandoff">${c.handoff ? 'Devolver para o robô' : 'Assumir conversa'}</button>
       <button class="btn small danger" id="btnConvClear" title="Apagar memória" data-admin>Apagar memória</button>
     </div>`;
+  if (c.whyNot?.length) $('#convHeader').insertAdjacentHTML('beforeend', `<div class="ai-banner" style="width:100%"><b>Por que a IA não está respondendo agora:</b><ul>${c.whyNot.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>`);
   renderClosingBar(key).catch(() => {});
   $('#convChat').innerHTML = c.messages.map((m) => chatBubble(m.role, m.content, m.at)).join('');
   $('#formConvReply').hidden = false;

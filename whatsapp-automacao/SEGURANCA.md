@@ -761,3 +761,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 ## Atalho natural "Só um momento" (13/11/2026)
 - Quem atende escreve só **"Só um momento"** (ou "só um momentinho", "um momento, por favor") na conversa do cliente: a frase fica (é natural para o cliente), a IA volta a atender e **continua de onde parou**, sem se apresentar de novo nem dizer que é outra pessoa. Só a frase sozinha conta (frase maior não dispara). Respeita a IA desligada no número (o consultor é avisado) e o ritmo lento/pausa de quem está usando o número. É um pedido explícito de quem atende, por isso vale mesmo depois que uma pessoa falou. Fica no log. Teste: `test/so-um-momento.test.js`.
+
+## /ia retoma na hora e o painel mostra por que a IA não responde (13/11/2026)
+- **/ia** agora devolve a conversa **e** responde na hora se o cliente está esperando (a última mensagem é dele). Antes só tirava a pausa e a IA esperava o cliente escrever de novo. O comando continua sendo apagado da conversa.
+- **"Por que a IA não está respondendo agora"**: no topo da conversa (Conversas), o painel lista os motivos atuais: conversa pausada, IA desligada no número, número desconectado, fora do horário da IA, alguém da equipe usou o número pelo celular há pouco (a IA espera 2 min de silêncio), a IA atendendo outro cliente do mesmo número (um por vez), agente desligado.
+- A primeira mensagem da IA do vendedor (modo antigo "a IA chama") só sai das 8h às 20h.

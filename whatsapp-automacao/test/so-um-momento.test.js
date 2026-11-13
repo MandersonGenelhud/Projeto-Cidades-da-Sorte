@@ -32,3 +32,12 @@ test('se a IA não pode assumir (ex.: desligada no número), o consultor é avis
   await cmds.handle({ jid: 'l:geo:1@s.whatsapp.net', phone: '1', text: 'só um momento' });
   assert.match(calls.tell[0], /IA está desligada/);
 });
+
+test('/ia devolve e retoma: chama a retomada (sem gravar o comando) e avisa o consultor', async () => {
+  const seen = [];
+  const { cmds, calls } = setup(async (msg, opts) => { seen.push(opts); return { ok: true, respondendo: true }; });
+  await cmds.handle({ jid: 'l:geo:1@s.whatsapp.net', phone: '1', id: 'Y', text: '/ia' });
+  assert.deepEqual(seen, [{ command: true }]);
+  assert.equal(calls.revoke, 1, 'o /ia é apagado da conversa');
+  assert.match(calls.tell[0], /já está respondendo/);
+});
