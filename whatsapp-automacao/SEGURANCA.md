@@ -744,3 +744,6 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Lead antigo**: o sistema reconhece (histórico, contexto e ficha continuam) mas **nunca procura de novo**. Mensagem antiga que ficou sem resposta (de antes da data) é tirada da lista "esperando resposta" e **não** é respondida agora. Se o cliente antigo **escrever de novo**, a resposta normal continua.
 - **Retomada de contatos** (lista importada de contatos antigos): envio **bloqueado** pela regra; a lista fica como histórico.
 - A Saúde do sistema mostra a regra e a data. Teste: `test/ia-desligada-vendedor.test.js`.
+
+## Cópia de tudo o que é avisado ao Marcos (13/11/2026)
+- Pedido da direção: os números em `crm.copyToPhones` (gravado uma vez com o número do Manderson, +55 69 99305-1671) recebem **cópia de todo aviso que vai para o Marcos**: avisos da Central, da Maria (inclusive as travas de "pediu para excluir/alterar"), mentoria, contratações, fechamentos, pagamentos, contratos e documentos. A cópia chega marcada como "Cópia do aviso ao Marcos". Avisos que já vão a todos os administradores chegam uma vez só (sem duplicar). O envio ao Marcos nunca espera nem falha por causa da cópia. Os limites de envio (proteção contra bloqueio) valem também para as cópias. Teste: `test/copia-avisos.test.js`.

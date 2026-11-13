@@ -442,6 +442,13 @@ export class Store extends EventEmitter {
       this.data.rodizio2026 = true;
       this.flush();
     }
+    // Pedido da direção (13/11/2026): o Manderson recebe cópia de tudo o que é avisado ao Marcos.
+    if (!this.data.copiaManderson2026) {
+      const c = this.data.settings.crm;
+      if (c && !(c.copyToPhones || []).length) c.copyToPhones = ['5569993051671'];
+      this.data.copiaManderson2026 = true;
+      this.flush();
+    }
     // Regra da direção (12/11/2026): só os leads NOVOS (de ontem, 11/11, em diante) recebem iniciativa nossa; os antigos nunca são procurados de novo.
     if (!this.data.novosLeads2026) {
       const c = this.data.settings.crm;

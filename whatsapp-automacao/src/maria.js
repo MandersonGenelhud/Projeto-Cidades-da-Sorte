@@ -208,8 +208,8 @@ export class Maria {
    * lineName(id) devolve o nome da atendente cadastrado no número (para achar o número da Maria).
    * contracts: { packages, fields, required, ready, findQuote, createQuote, clientFor, prepare, formLink, summary, audit } (gerar contrato).
    */
-  constructor({ directory = null, quoteContractFile = null, store, auth, sales, customers, collections, cash, contracts = null, outbound = null, crm = null, ana = null, portfolio = null, restartAll = null, receiptReader = null, payments = null, saleDoc = () => '', adminActor = null, knowledge = () => '', lineIdByName = () => '', isConnected = () => true, llm = null, stt = null, tts = null, send, downloadAudio = async () => null, contractFile = () => null, digest = () => '', health = () => '', lineName = () => '', marcosPhone = () => '', audit = () => {}, log = () => {}, now = () => new Date() }) {
-    Object.assign(this, { directory, quoteContractFile, restartAll, receiptReader, payments, saleDoc, adminActor, store, auth, sales, customers, collections, cash, contracts, outbound, crm, ana, portfolio, knowledge, lineIdByName, isConnected, llm, stt, tts, send, downloadAudio, contractFile, digest, health, lineName, marcosPhone, audit, log, now });
+  constructor({ directory = null, quoteContractFile = null, store, auth, sales, customers, collections, cash, contracts = null, outbound = null, crm = null, ana = null, portfolio = null, restartAll = null, receiptReader = null, payments = null, saleDoc = () => '', adminActor = null, knowledge = () => '', lineIdByName = () => '', isConnected = () => true, llm = null, stt = null, tts = null, send, downloadAudio = async () => null, contractFile = () => null, digest = () => '', health = () => '', lineName = () => '', marcosPhone = () => '', copyPhones = () => [], audit = () => {}, log = () => {}, now = () => new Date() }) {
+    Object.assign(this, { directory, quoteContractFile, restartAll, receiptReader, payments, saleDoc, adminActor, store, auth, sales, customers, collections, cash, contracts, outbound, crm, ana, portfolio, knowledge, lineIdByName, isConnected, llm, stt, tts, send, downloadAudio, contractFile, digest, health, lineName, marcosPhone, copyPhones, audit, log, now });
     this.focus = new Map(); // telefone → { nome, telefone, at }: o cliente de que a pessoa está falando agora
     this.focusUsed = new Map(); // telefone → nome (quando o cliente veio do foco, a resposta avisa)
     this.context = new Map(); // telefone → { saleIds, at } (para "manda o contrato dele")
@@ -364,6 +364,11 @@ export class Maria {
   async notifyOwner(text) {
     const ph = normalizePhone(this.marcosPhone());
     if (!ph) return false;
+    // Cópia para quem a direção pediu (ex.: o Manderson): recebe tudo o que a Maria avisa ao Marcos.
+    for (const c of this.copyPhones() || []) {
+      if (!c || samePhone(c, ph)) continue;
+      this.send(`${normalizePhone(c)}@s.whatsapp.net`, { text: `📋 *Cópia do aviso ao Marcos*\n${text}`, typing: false }).catch(() => {});
+    }
     const u = this.auth.users.find((x) => x.active !== false && x.whatsapp && samePhone(x.whatsapp, ph));
     if (u) return this.notifyUser(u.id, text);
     await this.send(`${ph}@s.whatsapp.net`, { text, typing: false });

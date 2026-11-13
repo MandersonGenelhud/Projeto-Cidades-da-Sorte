@@ -311,7 +311,23 @@ const teamSendNow = async (phone, payload) => {
   }
   throw lastErr;
 };
-const teamSend = (phone, payload) => (isTeamPhone(auth.users, phone) ? teamSlow(phone, () => teamSendNow(phone, payload)) : teamSendNow(phone, payload));
+const teamSendOne = (phone, payload) => (isTeamPhone(auth.users, phone) ? teamSlow(phone, () => teamSendNow(phone, payload)) : teamSendNow(phone, payload));
+// CÓPIA DOS AVISOS DO MARCOS (pedido da direção): tudo o que vai para o Marcos (número do dono ou cadastro dele) vai também para os números de
+// crm.copyToPhones (ex.: o Manderson), com a marca "Cópia do aviso ao Marcos". O envio ao Marcos nunca espera nem falha por causa da cópia.
+const ownerPhones = () => [normalizePhone(store.settings.crm?.ownerPhone), ...auth.users.filter((u) => u.role === 'admin' && u.active !== false && u.whatsapp && /^marcos\b/i.test(String(u.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))).map((u) => u.whatsapp)].filter(Boolean);
+const copyPhones = () => (store.settings.crm?.copyToPhones || []).map((x) => normalizePhone(x)).filter(Boolean);
+const isOwnerTarget = (phone) => ownerPhones().some((o) => samePhone(o, phone));
+const teamSend = async (phone, payload, { copy = true } = {}) => {
+  const r = await teamSendOne(phone, payload);
+  if (copy && isOwnerTarget(phone)) {
+    for (const c of copyPhones()) {
+      if (samePhone(c, phone)) continue;
+      const p = payload?.text !== undefined && payload.text !== '' ? { ...payload, text: `📋 *Cópia do aviso ao Marcos*\n${payload.text}` } : payload;
+      teamSendOne(c, p).catch((e) => store.addLog({ type: 'error', message: `Cópia do aviso ao Marcos: ${e.message}` }));
+    }
+  }
+  return r;
+};
 // Envio a CLIENTE ou PARCEIRO por iniciativa do sistema (recibo, aviso de indicação): conversa de linha ou Instagram segue pelo mesmo canal; o resto sai pela
 // CENTRAL (o número principal, do Marcos, deixou de ser a porta de entrada). Sem a Central, o principal.
 const clientSend = (target, payload) => (/^ig:/.test(String(target)) || parseLineKey(target) ? wa.send(target, payload) : teamSend(String(target), payload));
@@ -559,10 +575,10 @@ async function notifyAdmins(text) {
   if (!teamCanSend()) return;
   const phones = new Set(auth.users.filter((u) => u.role === 'admin' && u.active !== false && u.whatsapp).map((u) => u.whatsapp));
   // O número principal (do Marcos, crm.ownerPhone) e o número extra dos pagamentos também recebem, sem repetir quem já está na lista.
-  for (const extra of [normalizePhone(store.settings.payments?.notifyPhone), normalizePhone(store.settings.crm?.ownerPhone)]) {
+  for (const extra of [normalizePhone(store.settings.payments?.notifyPhone), normalizePhone(store.settings.crm?.ownerPhone), ...copyPhones()]) {
     if (extra && ![...phones].some((x) => samePhone(x, extra))) phones.add(extra);
   }
-  for (const phone of phones) await teamSend(phone, { text, typing: false }).catch(() => {});
+  for (const phone of phones) await teamSend(phone, { text, typing: false }, { copy: false }).catch(() => {});
 }
 // Na VPS o endereço fixo (PUBLIC_URL) sempre vale: os dados vindos do computador carregam o endereço provisório antigo.
 if (process.env.PUBLIC_URL) store.updateSettings({ crm: { panelUrl: String(process.env.PUBLIC_URL).replace(/\/+$/, '') } });
@@ -5265,6 +5281,7 @@ const maria = new Maria({
   health: () => { const h = healthReport(); return `*Saúde do sistema*\n${h.tips.map((t) => `${{ ok: '✅', warn: '⚠️', bad: '🔴' }[t.level] || '•'} ${t.text}`).join('\n')}`; },
   lineName: (id) => lines.get(id)?.agentName || '',
   marcosPhone: () => marcosPhone(),
+  copyPhones: () => copyPhones(),
   audit: (text) => securityEvent('maria_whatsapp', { name: 'Maria' }, null, text),
   log: (l) => store.addLog(l),
 });
