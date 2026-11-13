@@ -16,7 +16,11 @@ export const accountOf = (to) => {
 const destOf = (to) => (String(to).split(':').pop().split('@')[0] || '').replace(/\D/g, '');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** Conversa = conta + cliente (igual para "l:linha:5545…@s.whatsapp.net" e o mesmo cliente escrito de outro jeito). */
-const convOf = (to) => `${accountOf(to)}|${destOf(to)}`;
+const convOf = (to) => {
+  const s = String(to || '');
+  // Instagram: o cliente é o id/usuário inteiro (pode ter letras); WhatsApp: só os dígitos do número.
+  return s.startsWith(IG_PREFIX) ? `instagram|${s.slice(IG_PREFIX.length).toLowerCase()}` : `${accountOf(s)}|${destOf(s)}`;
+};
 
 export class ConnectionManager extends EventEmitter {
   constructor({ store, clients, instagram = null, lines = null, quietMs = 6000, maxQuietWaitMs = 20_000, guard = null, numberGapMs = null }) {

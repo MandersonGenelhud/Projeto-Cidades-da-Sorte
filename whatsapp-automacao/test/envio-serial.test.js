@@ -74,3 +74,18 @@ test('atalhos (/ia, "Só um momento") digitados no celular não pausam a IA', ()
   cm.emit('ownerMessage', { jid: 'l:mand:5527999568520@s.whatsapp.net', text: 'bom dia, tudo bem?' });
   assert.ok(cm.humanWaitMs('l:mand:5527999568520@s.whatsapp.net') > 300, 'mensagem de verdade pausa');
 });
+
+test('a pausa por conversa vale para TODOS os números: principal, Central, vendedores e Instagram', () => {
+  const { cm } = setup({ quietMs: 400, numberGapMs: 30 });
+  const pares = [
+    ['5545988880001@s.whatsapp.net', '5545988880002@s.whatsapp.net'], // principal
+    ['l:central:5545988880001@s.whatsapp.net', 'l:central:5545988880002@s.whatsapp.net'], // Central
+    ['l:giovana:5545988880001@s.whatsapp.net', 'l:giovana:5545988880002@s.whatsapp.net'], // vendedora
+    ['ig:maria.silva', 'ig:joao.souza'], // Instagram (usuário com letras)
+  ];
+  for (const [mexeu, outro] of pares) {
+    cm.emit('ownerMessage', { jid: mexeu, text: 'mensagem da pessoa' });
+    assert.ok(cm.humanWaitMs(mexeu) > 300, `pausa na conversa em que digitou: ${mexeu}`);
+    assert.ok(cm.humanWaitMs(outro) <= 30, `os outros clientes do mesmo número seguem: ${outro}`);
+  }
+});
