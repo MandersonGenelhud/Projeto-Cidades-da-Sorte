@@ -6,7 +6,7 @@ export const COMMANDS = {
   contrato: { admin: false, help: '/contrato [pacote 2 pessoas]: gera o contrato e manda para assinar (ou a ficha de dados, se faltar algo)' },
   orcamento: { admin: false, help: '/orcamento [pacote 2 pessoas]: gera e envia o orçamento em PDF' },
   ficha: { admin: false, help: '/ficha: envia o link da ficha de dados pessoais' },
-  ia: { admin: false, help: '/ia: devolve esta conversa para a atendente de IA' },
+  ia: { admin: false, help: '/ia: devolve esta conversa para a atendente de IA (ou escreva só "Só um momento": o cliente vê uma frase normal e a IA continua de onde parou)' },
   pausa: { admin: false, help: '/pausa: a IA para de responder esta conversa' },
   lembrar: { admin: false, help: '/lembrar amanhã 14h ligar para ele: cria uma tarefa com aviso para você' },
   status: { admin: false, help: '/status: mostra para você o contrato e as parcelas deste cliente' },
@@ -15,6 +15,12 @@ export const COMMANDS = {
   saude: { admin: true, help: '/saude (administrador): como está o WhatsApp, a IA e a fila' },
 };
 const ALIAS = { orçamento: 'orcamento', orcamentos: 'orcamento', 'orçamentos': 'orcamento', saúde: 'saude', contract: 'contrato', contratos: 'contrato', fichas: 'ficha', lembrete: 'lembrar' };
+
+/**
+ * Atalho NATURAL: o consultor escreve só "Só um momento" (ou "só um momentinho", "um momento, por favor") na conversa do cliente.
+ * O cliente vê uma frase normal (a mensagem NÃO é apagada) e a IA volta a atender e continua de onde parou. Só a frase sozinha conta.
+ */
+export const isMomentPhrase = (text) => /^\s*((s[oó]|so)\s+)?(um|1)\s+moment(o|inho)(\s*,?\s*por\s+favor)?\s*[.!…]*\s*$/i.test(String(text || '')) && /moment/i.test(String(text || ''));
 
 /** "/contrato cédula 2 pessoas" → { cmd: 'contrato', rest: 'cédula 2 pessoas' }. Texto comum ou comando desconhecido → null. */
 export function parseCommand(text) {
@@ -86,6 +92,14 @@ export function makeSellerCommands(deps) {
   const helpText = (admin) => `*Atalhos* (digite na conversa do cliente; o cliente não vê)\n${Object.entries(COMMANDS).filter(([, c]) => admin || !c.admin).map(([, c]) => `• ${c.help}`).join('\n')}`;
 
   async function handle(msg, { self = false } = {}) {
+    if (!self && isMomentPhrase(msg.text) && deps.resumeAI) {
+      // "Só um momento": a IA assume (sem apagar a frase, que é natural para o cliente) e continua de onde parou.
+      const owner = ownerOf(msg);
+      const r = await deps.resumeAI(msg).catch((e) => ({ erro: e.message }));
+      if (r?.erro) await tell(owner, `⚠️ "Só um momento": a IA não pôde assumir esta conversa. ${r.erro}`).catch(() => {});
+      audit(`"só um momento" · ${owner?.name || 'consultor'} → ${msg.phone || msg.jid}`);
+      return true;
+    }
     const cmd = parseCommand(msg.text);
     if (!cmd) return false;
     const owner = ownerOf(msg);
@@ -142,5 +156,5 @@ export function makeSellerCommands(deps) {
     audit(`/${cmd.cmd} · ${owner?.name || 'consultor'} → ${who}`);
     return true;
   }
-  return { handle, wants: (msg) => Boolean(parseCommand(msg?.text)) };
+  return { handle, wants: (msg) => Boolean(parseCommand(msg?.text)) || (Boolean(deps.resumeAI) && isMomentPhrase(msg?.text)) };
 }

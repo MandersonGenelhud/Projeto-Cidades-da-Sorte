@@ -756,6 +756,7 @@
  "src/seller-commands.js": [
   "COMMANDS",
   "extractContractArgs",
+  "isMomentPhrase",
   "makeSellerCommands",
   "parseCommand",
   "parseWhen"

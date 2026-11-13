@@ -4781,6 +4781,21 @@ const sellerCommands = makeSellerCommands({
   sendQuote: (conv, args) => agent.sendQuote(conv, args),
   sendForm: (conv, args) => agent.sendForm(conv, args),
   setHandoff: (key, value, reason) => agent.setHandoff(key, value, reason),
+  // "Só um momento": a IA volta a atender esta conversa e continua de onde parou (pedido explícito de quem atende; vale mesmo depois que uma pessoa falou).
+  resumeAI: async (msg) => {
+    if (aiOffFor(msg.jid)) return { erro: 'A IA está desligada neste número (Conexões). Ligue a IA do número primeiro.' };
+    if (!agent.active) return { erro: 'O agente de IA está desligado.' };
+    agent.setHandoff(msg.jid, false, '');
+    const conv = agent.conversation(msg.jid);
+    conv.phone ||= msg.phone;
+    agent.remember(conv, 'assistant', String(msg.text || 'Só um momento').trim(), { by: 'owner' }); // o que o cliente viu, para a IA ter o contexto
+    const note = '# QUEM ATENDE PASSOU A CONVERSA PARA VOCÊ\nA pessoa da equipe acabou de escrever ao cliente "Só um momento" e pediu que você continue. Continue o atendimento exatamente de onde parou, respondendo ao que o cliente perguntou por último, de forma natural, como a mesma pessoa voltando depois de um instante. NÃO se apresente de novo, NÃO diga que é outra pessoa ou uma IA, NÃO peça desculpas pela espera longa: siga a conversa.';
+    agent.handleIncoming({ key: msg.jid, phone: conv.phone, name: conv.name, text: '', resume: note }, async (text, { typingMs } = {}) => {
+      await wa.send(msg.jid, { text, typingMs });
+      store.addLog({ type: 'autoreply', phone: conv.phone || msg.jid, message: text, rule: 'Atendente de IA (depois de "só um momento")' });
+    });
+    return { ok: true };
+  },
   addTask: (user, body) => tasks.add(user, body),
   contractSummary: (phone) => contractCards.summarizeFor(phone),
   digest: () => alerts.digestText(alerts.build({ user: { role: 'admin' } })),

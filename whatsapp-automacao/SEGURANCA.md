@@ -758,3 +758,6 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Silvani = "Nina"**: WhatsApp +595 986 192 588 (se não estiver em outro cadastro), apelido "Nina", diretoria na Maria e na **mesma pasta da Ana do Marcos** (o que ela já tinha na Ana é juntado). A Maria e a Ana reconhecem a pessoa pelo nome **ou apelido** (botão "Apelido" na Equipe). "Ana, lembre a Nina de..." funciona para o casal.
 - **Enviar contrato a alguém da equipe**: "Maria, envie o contrato do João para a Nina" manda o PDF pelo número da Maria **só entre a diretoria** (o contrato traz valores); para quem não é da diretoria, a Maria recusa e entrega só a quem pediu. Fica no log.
 - Teste: `test/hierarquia-maria.test.js`.
+
+## Atalho natural "Só um momento" (13/11/2026)
+- Quem atende escreve só **"Só um momento"** (ou "só um momentinho", "um momento, por favor") na conversa do cliente: a frase fica (é natural para o cliente), a IA volta a atender e **continua de onde parou**, sem se apresentar de novo nem dizer que é outra pessoa. Só a frase sozinha conta (frase maior não dispara). Respeita a IA desligada no número (o consultor é avisado) e o ritmo lento/pausa de quem está usando o número. É um pedido explícito de quem atende, por isso vale mesmo depois que uma pessoa falou. Fica no log. Teste: `test/so-um-momento.test.js`.
