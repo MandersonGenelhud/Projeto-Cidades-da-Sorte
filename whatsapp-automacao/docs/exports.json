@@ -708,6 +708,12 @@
  "src/routes/assinatura-contratada.js": [
   "makeContractorSigner"
  ],
+ "src/routes/clientes-esperando.js": [
+  "WAITING_NOTE",
+  "backlogCandidates",
+  "migraSignal",
+  "registerClientesEsperandoRoutes"
+ ],
  "src/routes/controle.js": [
   "registerControleRoutes"
  ],

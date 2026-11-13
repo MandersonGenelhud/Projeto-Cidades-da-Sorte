@@ -5,8 +5,8 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **160** · testes automatizados (arquivos): **171** · scripts do painel: **51**
-- Rotas da API em `server.js`: **553** · tarefas agendadas (`setInterval`): **24** (todas com `unref`: sim)
+- Módulos em `src/`: **161** · testes automatizados (arquivos): **172** · scripts do painel: **51**
+- Rotas da API em `server.js`: **556** · tarefas agendadas (`setInterval`): **24** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
 
@@ -24,7 +24,7 @@
 - Configuração nova vai em `settings` com **valor padrão** em `store.js`; mudança em dado já existente usa **migração de uma vez** com selo (veja abaixo), nunca sobrescreve o que o painel salvou.
 - Nada de segredo no código. Dados reais ficam em `data/` e nunca no Git.
 
-## Módulos (160)
+## Módulos (161)
 | Módulo | Linhas | Para que serve | Quem usa | Testes |
 |---|---:|---|---|---:|
 | `affiliate-extras.js` | 202 | Escritório virtual do indicador, parte 2: | `server.js` | 1 |
@@ -104,7 +104,7 @@
 | `legacy-ingest.js` | 116 | Envio automático da cópia do sistema antigo: o programa de cópia (no computador de quem tem o login do sistema antigo) | `server.js` | **0** |
 | `legacy-map.js` | 94 | Mapa das telas do sistema antigo (sem nenhum dado de cliente) e comparação com o que o Migra Hub já tem. | `server.js` | 1 |
 | `legacy-tool.js` | 62 | Monta o arquivo único CAPTURAR-CONTRATOS.bat que o administrador baixa pelo painel: | `server.js` | 3 |
-| `lines.js` | 231 | Números da equipe: um WhatsApp por vendedor (com o nome dele), cada um com o seu | `connection.js`, `send-profiles.js`, `server.js` | 8 |
+| `lines.js` | 231 | Números da equipe: um WhatsApp por vendedor (com o nome dele), cada um com o seu | `connection.js`, `routes/clientes-esperando.js`, `send-profiles.js`, `server.js` | 8 |
 | `live.js` | 69 | Página de live: o Meet que a equipe já usa, com frase de "em breve" / "ao vivo", botão de entrar e botões dos grupos de WhatsApp. | `server.js` | 1 |
 | `maintenance.js` | 22 | Ajustes únicos de equipe, aplicados sozinhos na inicialização (cada um só uma vez). | `server.js` | 1 |
 | `marcos-notice.js` | 50 | Aviso do número novo do Marcos: a Maria escreve, uma vez, para quem conversava com ele no número antigo (o principal, que caiu), | `server.js` | 1 |
@@ -150,6 +150,7 @@
 | `restart.js` | 91 | Recomeçar os atendimentos parados: varre as conversas guardadas dos últimos 30 dias (de todos os números e do Instagram) e põe na fila da IA | `atendimento-plano.js`, `routes/controle.js` | 4 |
 | `resumes.js` | 108 | Banco de currículos: quem pergunta por vaga ou manda currículo fica guardado aqui (com o arquivo), | `server.js` | 1 |
 | `routes/assinatura-contratada.js` | 88 | Assinatura da empresa (CONTRATADA) nos contratos: a própria pessoa cadastra a imagem da assinatura e autoriza o uso (nunca é desenhada nem imitada). | `server.js` | **0** |
+| `routes/clientes-esperando.js` | 174 | "Clientes da Migra esperando no WhatsApp do vendedor": acha, no número de cada vendedor, quem escreveu sobre a Migra e ainda não foi | `server.js` | 1 |
 | `routes/controle.js` | 206 | Rotas de CONTROLE das conversas e do atendimento (só administrador): quadros por pessoa, auditoria dos números, envio por número, | `server.js` | **0** |
 | `routes/fechamentos.js` | 69 | Rotas do painel de FECHAMENTOS (só administrador): funil depois do orçamento, checklist de acompanhamento, radar de objeções | `server.js` | **0** |
 | `routing.js` | 177 | Encaminhamento: a IA fez a peneira no Direct/WhatsApp, o cliente está pronto | `digest.js`, `sectors.js`, `server.js` | 4 |
@@ -160,12 +161,12 @@
 | `school.js` | 91 | Migra School: alunos de idiomas, etapa em que estão e frequência de acesso. | `server.js` | 1 |
 | `sectors.js` | 165 | Setores do Grupo Migra: cada assunto tem os seus atendentes (cadastrados no painel). | `server.js` | 6 |
 | `security.js` | 119 | Segurança do login: verificação em duas etapas (código do app autenticador, padrão TOTP/RFC 6238), | `server.js` | 28 |
-| `seller-commands.js` | 162 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `server.js` | 4 |
+| `seller-commands.js` | 169 | Atalhos que o consultor digita no WhatsApp dele, na conversa do cliente. Hoje: "/contrato". | `routes/clientes-esperando.js`, `server.js` | 4 |
 | `seller-link.js` | 39 | "O cliente chama o vendedor": a Central entrega ao cliente um link que abre o WhatsApp do vendedor com a mensagem pronta (com o código do cliente). | `server.js` | 1 |
 | `seller-pipeline.js` | 67 | Pipeline por vendedor: para cada pessoa da equipe (Eliezer, Giovana, Diego, Fran, Marcos…), quem ela está atendendo, quem recebeu orçamento, | `campanhas-funil.js`, `server.js` | 1 |
 | `send-guard.js` | 60 | Proteção do número contra bloqueio do WhatsApp: cada número (conta) envia com intervalo mínimo variável entre mensagens, um teto por minuto | `server.js` | 1 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 6293 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 6313 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
@@ -179,7 +180,7 @@
 | `transports/instagram.js` | 283 | Instagram Direct pela API oficial (Instagram API com login do Instagram). | `connection.js`, `server.js` | 1 |
 | `transports/whatsapp-web.js` | 556 | Conexão com o WhatsApp via Baileys (protocolo do WhatsApp Web, sem navegador). | `server.js` | 7 |
 | `tunnel.js` | 112 | Endereço na internet (https) para o próprio computador, sem VPS: | `server.js` | 1 |
-| `tutorials.js` | 225 | Tutoriais e treinamento semanal. Administrador lê o guia do administrador; vendedor lê só o dele (nunca vê a parte do administrador). | `server.js` | 2 |
+| `tutorials.js` | 226 | Tutoriais e treinamento semanal. Administrador lê o guia do administrador; vendedor lê só o dele (nunca vê a parte do administrador). | `server.js` | 2 |
 | `updater.js` | 120 | Atualização com um clique: baixa a versão mais nova do GitHub e troca só o código. | `server.js` | 1 |
 | `usage.js` | 199 | Consumo da IA por escritório (tokens e respostas) e calculadora de preço do serviço. | `server.js` | 1 |
 | `utils.js` | 224 | Funções utilitárias compartilhadas pelos módulos. | `affiliates.js`, `agent/agent.js`, `agent/calendar.js`, `ai-stalls.js`, `ana-family.js`, `assistant.js`, `auth.js`, `autoreply.js`, `campaigns.js`, `closing.js`, `crm.js`, `humanize.js`, `legacy-import.js`, `maria-baixa.js`, `maria.js`, `pending.js`, `phone-fix.js`, `quote-request.js`, `quotes.js`, `recordings.js`, `reengage.js`, `scheduler.js`, `sectors.js`, `send-profiles.js`, `server.js`, `transports/cloudapi.js`, `transports/whatsapp-web.js`, `videocalls.js` | 6 |
@@ -272,7 +273,7 @@
 - `contabil-painel.js`
 - `nav-hubs.js`
 
-## Rotas da API (553)
+## Rotas da API (556)
 - `GET /webhook`
 - `GET /webhook/instagram`
 - `POST /webhook/instagram`
@@ -798,6 +799,9 @@
 - `DELETE /api/logs`
 - `USE /api`
 - `GET /api/contract-signers`
+- `GET /api/clientes-esperando`
+- `POST /api/clientes-esperando/start`
+- `POST /api/clientes-esperando/stop`
 - `GET /api/conversations-boards`
 - `GET /api/health/data`
 - `POST /api/leads-repair`

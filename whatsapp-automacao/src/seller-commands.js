@@ -10,6 +10,7 @@ export const COMMANDS = {
   pausa: { admin: false, help: '/pausa: a IA para de responder esta conversa' },
   lembrar: { admin: false, help: '/lembrar amanhã 14h ligar para ele: cria uma tarefa com aviso para você' },
   status: { admin: false, help: '/status: mostra para você o contrato e as parcelas deste cliente' },
+  retomar: { admin: false, help: '/retomar (na conversa "Você" ou em qualquer conversa): a IA começa a atender os clientes da Migra que ficaram sem resposta neste número, um de cada vez' },
   ajuda: { admin: false, help: '/ajuda: lista os atalhos' },
   resumo: { admin: true, help: '/resumo (administrador): vencidos, vencimentos e avisos do dia' },
   saude: { admin: true, help: '/saude (administrador): como está o WhatsApp, a IA e a fila' },
@@ -111,7 +112,13 @@ export function makeSellerCommands(deps) {
     if (cmd.cmd === 'ajuda') { await reply(helpText(isAdmin)); return true; }
     if (cmd.cmd === 'resumo') { await reply(deps.digest() || 'Nada pendente hoje.'); audit(`/resumo · ${owner?.name}`); return true; }
     if (cmd.cmd === 'saude') { await reply(deps.health()); audit(`/saude · ${owner?.name}`); return true; }
-    if (self) { await reply('Para esse atalho, digite na conversa do cliente. Aqui valem /resumo, /saude e /ajuda.'); return true; }
+    if (cmd.cmd === 'retomar') {
+      const r = deps.retomar ? deps.retomar(msg) : { erro: 'Atalho indisponível.' };
+      await reply(r?.erro ? `⚠️ /retomar: ${r.erro}` : `▶️ A IA vai atender ${r.total} cliente(s) da Migra que estavam esperando neste número, um de cada vez: ${r.nomes.slice(0, 10).join(', ')}${r.total > 10 ? '…' : ''}.`);
+      audit(`/retomar · ${owner?.name || 'consultor'}`);
+      return true;
+    }
+    if (self) { await reply('Para esse atalho, digite na conversa do cliente. Aqui valem /resumo, /saude, /retomar e /ajuda.'); return true; }
 
     const conv = agent.conversation(msg.jid);
     conv.phone ||= msg.phone;

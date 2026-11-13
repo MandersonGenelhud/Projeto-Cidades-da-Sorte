@@ -51,6 +51,7 @@ import { Family } from './ana-family.js';
 import { Personal } from './personal.js';
 import { planPdfPrice, loadPlanPdf } from './plano-pdf.js';
 import { registerFechamentosRoutes } from './routes/fechamentos.js';
+import { registerClientesEsperandoRoutes } from './routes/clientes-esperando.js';
 import { FlashOffer } from './flash-offer.js';
 import { GroupBroadcasts } from './group-broadcast.js';
 import { Campaigns } from './campanhas.js';
@@ -3274,6 +3275,18 @@ app.post('/api/group-broadcasts/:id/:action', (req, res) => {
 });
 app.delete('/api/group-broadcasts/:id', (req, res) => { needAdmin(req); groupBroadcasts.remove(req.params.id); res.json({ ok: true }); });
 registerFechamentosRoutes(app, { campanhas, flashOffer, wa, needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x), store, crm, quotes, payments, dataDir: DATA_DIR });
+// Clientes da Migra que ficaram sem resposta no WhatsApp dos vendedores (e os "Só um momento"): a IA do número começa a atender, um de cada vez.
+const clientesEsperando = registerClientesEsperandoRoutes(app, {
+  store, agent, wa, lines, sleep,
+  leads: () => crm.leads,
+  pendingItems: () => pending.items,
+  isTeam: (phone) => isTeamPhone(auth.users, phone),
+  aiOffFor: (key) => aiOffFor(key),
+  isMariaKey: (key) => isMariaKey(key),
+  isWithinWorkHours: () => isWithinWorkHours(store.settings.agent?.workHours),
+  httpError: (...x) => httpError(...x),
+  notify: (...x) => notify(...x),
+});
 // A IA falhou mesmo depois de tentar de novo: a mensagem do cliente continua guardada e a fila de "esperando resposta" tenta de novo em instantes,
 // sem esperar os 15 minutos da rede de segurança.
 agent.onFailed = (conv) => {
@@ -4888,6 +4901,13 @@ const sellerCommands = makeSellerCommands({
       store.addLog({ type: 'autoreply', phone: conv.phone || msg.jid, message: text, rule: 'Atendente de IA (depois de "só um momento")' });
     });
     return { ok: true, respondendo: true };
+  },
+  // /retomar (no WhatsApp do vendedor): a IA começa a atender os clientes da Migra que ficaram sem resposta naquele número.
+  retomar: (msg) => {
+    const lid = parseLineKey(msg.jid)?.id;
+    const line = lid ? lines.get(lid) : null;
+    if (!line) return { erro: 'Use /retomar no WhatsApp de um vendedor conectado ao sistema.' };
+    try { return clientesEsperando.start([line], line.label || 'vendedor'); } catch (e) { return { erro: e.message }; }
   },
   addTask: (user, body) => tasks.add(user, body),
   contractSummary: (phone) => contractCards.summarizeFor(phone),
