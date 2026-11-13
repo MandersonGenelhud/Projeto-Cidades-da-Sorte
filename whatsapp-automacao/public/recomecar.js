@@ -76,6 +76,7 @@
   // ---- Um por um ----
   const KIND = { esperando: 'Esperando resposta', silenciou: 'Parou de responder', reagendado: 'Retorno marcado' };
   let oneRows = [];
+  const HARD_BLOCK = /recusou|já é cliente|IA desligada/i;
   const fmtAt = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '');
   const renderOne = () => {
     const num = $('#oneNum').value; const kind = $('#oneKind').value;
@@ -84,7 +85,7 @@
         <a href="#" data-open="${esc(r.key)}"><b>${esc(r.nome || (r.phone ? `+${r.phone}` : r.username ? `@${r.username}` : 'Cliente'))}</b></a>
         <span class="badge">${esc(r.numero)}</span> <span class="badge ${r.tipo === 'esperando' ? 'pending' : ''}">${esc(KIND[r.tipo] || r.tipo)}</span>${r.pausada ? ' <span class="badge">pausada</span>' : ''}${r.naFila ? ' <span class="badge running">na fila da IA</span>' : ''}${r.bloqueio ? ` <span class="badge canceled">${esc(r.bloqueio)}</span>` : ''}${r.conectado ? '' : ' <span class="badge canceled">número desconectado</span>'}
         <div class="meta">${esc(fmtAt(r.ultimaAt || r.lastAt))}${r.ultima ? ` · "${esc(r.ultima)}"` : ''}${r.motivo ? ` · retorno combinado: ${esc(r.motivo)}` : ''}</div></div>
-        <button class="btn small primary" data-retomar="${esc(r.key)}" ${r.naFila || r.bloqueio || !r.conectado ? 'disabled' : ''}>${r.naFila ? 'Na fila' : 'Retomar'}</button></div>`).join('') || '<p class="muted">Nenhum atendimento parado com esses filtros.</p>');
+        ${r.retomado ? '<span class="badge running">a IA está escrevendo</span>' : !r.conectado ? '<span class="hint">conecte o número em Conexões para retomar</span>' : HARD_BLOCK.test(r.bloqueio || '') ? '' : `<button class="btn small ${r.bloqueio ? '' : 'primary'}" data-retomar="${esc(r.key)}">${r.bloqueio ? 'Retomar mesmo assim' : 'Retomar agora'}</button>`}</div>`).join('') || '<p class="muted">Nenhum atendimento parado com esses filtros.</p>');
   };
   const loadOne = async () => {
     const r = await api(`/api/atendimento/lista?days=${$('#oneDays').value}`);
@@ -100,11 +101,22 @@
     if (op) { e.preventDefault(); try { await openConversation(op.dataset.open); document.querySelector('#convHeader')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (err) { toast(err.message, true); } return; }
     const rb = e.target.closest('[data-retomar]');
     if (rb) {
+      const row = oneRows.find((x) => x.key === rb.dataset.retomar);
+      let force = false;
+      if (row?.bloqueio) {
+        if (!confirm(`Atenção: ${row.bloqueio}.\n\nQuer que a IA escreva para ${row.nome || 'este cliente'} mesmo assim?`)) return;
+        force = true;
+      }
       rb.disabled = true;
+      const send = () => api('/api/atendimento/retomar-um', { method: 'POST', body: { key: rb.dataset.retomar, days: Number($('#oneDays').value), force } });
       try {
-        await api('/api/atendimento/retomar-um', { method: 'POST', body: { key: rb.dataset.retomar, days: Number($('#oneDays').value) } });
-        const row = oneRows.find((x) => x.key === rb.dataset.retomar); if (row) row.naFila = true;
-        toast('Entrou na fila da IA: ela retoma este atendimento no ritmo seguro do número.');
+        try { await send(); } catch (err) {
+          if (!/mesmo assim/.test(err.message) || force) throw err;
+          if (!confirm(err.message)) { rb.disabled = false; return; }
+          force = true; await send();
+        }
+        if (row) row.retomado = true;
+        toast('Pronto: a IA do número já está escrevendo para este cliente (no ritmo humano, em alguns segundos).');
         renderOne();
       } catch (err) { toast(err.message, true); rb.disabled = false; }
       return;

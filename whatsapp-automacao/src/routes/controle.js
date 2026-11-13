@@ -12,6 +12,7 @@ import { stallReport } from '../ai-stalls.js';
 import { repairMissingLeads, dataHealth } from '../lead-repair.js';
 import crypto from 'node:crypto';
 import { restartStalled } from '../restart.js';
+import { RESUME_NOTE } from '../pending.js';
 import { buildPlan } from '../atendimento-plano.js';
 import { scanDeclined } from '../outreach-guard.js';
 
@@ -148,21 +149,36 @@ app.get('/api/atendimento/lista', (req, res) => {
   res.json({ days, total: rows.length, rows });
 });
 // Retomar UM atendimento parado (botão "Retomar" na lista).
-app.post('/api/atendimento/retomar-um', (req, res) => {
+// Retomar UM atendimento parado (botão "Retomar" na lista). A IA do número escreve AGORA para este cliente (sem esperar a fila geral).
+// Travas que nunca são puladas: cliente que recusou, que já é cliente, IA desligada no número, número desconectado, pausa geral.
+// Travas que o administrador pode pular conscientemente ("Retomar mesmo assim"): lead antigo, chamado há pouco, pessoa da equipe já falou.
+const HARD = new Set(['recusou', 'fechou_conosco', 'ia_desligada']);
+const WAITING = '# CLIENTE ESPERANDO RESPOSTA\nEste cliente escreveu e ficou sem resposta. Responda agora ao que ele disse por último, de forma natural e curta, como a pessoa deste número. Pode começar com um "desculpe a demora" curto, sem explicações longas, e siga o atendimento conduzindo ao próximo passo.';
+app.post('/api/atendimento/retomar-um', async (req, res) => {
   needAdmin(req);
   const key = String(req.body?.key || '');
-  if (!key || !store.data.conversations?.[key]) throw httpError(404, 'Conversa não encontrada');
-  if (store.settings.agent?.outreachPaused === true) throw httpError(409, 'O atendimento de iniciativa nossa está pausado. Clique em "Continuar" antes.');
-  const days = Math.min(60, Math.max(1, Number(req.body?.days) || 30));
-  const r = restartAll({ days, includeSilent: true, onlyKeys: [key] });
-  const conv = store.data.conversations[key];
-  securityEvent('retomar_atendimento', req.user, req, `${conv.name || conv.phone || key}: ${r.queued ? 'entrou na fila da IA' : 'não entrou na fila'}`);
-  if (!r.total) throw httpError(409, 'Esta conversa não está mais parada (já foi respondida ou mudou de situação).');
-  if (!r.queued) {
-    const why = Object.entries(r.reasons || {}).filter(([, n]) => n).map(([k]) => ({ teste: 'modo de teste', instagram24h: 'Instagram fora das 24 h', desconectado: 'número desconectado', recusou: 'o cliente recusou', fechouConosco: 'já é cliente', recente: 'já foi chamado há pouco', pausado: 'chamadas pausadas', humano: 'uma pessoa da equipe já falou com ele', antigo: 'lead antigo (antes de 11/11)' }[k] || k));
-    throw httpError(409, `Não entrou na fila: ${why.join(', ') || r.error || 'motivo desconhecido'}.`);
-  }
-  res.json({ ok: true, queued: r.queued });
+  const conv = store.data.conversations?.[key];
+  if (!key || !conv) throw httpError(404, 'Conversa não encontrada');
+  if (store.settings.agent?.outreachPaused === true) throw httpError(409, 'O atendimento de iniciativa nossa está PAUSADO (botão Pausar/Continuar, logo abaixo). Clique em "Continuar" e tente de novo.');
+  if (!agent.active) throw httpError(409, 'A IA está desligada ou sem a chave (aba Agente IA).');
+  if (wa.isConnected && !wa.isConnected(key)) throw httpError(409, 'O número por onde este cliente falou está DESCONECTADO. Conecte em Conexões (QR Code) e tente de novo.');
+  if (ctx.aiOffFor?.(key)) throw httpError(409, 'A IA está desligada neste número (Equipe → Conexões). Ligue a IA do número primeiro.');
+  let guard = '';
+  try { guard = ctx.outreachFor ? ctx.outreachFor(conv) : ''; } catch { guard = ''; }
+  if (guard && HARD.has(guard)) throw httpError(409, `Não dá para retomar: ${BLOQUEIO[guard] || guard}.`);
+  if (guard && req.body?.force !== true) return res.status(409).json({ error: `Atenção: ${BLOQUEIO[guard] || guard}. Quer retomar mesmo assim?`, confirmar: true, motivo: BLOQUEIO[guard] || guard });
+  const msgs = (conv.messages || []).filter((m) => m.role === 'user' || m.role === 'assistant');
+  const waiting = msgs.at(-1)?.role === 'user';
+  const silentDays = Math.max(1, Math.round((Date.now() - (Date.parse(msgs.at(-1)?.at || '') || Date.now())) / 86_400_000));
+  if (conv.handoff) agent.setHandoff(key, false, '');
+  pending.resolve?.(key); // sai da fila geral: este é atendido agora
+  const note = waiting ? WAITING : RESUME_NOTE({ silentDays, reason: '' });
+  agent.handleIncoming({ key, phone: conv.phone, name: conv.name, username: conv.username, text: '', resume: note }, async (text, { typingMs } = {}) => {
+    await wa.send(key, { text, typingMs });
+    store.addLog({ type: 'autoreply', phone: conv.phone || key, message: text, rule: 'Atendente de IA (retomado um por um)' });
+  })?.catch?.((e) => store.addLog({ type: 'error', phone: conv.phone || key, message: `Retomar ${conv.name || conv.phone || key}: ${e.message}` }));
+  securityEvent('retomar_atendimento', req.user, req, `${conv.name || conv.phone || key}: retomado agora${guard ? ` (mesmo assim: ${BLOQUEIO[guard] || guard})` : ''}`);
+  res.json({ ok: true, agora: true });
 });
 app.post('/api/atendimento/pausa', (req, res) => {
   needAdmin(req);

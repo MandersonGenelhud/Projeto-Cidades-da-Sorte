@@ -3241,6 +3241,7 @@ const { restartAll, convOfLead, noticeQuotes, repairLeads } = registerControleRo
   directory: { build: (v) => directory.build(v), search: (...a) => directory.search(...a) },
   outreachFor: (c) => outreachFor(c),
   closedFor: (x) => closedIndex().closedFor(x),
+  aiOffFor: (k) => aiOffFor(k),
 });
 const flashOffer = new FlashOffer({ store });
 agent.flashStatus = () => flashOffer.status();

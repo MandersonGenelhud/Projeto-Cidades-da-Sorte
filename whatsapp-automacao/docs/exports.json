@@ -585,6 +585,7 @@
  ],
  "src/pending.js": [
   "PendingInbox",
+  "RESUME_NOTE",
   "extractPending",
   "extractStalled",
   "senderOf"

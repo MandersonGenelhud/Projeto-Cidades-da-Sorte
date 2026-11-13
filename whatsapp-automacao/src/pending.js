@@ -18,7 +18,7 @@ const OPENED_NOTE = (p) => `# RETORNO JÁ ENVIADO (regra da direção)
 A mensagem de retorno (agradecimento por aguardar, demanda alta, imprevistos e continuidade do atendimento) JÁ foi enviada a este contato agora. NÃO repita saudação, agradecimento nem explicação, e nunca peça desculpas. ${p.texts?.length ? 'Responda direto o que ele perguntou, e conduza ao próximo passo.' : `Em UMA mensagem curta, retome o assunto de onde pararam (leia as últimas mensagens, sem repetir o que ele já respondeu) e faça uma pergunta simples que avance o atendimento${p.reason ? ` (o retorno combinado era: ${p.reason})` : ''}.`}`;
 
 /** Instrução da retomada: o cliente parou de responder (ou o retorno combinado chegou) e a IA recomeça a conversa. */
-const RESUME_NOTE = (p) => `# RETOMADA DO ATENDIMENTO (regra da direção)
+export const RESUME_NOTE = (p) => `# RETOMADA DO ATENDIMENTO (regra da direção)
 Este contato parou de responder${p.silentDays ? ` há cerca de ${p.silentDays} dia(s)` : ''}${p.reason ? ` e o retorno combinado era: ${p.reason}` : ''}. Leia as últimas mensagens e RETOME o atendimento com uma mensagem humana, calorosa e curta (3 a 5 frases curtas), nesta ordem:
 1) cumprimente pelo horário e diga "Estou entrando em contato para dar continuidade ao seu atendimento" (não use "estou passando"), lembrando em que ponto pararam, sem repetir o que ele já respondeu;
 2) peça que, se NÃO tiver mais interesse, já se manifeste, porque a demanda está alta e há pessoas na fila de espera querendo aproveitar a oportunidade;
