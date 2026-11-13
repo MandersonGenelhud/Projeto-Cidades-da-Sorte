@@ -52,6 +52,7 @@ const publicUser = (u) => (u ? {
   office: u.role === 'admin' ? null : normOffice(u.office) || 'py',
   officeAdmin: Boolean(u.officeAdmin) && u.role !== 'admin',
   trafficOnly: Boolean(u.trafficOnly) && u.role !== 'admin',
+  aliases: Array.isArray(u.aliases) ? u.aliases : [],
 } : null);
 
 export class Auth {
@@ -159,6 +160,8 @@ export class Auth {
       if (e) u.expiresAt = e; else delete u.expiresAt;
       if (e && patch.active === undefined && u.active === false && u.expiredAt) { u.active = true; delete u.expiredAt; } // novo prazo reabre quem tinha vencido
     }
+    // Apelidos (ex.: Silvani = "Nina"): a Maria e a Ana reconhecem a pessoa por eles.
+    if (patch.aliases !== undefined) u.aliases = (Array.isArray(patch.aliases) ? patch.aliases : String(patch.aliases || '').split(',')).map((a) => String(a).trim()).filter(Boolean).slice(0, 5).map((a) => a.slice(0, 30));
     if (patch.trafficOnly !== undefined) { u.trafficOnly = u.role !== 'admin' && Boolean(patch.trafficOnly); if (u.trafficOnly) { u.receivesLeads = false; u.receivesAffiliateLeads = false; u.sectors = []; } }
     if (patch.receivesLeads !== undefined && !u.trafficOnly) u.receivesLeads = Boolean(patch.receivesLeads);
     if (patch.sectors !== undefined) u.sectors = cleanSectors(patch.sectors);

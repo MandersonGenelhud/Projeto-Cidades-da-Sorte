@@ -60,9 +60,11 @@ export class Family {
 
   /** "lembre a Carol / o Manderson / meu marido / minha esposa de ...": quem é o destinatário (o par) e o resto da frase. */
   crossTarget(userId, text) {
-    const p = this.partnerOf(userId);
+    const p = this.partnerOf(userId) || this.jointPartner(userId);
     if (!p) return null;
-    const names = [first(p.name)].filter(Boolean).map((n) => fold(n).replace(/[^a-z0-9]/g, ''));
+    // Nome e apelidos (ex.: "Silvani" ou "Nina").
+    const aliases = p.aliases || this.auth.get(p.id)?.aliases || [];
+    const names = [first(p.name), ...aliases].filter(Boolean).map((n) => fold(n).replace(/[^a-z0-9]/g, '')).filter(Boolean);
     const alias = '(?:meu marido|meu esposo|minha esposa|minha mulher|meu companheiro|minha companheira)';
     const who = `(?:${[...names, alias].join('|')})`;
     const re = new RegExp(`^\\s*(?:(?:por favor|pf)[ ,]+)?(?:lembre|lembra|lembrar|avise|avisa|avisar|anote|anota|marque|marca|agende|agenda)\\s+(?:para\\s+|pro\\s+|pra\\s+|a\\s+|o\\s+)?${who}\\s*(?:de|para|que|:|,|-)?\\s*(.*)$`, 'i');
@@ -74,6 +76,14 @@ export class Family {
     const idx = flat.lastIndexOf(restFolded);
     const rest = idx >= 0 && restFolded ? String(text).slice(idx).trim() : restFolded.trim();
     return { partner: p, rest };
+  }
+
+  /** Quem divide a MESMA pasta com esta pessoa (o casal na Ana), como usuário do sistema. */
+  jointPartner(userId) {
+    const j = this.joint.find((x) => x.userId === userId || x.withUserId === userId);
+    if (!j) return null;
+    const other = this.auth.get(j.userId === userId ? j.withUserId : j.userId);
+    return other ? { id: other.id, name: other.name, whatsapp: other.whatsapp, role: other.role, aliases: other.aliases || [] } : null;
   }
 
   // ---------- MESMA pasta (ex.: o Marcos e a Silvani usam a mesma Ana e o mesmo banco de dados) ----------

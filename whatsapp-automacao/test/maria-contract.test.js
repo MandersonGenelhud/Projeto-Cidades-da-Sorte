@@ -16,6 +16,7 @@ function setup() {
   const auth = new Auth({ store, dataDir: store.dataDir });
   const marcos = auth.create({ name: 'Marcos Miguel', login: 'marcos', password: 'segredo123', role: 'admin' });
   const silvane = auth.create({ name: 'Silvane Nunes', login: 'silvane', password: 'segredo123', role: 'seller' });
+  store.updateSettings({ maria: { profiles: { [silvane.id]: 'basic' } } }); // perfil "contratos e clientes" fixado (pelo nome, a Silvani hoje é diretoria)
   const ana = auth.create({ name: 'Ana Vendedora', login: 'ana', password: 'segredo123', role: 'seller' });
   auth.update(marcos.id, { whatsapp: '5545999990001' });
   auth.update(silvane.id, { whatsapp: '5545999990003' });

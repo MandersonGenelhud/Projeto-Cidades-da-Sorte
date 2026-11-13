@@ -5,7 +5,7 @@
 > A história de tudo o que foi feito, na ordem, está em `LINHA-DO-TEMPO.md`. As regras de segurança, em `SEGURANCA.md`.
 
 ## Números
-- Módulos em `src/`: **159** · testes automatizados (arquivos): **168** · scripts do painel: **51**
+- Módulos em `src/`: **159** · testes automatizados (arquivos): **169** · scripts do painel: **51**
 - Rotas da API em `server.js`: **550** · tarefas agendadas (`setInterval`): **24** (todas com `unref`: sim)
 - Ciclos de importação (um módulo depender dele mesmo por outro): **0**
 - Módulos que ninguém usa: **0**
@@ -43,7 +43,7 @@
 | `ai-stalls.js` | 31 | "Por que a atendente parou de falar?": para cada conversa em que a última mensagem é do cliente e a IA não respondeu, mostra o MOTIVO. | `routes/controle.js` | 1 |
 | `alerts.js` | 38 | Avisos do painel (sininho) e resumo diário no WhatsApp do administrador: | `server.js` | 1 |
 | `ana-dates.js` | 131 | Datas e horas ditas em português ("amanhã às 14h", "dia 15", "daqui a 2 anos", "15 de dezembro de 2027"). | `ana.js`, `assistant-guard.js`, `personal.js`, `shopping.js` | 1 |
-| `ana-family.js` | 105 | Pessoas da casa que usam a Ana pelo mesmo número da Maria, SEM acesso ao painel nem à empresa (ex.: a esposa do Manderson). | `server.js` | 2 |
+| `ana-family.js` | 115 | Pessoas da casa que usam a Ana pelo mesmo número da Maria, SEM acesso ao painel nem à empresa (ex.: a esposa do Manderson). | `server.js` | 3 |
 | `ana.js` | 906 | Ana: a assistente PESSOAL e financeira de cada administrador (Marcos, Manderson...). Ela é diferente da Maria (que é da empresa): | `server.js` | 6 |
 | `app-signups.js` | 109 | Cadastros de aplicativos da Migra (hoje: Migra Devocional) chegando no Migra Hub para acompanhar quantos usuários há. | `server.js` | 1 |
 | `assistant-guard.js` | 42 | Trava de segurança da Maria e da Ana: elas só CRIAM (cadastro novo, orçamento, contrato) e ENVIAM. Nunca excluem nem alteram | `maria.js` | 1 |
@@ -51,7 +51,7 @@
 | `atendimento-plano.js` | 31 | Plano de atendimento: separa TODAS as conversas dos últimos dias em grupos claros, para o administrador saber o que o botão "Começar" vai fazer. | `routes/controle.js` | 2 |
 | `attendants.js` | 122 | Visão por atendente: separa as conversas e os prospectos de cada pessoa (e do | `routes/controle.js`, `server.js` | 1 |
 | `audit.js` | 125 | Trilha de auditoria: registra QUEM criou, alterou ou excluiu cada coisa | `server.js` | 1 |
-| `auth.js` | 276 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 68 |
+| `auth.js` | 279 | Usuários do painel: administrador (dono) e vendedores. | `affiliates.js`, `maria.js`, `server.js` | 69 |
 | `autocontract.js` | 115 | Contrato automático pela atendente de IA: o cliente pede o contrato na conversa. | `server.js` | 2 |
 | `autoreply.js` | 250 | Chatbot de respostas automáticas por palavra-chave. | `server.js` | 7 |
 | `backup.js` | 111 | Backup automático e criptografado dos dados do painel (clientes, conversas, vendas, configurações). | `server.js` | 1 |
@@ -110,7 +110,7 @@
 | `maria-baixa.js` | 150 | Baixa de pagamento pela Maria: o vendedor manda o comprovante (foto ou PDF), a Maria lê, descobre de quem é o pagamento e qual parcela ou | `maria.js` | 1 |
 | `maria-items.js` | 62 | Vários pacotes no mesmo pedido ("5 Ouro, 1 Estudantil e 1 Inicial, com 10% de desconto"): lê a lista e o desconto do texto, sem IA. | `maria.js` | 1 |
 | `maria-outbound.js` | 127 | Envio ao cliente pedido pela Maria: a ficha de dados e o contrato saem pelo WhatsApp que o cliente já conhece | `server.js` | 2 |
-| `maria.js` | 1605 | Maria: a assessora interna da Migra no WhatsApp (número exclusivo, só da equipe). | `server.js` | 24 |
+| `maria.js` | 1653 | Maria: a assessora interna da Migra no WhatsApp (número exclusivo, só da equipe). | `server.js` | 25 |
 | `marketing.js` | 88 | Marketing: traz os números dos anúncios da Meta (Facebook e Instagram) para o painel, em português simples. | `server.js` | 1 |
 | `merge-data.js` | 54 | Junta os dados de duas instalações (ex.: o computador e a VPS) SEM apagar nada da instalação de destino: | — | 1 |
 | `messaging-audit.js` | 97 | Auditoria das conversas e mapa de mensagens por número: para cada WhatsApp (principal, Instagram e o de cada vendedor) mostra | `routes/controle.js` | 1 |
@@ -170,7 +170,7 @@
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
 | `site-content.js` | 90 | Conteúdo editável da página inicial do site (título, números confirmados, vídeos de depoimento e perguntas), | `server.js` | 1 |
 | `site-host.js` | 43 | Domínio próprio do site público da Migra (ex.: www.migraparaguay.com): no domínio do site só aparecem | `server.js` | 3 |
-| `store.js` | 676 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 18 |
+| `store.js` | 706 | Banco de dados simples em arquivo JSON (sem dependências nativas). | `server.js` | 18 |
 | `support.js` | 135 | Suporte interno: qualquer pessoa da equipe abre um chamado (problema no sistema, dúvida, pedido), | `server.js` | 1 |
 | `tasks.js` | 65 | Tarefas da equipe: o que cada pessoa precisa fazer, com prazo e lembrete no WhatsApp (uma vez, no dia do prazo ou quando atrasar). | `server.js` | 1 |
 | `traffic.js` | 102 | Tráfego: quantas pessoas chegam por dia em cada número (principal, Central, vendedores, Instagram), quantas vêm de anúncio, de qual anúncio, | `server.js` | 1 |
@@ -211,6 +211,7 @@
 - `rgFix2026`
 - `rodizio2026`
 - `schoolMemory2026`
+- `silvaniNina2026`
 - `teamRouting2026`
 - `techMemory2026`
 - `termsMigration2026`

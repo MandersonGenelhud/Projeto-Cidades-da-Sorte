@@ -464,6 +464,36 @@ export class Store extends EventEmitter {
       this.data.marcosNovo2026 = true;
       this.flush();
     }
+    // Silvani (esposa do Marcos), apelido "Nina": WhatsApp +595 986 192 588, diretoria na Maria, e na MESMA pasta da Ana do Marcos.
+    if (!this.data.silvaniNina2026) {
+      const NUM = '595986192588';
+      const tail = (x) => String(x || '').replace(/\D/g, '').slice(-9);
+      const fold = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const users = this.data.users || [];
+      const silvani = users.find((u) => /\bsilvan[ei]\b/.test(fold(u.name)));
+      const marcos = users.find((u) => u.role === 'admin' && /^marcos\b/.test(fold(u.name)));
+      if (silvani) {
+        const taken = users.some((u) => u.id !== silvani.id && u.active !== false && tail(u.whatsapp) === tail(NUM));
+        if (!taken) silvani.whatsapp = NUM;
+        silvani.aliases = [...new Set([...(silvani.aliases || []), 'Nina'])];
+        const st = this.data.settings;
+        st.maria ||= {}; st.maria.profiles ||= {}; st.maria.profiles[silvani.id] = 'full';
+        if (marcos) {
+          st.ana ||= {};
+          const joint = Array.isArray(st.ana.joint) ? st.ana.joint : [];
+          if (!joint.some((j) => j.userId === silvani.id)) {
+            st.ana.joint = [...joint, { userId: silvani.id, withUserId: marcos.id, at: new Date().toISOString() }];
+            // Junta o que ela já tinha na Ana com a pasta do Marcos (nada se perde).
+            const all = (this.data.personal ||= {}); const from = all[silvani.id]; const to = (all[marcos.id] ||= { items: [], entries: [], budgets: {}, settings: {}, last: null });
+            if (from) { for (const k of ['items', 'entries', 'shopping', 'goals', 'notes']) { to[k] = [...(to[k] || []), ...(from[k] || [])]; from[k] = []; } }
+          }
+          // Se ela estava como "pessoa da casa" com este número, sai de lá (agora é da Equipe).
+          if (Array.isArray(st.ana.family)) st.ana.family = st.ana.family.filter((f) => tail(f.whatsapp) !== tail(NUM));
+        }
+      }
+      this.data.silvaniNina2026 = true;
+      this.flush();
+    }
     // Pedido da direção (13/11/2026): o Manderson recebe cópia de tudo o que é avisado ao Marcos.
     if (!this.data.copiaManderson2026) {
       const c = this.data.settings.crm;

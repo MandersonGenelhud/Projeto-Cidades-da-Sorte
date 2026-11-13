@@ -737,7 +737,9 @@ async function refreshDueBadge() {
 // ---------- EQUIPE ----------
 const SECTOR_BTNS = [['documentacao', 'Documentação'], ['loteamentos', 'Terrenos'], ['veiculos', 'Veículos']];
 loaders.team = async () => {
-  const [users, settings, myLines] = await Promise.all([api('/api/users'), api('/api/settings').catch(() => ({})), api('/api/lines').catch(() => [])]);
+  const [users, settings, myLines, mariaCfg] = await Promise.all([api('/api/users'), api('/api/settings').catch(() => ({})), api('/api/lines').catch(() => []), window.currentUser?.role === 'admin' ? api('/api/maria').catch(() => null) : Promise.resolve(null)]);
+  const mariaOf = (u) => mariaCfg?.people?.find((p) => p.id === u.id)?.profile || '';
+  const MARIA_OPTS = [['full', 'Diretoria (vê tudo)'], ['secretaria', 'Secretária (sem valores)'], ['own', 'Vendedor (só o dele)'], ['off', 'Sem a Maria']];
   $$('#formUser [data-admin-only]').forEach((el) => (el.hidden = window.currentUser?.role !== 'admin'));
   const lineOf = (u) => myLines.find((l) => l.ownerId === u.id);
   const active = users.filter((u) => u.active);
@@ -766,13 +768,15 @@ loaders.team = async () => {
         ${window.currentUser?.role === 'admin' && u.id !== window.currentUser.id ? `<button class="btn small ${u.role === 'admin' ? 'primary' : ''}" data-act="generaladmin" title="Administrador geral vê e gerencia os dois escritórios e todo o sistema">${u.role === 'admin' ? 'É administrador geral' : 'Tornar administrador geral'}</button>` : ''}
         ${u.role !== 'admin' ? `<button class="btn small ${u.manager ? 'primary' : ''}" data-act="manager" title="Gerente cadastra mapas, lotes, veículos e alunos (nunca exclui)">${u.manager ? 'É gerente' : 'Tornar gerente'}</button>` : ''}` : ''}
       ${u.active && !u.trafficOnly ? (() => { const l = lineOf(u); return !l ? '<button class="btn small primary" data-act="connectwa">Conectar WhatsApp</button>' : l.status !== 'connected' ? `<button class="btn small primary" data-act="showqr" data-line="${esc(l.id)}">Ver QR Code</button>` : ''; })() : ''}
+      ${mariaCfg && u.active ? (u.role === 'admin' ? '<span class="badge running" title="Administrador geral é sempre diretoria na Maria">Maria: diretoria</span>' : `<label class="check" title="O que esta pessoa pode pedir à Maria">Maria <select data-maria="${esc(u.id)}">${MARIA_OPTS.map(([v, l]) => `<option value="${v}" ${mariaOf(u) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`) : ''}
+      ${window.currentUser?.role === 'admin' ? `<button class="btn small" data-act="aliases" title="Apelidos que a Maria e a Ana reconhecem (ex.: Nina)">Apelido${(u.aliases || []).length ? `: ${esc(u.aliases.join(', '))}` : ''}</button>` : ''}
       <button class="btn small" data-act="edit">Editar</button>
       <button class="btn small" data-act="password">Senha</button>
       ${u.lockedMin ? '<button class="btn small primary" data-act="unlock">Liberar acesso</button>' : ''}
       ${u.id === window.currentUser.id ? '' : `<button class="btn small ${u.active ? 'danger' : ''}" data-act="toggle">${u.active ? 'Desativar' : 'Reativar'}</button>`}
       <button class="btn small" data-act="transfer" title="Passar os prospectos em aberto para outra pessoa">Passar carteira</button>
     </div>`).join('');
-  $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads, receivesAffiliateLeads, sectors, manager, officeAdmin, office }) => ({ id, name, receivesLeads, receivesAffiliateLeads, sectors, manager, officeAdmin, office })));
+  $('#teamList').dataset.users = JSON.stringify(active.map(({ id, name, receivesLeads, receivesAffiliateLeads, sectors, manager, officeAdmin, office, aliases }) => ({ id, name, receivesLeads, receivesAffiliateLeads, sectors, manager, officeAdmin, office, aliases })));
   renderSystemLinks().catch(() => {});
   loaders.lines().catch(() => {});
 
@@ -808,6 +812,11 @@ loaders.team = async () => {
   f.packages.value = (c.packages || []).map((p) => `${p.name} = ${p.price}`).join('\n');
 };
 
+$('#teamList').addEventListener('change', async (e) => {
+  const sel = e.target.closest('select[data-maria]');
+  if (!sel) return;
+  try { await api('/api/maria', { method: 'PUT', body: { profiles: { [sel.dataset.maria]: sel.value } } }); toast('Acesso à Maria atualizado.'); } catch (err) { toast(err.message, true); loaders.team(); }
+});
 $('#teamList').addEventListener('click', async (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   const id = e.target.closest('[data-user]')?.dataset.user;
@@ -818,6 +827,14 @@ $('#teamList').addEventListener('click', async (e) => {
       toast('Abrindo a conexão: o QR Code aparece em alguns segundos.');
       showTab('lines');
       return;
+    }
+    if (act === 'aliases') {
+      const cur = (JSON.parse($('#teamList').dataset.users || '[]').find((x) => x.id === id)?.aliases || []).join(', ');
+      const v = prompt('Apelidos desta pessoa (separados por vírgula). A Maria e a Ana reconhecem por eles. Ex.: Nina', cur);
+      if (v === null) return;
+      await api(`/api/users/${id}`, { method: 'PATCH', body: { aliases: v } });
+      toast('Apelido salvo.');
+      return loaders.team();
     }
     if (act === 'showqr') {
       const lineId = e.target.closest('[data-line]')?.dataset.line;
