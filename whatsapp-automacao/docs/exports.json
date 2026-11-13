@@ -732,6 +732,12 @@
   "registerLinkDiretoRoutes",
   "waLink"
  ],
+ "src/routes/pasta-cliente.js": [
+  "DOC_KINDS",
+  "registerPastaClienteRoutes",
+  "sameClientSales",
+  "sniffType"
+ ],
  "src/routing.js": [
   "LeadRouter",
   "REPEAT_MS",

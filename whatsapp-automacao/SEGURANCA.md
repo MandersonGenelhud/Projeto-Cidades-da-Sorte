@@ -833,3 +833,17 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
   - o banco é gravado **sem formatação** (arquivo menor, gravação mais rápida), no máximo uma vez a cada 300 ms e **sem adiar para sempre**. Antes, com mensagens chegando sem parar, a gravação podia ficar sendo empurrada.
   - Nada do banco foi apagado nem convertido: o arquivo continua sendo o mesmo JSON, só sem espaços.
 - Testes: `test/tempo-real.test.js`.
+
+## Pasta do cliente dentro do contrato (13/11/2026)
+
+- **O que é**: cada contrato tem uma pasta com os documentos do cliente: passaporte, RG/CNH, certidões, antecedentes, foto, comprovantes, contrato assinado e documentos emitidos no Paraguai. Na **renovação**, a pasta do contrato novo mostra também os documentos dos **contratos anteriores do mesmo cliente** (mesmo telefone ou, sem telefone, mesmo nome), para não pedir tudo de novo.
+- **Proteções**:
+  - só vê e envia quem pode ver o contrato (administrador ou o vendedor dele);
+  - só PDF e foto (JPG, PNG, WEBP), **conferidos pelo conteúdo do arquivo** (um HTML com nome .pdf é recusado);
+  - no máximo 15 MB por arquivo e 60 por contrato;
+  - os arquivos ficam em `data/client-docs/` (fora do Git), na pasta do contrato (0700), com nome aleatório (0600);
+  - o download é sempre como anexo (`Content-Disposition: attachment`, `nosniff`, sem cache);
+  - envio, download e exclusão ficam registrados (`pasta_cliente_*`); **só o administrador exclui**.
+- **Maria**: ao mostrar um contrato, diz quantos documentos estão na pasta e de que tipo. Ela **nunca envia os arquivos**: para baixar, abre-se o contrato no painel.
+- **Relatórios da Maria**: "contratos Ouro dos últimos 7 dias" filtra pelo pacote ou serviço, e cada contrato vem com a **data de entrada**.
+- Testes: `test/pasta-cliente.test.js`, `test/maria.test.js`.

@@ -55,6 +55,7 @@ import { registerClientesEsperandoRoutes } from './routes/clientes-esperando.js'
 import { registerDiagnosticoNumeroRoutes, diagnosisText } from './routes/diagnostico-numero.js';
 import { registerLinkDiretoRoutes } from './routes/link-direto.js';
 import { SseHub } from './sse-hub.js';
+import { registerPastaClienteRoutes } from './routes/pasta-cliente.js';
 import { FlashOffer } from './flash-offer.js';
 import { GroupBroadcasts } from './group-broadcast.js';
 import { Campaigns } from './campanhas.js';
@@ -1785,7 +1786,7 @@ app.get('/sitemap.xml', (req, res, next) => {
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${origin}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 });
 app.get('/api/public/site', (req, res) => res.json({ home: SITE_HOSTS.has(hostOf(req)) }));
-const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/trafego.js', '/encaminhar-lote.js', '/resgate.js', '/mesa-ao-vivo.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js', '/contabil-painel.js']);
+const PANEL_FILES = new Set(['/', '/index.html', '/app.js', '/crm.js', '/ui.js', '/realty-admin.js', '/hub-areas.js', '/atendentes.js', '/contratos-antigos.js', '/retomar.js', '/executivo.js', '/site-admin.js', '/escritorios.js', '/preco.js', '/curriculos.js', '/videochamadas.js', '/live-admin.js', '/gravacoes.js', '/documentos.js', '/grupos.js', '/tutoriais.js', '/cidades.js', '/marketing.js', '/trafego.js', '/encaminhar-lote.js', '/resgate.js', '/mesa-ao-vivo.js', '/pasta-cliente.js', '/cobranca.js', '/cliente360.js', '/tarefas.js', '/contratos-quadros.js', '/servicos.js', '/comissoes.js', '/suporte.js', '/projetos.js', '/indicadores-admin.js', '/nav-hubs.js', '/empresas-apps.js', '/contabil-painel.js']);
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !PANEL_FILES.has(req.path)) return next();
   if (auth.fromRequest(req)) return next();
@@ -5188,6 +5189,11 @@ app.get('/api/sales/summary', (req, res) => {
   out.affiliateSellerPct = store.settings.sales?.affiliateSellerPct ?? null;
   res.json(out);
 });
+// Pasta do cliente dentro do contrato (documentos para não pedir de novo na renovação): src/routes/pasta-cliente.js
+const pastaCliente = registerPastaClienteRoutes(app, {
+  store, sales, dataDir: DATA_DIR, httpError: (...x) => httpError(...x), securityEvent: (...x) => securityEvent(...x),
+  upload: multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1 } }).single('file'),
+});
 app.get('/api/sales/:id', (req, res) => {
   const s = sales.get(req.params.id);
   if (!s || !sales.canSee(req.user, s)) throw httpError(404, 'Venda não encontrada');
@@ -5439,6 +5445,7 @@ const directorySourcesFor = (viewer) => {
 };
 const directory = { build: (viewer) => buildDirectory(directorySourcesFor(viewer)), search: (viewer, q, opts) => searchDirectory(buildDirectory(directorySourcesFor(viewer)), q, opts) };
 const maria = new Maria({
+  clientDocs: (ids) => pastaCliente.summaryFor(ids),
   directory, ana, portfolio, crm, restartAll, receiptReader: { read: (b, m) => receipts.read(b, m), receiverOk: (r) => receipts.receiverOk(r), get maxAuto() { return receipts.maxAuto; } }, payments, saleDoc: (sale) => quotes.list.find((q) => q.id === sale.quoteId)?.contract?.client?.cpf || closing.list.find((f) => f.leadId && f.leadId === sale.leadId && f.status === 'preenchida')?.data?.cpf || '', store, auth, sales, customers: customer360, collections, cash, llm, contracts: mariaContracts, outbound: mariaOutbound, knowledge: mariaKnowledge,
   lineIdByName: (name) => lines.list().find((l) => String(l.agentName || '').trim().toLowerCase() === String(name).trim().toLowerCase())?.id || '',
   isConnected: (key) => (wa.isConnected ? wa.isConnected(key) : wa.status === 'connected'),

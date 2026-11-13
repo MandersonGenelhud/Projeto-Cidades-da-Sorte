@@ -253,3 +253,14 @@ test('períodos: ontem, semana passada, últimos N dias, mês pelo nome, ano pas
   assert.equal(periodFrom('últimos 30 dias', 'mes', now), 'ultimos:30');
   assert.equal(periodFrom('sem pista', null, now), null);
 });
+
+test('relatório: "contratos Ouro dos últimos 7 dias" filtra pelo pacote e mostra a data de entrada de cada contrato', async () => {
+  const { say } = setup();
+  const r = (await say('5545999990001', 'Maria, relatório dos contratos Ouro dos últimos 7 dias'))[0].text;
+  assert.match(r, /Relatório de contratos — .*pacote\/serviço "?Ouro/i);
+  assert.match(r, /fechados: \*2\*/);
+  assert.match(r, /• \d{2}\/\d{2}\/\d{4} · VND-|• \d{2}\/\d{2}\/\d{4} · /, 'cada contrato traz a data de entrada');
+  assert.match(r, /Pacote Ouro/);
+  const none = (await say('5545999990001', 'Maria, relatório dos contratos Prata dos últimos 7 dias'))[0].text;
+  assert.match(none, /Relatório de contratos/);
+});

@@ -1896,6 +1896,7 @@ async function openSale(id) {
   const act = async (url, body, msg) => {
     try { await api(url, { method: 'POST', body }); toast(msg); openSale(id); loaders.contracts(); } catch (err) { toast(err.message, true); }
   };
+  document.dispatchEvent(new CustomEvent('sale-opened', { detail: { id } })); // a pasta do cliente (pasta-cliente.js) se encaixa aqui
   $$('#saleBody [data-claim]').forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.undo) return act(`/api/sales/${id}/parcel/${b.dataset.claim}/claim`, { undo: true }, 'Aviso retirado');
     const date = prompt('Dia em que o cliente pagou (dd/mm/aaaa):', new Date().toLocaleDateString('pt-BR'));

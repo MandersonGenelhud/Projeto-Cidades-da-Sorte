@@ -83,6 +83,8 @@ nav button.active { background: var(--green-dark); color: #fff; }
 .conn-pill .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
 .conn-pill.connected .dot { background: #25d366; box-shadow: 0 0 8px #25d366; }
 .conn-pill.qr .dot, .conn-pill.connecting .dot { background: var(--yellow); }
+/* Número principal desligado ou fora do ar não é alarme (os números da equipe seguem funcionando): cinza, nunca vermelho. */
+.conn-pill.off .dot, .conn-pill.disconnected .dot { background: #9aa5b1; box-shadow: none; }
 
 main { flex: 1; padding: 24px 32px; max-width: 1200px; min-width: 0; }
 h1 { margin: 0 0 18px; font-size: 24px; }

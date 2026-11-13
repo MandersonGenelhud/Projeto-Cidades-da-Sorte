@@ -117,8 +117,8 @@ function renderStatus(state) {
     connected: `Conectado ${state.me?.phone ? `· ${fmtPhone(state.me.phone)}` : ''}`,
     qr: 'Aguardando QR Code',
     connecting: 'Conectando…',
-    disconnected: 'Principal desconectado',
-    off: 'Principal desligado',
+    disconnected: 'Principal fora de uso',
+    off: 'Principal fora de uso',
   }[state.status];
 
   const mode = state.mode || 'qr';
