@@ -94,3 +94,10 @@ test('rota pública /v redireciona e grava o cookie; painel mostra o link e os c
   assert.deepEqual(out.rodizio.map((v) => v.nome), ['Giovana Souza', 'Eliezer']);
   assert.equal(out.hoje.reduce((s, x) => s + x.cliques, 0), 1);
 });
+
+test('alguém clicando sem parar no link não gasta a vez dos vendedores', () => {
+  const { routes, store } = setup();
+  const res = () => ({ append() {}, set() { return this; }, redirect: (c, url) => { res.last = url; }, status() { return this; }, type() { return this; }, send() {} });
+  for (let i = 0; i < 12; i++) routes['GET /v']({ headers: {}, get: () => 'Mozilla', params: {}, query: {}, ip: '1.2.3.4' }, res());
+  assert.equal(Object.keys(store.data.directClicks).length, 8, 'depois de 8 cliques em 10 min, os outros vão para a Central');
+});

@@ -53,8 +53,18 @@ export function lineDiagnosis(ctx, lineId) {
   // Erros recentes (2 h) deste número ou dos clientes dele.
   const phones = new Set(convs.map((c) => String(c.phone || '')).filter(Boolean));
   const label = String(line.label || '');
-  const errs = (store.data.logs || []).filter((l) => l.type === 'error' && now - Date.parse(l.at) < 2 * 3_600_000
+  const allErrs = (store.data.logs || []).filter((l) => l.type === 'error' && now - Date.parse(l.at) < 2 * 3_600_000
     && ((label && String(l.message || '').includes(label)) || phones.has(String(l.phone || '')) || String(l.phone || '').startsWith(`l:${line.id}:`))).slice(-4);
+  // Erro de CONEXÃO de antes da última vez que o número conectou já foi resolvido: não conta como problema (só uma linha informando).
+  const phone = String(line.phone || line.me?.phone || '').replace(/\D/g, '');
+  const connectedAt = Math.max(Number(ctx.connectedAt?.(line.id)) || 0, ...(store.data.logs || [])
+    .filter((l) => l.type === 'system' && /conectado/i.test(String(l.message || '')) && ((phone && String(l.message).includes(phone)) || (label && String(l.message).includes(label))))
+    .map((l) => Date.parse(l.at) || 0));
+  const isConnErr = (e) => /WhatsApp:|sess[aã]o|conex[aã]o|desconect/i.test(String(e.message || ''));
+  const online = wa.isConnected(key1);
+  const resolved = allErrs.filter((e) => online && isConnErr(e) && Date.parse(e.at) <= connectedAt);
+  const errs = allErrs.filter((e) => !resolved.includes(e));
+  if (resolved.length) out.push('', `✅ ${resolved.length === 1 ? 'Um erro de conexão anterior já foi resolvido' : `${resolved.length} erros de conexão anteriores já foram resolvidos`}: o número reconectou às ${new Date(connectedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Asuncion' })}.`);
   if (errs.length) {
     problemas += errs.length;
     out.push('', '*Erros recentes:*', ...errs.map((e) => `🔴 ${new Date(e.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Asuncion' })} ${String(e.message || '').slice(0, 200)}`));

@@ -57,3 +57,29 @@ test('rota: cada um só vê o próprio número; /diagnostico é reconhecido como
   assert.equal(parseCommand('/diagnostico').cmd, 'diagnostico');
   assert.equal(parseCommand('/diag').cmd, 'diagnostico');
 });
+
+test('erro de conexão de antes de reconectar aparece como resolvido, não como problema', () => {
+  const logs = [
+    { at: '2026-11-13T15:51:00Z', type: 'error', message: '[Manderson] WhatsApp: sessão salva corrompida; gerando uma nova (código 500)' },
+    { at: '2026-11-13T15:55:00Z', type: 'system', message: '✅ WhatsApp +556993051671 conectado e identificado: Manderson' },
+  ];
+  const d = lineDiagnosis(ctx({ logs, line: { phone: '556993051671' } }), 'mand');
+  assert.equal(d.problemas, 0);
+  const t = d.linhas.join('\n');
+  assert.match(t, /já foi resolvido: o número reconectou/);
+  assert.ok(!/Erros recentes/.test(t));
+  // Se cair de novo DEPOIS de conectar, volta a ser problema.
+  logs.push({ at: '2026-11-13T15:58:00Z', type: 'error', message: '[Manderson] WhatsApp: conexão caiu (código 428)' });
+  const d2 = lineDiagnosis(ctx({ logs, line: { phone: '556993051671' } }), 'mand');
+  assert.equal(d2.problemas, 1);
+  assert.match(d2.linhas.join('\n'), /código 428/);
+});
+
+test('reconexão com o MESMO número (sem linha no registro) também resolve o erro antigo', () => {
+  const logs = [{ at: '2026-11-13T15:51:00Z', type: 'error', message: '[Manderson] WhatsApp: sessão salva corrompida; gerando uma nova (código 500)' }];
+  const c = ctx({ logs });
+  c.connectedAt = () => Date.parse('2026-11-13T15:54:00Z');
+  const d = lineDiagnosis(c, 'mand');
+  assert.equal(d.problemas, 0);
+  assert.match(d.linhas.join('\n'), /reconectou/);
+});

@@ -802,6 +802,7 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
   - O sistema prefere o vendedor com o WhatsApp **conectado ao sistema**, para a conversa aparecer no Hub.
   - Sem vendedor disponível, ou com o link desligado em Tráfego, a pessoa vai para a **Central**: nunca fica sem destino.
   - Os cliques com mais de 60 dias são apagados.
+  - Mais de 8 cliques do mesmo endereço em 10 minutos não gastam a vez dos vendedores: os seguintes vão para a Central.
 - **Por que é seguro para o número do vendedor**: quem começa a conversa é o **cliente**; o número do vendedor não manda nada para gente nova.
 - **Quando o cliente manda a mensagem com o código**: o sistema marca a chegada, liga o prospecto ao vendedor do rodízio e ao anúncio/campanha (aparece no relatório de Tráfego) e deixa uma nota no prospecto. O código só vale uma vez.
 - **Painel**: Tráfego → "Link direto para o vendedor", só para administrador. Mostra o link, quem está no rodízio e os cliques e chegadas de hoje por vendedor, e tem o botão liga/desliga. Testes: `test/link-direto.test.js`.
@@ -811,3 +812,5 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - Quando um número cai ou reconecta (por exemplo, "sessão salva corrompida, código 500"), o WhatsApp entrega depois as mensagens recebidas nesse meio tempo como "histórico". Antes elas iam só para a fila de "sem resposta" e **não apareciam em Conversas** até a IA responder, e a lista do número parecia parada em ontem. Agora a mensagem de quem ficou esperando entra **na conversa** na hora.
 - Só entram mensagens dos últimos **3 dias** e mais novas que a última da conversa. Elas entram como uma mensagem só, com o mesmo texto que a fila usa, e por isso **não duplicam** quando a IA responde nem quando o histórico chega de novo. Teste: `test/pending.test.js`.
 - O indicador no rodapé do menu mostra só o **número principal** ("Principal desconectado" ou "Principal desligado"). Os números da equipe ficam em Conexões.
+
+- **(diagnóstico)** Um erro de **conexão** de antes da última vez que o número conectou aparece como "já foi resolvido: o número reconectou às HH:MM" e **não conta como problema**. Se o número cair de novo depois de conectar, volta a aparecer em "Erros recentes".

@@ -96,7 +96,17 @@ export function registerLinkDiretoRoutes(app, ctx) {
   }
 
   // Link público (vai no anúncio). /v e /v/<campanha>.
+  // Muitos cliques do mesmo endereço em 10 min (alguém clicando sem parar): não gasta a vez dos vendedores, vai para a Central.
+  const hits = new Map();
   const handler = (req, res) => {
+    const ip = String(ctx.clientIp?.(req) || req.ip || '');
+    const recent = (hits.get(ip) || []).filter((t) => now() - t < 600_000);
+    hits.set(ip, [...recent, now()]);
+    if (hits.size > 5000) hits.clear();
+    if (recent.length >= 8) {
+      const central = digits(ctx.centralPhone?.());
+      return central ? res.set('Cache-Control', 'no-store').redirect(302, waLink(central, 'Olá! Vim pelo anúncio da Migra e quero atendimento.')) : res.status(429).type('text/plain').send('Muitos cliques seguidos. Tente de novo em alguns minutos.');
+    }
     const cookie = String(req.headers.cookie || '').split(/;\s*/).find((x) => x.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) || '';
     const r = click({ ua: String(req.get('user-agent') || ''), cookie: decodeURIComponent(cookie), campanha: req.params.campanha || req.query.c || req.query.utm_campaign || '' });
     if (r.code && !r.repeat) res.append('Set-Cookie', `${COOKIE}=${encodeURIComponent(r.code)}; Max-Age=86400; Path=/v; SameSite=Lax; HttpOnly${req.secure ? '; Secure' : ''}`);

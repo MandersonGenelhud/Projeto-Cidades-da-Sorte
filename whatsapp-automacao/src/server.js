@@ -1531,6 +1531,9 @@ wa.on('sent', ({ to, jid }) => {
 });
 wa.on('lineStatus', (state) => notify('lineStatus', state));
 // WhatsApp do vendedor conectou: confere se o número é o do cadastro.
+// Quando cada número da equipe conectou pela última vez (o diagnóstico usa para saber que um erro de conexão antigo já foi resolvido).
+const lineConnectedAt = new Map();
+lines.on('status', (state) => { if (state.status === 'connected') lineConnectedAt.set(state.id, Date.now()); });
 lines.on('status', (state) => {
   if (state.status !== 'connected' || !state.me?.phone) return;
   const line = lines.get(state.id);
@@ -3285,6 +3288,7 @@ const linkDireto = registerLinkDiretoRoutes(app, {
   store, auth, crm, lines, wa,
   pool: (u) => centralPoolFor(null, true)(u),
   centralPhone: () => store.settings.crm?.centralWhatsapp || '',
+  clientIp: (req) => clientIp(req),
   needAdmin: (r) => needAdmin(r), httpError: (...x) => httpError(...x), publicBase: () => publicBase(),
 });
 // "Por que a minha IA não responde?": diagnóstico do próprio número (atalho /diagnostico e GET /api/diagnostico-numero).
@@ -3292,6 +3296,7 @@ const diagnosticoNumero = registerDiagnosticoNumeroRoutes(app, {
   store, agent, wa, lines, pending,
   isWithinWorkHours: () => isWithinWorkHours(store.settings.agent?.workHours),
   convWhyNot: (conv) => convWhyNot(conv),
+  connectedAt: (id) => lineConnectedAt.get(id) || 0,
 });
 // Clientes da Migra que ficaram sem resposta no WhatsApp dos vendedores (e os "Só um momento"): a IA do número começa a atender, um de cada vez.
 const clientesEsperando = registerClientesEsperandoRoutes(app, {

@@ -152,9 +152,9 @@
 | `routes/assinatura-contratada.js` | 88 | Assinatura da empresa (CONTRATADA) nos contratos: a própria pessoa cadastra a imagem da assinatura e autoriza o uso (nunca é desenhada nem imitada). | `server.js` | **0** |
 | `routes/clientes-esperando.js` | 174 | "Clientes da Migra esperando no WhatsApp do vendedor": acha, no número de cada vendedor, quem escreveu sobre a Migra e ainda não foi | `server.js` | 1 |
 | `routes/controle.js` | 253 | Rotas de CONTROLE das conversas e do atendimento (só administrador): quadros por pessoa, auditoria dos números, envio por número, | `server.js` | 1 |
-| `routes/diagnostico-numero.js` | 75 | Diagnóstico do número de um vendedor: "por que a minha IA não responde?". Mostra, em português simples, cada coisa que pode estar travando | `server.js` | 1 |
+| `routes/diagnostico-numero.js` | 85 | Diagnóstico do número de um vendedor: "por que a minha IA não responde?". Mostra, em português simples, cada coisa que pode estar travando | `server.js` | 1 |
 | `routes/fechamentos.js` | 69 | Rotas do painel de FECHAMENTOS (só administrador): funil depois do orçamento, checklist de acompanhamento, radar de objeções | `server.js` | **0** |
-| `routes/link-direto.js` | 131 | LINK DIRETO PARA O VENDEDOR (rodízio sem passar pela atendente): o anúncio aponta para https://<painel>/v (ou /v/<campanha>). | `server.js` | 1 |
+| `routes/link-direto.js` | 141 | LINK DIRETO PARA O VENDEDOR (rodízio sem passar pela atendente): o anúncio aponta para https://<painel>/v (ou /v/<campanha>). | `server.js` | 1 |
 | `routing.js` | 177 | Encaminhamento: a IA fez a peneira no Direct/WhatsApp, o cliente está pronto | `digest.js`, `sectors.js`, `server.js` | 4 |
 | `sale-receipts.js` | 92 | Recibo da PARCELA de uma venda/contrato: quando uma parcela é dada como recebida (pelo painel, pela Maria lendo o comprovante ou pelo Pix automático), | `server.js` | 1 |
 | `sales-coach.js` | 77 | A Maria como vendedora da equipe: roteiro de venda (o mesmo espírito do atendente de IA) e leitura do CRM para dizer | `maria.js` | 1 |
@@ -168,7 +168,7 @@
 | `seller-pipeline.js` | 67 | Pipeline por vendedor: para cada pessoa da equipe (Eliezer, Giovana, Diego, Fran, Marcos…), quem ela está atendendo, quem recebeu orçamento, | `campanhas-funil.js`, `server.js` | 1 |
 | `send-guard.js` | 60 | Proteção do número contra bloqueio do WhatsApp: cada número (conta) envia com intervalo mínimo variável entre mensagens, um teto por minuto | `server.js` | 1 |
 | `send-profiles.js` | 57 | Configuração de envio POR NÚMERO (principal, Instagram e o WhatsApp de cada vendedor): limite por hora, limite por dia, | `agent/agent.js`, `lead-repair.js`, `messaging-audit.js`, `pending.js`, `routes/controle.js` | 2 |
-| `server.js` | 6347 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
+| `server.js` | 6352 | Servidor HTTP: API REST + painel web + webhook da Meta. | — | **0** |
 | `services.js` | 118 | Catálogo de serviços: cada serviço com preço base, prazo, comissão e categoria. | `server.js` | 2 |
 | `shopping.js` | 92 | Lista de compras da Ana: cada item vai sozinho para o tipo de loja onde se compra | `ana.js`, `personal.js` | 1 |
 | `silence.js` | 98 | Cliente que SUMIU: o sistema chama de volta, como uma pessoa faria. | `pending.js`, `server.js` | 2 |
