@@ -111,11 +111,13 @@ function renderStatus(state) {
   connState = state;
   const pill = $('#connPill');
   pill.className = `conn-pill ${state.status}`;
+  // Este indicador é só do NÚMERO PRINCIPAL; os números da equipe (Central, vendedores, Maria) aparecem em Conexões.
+  pill.title = 'Situação do número principal. Os números da equipe (Central, vendedores, Maria) ficam em Conexões.';
   $('#connText').textContent = {
     connected: `Conectado ${state.me?.phone ? `· ${fmtPhone(state.me.phone)}` : ''}`,
     qr: 'Aguardando QR Code',
     connecting: 'Conectando…',
-    disconnected: 'Desconectado',
+    disconnected: 'Principal desconectado',
     off: 'Principal desligado',
   }[state.status];
 

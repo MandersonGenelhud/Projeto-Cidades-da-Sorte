@@ -804,3 +804,9 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 - **Por que é seguro para o número do vendedor**: quem começa a conversa é o **cliente**; o número do vendedor não manda nada para gente nova.
 - **Quando o cliente manda a mensagem com o código**: o sistema marca a chegada, liga o prospecto ao vendedor do rodízio e ao anúncio/campanha (aparece no relatório de Tráfego) e deixa uma nota no prospecto. O código só vale uma vez.
 - **Painel**: Tráfego → "Link direto para o vendedor", só para administrador. Mostra o link, quem está no rodízio e os cliques e chegadas de hoje por vendedor, e tem o botão liga/desliga. Testes: `test/link-direto.test.js`.
+
+## Mensagens que chegam durante a queda aparecem em Conversas (13/11/2026)
+
+- Quando um número cai ou reconecta (por exemplo, "sessão salva corrompida, código 500"), o WhatsApp entrega depois as mensagens recebidas nesse meio tempo como "histórico". Antes elas iam só para a fila de "sem resposta" e **não apareciam em Conversas** até a IA responder, e a lista do número parecia parada em ontem. Agora a mensagem de quem ficou esperando entra **na conversa** na hora.
+- Só entram mensagens dos últimos **3 dias** e mais novas que a última da conversa. Elas entram como uma mensagem só, com o mesmo texto que a fila usa, e por isso **não duplicam** quando a IA responde nem quando o histórico chega de novo. Teste: `test/pending.test.js`.
+- O indicador no rodapé do menu mostra só o **número principal** ("Principal desconectado" ou "Principal desligado"). Os números da equipe ficam em Conexões.

@@ -137,10 +137,14 @@ test('histórico do celular: a IA recebe as 20 mensagens anteriores da conversa 
   old.push(msg(jid, false, 'e aí, como faço para começar?', 20));
   inbox.ingestHistory(old.map((m) => ({ ...m, timestamp: Date.now() - (NOW - m.timestamp) })));
   const conv = store.data.conversations[jid];
-  assert.equal(conv.messages.length, 20);
+  assert.equal(conv.messages.length, 21, '20 de contexto + a mensagem que ficou esperando (aparece em Conversas na hora)');
   assert.equal(conv.messages[0].content, 'mensagem 4');
-  assert.equal(conv.messages.at(-1).content, 'mensagem 23');
-  assert.equal(conv.messages.at(-1).role, 'assistant');
+  assert.equal(conv.messages.at(-2).content, 'mensagem 23');
+  assert.equal(conv.messages.at(-2).role, 'assistant');
+  assert.equal(conv.messages.at(-1).role, 'user');
+  assert.equal(conv.messages.at(-1).content, 'e aí, como faço para começar?');
+  inbox.ingestHistory(old.map((m) => ({ ...m, timestamp: Date.now() - (NOW - m.timestamp) })));
+  assert.equal(store.data.conversations[jid].messages.length, 21, 'o mesmo histórico de novo não duplica');
   assert.deepEqual(inbox.list()[0].texts, ['e aí, como faço para começar?']);
   assert.equal(inbox.list()[0].context, undefined);
 });

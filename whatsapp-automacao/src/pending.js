@@ -209,6 +209,7 @@ export class PendingInbox {
         if (lastReply >= p.at) continue;
       }
       this.#seedContext(p);
+      this.#mirror(p);
       const ig = String(p.jid).startsWith('ig:');
       const { context, ...item } = p;
       this.items[p.jid] = { ...item, channel: ig ? 'instagram' : 'whatsapp', username: ig ? messages.find((m) => m.jid === p.jid && m.username)?.username || '' : '', source: 'histórico' };
@@ -233,6 +234,26 @@ export class PendingInbox {
     conv.messages.push(...p.context);
     conv.updatedAt = new Date().toISOString();
     this.store.save();
+  }
+
+  /**
+   * Mensagens que chegaram enquanto o número estava caído ou reconectando (vêm como "histórico"): também entram na conversa, para aparecerem
+   * em Conversas na hora (antes só apareciam depois que a IA respondia, e a lista do número parecia "parada em ontem"). Só as dos últimos
+   * 3 dias e só se forem mais novas que a última mensagem da conversa. Grava como UMA mensagem com o mesmo texto que a fila vai usar,
+   * para a IA não registrar duas vezes quando responder.
+   */
+  #mirror(p) {
+    if (!p.texts?.length || Date.now() - p.at > 3 * 86_400_000) return;
+    const conv = this.agent.conversation(p.jid);
+    const last = conv.messages.at(-1);
+    const joined = p.texts.join('\n');
+    if (last && (Date.parse(last.at) >= p.at || (last.role === 'user' && last.content === joined))) return;
+    conv.phone ||= p.phone;
+    conv.name ||= p.name;
+    conv.messages.push({ role: 'user', content: joined, at: new Date(p.at).toISOString() });
+    conv.updatedAt = new Date(p.at).toISOString();
+    this.store.save();
+    try { this.notify('conversation', { key: p.jid }); } catch { /* a tela atualiza no próximo ciclo */ }
   }
 
   /** Mensagem recebida agora: entra na lista até alguém responder. */
