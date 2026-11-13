@@ -442,6 +442,28 @@ export class Store extends EventEmitter {
       this.data.rodizio2026 = true;
       this.flush();
     }
+    // Número novo do Marcos (13/11/2026): +595 982 543 275. Estava no cadastro de outra pessoa (a Maria e a Ana o chamavam de "Silvani").
+    // Passa para o cadastro do Marcos (e como número do dono); de quem estava, o número é retirado e fica anotado.
+    if (!this.data.marcosNovo2026) {
+      const NOVO = '595982543275';
+      const tail = (x) => String(x || '').replace(/\D/g, '').slice(-9);
+      const fold = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const users = this.data.users || [];
+      const marcos = users.find((u) => u.role === 'admin' && /^marcos\b/.test(fold(u.name)));
+      if (marcos) {
+        for (const u of users) {
+          if (u.id !== marcos.id && u.whatsapp && tail(u.whatsapp) === tail(NOVO)) { u.whatsappAntigo = u.whatsapp; u.whatsapp = ''; u.whatsappRetiradoEm = new Date().toISOString(); }
+        }
+        if (marcos.whatsapp && tail(marcos.whatsapp) !== tail(NOVO)) marcos.whatsappAntigo = marcos.whatsapp;
+        marcos.whatsapp = NOVO;
+        const c = this.data.settings.crm;
+        if (c) c.ownerPhone = NOVO;
+        const fam = this.data.settings.ana?.family;
+        if (Array.isArray(fam)) this.data.settings.ana.family = fam.filter((f) => tail(f.whatsapp) !== tail(NOVO));
+      }
+      this.data.marcosNovo2026 = true;
+      this.flush();
+    }
     // Pedido da direção (13/11/2026): o Manderson recebe cópia de tudo o que é avisado ao Marcos.
     if (!this.data.copiaManderson2026) {
       const c = this.data.settings.crm;

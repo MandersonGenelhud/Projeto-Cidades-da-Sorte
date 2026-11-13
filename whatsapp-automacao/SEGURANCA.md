@@ -747,3 +747,8 @@ Estas ferramentas complementam o radar de cibersegurança. Antes de adotar, conf
 
 ## Cópia de tudo o que é avisado ao Marcos (13/11/2026)
 - Pedido da direção: os números em `crm.copyToPhones` (gravado uma vez com o número do Manderson, +55 69 99305-1671) recebem **cópia de todo aviso que vai para o Marcos**: avisos da Central, da Maria (inclusive as travas de "pediu para excluir/alterar"), mentoria, contratações, fechamentos, pagamentos, contratos e documentos. A cópia chega marcada como "Cópia do aviso ao Marcos". Avisos que já vão a todos os administradores chegam uma vez só (sem duplicar). O envio ao Marcos nunca espera nem falha por causa da cópia. Os limites de envio (proteção contra bloqueio) valem também para as cópias. Teste: `test/copia-avisos.test.js`.
+
+## Número novo do Marcos e um WhatsApp por pessoa (13/11/2026)
+- **Causa**: o número novo do Marcos (+595 982 543 275) estava no cadastro de outra pessoa (Silvani); a Maria e a Ana reconhecem quem escreve pelo número, por isso o chamavam de "Silvani".
+- **Correção (uma vez, na atualização)**: o número sai do cadastro de quem estava (fica anotado em `whatsappAntigo`), vai para o cadastro do Marcos e passa a ser o número do dono (`crm.ownerPhone`, que recebe os avisos). Se estava como "pessoa da casa" na Ana, sai de lá.
+- **Daqui em diante**: o sistema **não deixa** o mesmo WhatsApp em duas pessoas ativas da Equipe (mostra em qual cadastro o número já está). Teste: `test/numero-marcos.test.js`.

@@ -3,7 +3,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { normalizePhone, uid } from './utils.js';
+import { normalizePhone, samePhone, uid } from './utils.js';
 
 const COOKIE = 'zapauto_sessao';
 const SESSION_DAYS = 7; // depois disso, entra de novo
@@ -87,6 +87,14 @@ export class Auth {
     return this.users.filter((u) => u.active !== false);
   }
 
+  /** Cada WhatsApp é de UMA pessoa só (a Maria, a Ana e o rodízio reconhecem a pessoa pelo número). */
+  #uniquePhone(ph, exceptId) {
+    if (!ph) return ph;
+    const other = this.users.find((x) => x.id !== exceptId && x.active !== false && x.whatsapp && samePhone(x.whatsapp, ph));
+    if (other) throw Object.assign(new Error(`Este WhatsApp já está no cadastro de ${other.name}. Tire o número de lá primeiro: cada número é de uma pessoa só.`), { status: 400 });
+    return ph;
+  }
+
   create({ name, login, password, role = 'seller', whatsapp = '', receivesLeads, pending = false, sectors = [], office = 'py', officeAdmin = false, expiresAt = '', trafficOnly = false }) {
     name = String(name || '').trim();
     login = String(login || '').trim().toLowerCase();
@@ -99,7 +107,7 @@ export class Auth {
       name,
       login,
       role: role === 'admin' ? 'admin' : 'seller',
-      whatsapp: whatsapp ? normalizePhone(whatsapp) || '' : '',
+      whatsapp: this.#uniquePhone(whatsapp ? normalizePhone(whatsapp) || '' : '', null),
       passwordHash: hashPassword(password),
       receivesLeads: trafficOnly && role !== 'admin' ? false : receivesLeads === undefined ? role !== 'admin' : Boolean(receivesLeads),
       ...(trafficOnly && role !== 'admin' ? { trafficOnly: true } : {}),
@@ -139,7 +147,7 @@ export class Auth {
       throw Object.assign(new Error('Precisa existir pelo menos um administrador ativo'), { status: 400 });
     }
     if (patch.name !== undefined) u.name = String(patch.name).trim() || u.name;
-    if (patch.whatsapp !== undefined) u.whatsapp = patch.whatsapp ? normalizePhone(patch.whatsapp) || '' : '';
+    if (patch.whatsapp !== undefined) u.whatsapp = this.#uniquePhone(patch.whatsapp ? normalizePhone(patch.whatsapp) || '' : '', u.id);
     if (patch.role !== undefined) u.role = patch.role === 'admin' ? 'admin' : 'seller';
     if (patch.active !== undefined) {
       u.active = Boolean(patch.active);
