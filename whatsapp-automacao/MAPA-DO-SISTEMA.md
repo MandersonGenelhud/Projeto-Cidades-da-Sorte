@@ -107,7 +107,7 @@
 | `lines.js` | 231 | Números da equipe: um WhatsApp por vendedor (com o nome dele), cada um com o seu | `connection.js`, `send-profiles.js`, `server.js` | 8 |
 | `live.js` | 69 | Página de live: o Meet que a equipe já usa, com frase de "em breve" / "ao vivo", botão de entrar e botões dos grupos de WhatsApp. | `server.js` | 1 |
 | `maintenance.js` | 22 | Ajustes únicos de equipe, aplicados sozinhos na inicialização (cada um só uma vez). | `server.js` | 1 |
-| `marcos-notice.js` | 44 | Aviso do número novo do Marcos: a Maria escreve, uma vez, para quem conversava com ele no número antigo (o principal, que caiu), | `server.js` | 1 |
+| `marcos-notice.js` | 50 | Aviso do número novo do Marcos: a Maria escreve, uma vez, para quem conversava com ele no número antigo (o principal, que caiu), | `server.js` | 1 |
 | `maria-baixa.js` | 150 | Baixa de pagamento pela Maria: o vendedor manda o comprovante (foto ou PDF), a Maria lê, descobre de quem é o pagamento e qual parcela ou | `maria.js` | 1 |
 | `maria-items.js` | 62 | Vários pacotes no mesmo pedido ("5 Ouro, 1 Estudantil e 1 Inicial, com 10% de desconto"): lê a lista e o desconto do texto, sem IA. | `maria.js` | 1 |
 | `maria-outbound.js` | 127 | Envio ao cliente pedido pela Maria: a ficha de dados e o contrato saem pelo WhatsApp que o cliente já conhece | `server.js` | 2 |

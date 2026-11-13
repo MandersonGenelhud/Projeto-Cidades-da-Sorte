@@ -4,6 +4,8 @@
 const fold = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 export const MARCOS_NEW = '595982543275';
+// Vídeo em que o próprio Marcos explica a troca de número (Instagram). Sem os parâmetros de rastreio do link.
+export const MARCOS_VIDEO = 'https://www.instagram.com/reel/DfpZGadT-hW/';
 
 /** Conversas do número antigo do Marcos (o principal) nos últimos `days` dias, com telefone, que ainda não receberam o aviso. */
 export function noticeCandidates(conversations, { days = 30, now = Date.now(), done = {}, isTeam = () => false, isBlocked = () => false, leadOf = () => null } = {}) {
@@ -35,9 +37,13 @@ export function topicOf(lead, conv) {
   return '';
 }
 
-export function noticeText({ name = '', assunto = '', link = `https://wa.me/${MARCOS_NEW}` } = {}) {
+export function noticeText({ name = '', assunto = '', link = `https://wa.me/${MARCOS_NEW}`, video = MARCOS_VIDEO } = {}) {
   const first = String(name || '').trim().split(/\s+/)[0];
   const hora = new Date().toLocaleString('en-GB', { timeZone: 'America/Asuncion', hour: '2-digit', hour12: false });
   const saud = Number(hora) < 12 ? 'Bom dia' : Number(hora) < 18 ? 'Boa tarde' : 'Boa noite';
-  return `${saud}${first ? `, ${first}` : ''}! Aqui é a Maria, do atendimento do Grupo Migra. O Marcos pediu para eu te avisar que o WhatsApp dele mudou${assunto ? `, já que vocês estavam conversando sobre ${assunto}` : ''}. Para falar direto com ele, é só tocar aqui: ${link}`;
+  return [
+    `${saud}${first ? `, ${first}` : ''}! Aqui é a Maria, do atendimento do Grupo Migra. O WhatsApp antigo do Marcos parou de funcionar e ele está com um número novo.`,
+    video ? `Ele mesmo explicou o que aconteceu neste vídeo no Instagram: ${video}` : '',
+    `Como vocês já estavam conversando${assunto ? ` sobre ${assunto}` : ''}, ele pediu para eu te passar o contato novo. Para falar direto com ele, é só tocar aqui: ${link}`,
+  ].filter(Boolean).join('\n\n');
 }

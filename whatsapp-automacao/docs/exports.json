@@ -451,6 +451,7 @@
  ],
  "src/marcos-notice.js": [
   "MARCOS_NEW",
+  "MARCOS_VIDEO",
   "noticeCandidates",
   "noticeText",
   "topicOf"

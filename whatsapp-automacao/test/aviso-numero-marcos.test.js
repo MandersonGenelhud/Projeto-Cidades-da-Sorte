@@ -19,13 +19,15 @@ test('quem recebe: só quem conversou com o Marcos no número antigo, recente, s
   assert.deepEqual(list.map((x) => x.phone), ['5545988880001']);
 });
 
-test('mensagem curta: saudação, Maria do Grupo Migra, assunto quando conhecido e o link do número novo', () => {
+test('mensagem: saudação, Maria do Grupo Migra, o que aconteceu, vídeo do Marcos, assunto e o link do número novo', () => {
   const t = noticeText({ name: 'Edval Souza', assunto: 'a sua documentação no Paraguai' });
-  assert.match(t, /^(Bom dia|Boa tarde|Boa noite), Edval! Aqui é a Maria, do atendimento do Grupo Migra\./);
+  assert.match(t, /^(Bom dia|Boa tarde|Boa noite), Edval! Aqui é a Maria, do atendimento do Grupo Migra\. O WhatsApp antigo do Marcos parou de funcionar/);
+  assert.match(t, /vídeo no Instagram: https:\/\/www\.instagram\.com\/reel\/DfpZGadT-hW\//);
+  assert.doesNotMatch(t, /obrf=/, 'sem o rastreio do link');
   assert.match(t, /estavam conversando sobre a sua documentação no Paraguai/);
   assert.match(t, new RegExp(`https://wa\\.me/${MARCOS_NEW}$`));
-  assert.doesNotMatch(noticeText({}), /conversando sobre/);
-  assert.ok(t.length < 300, 'curta');
+  assert.doesNotMatch(noticeText({ video: '' }), /Instagram/, 'sem vídeo configurado, a frase sai');
+  assert.ok(t.length < 520, 'curta');
 });
 
 test('assunto: interesse registrado primeiro; senão pistas do que a pessoa falou; senão vazio', () => {

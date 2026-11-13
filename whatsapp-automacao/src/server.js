@@ -34,7 +34,7 @@ import { Traffic, trafficRouteAllowed } from './traffic.js';
 import { contactsToVcf } from './vcard.js';
 import { sellerWaLink, nextLinkAction, remindText } from './seller-link.js';
 import { listRescue, rescueThread, seedRescued } from './rescue.js';
-import { noticeCandidates, noticeText, MARCOS_NEW } from './marcos-notice.js';
+import { noticeCandidates, noticeText, MARCOS_NEW, MARCOS_VIDEO } from './marcos-notice.js';
 import { pickConversations, conversationsToHtml, conversationsToText } from './conv-export.js';
 import { BulkHandoff, segmentOf } from './bulk-handoff.js';
 import { needsAutoForward, isStuck, needsDelivery, rotationReasons } from './central-guard.js';
@@ -1321,7 +1321,7 @@ agent.channelNote = (conv) => {
   const parsed = parseLineKey(conv.key);
   const line = parsed ? lines.get(parsed.id) : null;
   const owner = line?.ownerId ? auth.get(line.ownerId) : null;
-  if (line && isMariaKey(conv.key)) return `Você é a MARIA, secretária do Grupo Migra (apresente-se como Maria, do atendimento do Grupo Migra). Esta pessoa conversava com o Marcos no número antigo dele (que parou de funcionar) e recebeu da Maria o aviso do número novo do Marcos: +595 982 543 275, link https://wa.me/${MARCOS_NEW}. Se ela quiser falar com o Marcos, passe esse link. Se tiver dúvidas sobre os serviços do Grupo Migra ou quiser comprar, atenda você mesma com calma: tire as dúvidas pela base do negócio e conduza a venda normalmente (orçamento, ficha, contrato). Nunca invente preço, prazo nem promessa. Fale curto.`;
+  if (line && isMariaKey(conv.key)) return `Você é a MARIA, secretária do Grupo Migra (apresente-se como Maria, do atendimento do Grupo Migra). Esta pessoa conversava com o Marcos no número antigo dele (que parou de funcionar) e recebeu da Maria o aviso do número novo do Marcos: +595 982 543 275, link https://wa.me/${MARCOS_NEW}. Se ela quiser falar com o Marcos, passe esse link. Se perguntar o que aconteceu, diga com calma que o WhatsApp antigo dele parou de funcionar e que ele explicou no Instagram: ${store.settings.crm?.marcosVideoUrl ?? MARCOS_VIDEO}. Se tiver dúvidas sobre os serviços do Grupo Migra ou quiser comprar, atenda você mesma com calma: tire as dúvidas pela base do negócio e conduza a venda normalmente (orçamento, ficha, contrato). Nunca invente preço, prazo nem promessa. Fale curto.`;
   if (line && isCentralLine(line, owner)) return centralNote({ ...line, linkMode: linkMode(), sellers: centralSellerNames().map((n) => n.split(' ')[0]) });
   // Número principal como mesa de entrada: a IA só pergunta o interesse e encaminha ao rodízio (ligado por padrão; desligue em crm.mainAsCentral).
   if (!parsed && mainAsCentral() && !String(conv.key).startsWith('ig:') && !String(conv.key).startsWith('sim:')) return centralNote({ linkMode: linkMode(), sellers: centralSellerNames().map((n) => n.split(' ')[0]) });
@@ -2860,7 +2860,7 @@ app.get('/api/marcos-notice', (req, res) => {
   const days = Math.min(180, Math.max(1, Number(req.query.days) || 30));
   const list = noticeList(days);
   const lid = mariaLineId();
-  res.json({ days, total: list.length, exemplos: list.slice(0, 6).map((x) => ({ nome: x.name.split(' ')[0] || `+${x.phone.slice(0, 5)}…`, assunto: x.assunto })), previa: noticeText({ name: list[0]?.name || 'Ana', assunto: list[0]?.assunto || '' }), mariaConectada: Boolean(lid && wa.isConnected(lineKey(lid, '1@s.whatsapp.net'))), jaAvisados: Object.keys(marcosNotice().done).length, job: marcosNotice().job });
+  res.json({ days, total: list.length, exemplos: list.slice(0, 6).map((x) => ({ nome: x.name.split(' ')[0] || `+${x.phone.slice(0, 5)}…`, assunto: x.assunto })), previa: noticeText({ name: list[0]?.name || 'Ana', assunto: list[0]?.assunto || '', video: store.settings.crm?.marcosVideoUrl ?? MARCOS_VIDEO }), mariaConectada: Boolean(lid && wa.isConnected(lineKey(lid, '1@s.whatsapp.net'))), jaAvisados: Object.keys(marcosNotice().done).length, job: marcosNotice().job });
 });
 app.post('/api/marcos-notice/stop', (req, res) => { needAdmin(req); noticeStop = true; res.json({ ok: true }); });
 app.post('/api/marcos-notice/start', (req, res) => {
@@ -2884,7 +2884,7 @@ app.post('/api/marcos-notice/start', (req, res) => {
       const hh = Number(new Date().toLocaleString('en-GB', { timeZone: 'America/Asuncion', hour: '2-digit', hour12: false }));
       if (hh < 8 || hh >= 20) { st.job.pausadoHorario = true; break; } // passou das 20h: para; o resto sai amanhã com um novo clique
       const key = lineKey(lid, `${x.phone}@s.whatsapp.net`);
-      const text = noticeText({ name: x.name, assunto: x.assunto });
+      const text = noticeText({ name: x.name, assunto: x.assunto, video: store.settings.crm?.marcosVideoUrl ?? MARCOS_VIDEO });
       try {
         st.done[x.phone] = new Date().toISOString(); // marca antes: nunca manda duas vezes
         await wa.send(key, { text, typing: false });
